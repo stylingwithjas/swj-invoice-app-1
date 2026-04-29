@@ -94,7 +94,7 @@ def generate_invoice_pdf(data):
     
     ASSETS = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'assets')
     LOGO_PATH = os.path.join(ASSETS, 'swj_logo.png')
-    SIG_PATH       = '/home/claude/jasmine_signature.png'
+    SIG_PATH = os.path.join(ASSETS, 'jasmine_signature.png')
     LOGO_WHITE_PATH = os.path.join(ASSETS, 'swj_logo_white.png')
     LOGO_W = 148
     LOGO_H = 85
