@@ -393,24 +393,17 @@ function togglePaid(){
     document.getElementById('paid_date').value=new Date().toISOString().split('T')[0];
 }
 
-async function stripePost(ep,params){
-  const r=await fetch(`https://api.stripe.com/v1/${ep}`,{method:'POST',headers:{'Authorization':`Bearer ${STRIPE_KEY}`,'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(params).toString()});
-  const d=await r.json();if(d.error)throw new Error(d.error.message);return d;
-}
-async function stripeGet(ep){
-  const r=await fetch(`https://api.stripe.com/v1/${ep}`,{headers:{'Authorization':`Bearer ${STRIPE_KEY}`}});
-  const d=await r.json();if(d.error)throw new Error(d.error.message);return d;
-}
 async function createPaymentLink(grand,client,invnum,address){
-  setSt('loading','Connecting to Stripe...');
-  let custId=null;
-  try{const s=await stripeGet(`customers/search?query=name:'${encodeURIComponent(client)}'&limit=1`);if(s.data?.length>0){custId=s.data[0].id;setSt('loading','Customer found ✓');}}catch(e){}
-  if(!custId){setSt('loading','Creating customer...');const c=await stripePost('customers',{name:client,description:`SWJ — ${invnum}`,'metadata[invoice]':invnum});custId=c.id;}
   setSt('loading','Creating payment link...');
-  const price=await stripePost('prices',{unit_amount:Math.round(grand*100),currency:'usd','product_data[name]':`Home Staging — ${address}`,'product_data[metadata][invoice]':`${invnum}`});
-  const link=await stripePost('payment_links',{'line_items[0][price]':price.id,'line_items[0][quantity]':'1','metadata[invoice]':invnum,'metadata[client]':client,'after_completion[type]':'hosted_confirmation','after_completion[hosted_confirmation][custom_message]':`Thank you ${client}! Your staging is confirmed. — Styling With Jas`});
+  const r=await fetch('/api/stripe',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({grand,client,invnum,address})
+  });
+  const d=await r.json();
+  if(d.error) throw new Error(d.error);
   setSt('ok','Payment link ready ✓');
-  return link.url;
+  return d.url;
 }
 
 
