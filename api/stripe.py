@@ -15,21 +15,34 @@ def stripe_post(endpoint, params, key):
         }
     )
     try:
-        with urllib.request.urlopen(req, timeout=8) as resp:
-            return json.loads(resp.read())
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            result = json.loads(resp.read())
+            return result
     except urllib.error.HTTPError as e:
         try:
-            return json.loads(e.read())
+            err_body = e.read()
+            return json.loads(err_body)
         except:
-            return {'error': {'message': f'HTTP {e.code}'}}
+            return {'error': {'message': f'HTTP error {e.code}: {e.reason}'}}
+    except urllib.error.URLError as e:
+        return {'error': {'message': f'Network error: {e.reason}'}}
     except Exception as e:
-        return {'error': {'message': str(e)}}
+        return {'error': {'message': f'Exception: {type(e).__name__}: {e}'}}
 
 class handler(BaseHTTPRequestHandler):
     def do_OPTIONS(self):
         self.send_response(200)
         self._cors()
         self.end_headers()
+
+    def do_GET(self):
+        # Test endpoint — confirms API is reachable and key is set
+        key = os.environ.get('STRIPE_SECRET_KEY', '')
+        self._respond(200, {
+            'status': 'ok',
+            'key_set': bool(key),
+            'key_prefix': key[:14] + '...' if key else 'NOT SET'
+        })
 
     def do_POST(self):
         try:
@@ -49,7 +62,7 @@ class handler(BaseHTTPRequestHandler):
         invnum  = str(body.get('invnum', ''))
         address = str(body.get('address', ''))
 
-        # Create price
+        # Step 1 — Create price
         price = stripe_post('prices', {
             'unit_amount': str(int(round(grand * 100))),
             'currency': 'usd',
@@ -58,10 +71,10 @@ class handler(BaseHTTPRequestHandler):
         }, key)
 
         if 'error' in price:
-            self._respond(400, {'error': price['error']['message']})
+            self._respond(400, {'error': 'Price creation failed: ' + price['error']['message']})
             return
 
-        # Create payment link
+        # Step 2 — Create payment link
         link = stripe_post('payment_links', {
             'line_items[0][price]': price['id'],
             'line_items[0][quantity]': '1',
@@ -72,7 +85,7 @@ class handler(BaseHTTPRequestHandler):
         }, key)
 
         if 'error' in link:
-            self._respond(400, {'error': link['error']['message']})
+            self._respond(400, {'error': 'Payment link failed: ' + link['error']['message']})
             return
 
         self._respond(200, {'url': link['url']})
@@ -88,7 +101,7 @@ class handler(BaseHTTPRequestHandler):
 
     def _cors(self):
         self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
         self.send_header('Access-Control-Allow-Headers', 'Content-Type')
 
     def log_message(self, format, *args):
