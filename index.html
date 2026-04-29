@@ -523,50 +523,49 @@ async function generate(){
   // Send to API and download PDF
   btn.textContent='Generating PDF...';
   try {
+    console.log('PDF: fetching...');
     const response = await fetch('/api/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
     });
+    console.log('PDF: status=', response.status, 'type=', response.headers.get('content-type'));
 
     if (!response.ok) {
-      const ct = response.headers.get('content-type')||'';
-      if(ct.includes('application/json')){
-        const err = await response.json();
-        throw new Error(err.error || 'Server error');
-      } else {
-        const txt = await response.text();
-        throw new Error('Server error: ' + txt.substring(0,100));
-      }
+      const txt = await response.text();
+      throw new Error('Generate failed: ' + txt.substring(0,200));
     }
 
-    // Download the PDF — Safari compatible
+    console.log('PDF: getting blob...');
     const blob = await response.blob();
-    const pdfBlob = new Blob([blob], {type: 'application/pdf'});
-    const url = URL.createObjectURL(pdfBlob);
+    console.log('PDF: blob size=', blob.size, 'type=', blob.type);
+
+    const url = URL.createObjectURL(blob);
     const filename = `SWJ_${data.client.replace(/ /g,'_')}_${data.invnum}.pdf`;
-    // Try download link first
+    console.log('PDF: downloading as', filename);
+
     const a = document.createElement('a');
     a.style.display = 'none';
     a.href = url;
     a.download = filename;
-    a.target = '_blank';
     document.body.appendChild(a);
     a.click();
-    setTimeout(()=>{ document.body.removeChild(a); URL.revokeObjectURL(url); }, 2000);
+    setTimeout(()=>{ document.body.removeChild(a); URL.revokeObjectURL(url); }, 3000);
+    console.log('PDF: click done');
 
-    // Save counter
     await fetch('/api/counter', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({value: parseInt(data.invnum)})
     }).catch(()=>{});
 
-    setSt('ok', 'Invoice generated and downloaded!');
+    setSt('ok', 'Invoice generated and downloaded! Check your Downloads folder.');
     btn.textContent = 'Generate Invoice + Payment Link';
     btn.disabled = false;
+    console.log('PDF: all done!');
 
   } catch(e) {
+    console.log('PDF ERROR:', e.message, e.stack);
     setSt('err', 'Error: ' + e.message);
     btn.textContent = 'Generate Invoice + Payment Link';
     btn.disabled = false;
