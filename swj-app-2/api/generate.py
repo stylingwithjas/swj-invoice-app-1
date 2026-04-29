@@ -3,7 +3,7 @@ import os
 import tempfile
 import base64
 
-ASSETS = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'public', 'assets')
+ASSETS = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'assets')
 
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
