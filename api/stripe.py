@@ -15,15 +15,10 @@ def stripe_post(endpoint, params, key):
         }
     )
     try:
-        with urllib.request.urlopen(req, timeout=10) as resp:
+        with urllib.request.urlopen(req, timeout=15) as resp:
             return json.loads(resp.read())
     except urllib.error.HTTPError as e:
-        try:
-            return json.loads(e.read())
-        except:
-            return {'error': {'message': f'HTTP {e.code}'}}
-    except Exception as e:
-        return {'error': {'message': f'{type(e).__name__}: {e}'}}
+        return json.loads(e.read())
 
 class handler(BaseHTTPRequestHandler):
     def do_OPTIONS(self):
@@ -32,57 +27,48 @@ class handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_POST(self):
-        # Handle both test and real requests
         try:
             length = int(self.headers.get('Content-Length', 0))
-            raw = self.rfile.read(length)
-            body = json.loads(raw) if raw else {}
+            body = json.loads(self.rfile.read(length))
         except Exception as e:
             self._respond(400, {'error': f'Invalid request: {e}'})
             return
 
         key = os.environ.get('STRIPE_SECRET_KEY', '')
         if not key:
-            self._respond(500, {'error': 'Stripe key not configured'})
+            self._respond(500, {'error': 'Stripe key not configured on server'})
             return
 
-        # Test mode — just verify key works
-        if body.get('test'):
-            result = stripe_post('prices', {
-                'unit_amount': '100',
-                'currency': 'usd',
-                'product_data[name]': 'SWJ Test',
-            }, key)
-            self._respond(200, {'key_works': 'error' not in result, 'result': result})
-            return
+        grand   = body.get('grand', 0)
+        client  = body.get('client', '')
+        invnum  = body.get('invnum', '')
+        address = body.get('address', '')
 
-        grand   = float(body.get('grand', 0))
-        client  = str(body.get('client', ''))
-        invnum  = str(body.get('invnum', ''))
-        address = str(body.get('address', ''))
-
+        # Create price
         price = stripe_post('prices', {
             'unit_amount': str(int(round(grand * 100))),
             'currency': 'usd',
-            'product_data[name]': f'Home Staging — {address[:80]}',
+            'product_data[name]': f'Home Staging — {address}',
             'product_data[metadata][invoice]': invnum,
+            'product_data[metadata][client]': client,
         }, key)
 
         if 'error' in price:
-            self._respond(400, {'error': 'Price: ' + price['error']['message']})
+            self._respond(400, {'error': price['error']['message']})
             return
 
+        # Create payment link
         link = stripe_post('payment_links', {
             'line_items[0][price]': price['id'],
             'line_items[0][quantity]': '1',
             'metadata[invoice]': invnum,
-            'metadata[client]': client[:40],
+            'metadata[client]': client,
             'after_completion[type]': 'hosted_confirmation',
-            'after_completion[hosted_confirmation][custom_message]': f'Thank you {client.split()[0] if client else ""}! Your staging is confirmed. — Styling With Jas',
+            f'after_completion[hosted_confirmation][custom_message]': f'Thank you {client}! Your staging is confirmed. — Styling With Jas',
         }, key)
 
         if 'error' in link:
-            self._respond(400, {'error': 'Link: ' + link['error']['message']})
+            self._respond(400, {'error': link['error']['message']})
             return
 
         self._respond(200, {'url': link['url']})
