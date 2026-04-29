@@ -219,7 +219,7 @@ textarea:focus{border-color:#a29c96;background:#fff}
 </div>
 
 <script>
-const STRIPE_KEY=os.environ.get("STRIPE_SECRET_KEY", "");
+let STRIPE_KEY='';
 
 const ROOMS=['Living Room','Primary Bedroom','Bedroom 2','Bedroom 3','Kitchen','Dining Room','Office/Den','Loft','Entryway','Bonus Room','Sunroom','Patio/Outdoor'];
 
@@ -563,9 +563,14 @@ async function generate(){
 
 
 
-document.getElementById('invdate').value=new Date().toISOString().split('T')[0];
-buildRooms();buildCats();recalc();
-initInvNum();
+document.addEventListener('DOMContentLoaded', function(){
+  document.getElementById('invdate').value=new Date().toISOString().split('T')[0];
+  buildRooms();
+  buildCats();
+  recalc();
+  initInvNum();
+  fetch('/api/config').then(r=>r.json()).then(d=>{if(d&&d.stripe_key)STRIPE_KEY=d.stripe_key;}).catch(()=>{});
+});
 </script>
 </body>
 </html>
