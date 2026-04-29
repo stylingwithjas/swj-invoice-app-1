@@ -402,7 +402,7 @@ def generate_invoice_pdf(data):
     y -= 18
     
     def draw_base_row(qty, intro_lines, bold_lines, promo_lines, cost_str):
-        global y
+        nonlocal y
         cv.setFillColor(GRAY); cv.setFont('Helvetica', 8.5)
         cv.drawString(ML + 8, y, str(qty))
         ry = y
@@ -425,7 +425,7 @@ def generate_invoice_pdf(data):
         cv.line(ML, y+4, PW-MR, y+4); y -= 4
     
     def draw_row(qty, lines, cost_str, bold_first_line=False):
-        global y
+        nonlocal y
         cv.setFillColor(GRAY); cv.setFont('Helvetica', 8.5)
         cv.drawString(ML + 8, y, str(qty))
         cv.setFillColor(BLACK)
@@ -444,7 +444,7 @@ def generate_invoice_pdf(data):
     # ── STRUCTURED BASE ROW ──
     def draw_structured_row(cost_str):
         """Draw the base package row with bullet-point room breakdown."""
-        global y
+        nonlocal y
         # Quantity
         cv.setFillColor(GRAY); cv.setFont('Helvetica', 8.5)
         cv.drawString(ML + 8, y, '1')
@@ -504,7 +504,7 @@ def generate_invoice_pdf(data):
     # ── STRUCTURED ADDON ROWS ──
     def draw_addon_structured(desc_raw, cost_str):
         """Parse addon description and render as structured bullets."""
-        global y
+        nonlocal y
         cv.setFillColor(GRAY); cv.setFont('Helvetica', 8.5)
         cv.drawString(ML + 8, y, '1')
         cost_y = y
@@ -650,7 +650,7 @@ def generate_invoice_pdf(data):
     y = draw_header(775)
     
     def tc_section(title, items):
-        global y
+        nonlocal y
         cv.setFont('Helvetica-Bold', 8.5); cv.setFillColor(BLACK)
         cv.drawString(ML, y, title); y -= 12
         cv.setFont('Helvetica', 8); cv.setFillColor(colors.HexColor('#333333'))
