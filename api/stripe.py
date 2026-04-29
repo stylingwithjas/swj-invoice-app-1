@@ -16,18 +16,14 @@ def stripe_post(endpoint, params, key):
     )
     try:
         with urllib.request.urlopen(req, timeout=10) as resp:
-            result = json.loads(resp.read())
-            return result
+            return json.loads(resp.read())
     except urllib.error.HTTPError as e:
         try:
-            err_body = e.read()
-            return json.loads(err_body)
+            return json.loads(e.read())
         except:
-            return {'error': {'message': f'HTTP error {e.code}: {e.reason}'}}
-    except urllib.error.URLError as e:
-        return {'error': {'message': f'Network error: {e.reason}'}}
+            return {'error': {'message': f'HTTP {e.code}'}}
     except Exception as e:
-        return {'error': {'message': f'Exception: {type(e).__name__}: {e}'}}
+        return {'error': {'message': f'{type(e).__name__}: {e}'}}
 
 class handler(BaseHTTPRequestHandler):
     def do_OPTIONS(self):
@@ -35,26 +31,29 @@ class handler(BaseHTTPRequestHandler):
         self._cors()
         self.end_headers()
 
-    def do_GET(self):
-        # Test endpoint — confirms API is reachable and key is set
-        key = os.environ.get('STRIPE_SECRET_KEY', '')
-        self._respond(200, {
-            'status': 'ok',
-            'key_set': bool(key),
-            'key_prefix': key[:14] + '...' if key else 'NOT SET'
-        })
-
     def do_POST(self):
+        # Handle both test and real requests
         try:
             length = int(self.headers.get('Content-Length', 0))
-            body = json.loads(self.rfile.read(length))
+            raw = self.rfile.read(length)
+            body = json.loads(raw) if raw else {}
         except Exception as e:
             self._respond(400, {'error': f'Invalid request: {e}'})
             return
 
         key = os.environ.get('STRIPE_SECRET_KEY', '')
         if not key:
-            self._respond(500, {'error': 'Stripe key not configured on server'})
+            self._respond(500, {'error': 'Stripe key not configured'})
+            return
+
+        # Test mode — just verify key works
+        if body.get('test'):
+            result = stripe_post('prices', {
+                'unit_amount': '100',
+                'currency': 'usd',
+                'product_data[name]': 'SWJ Test',
+            }, key)
+            self._respond(200, {'key_works': 'error' not in result, 'result': result})
             return
 
         grand   = float(body.get('grand', 0))
@@ -62,7 +61,6 @@ class handler(BaseHTTPRequestHandler):
         invnum  = str(body.get('invnum', ''))
         address = str(body.get('address', ''))
 
-        # Step 1 — Create price
         price = stripe_post('prices', {
             'unit_amount': str(int(round(grand * 100))),
             'currency': 'usd',
@@ -71,21 +69,20 @@ class handler(BaseHTTPRequestHandler):
         }, key)
 
         if 'error' in price:
-            self._respond(400, {'error': 'Price creation failed: ' + price['error']['message']})
+            self._respond(400, {'error': 'Price: ' + price['error']['message']})
             return
 
-        # Step 2 — Create payment link
         link = stripe_post('payment_links', {
             'line_items[0][price]': price['id'],
             'line_items[0][quantity]': '1',
             'metadata[invoice]': invnum,
             'metadata[client]': client[:40],
             'after_completion[type]': 'hosted_confirmation',
-            'after_completion[hosted_confirmation][custom_message]': f'Thank you {client.split()[0]}! Your staging is confirmed. — Styling With Jas',
+            'after_completion[hosted_confirmation][custom_message]': f'Thank you {client.split()[0] if client else ""}! Your staging is confirmed. — Styling With Jas',
         }, key)
 
         if 'error' in link:
-            self._respond(400, {'error': 'Payment link failed: ' + link['error']['message']})
+            self._respond(400, {'error': 'Link: ' + link['error']['message']})
             return
 
         self._respond(200, {'url': link['url']})
@@ -101,7 +98,7 @@ class handler(BaseHTTPRequestHandler):
 
     def _cors(self):
         self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Methods', 'POST, OPTIONS')
         self.send_header('Access-Control-Allow-Headers', 'Content-Type')
 
     def log_message(self, format, *args):
