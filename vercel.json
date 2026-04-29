@@ -1,9 +1,7 @@
 {
   "version": 2,
   "functions": {
-    "api/stripe.py": { "maxDuration": 30 },
     "api/generate.py": { "maxDuration": 30 },
-    "api/counter.py": { "maxDuration": 10 },
-    "api/config.py": { "maxDuration": 10 }
+    "api/stripe.py": { "maxDuration": 30 }
   }
 }
