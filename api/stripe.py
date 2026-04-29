@@ -15,10 +15,15 @@ def stripe_post(endpoint, params, key):
         }
     )
     try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
+        with urllib.request.urlopen(req, timeout=8) as resp:
             return json.loads(resp.read())
     except urllib.error.HTTPError as e:
-        return json.loads(e.read())
+        try:
+            return json.loads(e.read())
+        except:
+            return {'error': {'message': f'HTTP {e.code}'}}
+    except Exception as e:
+        return {'error': {'message': str(e)}}
 
 class handler(BaseHTTPRequestHandler):
     def do_OPTIONS(self):
@@ -39,18 +44,17 @@ class handler(BaseHTTPRequestHandler):
             self._respond(500, {'error': 'Stripe key not configured on server'})
             return
 
-        grand   = body.get('grand', 0)
-        client  = body.get('client', '')
-        invnum  = body.get('invnum', '')
-        address = body.get('address', '')
+        grand   = float(body.get('grand', 0))
+        client  = str(body.get('client', ''))
+        invnum  = str(body.get('invnum', ''))
+        address = str(body.get('address', ''))
 
         # Create price
         price = stripe_post('prices', {
             'unit_amount': str(int(round(grand * 100))),
             'currency': 'usd',
-            'product_data[name]': f'Home Staging — {address}',
+            'product_data[name]': f'Home Staging — {address[:80]}',
             'product_data[metadata][invoice]': invnum,
-            'product_data[metadata][client]': client,
         }, key)
 
         if 'error' in price:
@@ -62,9 +66,9 @@ class handler(BaseHTTPRequestHandler):
             'line_items[0][price]': price['id'],
             'line_items[0][quantity]': '1',
             'metadata[invoice]': invnum,
-            'metadata[client]': client,
+            'metadata[client]': client[:40],
             'after_completion[type]': 'hosted_confirmation',
-            f'after_completion[hosted_confirmation][custom_message]': f'Thank you {client}! Your staging is confirmed. — Styling With Jas',
+            'after_completion[hosted_confirmation][custom_message]': f'Thank you {client.split()[0]}! Your staging is confirmed. — Styling With Jas',
         }, key)
 
         if 'error' in link:
