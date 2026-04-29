@@ -518,7 +518,7 @@ async function generate(){
 
   
 
-  const data={client,address,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:document.getElementById('startdate').value,baserooms:[...selRooms].join(', '),extrate,taxrate,addons:allAddons,promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,payment_url,cover_page:true,cover_note:document.getElementById('cover_note').value.trim(),paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date').value};
+  const data={client,address,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:document.getElementById('startdate').value,baserooms:[...selRooms].join(', '),extrate,taxrate,addons:allAddons,promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,payment_url,cover_page:true,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||''};
 
   // Send to API and download PDF
   btn.textContent='Generating PDF...';
@@ -530,20 +530,30 @@ async function generate(){
     });
 
     if (!response.ok) {
-      const err = await response.json();
-      throw new Error(err.error || 'Server error');
+      const ct = response.headers.get('content-type')||'';
+      if(ct.includes('application/json')){
+        const err = await response.json();
+        throw new Error(err.error || 'Server error');
+      } else {
+        const txt = await response.text();
+        throw new Error('Server error: ' + txt.substring(0,100));
+      }
     }
 
-    // Download the PDF
+    // Download the PDF — Safari compatible
     const blob = await response.blob();
-    const url = URL.createObjectURL(blob);
+    const pdfBlob = new Blob([blob], {type: 'application/pdf'});
+    const url = URL.createObjectURL(pdfBlob);
+    const filename = `SWJ_${data.client.replace(/ /g,'_')}_${data.invnum}.pdf`;
+    // Try download link first
     const a = document.createElement('a');
+    a.style.display = 'none';
     a.href = url;
-    a.download = `SWJ_${data.client.replace(/ /g,'_')}_${data.invnum}.pdf`;
+    a.download = filename;
+    a.target = '_blank';
     document.body.appendChild(a);
     a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    setTimeout(()=>{ document.body.removeChild(a); URL.revokeObjectURL(url); }, 2000);
 
     // Save counter
     await fetch('/api/counter', {
