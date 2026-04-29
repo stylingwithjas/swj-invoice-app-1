@@ -503,13 +503,22 @@ async function generate(){
   const zipVal=document.getElementById('zipcode')?.value.trim()||'';
   const address=zipVal&&!addressBase.includes(zipVal)?addressBase+' '+zipVal:addressBase;
 
+  // Read invoice number from editable field
+  const invNumFinal = document.getElementById('invnum-display').value.trim() || '202093';
+  invNum = invNumFinal;
+
   let payment_url=null;
-  try{payment_url=await createPaymentLink(grand,client,invNum,address);}
-  catch(e){setSt('err',`Stripe: ${e.message}`);}
+  try{
+    payment_url=await createPaymentLink(grand,client,invNumFinal,address);
+  }catch(e){
+    setSt('err','Stripe error — generating invoice without payment link');
+  }
+  btn.textContent='Generating PDF...';
+  setSt('loading','Generating your invoice PDF...');
 
   
 
-  const data={client,address,invnum:invNum,invdate:document.getElementById('invdate').value,startdate:document.getElementById('startdate').value,baserooms:[...selRooms].join(', '),extrate,taxrate,addons:allAddons,promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,payment_url,cover_page:true,cover_note:document.getElementById('cover_note').value.trim(),paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date').value};
+  const data={client,address,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:document.getElementById('startdate').value,baserooms:[...selRooms].join(', '),extrate,taxrate,addons:allAddons,promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,payment_url,cover_page:true,cover_note:document.getElementById('cover_note').value.trim(),paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date').value};
 
   // Send to API and download PDF
   btn.textContent='Generating PDF...';
