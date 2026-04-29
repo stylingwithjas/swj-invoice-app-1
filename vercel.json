@@ -1,7 +1,10 @@
 {
   "version": 2,
+  "builds": [
+    { "src": "api/*.py", "use": "@vercel/python" }
+  ],
   "functions": {
-    "api/stripe.py": { "maxDuration": 30 },
-    "api/generate.py": { "maxDuration": 30 }
+    "api/stripe.py": { "maxDuration": 60 },
+    "api/generate.py": { "maxDuration": 60 }
   }
 }
