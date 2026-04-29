@@ -1,8 +1,7 @@
 import json
 import os
+from http.server import BaseHTTPRequestHandler
 
-# Counter file stored in /tmp (persists during Vercel function warm state)
-# For true persistence we use a simple file in the repo or env variable
 COUNTER_FILE = '/tmp/swj_counter.txt'
 START = 202092
 
@@ -20,28 +19,44 @@ def get_next():
     except:
         return START + 1
 
-def handler(request):
-    headers = {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type',
-        'Content-Type': 'application/json',
-    }
+class handler(BaseHTTPRequestHandler):
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self._cors()
+        self.end_headers()
 
-    if request.method == 'OPTIONS':
-        return Response('', headers=headers)
+    def do_GET(self):
+        val = get_next()
+        body = json.dumps({'value': val}).encode()
+        self.send_response(200)
+        self._cors()
+        self.send_header('Content-Type', 'application/json')
+        self.send_header('Content-Length', len(body))
+        self.end_headers()
+        self.wfile.write(body)
 
-    if request.method == 'POST':
-        # Save a specific counter value
+    def do_POST(self):
+        length = int(self.headers.get('Content-Length', 0))
+        body = self.rfile.read(length)
         try:
-            data = json.loads(request.body)
+            data = json.loads(body)
             val = int(data.get('value', START + 1))
             with open(COUNTER_FILE, 'w') as f:
                 f.write(str(val))
-            return Response(json.dumps({'value': val}), headers=headers)
+            resp = json.dumps({'value': val}).encode()
         except Exception as e:
-            return Response(json.dumps({'error': str(e)}), status=400, headers=headers)
+            resp = json.dumps({'error': str(e)}).encode()
+        self.send_response(200)
+        self._cors()
+        self.send_header('Content-Type', 'application/json')
+        self.send_header('Content-Length', len(resp))
+        self.end_headers()
+        self.wfile.write(resp)
 
-    # GET — return next invoice number
-    next_val = get_next()
-    return Response(json.dumps({'value': next_val}), headers=headers)
+    def _cors(self):
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+
+    def log_message(self, format, *args):
+        pass

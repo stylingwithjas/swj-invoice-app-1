@@ -782,44 +782,58 @@ def generate_invoice_pdf(data):
     return fname
 
 
-def handler(request):
-    if request.method == 'OPTIONS':
-        return Response('', headers={
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'POST, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type',
-        })
+from http.server import BaseHTTPRequestHandler
 
-    if request.method != 'POST':
-        return Response(json.dumps({'error': 'Method not allowed'}), status=405)
+class handler(BaseHTTPRequestHandler):
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self._cors()
+        self.end_headers()
 
-    try:
-        data = json.loads(request.body)
-    except:
-        return Response(json.dumps({'error': 'Invalid JSON'}), status=400)
+    def do_POST(self):
+        try:
+            length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(length)
+            data = json.loads(body)
+        except Exception as e:
+            self._error(400, f'Invalid JSON: {e}')
+            return
 
-    try:
-        pdf_path = generate_invoice_pdf(data)
-        with open(pdf_path, 'rb') as f:
-            pdf_bytes = f.read()
-        os.unlink(pdf_path)
+        try:
+            pdf_path = generate_invoice_pdf(data)
+            with open(pdf_path, 'rb') as f:
+                pdf_bytes = f.read()
+            os.unlink(pdf_path)
 
-        client_safe = data.get('client','').replace(' ','_')
-        invnum = data.get('invnum','invoice')
-        filename = f"SWJ_{client_safe}_{invnum}.pdf"
+            client_safe = data.get('client','').replace(' ','_')
+            invnum = data.get('invnum','invoice')
+            filename = f"SWJ_{client_safe}_{invnum}.pdf"
 
-        return Response(
-            pdf_bytes,
-            headers={
-                'Content-Type': 'application/pdf',
-                'Content-Disposition': f'attachment; filename="{filename}"',
-                'Access-Control-Allow-Origin': '*',
-            }
-        )
-    except Exception as e:
-        import traceback
-        return Response(
-            json.dumps({'error': str(e), 'trace': traceback.format_exc()}),
-            status=500,
-            headers={'Content-Type': 'application/json'}
-        )
+            self.send_response(200)
+            self._cors()
+            self.send_header('Content-Type', 'application/pdf')
+            self.send_header('Content-Disposition', f'attachment; filename="{filename}"')
+            self.send_header('Content-Length', len(pdf_bytes))
+            self.end_headers()
+            self.wfile.write(pdf_bytes)
+
+        except Exception as e:
+            import traceback
+            self._error(500, json.dumps({'error': str(e), 'trace': traceback.format_exc()}))
+
+    def _error(self, code, msg):
+        body = msg.encode() if isinstance(msg, str) else msg
+        self.send_response(code)
+        self._cors()
+        self.send_header('Content-Type', 'application/json')
+        self.send_header('Content-Length', len(body))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _cors(self):
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+
+    def log_message(self, format, *args):
+        pass
