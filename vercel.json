@@ -1,7 +1,3 @@
 {
-  "version": 2,
-  "functions": {
-    "api/generate.py": { "maxDuration": 30 },
-    "api/stripe.py": { "maxDuration": 30 }
-  }
+  "version": 2
 }
