@@ -24,6 +24,22 @@ try:
 except:
     pass
 
+
+def make_qr_image(url):
+    """Generate a QR code PNG and return the temp file path."""
+    try:
+        import qrcode, tempfile
+        qr = qrcode.QRCode(version=1, error_correction=qrcode.constants.ERROR_CORRECT_M,
+                           box_size=6, border=2)
+        qr.add_data(url)
+        qr.make(fit=True)
+        img = qr.make_image(fill_color="black", back_color="white")
+        tmp = tempfile.NamedTemporaryFile(suffix='.png', delete=False)
+        img.save(tmp.name)
+        return tmp.name
+    except Exception as e:
+        return None
+
 def generate_invoice_pdf(data):
     """Generate SWJ invoice PDF and return path to temp file."""
     
