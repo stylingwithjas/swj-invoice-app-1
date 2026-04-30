@@ -1,23 +1,26 @@
 import json
 import os
 from http.server import BaseHTTPRequestHandler
+from urllib.parse import urlparse, parse_qs
 
 COUNTER_FILE = '/tmp/swj_counter.txt'
 START = 202092
 
-def get_next():
+def read_current():
     try:
         if os.path.exists(COUNTER_FILE):
             with open(COUNTER_FILE) as f:
-                val = int(f.read().strip())
-            next_val = max(val + 1, START + 1)
-        else:
-            next_val = START + 1
-        with open(COUNTER_FILE, 'w') as f:
-            f.write(str(next_val))
-        return next_val
+                return int(f.read().strip())
     except:
-        return START + 1
+        pass
+    return START
+
+def write_value(val):
+    try:
+        with open(COUNTER_FILE, 'w') as f:
+            f.write(str(val))
+    except:
+        pass
 
 class handler(BaseHTTPRequestHandler):
     def do_OPTIONS(self):
@@ -26,32 +29,30 @@ class handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
-        val = get_next()
-        body = json.dumps({'value': val}).encode()
-        self.send_response(200)
+        # Return current value — page will show current + 1
+        current = read_current()
+        self._respond(200, {'value': current})
+
+    def do_POST(self):
+        # Save whatever number was actually used
+        length = int(self.headers.get('Content-Length', 0))
+        try:
+            body = json.loads(self.rfile.read(length))
+            used_val = int(body.get('value', START))
+            # Save exactly what was used — next will be used_val + 1
+            write_value(used_val)
+            self._respond(200, {'value': used_val})
+        except Exception as e:
+            self._respond(400, {'error': str(e)})
+
+    def _respond(self, code, data):
+        body = json.dumps(data).encode()
+        self.send_response(code)
         self._cors()
         self.send_header('Content-Type', 'application/json')
         self.send_header('Content-Length', len(body))
         self.end_headers()
         self.wfile.write(body)
-
-    def do_POST(self):
-        length = int(self.headers.get('Content-Length', 0))
-        body = self.rfile.read(length)
-        try:
-            data = json.loads(body)
-            val = int(data.get('value', START + 1))
-            with open(COUNTER_FILE, 'w') as f:
-                f.write(str(val))
-            resp = json.dumps({'value': val}).encode()
-        except Exception as e:
-            resp = json.dumps({'error': str(e)}).encode()
-        self.send_response(200)
-        self._cors()
-        self.send_header('Content-Type', 'application/json')
-        self.send_header('Content-Length', len(resp))
-        self.end_headers()
-        self.wfile.write(resp)
 
     def _cors(self):
         self.send_header('Access-Control-Allow-Origin', '*')
