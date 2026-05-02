@@ -377,8 +377,10 @@ function fmt(n){return'$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maxi
 function recalc(){
   let t=0;selAddons.forEach(e=>{t+=CATS[e.ci].sizes[e.oi].price;});
   t+=customs.reduce((s,a)=>s+(parseFloat(a.price)||0),0);
-  const sub=2500+t,rate=parseFloat(document.getElementById('taxrate').value)||0;
+  const base=parseFloat(document.getElementById('base_price')?.value)||2500;
+  const sub=base+t,rate=parseFloat(document.getElementById('taxrate').value)||0;
   const tax=sub*rate/100,grand=sub+tax;
+  const baseEl=document.getElementById('t-base'); if(baseEl) baseEl.textContent=fmt(base);
   document.getElementById('t-addons').textContent=fmt(t);
   document.getElementById('t-sub').textContent=fmt(sub);
   document.getElementById('t-taxlabel').textContent=`Tax (${rate.toFixed(2)}%)`;
