@@ -87,8 +87,9 @@ def generate_invoice_pdf(data):
     paid_date  = data.get('paid_date', '')
     cover_note = data.get('cover_note', '')
     
+    base_price = float(data.get('base_price', 2500))
     addon_total = sum(a['price'] for a in addons)
-    subtotal = 2500 + addon_total
+    subtotal = base_price + addon_total
     tax = subtotal * taxrate / 100
     grand = subtotal + tax
     
@@ -515,7 +516,7 @@ def generate_invoice_pdf(data):
         cv.setStrokeColor(colors.HexColor('#dddddd')); cv.setLineWidth(0.3)
         cv.line(ML, y+4, PW-MR, y+4); y -= 4
     
-    draw_structured_row(fmt(2500))
+    draw_structured_row(fmt(base_price))
     
     # ── STRUCTURED ADDON ROWS ──
     def draw_addon_structured(desc_raw, cost_str):
