@@ -146,10 +146,9 @@ textarea:focus{border-color:#a29c96;background:#fff}
   <!-- Base Package -->
   <div class="card">
     <div class="sec">Base Package — Select Rooms</div>
-    <p style="font-size:13px;color:#666;margin-bottom:12px">Base price <strong style="color:#111">$2,500</strong> — delivery, setup, 45-day rental &amp; teardown.</p>
+    <div class="field" style="max-width:180px;margin-bottom:12px"><label>Base Package Price ($)</label><input id="base_price" type="number" value="2500" step="100" inputmode="decimal" oninput="recalc()"></div>
     <div class="rooms-grid" id="rooms-grid"></div>
     <div class="ferr" id="e-rooms" style="margin-top:6px">Please select at least one room</div>
-  </div>
 
   <!-- Add-ons -->
   <div class="card">
