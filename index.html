@@ -499,7 +499,7 @@ async function generate(){
   customs.filter(a=>a.desc).forEach(a=>{allAddons.push({desc:a.desc+(a.scope?': '+a.scope:''),price:parseFloat(a.price)||0});});
 
   const addonTotal=allAddons.reduce((s,a)=>s+a.price,0);
-  const sub=2500+addonTotal,taxrate=parseFloat(document.getElementById('taxrate').value)||0;
+  const base=parseFloat(document.getElementById('base_price')?.value)||2500; const sub=base+addonTotal,taxrate=parseFloat(document.getElementById('taxrate').value)||0;
   const grand=sub+sub*taxrate/100,extrate=Math.round(grand/3*100)/100;
   const client=document.getElementById('client').value.trim();
   const addressBase=document.getElementById('address').value.trim();
@@ -556,6 +556,7 @@ async function generate(){
     setTimeout(()=>{ document.body.removeChild(a); URL.revokeObjectURL(url); }, 3000);
     console.log('PDF: click done');
 
+    // Save invoice number — always keep the highest number used
     await fetch('/api/counter', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
