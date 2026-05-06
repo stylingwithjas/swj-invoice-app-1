@@ -92,6 +92,7 @@ textarea:focus{border-color:#a29c96;background:#fff}
   .size-grid { grid-template-columns: repeat(4, 1fr); }
 }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 
@@ -106,10 +107,6 @@ textarea:focus{border-color:#a29c96;background:#fff}
 </div>
 
 <div class="content">
-<div class="card" id="recent-card">
-  <div class="sec">Recent Invoices</div>
-  <div id="recent-list" style="font-size:13px;color:#888">Loading...</div>
-</div>
 
   <!-- Invoice Details -->
   <div class="card">
@@ -483,13 +480,18 @@ function getWATaxByZip(zip){
 }
 
 
+const _sb = supabase.createClient('https://cwvdfgrjlrpsdfwduwvn.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN3dmRmZ3JqbHJwc2Rmd2R1d3ZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwMDcyODUsImV4cCI6MjA5MzU4MzI4NX0.zam9AnIwW91TI6eCKUcg05LhvFcRa7op4QsjRpdcrCY');
+
 async function loadRecent(){
   try{
-    const r = await fetch('/api/invoices');
-    const invoices = await r.json();
     const el = document.getElementById('recent-list');
-    if(!invoices||invoices.length===0){el.textContent='No recent invoices.';return;}
-    el.innerHTML = invoices.map(inv=>`
+    const { data, error } = await _sb
+      .from('invoices')
+      .select('invnum,client,address,invdate,data')
+      .order('created_at', { ascending: false })
+      .limit(10);
+    if(error||!data||data.length===0){el.textContent='No recent invoices.';return;}
+    el.innerHTML = data.map(inv=>`
       <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #f0ede8;cursor:pointer" onclick="loadInvoice(${JSON.stringify(JSON.stringify(inv.data))})">
         <div>
           <div style="font-weight:500;color:#111">${inv.client}</div>
@@ -535,12 +537,14 @@ function loadInvoice(dataStr){
 
 async function saveInvoice(data){
   try{
-    await fetch('/api/invoices',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify(data)
-    });
-    loadRecent();
+    const { error } = await _sb.from('invoices').upsert({
+      invnum: data.invnum,
+      client: data.client,
+      address: data.address,
+      invdate: data.invdate,
+      data: data
+    }, { onConflict: 'invnum' });
+    if(!error) loadRecent();
   }catch(e){}
 }
 
