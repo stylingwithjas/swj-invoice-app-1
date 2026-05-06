@@ -11,6 +11,7 @@
     { "src": "/api/counter", "dest": "/api/counter.py" },
     { "src": "/api/config", "dest": "/api/config.py" },
     { "src": "/api/debug", "dest": "/api/debug.py" },
+    { "src": "/api/invoices", "dest": "/api/invoices.py" },
     { "src": "/(.*)", "dest": "/index.html" }
   ]
 }
