@@ -478,6 +478,68 @@ function getWATaxByZip(zip){
   }
 }
 
+
+async function loadRecent(){
+  try{
+    const r = await fetch('/api/invoices');
+    const invoices = await r.json();
+    const el = document.getElementById('recent-list');
+    if(!invoices||invoices.length===0){el.textContent='No recent invoices.';return;}
+    el.innerHTML = invoices.map(inv=>`
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #f0ede8;cursor:pointer" onclick="loadInvoice(${JSON.stringify(JSON.stringify(inv.data))})">
+        <div>
+          <div style="font-weight:500;color:#111">${inv.client}</div>
+          <div style="font-size:11px;color:#aaa">${inv.address}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:12px;color:#a29c96;font-weight:500">#${inv.invnum}</div>
+          <div style="font-size:11px;color:#aaa">${inv.invdate}</div>
+        </div>
+      </div>
+    `).join('');
+  }catch(e){
+    document.getElementById('recent-list').textContent='Could not load recent invoices.';
+  }
+}
+
+function loadInvoice(dataStr){
+  try{
+    const d = JSON.parse(dataStr);
+    // Fill form fields
+    document.getElementById('client').value = d.client||'';
+    document.getElementById('address').value = d.address||'';
+    document.getElementById('zipcode').value = '';
+    document.getElementById('invdate').value = d.invdate||'';
+    document.getElementById('startdate').value = d.startdate||'';
+    document.getElementById('invnum-display').value = d.invnum||'';
+    document.getElementById('taxrate').value = d.taxrate||10.25;
+    document.getElementById('base_price').value = d.base_price||2500;
+    document.getElementById('promo1').checked = d.promo1||false;
+    document.getElementById('promo2').checked = d.promo2||false;
+    document.getElementById('promo3').checked = d.promo3||false;
+    document.getElementById('paid').checked = d.paid||false;
+    if(d.paid) togglePaid();
+    document.getElementById('paid_date').value = d.paid_date||'';
+    document.getElementById('cover_page').checked = d.cover_page||false;
+    recalc();
+    window.scrollTo({top:0,behavior:'smooth'});
+    setSt('ok','Invoice loaded — edit and regenerate!');
+  }catch(e){
+    console.log('Load error:', e);
+  }
+}
+
+async function saveInvoice(data){
+  try{
+    await fetch('/api/invoices',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(data)
+    });
+    loadRecent();
+  }catch(e){}
+}
+
 async function generate(){
   let valid=true;
   [['f-client','e-client','client'],['f-address','e-address','address'],['f-invdate','e-invdate','invdate'],['f-startdate','e-startdate','startdate']].forEach(([fid,eid,iid])=>{
@@ -588,6 +650,7 @@ document.addEventListener('DOMContentLoaded', function(){
   buildCats();
   recalc();
   initInvNum();
+  loadRecent();
   fetch('/api/config').then(r=>r.json()).then(d=>{if(d&&d.stripe_key)STRIPE_KEY=d.stripe_key;}).catch(()=>{});
 });
 </script>
