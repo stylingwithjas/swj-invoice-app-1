@@ -402,9 +402,9 @@ def generate_invoice_pdf(data):
         cv.showPage()
     
     # ── PAGE 1: INVOICE ──
-    # Draw cover page if requested
-    # Cover page always included
-    draw_cover_page()
+    # Draw cover page only if requested
+    if data.get('cover_page', False):
+        draw_cover_page()
     
     y = draw_header(775)
     
