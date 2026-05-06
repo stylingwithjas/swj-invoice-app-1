@@ -638,7 +638,8 @@ async function generate(){
       body: JSON.stringify({value: parseInt(data.invnum)})
     }).catch(()=>{});
 
-    setSt('ok', 'Invoice generated and downloaded! Check your Downloads folder.');
+  setSt('ok', 'Invoice generated and downloaded! Check your Downloads folder.');
+    saveInvoice(data);
     btn.textContent = 'Generate Invoice + Payment Link';
     btn.disabled = false;
     console.log('PDF: all done!');
