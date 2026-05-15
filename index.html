@@ -91,6 +91,25 @@ textarea:focus{border-color:#a29c96;background:#fff}
   .rooms-grid { grid-template-columns: repeat(4, 1fr); }
   .size-grid { grid-template-columns: repeat(4, 1fr); }
 }
+
+    .modal-overlay {
+        display: none; position: fixed; top:0;left:0;right:0;bottom:0;
+        background: rgba(0,0,0,0.5); z-index:100;
+        align-items:center; justify-content:center; padding:20px;
+    }
+    .modal-overlay.show { display:flex; }
+    .modal {
+        background:#fff; border-radius:16px; padding:24px;
+        width:100%; max-width:520px; max-height:90vh; overflow-y:auto;
+    }
+    .modal-title { font-size:16px; font-weight:700; margin-bottom:16px; color:#111; }
+    .modal-field { margin-bottom:14px; }
+    .modal-field label { display:block; font-size:12px; color:#888; margin-bottom:4px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; }
+    .modal-field input, .modal-field textarea { width:100%; font-family:inherit; font-size:15px; padding:10px 12px; border:1.5px solid #e0ddd8; border-radius:10px; outline:none; background:#faf9f7; }
+    .modal-field textarea { min-height:160px; resize:vertical; }
+    .modal-btns { display:flex; gap:10px; margin-top:16px; }
+    .modal-send-btn { flex:1; padding:14px; background:#111; color:#fff; border:none; border-radius:10px; font-size:15px; font-weight:600; cursor:pointer; font-family:inherit; }
+    .modal-cancel-btn { padding:14px 20px; background:#f5f4f0; color:#666; border:none; border-radius:10px; font-size:15px; cursor:pointer; font-family:inherit; }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -218,6 +237,7 @@ textarea:focus{border-color:#a29c96;background:#fff}
     </div>
 
     <button class="gen-btn" id="gen-btn" onclick="generate()">Generate Invoice + Payment Link</button>
+            <button class="gen-btn" id="email-btn" onclick="generateAndEmail()" style="margin-top:10px;background:#a29c96">Generate + Email to Client</button>
 
 
   </div>
@@ -693,6 +713,109 @@ function loadInvoice2(type, idx){
   loadInvoiceData(d);
 }
 
+
+let _lastPdfBlob=null,_lastPdfFilename='';
+
+async function generateAndEmail(){
+  const emailBtn=document.getElementById('email-btn');
+  emailBtn.disabled=true; emailBtn.textContent='Generating...';
+  const result=await generatePDF();
+  emailBtn.disabled=false; emailBtn.textContent='Generate + Email to Client';
+  if(!result) return;
+  _lastPdfBlob=result.blob; _lastPdfFilename=result.filename;
+  openEmailModal(result.data);
+}
+
+function openEmailModal(data){
+  const client=data.client||'';
+  const address=data.address||'';
+  const firstName=client.toLowerCase().startsWith('estate of')?client.split(' ').slice(2).join(' ').split(' ')[0]:client.split(' ')[0];
+  document.getElementById('email-to').value='';
+  document.getElementById('email-subject').value=`Your Staging Proposal — ${address}`;
+  document.getElementById('email-body').value=`Hi ${firstName},\n\nThank you for the opportunity to work with you! I'm excited about this property and what we can create together.\n\nAttached you'll find your personalized staging proposal for ${address}. Inside you'll find the full scope of work, investment total, and payment details.\n\nA few important notes:\n• Full payment is due 48 hours before installation day\n• Once payment is received I'll lock in your staging date\n• The payment link is included in the proposal for your convenience\n\nPlease don't hesitate to reach out with any questions!\n\nLooking forward to transforming your space.\n\nWarmly,\nJasmine Santana\nOwner & Creative Director — Styling With Jas\n📱 206-422-5618\n📧 info@stylingwithjas.com`;
+  document.getElementById('email-status').textContent='';
+  document.getElementById('email-modal').classList.add('show');
+  setTimeout(()=>document.getElementById('email-to').focus(),100);
+}
+
+function closeEmailModal(){ document.getElementById('email-modal').classList.remove('show'); }
+
+async function sendEmail(){
+  const to=document.getElementById('email-to').value.trim();
+  const subject=document.getElementById('email-subject').value.trim();
+  const message=document.getElementById('email-body').value.trim();
+  const statusEl=document.getElementById('email-status');
+  const sendBtn=document.getElementById('email-send-btn');
+  if(!to){statusEl.textContent='Please enter a recipient email.';statusEl.style.color='#e24b4a';return;}
+  if(!_lastPdfBlob){statusEl.textContent='No PDF generated yet.';statusEl.style.color='#e24b4a';return;}
+  sendBtn.disabled=true; sendBtn.textContent='Sending...';
+  statusEl.textContent='Sending email...'; statusEl.style.color='#888';
+  try{
+    const ab=await _lastPdfBlob.arrayBuffer();
+    const base64=btoa(String.fromCharCode(...new Uint8Array(ab)));
+    const r=await fetch('/api/email',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({to,subject,message,pdf:base64,filename:_lastPdfFilename})});
+    const d=await r.json();
+    if(d.sent){statusEl.textContent='✓ Email sent!';statusEl.style.color='#22c55e';setTimeout(closeEmailModal,2000);}
+    else{statusEl.textContent='Error: '+(d.error||'Unknown');statusEl.style.color='#e24b4a';}
+  }catch(e){statusEl.textContent='Error: '+e.message;statusEl.style.color='#e24b4a';}
+  sendBtn.disabled=false; sendBtn.textContent='Send Email';
+}
+
+async function generatePDF(){
+  let valid=true;
+  [['f-client','e-client','client'],['f-address','e-address','address'],['f-invdate','e-invdate','invdate'],['f-startdate','e-startdate','startdate']].forEach(([fid,eid,iid])=>{
+    const inp=document.getElementById(iid);
+    if(!inp.value.trim()){inp.classList.add('err');document.getElementById(eid).classList.add('show');valid=false;}
+    else{inp.classList.remove('err');document.getElementById(eid).classList.remove('show');}
+  });
+  if(selRooms.size===0){document.getElementById('rooms-grid').classList.add('err');document.getElementById('e-rooms').classList.add('show');valid=false;}
+  else{document.getElementById('rooms-grid').classList.remove('err');document.getElementById('e-rooms').classList.remove('show');}
+  if(!valid){document.querySelector('.rooms-grid').scrollIntoView({behavior:'smooth'});return null;}
+
+  const allAddons=[];
+  selAddons.forEach(entry=>{
+    const cat=CATS[entry.ci],opt=cat.sizes[entry.oi];
+    const bed=cat.hasBed?bedSel.get(`${entry.ci}`):'';
+    const scope=document.getElementById(`sc-${entry.ci}`)?.value||entry.scope||'';
+    allAddons.push({desc:`${cat.name}${bed?` (${bed})`:''}: ${scope||opt.size}`,price:opt.price});
+  });
+  customs.filter(a=>a.desc).forEach(a=>{allAddons.push({desc:a.desc+(a.scope?': '+a.scope:''),price:parseFloat(a.price)||0});});
+
+  const addonTotal=allAddons.reduce((s,a)=>s+a.price,0);
+  const base=parseFloat(document.getElementById('base_price')?.value)||2500;
+  const sub=base+addonTotal,taxrate=parseFloat(document.getElementById('taxrate').value)||0;
+  const grand=sub+sub*taxrate/100,extrate=Math.round(grand/3*100)/100;
+  const client=document.getElementById('client').value.trim();
+  const addressBase=document.getElementById('address').value.trim();
+  const zipVal=document.getElementById('zipcode')?.value.trim()||'';
+  const address=zipVal&&!addressBase.includes(zipVal)?addressBase+' '+zipVal:addressBase;
+  const invNumFinal=document.getElementById('invnum-display').value.trim()||'202093';
+  invNum=invNumFinal;
+
+  setSt('loading','Creating payment link...');
+  let payment_url=null;
+  try{payment_url=await createPaymentLink(grand,client,invNumFinal,address);}
+  catch(e){setSt('err','Stripe error — continuing without payment link');}
+
+  setSt('loading','Generating your invoice PDF...');
+  const data={client,address,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:document.getElementById('startdate').value,baserooms:[...selRooms].join(', '),extrate,taxrate,base_price:base,addons:allAddons,promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,payment_url,cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||''};
+
+  try{
+    const response=await fetch('/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+    if(!response.ok){const err=await response.json();throw new Error(err.error||'Server error');}
+    const blob=await response.blob();
+    const filename=`SWJ_${data.client.replace(/ /g,'_')}_${data.invnum}.pdf`;
+    setTimeout(()=>saveInvoice(data).catch(()=>{}),100);
+    await fetch('/api/counter',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({value:parseInt(data.invnum)})}).catch(()=>{});
+    setSt('ok','Invoice generated!');
+    return {blob,filename,data};
+  }catch(e){
+    setSt('err','Error: '+e.message);
+    return null;
+  }
+}
+
+
 async function generate(){
   let valid=true;
   [['f-client','e-client','client'],['f-address','e-address','address'],['f-invdate','e-invdate','invdate'],['f-startdate','e-startdate','startdate']].forEach(([fid,eid,iid])=>{
@@ -808,5 +931,20 @@ document.addEventListener('DOMContentLoaded', function(){
   fetch('/api/config').then(r=>r.json()).then(d=>{if(d&&d.stripe_key)STRIPE_KEY=d.stripe_key;}).catch(()=>{});
 });
 </script>
+
+    <div class="modal-overlay" id="email-modal">
+        <div class="modal">
+            <div class="modal-title">✉️ Send Proposal</div>
+            <div class="modal-field"><label>To</label><input id="email-to" type="email" placeholder="client@email.com"></div>
+            <div class="modal-field"><label>Subject</label><input id="email-subject" type="text"></div>
+            <div class="modal-field"><label>Message</label><textarea id="email-body"></textarea></div>
+            <div id="email-status" style="font-size:13px;color:#888;margin-top:8px;min-height:18px"></div>
+            <div class="modal-btns">
+                <button class="modal-cancel-btn" onclick="closeEmailModal()">Cancel</button>
+                <button class="modal-send-btn" id="email-send-btn" onclick="sendEmail()">Send Email</button>
+            </div>
+        </div>
+    </div>
+
 </body>
 </html>
