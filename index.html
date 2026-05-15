@@ -179,8 +179,6 @@ textarea:focus{border-color:#a29c96;background:#fff}
     <div id="addon-categories"></div>
     <div style="margin-top:12px">
       <div style="font-size:12px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">Custom Line Items</div>
-      <div id="extra-bedrooms"></div>
-      <button class="add-btn" onclick="addExtraBedroom()">+ Add another bedroom</button>
       <div id="custom-addons"></div>
       <button class="add-btn" onclick="addCustom()">+ Add custom line item</button>
     </div>
@@ -290,93 +288,7 @@ const CATS=[
   {name:'Dining room',hasBed:false,sizes:[{size:'Small',price:300},{size:'Medium',price:350},{size:'Large',price:425},{size:'Extra large',price:450}]},
 ];
 
-let selRooms=new Set(),selAddons=new Map(),bedSel=new Map(),customs=[],invNum='',extraBedrooms=[];
-let extraBedrooms = [];
-
-function addExtraBedroom(){
-  const n = extraBedrooms.length;
-  const defaultName = n === 0 ? 'Bedroom 2' : n === 1 ? 'Bedroom 3' : n === 2 ? 'Bedroom 4' : `Bedroom ${n+2}`;
-  extraBedrooms.push({id: Date.now(), name: defaultName, size: 'Small', price: 350, scope: DEFAULT_SCOPES['Bedroom']['Small'], bed: 'Twin'});
-  renderExtraBedrooms();
-}
-
-function removeExtraBedroom(id){
-  extraBedrooms = extraBedrooms.filter(b => b.id !== id);
-  renderExtraBedrooms();
-  recalc();
-}
-
-function renderExtraBedrooms(){
-  const cont = document.getElementById('extra-bedrooms');
-  cont.innerHTML = '';
-  extraBedrooms.forEach((bed, idx) => {
-    const cat = CATS[1]; // Bedroom category
-    const wrap = document.createElement('div');
-    wrap.className = 'addon-cat';
-    wrap.style.marginBottom = '10px';
-
-    // Header with editable name
-    const hdr = document.createElement('div');
-    hdr.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:#faf9f7;border-bottom:1px solid #f0ede8';
-    hdr.innerHTML = `
-      <input value="${bed.name}" onchange="extraBedrooms[${idx}].name=this.value" style="font-size:14px;font-weight:500;border:none;background:transparent;outline:none;color:#111;width:140px">
-      <button onclick="removeExtraBedroom(${bed.id})" style="background:none;border:none;color:#e24b4a;font-size:18px;cursor:pointer;padding:0 4px">×</button>
-    `;
-    wrap.appendChild(hdr);
-
-    // Body with bed size + size selection
-    const body = document.createElement('div');
-    body.style.padding = '12px 14px';
-
-    // Bed size row
-    const bedRow = document.createElement('div');
-    bedRow.className = 'bed-row';
-    bedRow.innerHTML = '<label>Bed size:</label>';
-    ['Twin','Full','Queen','King'].forEach(b => {
-      const btn = document.createElement('button');
-      btn.className = 'bed-btn' + (bed.bed === b ? ' active' : '');
-      btn.textContent = b;
-      btn.onclick = (e) => {
-        e.stopPropagation();
-        extraBedrooms[idx].bed = b;
-        extraBedrooms[idx].scope = BED_SCOPES['Bedroom']?.[extraBedrooms[idx].size]?.[b] || DEFAULT_SCOPES['Bedroom'][extraBedrooms[idx].size] || '';
-        renderExtraBedrooms();
-        recalc();
-      };
-      bedRow.appendChild(btn);
-    });
-    body.appendChild(bedRow);
-
-    // Size chips
-    const sg = document.createElement('div');
-    sg.className = 'size-grid';
-    sg.style.marginBottom = '12px';
-    cat.sizes.forEach(opt => {
-      const chip = document.createElement('div');
-      chip.className = 'size-chip' + (bed.size === opt.size ? ' sel' : '');
-      chip.innerHTML = `<span class="chk">${chk()}</span><span class="size-label">${opt.size}</span><span class="size-price">$${opt.price}</span>`;
-      chip.onclick = () => {
-        extraBedrooms[idx].size = opt.size;
-        extraBedrooms[idx].price = opt.price;
-        extraBedrooms[idx].scope = BED_SCOPES['Bedroom']?.[opt.size]?.[bed.bed] || DEFAULT_SCOPES['Bedroom'][opt.size] || '';
-        renderExtraBedrooms();
-        recalc();
-      };
-      sg.appendChild(chip);
-    });
-    body.appendChild(sg);
-
-    // Scope textarea
-    const sw = document.createElement('div');
-    sw.innerHTML = `<div class="scope-lbl"><span>Scope of work</span></div><textarea rows="3" oninput="extraBedrooms[${idx}].scope=this.value">${bed.scope}</textarea>`;
-    body.appendChild(sw);
-    wrap.appendChild(body);
-    cont.appendChild(wrap);
-  });
-  recalc();
-}
-
-
+let selRooms=new Set(),selAddons=new Map(),bedSel=new Map(),customs=[],invNum='';
 
 function pad2(n){return String(n).padStart(2,'0');}
 async function initInvNum(){
@@ -488,7 +400,6 @@ function fmt(n){return'$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maxi
 function recalc(){
   let t=0;selAddons.forEach(e=>{t+=CATS[e.ci].sizes[e.oi].price;});
   t+=customs.reduce((s,a)=>s+(parseFloat(a.price)||0),0);
-  t+=extraBedrooms.reduce((s,b)=>s+b.price,0);
   const base=parseFloat(document.getElementById('base_price')?.value)||2500;
   const sub=base+t,rate=parseFloat(document.getElementById('taxrate').value)||0;
   const tax=sub*rate/100,grand=sub+tax;
@@ -724,7 +635,6 @@ async function saveDraft(){
     allAddons.push({desc:`${cat.name}${bed?` (${bed})`:''}: ${scope||opt.size}`,price:opt.price});
   });
   customs.filter(a=>a.desc).forEach(a=>{allAddons.push({desc:a.desc+(a.scope?': '+a.scope:''),price:parseFloat(a.price)||0});});
-  extraBedrooms.forEach(b=>{allAddons.push({desc:`${b.name} (${b.bed}): ${b.scope||b.size}`,price:b.price});});
 
   const sub = parseFloat(document.getElementById('base_price')?.value)||2500;
   const taxrate = parseFloat(document.getElementById('taxrate').value)||0;
@@ -870,7 +780,6 @@ async function generatePDF(){
     allAddons.push({desc:`${cat.name}${bed?` (${bed})`:''}: ${scope||opt.size}`,price:opt.price});
   });
   customs.filter(a=>a.desc).forEach(a=>{allAddons.push({desc:a.desc+(a.scope?': '+a.scope:''),price:parseFloat(a.price)||0});});
-  extraBedrooms.forEach(b=>{allAddons.push({desc:`${b.name} (${b.bed}): ${b.scope||b.size}`,price:b.price});});
 
   const addonTotal=allAddons.reduce((s,a)=>s+a.price,0);
   const base=parseFloat(document.getElementById('base_price')?.value)||2500;
@@ -928,7 +837,6 @@ async function generate(){
     allAddons.push({desc:`${cat.name}${bed?` (${bed})`:''}: ${scope||opt.size}`,price:opt.price});
   });
   customs.filter(a=>a.desc).forEach(a=>{allAddons.push({desc:a.desc+(a.scope?': '+a.scope:''),price:parseFloat(a.price)||0});});
-  extraBedrooms.forEach(b=>{allAddons.push({desc:`${b.name} (${b.bed}): ${b.scope||b.size}`,price:b.price});});
 
   const addonTotal=allAddons.reduce((s,a)=>s+a.price,0);
   const base=parseFloat(document.getElementById('base_price')?.value)||2500; const sub=base+addonTotal,taxrate=parseFloat(document.getElementById('taxrate').value)||0;
