@@ -113,46 +113,45 @@ textarea:focus{border-color:#a29c96;background:#fff}
 
     .profit-overlay {
         display:none;position:fixed;top:0;left:0;right:0;bottom:0;
-        background:rgba(0,0,0,0.6);z-index:200;
-        align-items:center;justify-content:center;padding:20px;
+        background:rgba(0,0,0,0.7);z-index:200;
+        align-items:center;justify-content:center;padding:16px;
     }
     .profit-overlay.show { display:flex; }
     .profit-modal {
         background:#fff;border-radius:20px;padding:0;
-        width:100%;max-width:480px;max-height:90vh;overflow-y:auto;
+        width:100%;max-width:640px;
+        overflow:hidden;
     }
     .profit-header {
-        background:#111;border-radius:20px 20px 0 0;
-        padding:20px 24px;color:#fff;
+        background:#111;padding:16px 20px;color:#fff;
+        display:flex;align-items:center;justify-content:space-between;
     }
-    .profit-header-top { display:flex;justify-content:space-between;align-items:center;margin-bottom:4px; }
+    .profit-header-left {}
     .profit-header-title { font-size:15px;font-weight:600;letter-spacing:0.3px; }
-    .profit-close { background:none;border:none;color:rgba(255,255,255,0.6);font-size:22px;cursor:pointer;padding:0;line-height:1; }
-    .profit-address { font-size:12px;color:rgba(255,255,255,0.5);margin-top:2px; }
-    .profit-metrics { display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:#f0ede8; }
-    .profit-metric { background:#fff;padding:14px 16px; }
-    .profit-metric-label { font-size:10px;color:#aaa;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:4px; }
-    .profit-metric-value { font-size:18px;font-weight:500;color:#111; }
+    .profit-address { font-size:11px;color:rgba(255,255,255,0.45);margin-top:2px; }
+    .profit-close { background:none;border:none;color:rgba(255,255,255,0.5);font-size:24px;cursor:pointer;padding:0;line-height:1; }
+    .profit-metrics { display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#e8e5e0; }
+    .profit-metric { background:#fff;padding:12px 14px; }
+    .profit-metric-label { font-size:10px;color:#aaa;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:3px; }
+    .profit-metric-value { font-size:17px;font-weight:500;color:#111; }
     .profit-metric-value.green { color:#2d6a0a; }
     .profit-metric-value.red { color:#b53535; }
     .profit-metric-value.amber { color:#8a5200; }
-    .profit-body { padding:20px 24px; }
-    .profit-section-title { font-size:11px;font-weight:600;color:#aaa;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px; }
-    .profit-cost-row { display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid #f5f4f0; }
-    .profit-cost-row:last-child { border-bottom:none; }
-    .profit-cost-icon { width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:15px; }
-    .profit-cost-info { flex:1; }
-    .profit-cost-label { font-size:13px;color:#111;font-weight:500; }
-    .profit-cost-detail { font-size:11px;color:#aaa;margin-top:1px; }
-    .profit-cost-bar { height:3px;background:#f0ede8;border-radius:99px;margin-top:5px;overflow:hidden; }
-    .profit-cost-bar-fill { height:100%;border-radius:99px;transition:width 0.6s ease; }
+    .profit-body { padding:16px 20px; }
+    .profit-costs-grid { display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px; }
+    .profit-cost-card { background:#faf9f7;border-radius:10px;padding:10px 12px; }
+    .profit-cost-top { display:flex;justify-content:space-between;align-items:center;margin-bottom:4px; }
+    .profit-cost-label { font-size:12px;font-weight:500;color:#111; }
     .profit-cost-amount { font-size:13px;font-weight:600;color:#b53535; }
-    .profit-take { background:#f0f7e8;border-radius:14px;padding:18px 20px;margin-top:16px;display:flex;align-items:center;gap:16px; }
-    .profit-take-icon { width:48px;height:48px;background:#c8e6a0;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0; }
-    .profit-take-label { font-size:11px;color:#4a8020;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:3px; }
-    .profit-take-value { font-size:30px;font-weight:500;color:#2d6a0a; }
-    .profit-take-note { font-size:11px;color:#6aaa30;margin-top:2px; }
-    .profit-done-btn { width:100%;padding:14px;background:#111;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit;margin-top:16px; }
+    .profit-cost-detail { font-size:10px;color:#aaa;margin-bottom:5px; }
+    .profit-cost-bar { height:3px;background:#e8e5e0;border-radius:99px;overflow:hidden; }
+    .profit-cost-bar-fill { height:100%;border-radius:99px;transition:width 0.8s cubic-bezier(.4,0,.2,1); }
+    .profit-take { background:#f0f7e8;border-radius:14px;padding:14px 18px;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:14px; }
+    .profit-take-icon { width:42px;height:42px;background:#c8e6a0;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0; }
+    .profit-take-label { font-size:10px;color:#4a8020;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px; }
+    .profit-take-value { font-size:26px;font-weight:500;color:#2d6a0a; }
+    .profit-take-note { font-size:10px;color:#6aaa30;margin-top:1px; }
+    .profit-done-btn { padding:11px 24px;background:#111;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap; }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -945,6 +944,7 @@ async function showProfitability(invoiceData, grand){
   document.getElementById('pm-invoice').textContent = fmt2(grand);
   document.getElementById('pm-costs').textContent = '-' + fmt2(totalCosts);
   document.getElementById('pm-margin').textContent = margin.toFixed(1) + '%';
+  document.getElementById('pm-profit').textContent = fmt2(profit);
   document.getElementById('pm-margin').className = 'profit-metric-value ' + (margin > 55 ? 'green' : margin > 35 ? 'amber' : 'red');
 
   document.getElementById('pd-truck-detail').textContent = '2 days × $286/day';
@@ -997,7 +997,7 @@ async function sendEmail(){
     const base64=btoa(String.fromCharCode(...new Uint8Array(ab)));
     const r=await fetch('/api/email',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({to,subject,message,pdf:base64,filename:_lastPdfFilename})});
     const d=await r.json();
-    if(d.sent){statusEl.textContent='✓ Email sent!';statusEl.style.color='#22c55e';setTimeout(closeEmailModal,2000);}
+    if(d.sent){statusEl.textContent='✓ Email sent!';statusEl.style.color='#22c55e';setTimeout(()=>{closeEmailModal();if(window._lastInvoiceData)showProfitability(window._lastInvoiceData,window._lastGrand||0);},1500);}
     else{statusEl.textContent='Error: '+(d.error||'Unknown');statusEl.style.color='#e24b4a';}
   }catch(e){statusEl.textContent='Error: '+e.message;statusEl.style.color='#e24b4a';}
   sendBtn.disabled=false; sendBtn.textContent='Send Email';
@@ -1213,65 +1213,64 @@ document.addEventListener('DOMContentLoaded', function(){
             <div class="profit-metric-value red" id="pm-costs">$0</div>
           </div>
           <div class="profit-metric">
+            <div class="profit-metric-label">Profit</div>
+            <div class="profit-metric-value green" id="pm-profit">$0</div>
+          </div>
+          <div class="profit-metric">
             <div class="profit-metric-label">Margin</div>
             <div class="profit-metric-value amber" id="pm-margin">0%</div>
           </div>
         </div>
         <div class="profit-body">
-          <div class="profit-section-title">Cost breakdown</div>
-          <div class="profit-cost-row">
-            <div class="profit-cost-icon" style="background:#e8f0fb">🚛</div>
-            <div class="profit-cost-info">
-              <div class="profit-cost-label">Truck rental</div>
+          <div class="profit-costs-grid">
+            <div class="profit-cost-card">
+              <div class="profit-cost-top">
+                <div class="profit-cost-label">🚛 Truck rental</div>
+                <div class="profit-cost-amount" id="pc-truck">$0</div>
+              </div>
               <div class="profit-cost-detail" id="pd-truck-detail">2 days × $286</div>
               <div class="profit-cost-bar"><div class="profit-cost-bar-fill" id="pb-truck" style="background:#85b7eb;width:0%"></div></div>
             </div>
-            <div class="profit-cost-amount" id="pc-truck">$0</div>
-          </div>
-          <div class="profit-cost-row">
-            <div class="profit-cost-icon" style="background:#fef3e2">⛽</div>
-            <div class="profit-cost-info">
-              <div class="profit-cost-label">Fuel refill</div>
+            <div class="profit-cost-card">
+              <div class="profit-cost-top">
+                <div class="profit-cost-label">⛽ Fuel refill</div>
+                <div class="profit-cost-amount" id="pc-fuel">$0</div>
+              </div>
               <div class="profit-cost-detail" id="pd-fuel-detail">calculating...</div>
               <div class="profit-cost-bar"><div class="profit-cost-bar-fill" id="pb-fuel" style="background:#fac775;width:0%"></div></div>
             </div>
-            <div class="profit-cost-amount" id="pc-fuel">$0</div>
-          </div>
-          <div class="profit-cost-row">
-            <div class="profit-cost-icon" style="background:#fef3e2">🛣️</div>
-            <div class="profit-cost-info">
-              <div class="profit-cost-label">Mileage fee</div>
+            <div class="profit-cost-card">
+              <div class="profit-cost-top">
+                <div class="profit-cost-label">🛣️ Mileage fee</div>
+                <div class="profit-cost-amount" id="pc-miles">$0</div>
+              </div>
               <div class="profit-cost-detail" id="pd-miles-detail">calculating...</div>
               <div class="profit-cost-bar"><div class="profit-cost-bar-fill" id="pb-miles" style="background:#f9b84a;width:0%"></div></div>
             </div>
-            <div class="profit-cost-amount" id="pc-miles">$0</div>
-          </div>
-          <div class="profit-cost-row">
-            <div class="profit-cost-icon" style="background:#fce8f0">👷</div>
-            <div class="profit-cost-info">
-              <div class="profit-cost-label">Movers — staging</div>
+            <div class="profit-cost-card">
+              <div class="profit-cost-top">
+                <div class="profit-cost-label">🏭 Warehouse</div>
+                <div class="profit-cost-amount" id="pc-wh">$0</div>
+              </div>
+              <div class="profit-cost-detail" id="pd-wh-detail">$1,112 ÷ jobs</div>
+              <div class="profit-cost-bar"><div class="profit-cost-bar-fill" id="pb-wh" style="background:#afa9ec;width:0%"></div></div>
+            </div>
+            <div class="profit-cost-card">
+              <div class="profit-cost-top">
+                <div class="profit-cost-label">👷 Movers staging</div>
+                <div class="profit-cost-amount" id="pc-stage">$0</div>
+              </div>
               <div class="profit-cost-detail" id="pd-stage-detail">est. 6–8 hrs</div>
               <div class="profit-cost-bar"><div class="profit-cost-bar-fill" id="pb-stage" style="background:#ed93b1;width:0%"></div></div>
             </div>
-            <div class="profit-cost-amount" id="pc-stage">$0</div>
-          </div>
-          <div class="profit-cost-row">
-            <div class="profit-cost-icon" style="background:#fce8f0">👷</div>
-            <div class="profit-cost-info">
-              <div class="profit-cost-label">Movers — destaging</div>
+            <div class="profit-cost-card">
+              <div class="profit-cost-top">
+                <div class="profit-cost-label">👷 Movers destaging</div>
+                <div class="profit-cost-amount" id="pc-destage">$0</div>
+              </div>
               <div class="profit-cost-detail" id="pd-destage-detail">est. 4–6 hrs</div>
               <div class="profit-cost-bar"><div class="profit-cost-bar-fill" id="pb-destage" style="background:#ed93b1;width:0%"></div></div>
             </div>
-            <div class="profit-cost-amount" id="pc-destage">$0</div>
-          </div>
-          <div class="profit-cost-row">
-            <div class="profit-cost-icon" style="background:#eeedfe">🏭</div>
-            <div class="profit-cost-info">
-              <div class="profit-cost-label">Warehouse overhead</div>
-              <div class="profit-cost-detail" id="pd-wh-detail">$1,112 ÷ jobs this month</div>
-              <div class="profit-cost-bar"><div class="profit-cost-bar-fill" id="pb-wh" style="background:#afa9ec;width:0%"></div></div>
-            </div>
-            <div class="profit-cost-amount" id="pc-wh">$0</div>
           </div>
           <div class="profit-take">
             <div class="profit-take-icon">💵</div>
@@ -1280,8 +1279,8 @@ document.addEventListener('DOMContentLoaded', function(){
               <div class="profit-take-value" id="pt-value">$0</div>
               <div class="profit-take-note" id="pt-note">80% of profit</div>
             </div>
+            <button class="profit-done-btn" onclick="closeProfitModal()">Done</button>
           </div>
-          <button class="profit-done-btn" onclick="closeProfitModal()">Done</button>
         </div>
       </div>
     </div>
