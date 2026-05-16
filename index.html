@@ -110,6 +110,49 @@ textarea:focus{border-color:#a29c96;background:#fff}
     .modal-btns { display:flex; gap:10px; margin-top:16px; }
     .modal-send-btn { flex:1; padding:14px; background:#111; color:#fff; border:none; border-radius:10px; font-size:15px; font-weight:600; cursor:pointer; font-family:inherit; }
     .modal-cancel-btn { padding:14px 20px; background:#f5f4f0; color:#666; border:none; border-radius:10px; font-size:15px; cursor:pointer; font-family:inherit; }
+
+    .profit-overlay {
+        display:none;position:fixed;top:0;left:0;right:0;bottom:0;
+        background:rgba(0,0,0,0.6);z-index:200;
+        align-items:center;justify-content:center;padding:20px;
+    }
+    .profit-overlay.show { display:flex; }
+    .profit-modal {
+        background:#fff;border-radius:20px;padding:0;
+        width:100%;max-width:480px;max-height:90vh;overflow-y:auto;
+    }
+    .profit-header {
+        background:#111;border-radius:20px 20px 0 0;
+        padding:20px 24px;color:#fff;
+    }
+    .profit-header-top { display:flex;justify-content:space-between;align-items:center;margin-bottom:4px; }
+    .profit-header-title { font-size:15px;font-weight:600;letter-spacing:0.3px; }
+    .profit-close { background:none;border:none;color:rgba(255,255,255,0.6);font-size:22px;cursor:pointer;padding:0;line-height:1; }
+    .profit-address { font-size:12px;color:rgba(255,255,255,0.5);margin-top:2px; }
+    .profit-metrics { display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:#f0ede8; }
+    .profit-metric { background:#fff;padding:14px 16px; }
+    .profit-metric-label { font-size:10px;color:#aaa;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:4px; }
+    .profit-metric-value { font-size:18px;font-weight:500;color:#111; }
+    .profit-metric-value.green { color:#2d6a0a; }
+    .profit-metric-value.red { color:#b53535; }
+    .profit-metric-value.amber { color:#8a5200; }
+    .profit-body { padding:20px 24px; }
+    .profit-section-title { font-size:11px;font-weight:600;color:#aaa;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px; }
+    .profit-cost-row { display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid #f5f4f0; }
+    .profit-cost-row:last-child { border-bottom:none; }
+    .profit-cost-icon { width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:15px; }
+    .profit-cost-info { flex:1; }
+    .profit-cost-label { font-size:13px;color:#111;font-weight:500; }
+    .profit-cost-detail { font-size:11px;color:#aaa;margin-top:1px; }
+    .profit-cost-bar { height:3px;background:#f0ede8;border-radius:99px;margin-top:5px;overflow:hidden; }
+    .profit-cost-bar-fill { height:100%;border-radius:99px;transition:width 0.6s ease; }
+    .profit-cost-amount { font-size:13px;font-weight:600;color:#b53535; }
+    .profit-take { background:#f0f7e8;border-radius:14px;padding:18px 20px;margin-top:16px;display:flex;align-items:center;gap:16px; }
+    .profit-take-icon { width:48px;height:48px;background:#c8e6a0;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0; }
+    .profit-take-label { font-size:11px;color:#4a8020;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:3px; }
+    .profit-take-value { font-size:30px;font-weight:500;color:#2d6a0a; }
+    .profit-take-note { font-size:11px;color:#6aaa30;margin-top:2px; }
+    .profit-done-btn { width:100%;padding:14px;background:#111;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit;margin-top:16px; }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -291,6 +334,7 @@ const CATS=[
 ];
 
 let selRooms=new Set(),selAddons=new Map(),bedSel=new Map(),customs=[],invNum='',extraBedrooms=[];
+let extraBedrooms = [];
 
 function addExtraBedroom(){
   const n = extraBedrooms.length;
@@ -827,6 +871,116 @@ function openEmailModal(data){
   setTimeout(()=>document.getElementById('email-to').focus(),100);
 }
 
+
+function closeProfitModal(){ document.getElementById('profit-modal').classList.remove('show'); }
+function fmt2(n){ return '$'+Math.round(n).toLocaleString('en-US'); }
+
+async function showProfitability(invoiceData, grand){
+  const modal = document.getElementById('profit-modal');
+  modal.classList.add('show');
+
+  document.getElementById('profit-address').textContent = invoiceData.address || '';
+
+  // Count invoices this month for warehouse calculation
+  let jobsThisMonth = 1;
+  try {
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    const { data } = await _sb.from('invoices')
+      .select('invnum', { count: 'exact' })
+      .gte('created_at', monthStart)
+      .not('invnum', 'like', 'DRAFT-%');
+    jobsThisMonth = Math.max(1, data?.length || 1);
+  } catch(e) {}
+
+  // Get real distance from Google Maps
+  let milesOneWay = 35; // default
+  let totalMiles = 140;
+  let mileageCost = 38;
+  let fuelGallons = 15;
+  let fuelCost = 90;
+  let distEstimated = true;
+
+  try {
+    const dr = await fetch('/api/distance', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({address: invoiceData.address})
+    });
+    const dd = await dr.json();
+    if(dd.miles_one_way){
+      milesOneWay = dd.miles_one_way;
+      totalMiles = dd.total_miles;
+      mileageCost = dd.mileage_cost;
+      fuelGallons = dd.gallons;
+      fuelCost = dd.fuel_cost;
+      distEstimated = dd.estimated || false;
+    }
+  } catch(e) {}
+
+  // Estimate mover hours based on number of rooms
+  const rooms = (invoiceData.baserooms || '').split(',').filter(r=>r.trim()).length;
+  const addons = (invoiceData.addons || []).length;
+  const totalSpaces = rooms + addons;
+  
+  let stageHrsMin, stageHrsMax, destageHrsMin, destageHrsMax;
+  if(totalSpaces <= 2){ stageHrsMin=4; stageHrsMax=6; destageHrsMin=3; destageHrsMax=4; }
+  else if(totalSpaces <= 4){ stageHrsMin=6; stageHrsMax=8; destageHrsMin=4; destageHrsMax=6; }
+  else if(totalSpaces <= 6){ stageHrsMin=8; stageHrsMax=10; destageHrsMin=5; destageHrsMax=7; }
+  else { stageHrsMin=10; stageHrsMax=12; destageHrsMin=6; destageHrsMax=8; }
+
+  const stageAvg = (stageHrsMin + stageHrsMax) / 2;
+  const destageAvg = (destageHrsMin + destageHrsMax) / 2;
+  const stageCost = Math.round(stageAvg * 290 / 7); // scale from avg $290
+  const destagetCost = Math.round(destageAvg * 220 / 5); // scale from avg $220
+
+  const truckCost = 572;
+  const whCost = Math.round(1112 / jobsThisMonth);
+  const totalCosts = truckCost + fuelCost + mileageCost + stageCost + destagetCost + whCost;
+  const profit = grand - totalCosts;
+  const margin = (profit / grand * 100);
+  const takePay = Math.round(profit * 0.80);
+  const reinvest = profit - takePay;
+
+  // Update UI
+  document.getElementById('pm-invoice').textContent = fmt2(grand);
+  document.getElementById('pm-costs').textContent = '-' + fmt2(totalCosts);
+  document.getElementById('pm-margin').textContent = margin.toFixed(1) + '%';
+  document.getElementById('pm-margin').className = 'profit-metric-value ' + (margin > 55 ? 'green' : margin > 35 ? 'amber' : 'red');
+
+  document.getElementById('pd-truck-detail').textContent = '2 days × $286/day';
+  document.getElementById('pc-truck').textContent = '-' + fmt2(truckCost);
+
+  document.getElementById('pd-fuel-detail').textContent = `~${fuelGallons} gal × $6.00/gal${distEstimated?' (est.)':''}`;
+  document.getElementById('pc-fuel').textContent = '-' + fmt2(fuelCost);
+
+  document.getElementById('pd-miles-detail').textContent = `${milesOneWay} mi × 4 trips × $0.27${distEstimated?' (est.)':''}`;
+  document.getElementById('pc-miles').textContent = '-' + fmt2(mileageCost);
+
+  document.getElementById('pd-stage-detail').textContent = `est. ${stageHrsMin}–${stageHrsMax} hrs · ${totalSpaces} space${totalSpaces!==1?'s':''}`;
+  document.getElementById('pc-stage').textContent = '-' + fmt2(stageCost);
+
+  document.getElementById('pd-destage-detail').textContent = `est. ${destageHrsMin}–${destageHrsMax} hrs`;
+  document.getElementById('pc-destage').textContent = '-' + fmt2(destagetCost);
+
+  document.getElementById('pd-wh-detail').textContent = `$1,112 ÷ ${jobsThisMonth} job${jobsThisMonth!==1?'s':''} this month`;
+  document.getElementById('pc-wh').textContent = '-' + fmt2(whCost);
+
+  document.getElementById('pt-value').textContent = fmt2(takePay);
+  document.getElementById('pt-note').textContent = `80% of $${Math.round(profit).toLocaleString()} profit · reinvest ${fmt2(reinvest)}`;
+
+  // Animate bars
+  const costs = [truckCost, fuelCost, mileageCost, stageCost, destagetCost, whCost];
+  const bars = ['pb-truck','pb-fuel','pb-miles','pb-stage','pb-destage','pb-wh'];
+  const maxCost = Math.max(...costs);
+  setTimeout(() => {
+    bars.forEach((id, i) => {
+      document.getElementById(id).style.width = Math.max(4, costs[i]/maxCost*100) + '%';
+    });
+  }, 100);
+}
+
+
 function closeEmailModal(){ document.getElementById('email-modal').classList.remove('show'); }
 
 async function sendEmail(){
@@ -898,6 +1052,8 @@ async function generatePDF(){
     setTimeout(()=>saveInvoice(data).catch(()=>{}),100);
     await fetch('/api/counter',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({value:parseInt(data.invnum)})}).catch(()=>{});
     setSt('ok','Invoice generated!');
+    window._lastInvoiceData = data;
+    window._lastGrand = grand;
     return {blob,filename,data};
   }catch(e){
     setSt('err','Error: '+e.message);
@@ -1035,6 +1191,100 @@ document.addEventListener('DOMContentLoaded', function(){
                 <button class="modal-send-btn" id="email-send-btn" onclick="sendEmail()">Send Email</button>
             </div>
         </div>
+    </div>
+
+
+    <!-- Profitability Modal -->
+    <div class="profit-overlay" id="profit-modal">
+      <div class="profit-modal">
+        <div class="profit-header">
+          <div class="profit-header-top">
+            <div class="profit-header-title">💰 Job Profitability</div>
+            <button class="profit-close" onclick="closeProfitModal()">×</button>
+          </div>
+          <div class="profit-address" id="profit-address"></div>
+        </div>
+        <div class="profit-metrics">
+          <div class="profit-metric">
+            <div class="profit-metric-label">Invoice</div>
+            <div class="profit-metric-value" id="pm-invoice">$0</div>
+          </div>
+          <div class="profit-metric">
+            <div class="profit-metric-label">Costs</div>
+            <div class="profit-metric-value red" id="pm-costs">$0</div>
+          </div>
+          <div class="profit-metric">
+            <div class="profit-metric-label">Margin</div>
+            <div class="profit-metric-value amber" id="pm-margin">0%</div>
+          </div>
+        </div>
+        <div class="profit-body">
+          <div class="profit-section-title">Cost breakdown</div>
+          <div class="profit-cost-row">
+            <div class="profit-cost-icon" style="background:#e8f0fb">🚛</div>
+            <div class="profit-cost-info">
+              <div class="profit-cost-label">Truck rental</div>
+              <div class="profit-cost-detail" id="pd-truck-detail">2 days × $286</div>
+              <div class="profit-cost-bar"><div class="profit-cost-bar-fill" id="pb-truck" style="background:#85b7eb;width:0%"></div></div>
+            </div>
+            <div class="profit-cost-amount" id="pc-truck">$0</div>
+          </div>
+          <div class="profit-cost-row">
+            <div class="profit-cost-icon" style="background:#fef3e2">⛽</div>
+            <div class="profit-cost-info">
+              <div class="profit-cost-label">Fuel refill</div>
+              <div class="profit-cost-detail" id="pd-fuel-detail">calculating...</div>
+              <div class="profit-cost-bar"><div class="profit-cost-bar-fill" id="pb-fuel" style="background:#fac775;width:0%"></div></div>
+            </div>
+            <div class="profit-cost-amount" id="pc-fuel">$0</div>
+          </div>
+          <div class="profit-cost-row">
+            <div class="profit-cost-icon" style="background:#fef3e2">🛣️</div>
+            <div class="profit-cost-info">
+              <div class="profit-cost-label">Mileage fee</div>
+              <div class="profit-cost-detail" id="pd-miles-detail">calculating...</div>
+              <div class="profit-cost-bar"><div class="profit-cost-bar-fill" id="pb-miles" style="background:#f9b84a;width:0%"></div></div>
+            </div>
+            <div class="profit-cost-amount" id="pc-miles">$0</div>
+          </div>
+          <div class="profit-cost-row">
+            <div class="profit-cost-icon" style="background:#fce8f0">👷</div>
+            <div class="profit-cost-info">
+              <div class="profit-cost-label">Movers — staging</div>
+              <div class="profit-cost-detail" id="pd-stage-detail">est. 6–8 hrs</div>
+              <div class="profit-cost-bar"><div class="profit-cost-bar-fill" id="pb-stage" style="background:#ed93b1;width:0%"></div></div>
+            </div>
+            <div class="profit-cost-amount" id="pc-stage">$0</div>
+          </div>
+          <div class="profit-cost-row">
+            <div class="profit-cost-icon" style="background:#fce8f0">👷</div>
+            <div class="profit-cost-info">
+              <div class="profit-cost-label">Movers — destaging</div>
+              <div class="profit-cost-detail" id="pd-destage-detail">est. 4–6 hrs</div>
+              <div class="profit-cost-bar"><div class="profit-cost-bar-fill" id="pb-destage" style="background:#ed93b1;width:0%"></div></div>
+            </div>
+            <div class="profit-cost-amount" id="pc-destage">$0</div>
+          </div>
+          <div class="profit-cost-row">
+            <div class="profit-cost-icon" style="background:#eeedfe">🏭</div>
+            <div class="profit-cost-info">
+              <div class="profit-cost-label">Warehouse overhead</div>
+              <div class="profit-cost-detail" id="pd-wh-detail">$1,112 ÷ jobs this month</div>
+              <div class="profit-cost-bar"><div class="profit-cost-bar-fill" id="pb-wh" style="background:#afa9ec;width:0%"></div></div>
+            </div>
+            <div class="profit-cost-amount" id="pc-wh">$0</div>
+          </div>
+          <div class="profit-take">
+            <div class="profit-take-icon">💵</div>
+            <div>
+              <div class="profit-take-label">Safe to pay yourself</div>
+              <div class="profit-take-value" id="pt-value">$0</div>
+              <div class="profit-take-note" id="pt-note">80% of profit</div>
+            </div>
+          </div>
+          <button class="profit-done-btn" onclick="closeProfitModal()">Done</button>
+        </div>
+      </div>
     </div>
 
 </body>
