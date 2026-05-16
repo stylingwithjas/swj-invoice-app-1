@@ -280,7 +280,8 @@ textarea:focus{border-color:#a29c96;background:#fff}
       <span id="smsg" style="color:#666">Stripe payment link will be created automatically on generate.</span>
     </div>
 
-    <button class="gen-btn" id="gen-btn" onclick="generate()">Generate Invoice + Payment Link</button>
+    <button class="gen-btn" id="profit-preview-btn" onclick="previewProfitability()" style="margin-bottom:10px;background:#f5f1ee;color:#7a6f69;border:1.5px solid #e0ddd8">💰 Preview Job Profitability</button>
+            <button class="gen-btn" id="gen-btn" onclick="generate()">Generate Invoice + Payment Link</button>
             <button class="gen-btn" id="email-btn" onclick="generateAndEmail()" style="margin-top:10px;background:#a29c96">Generate + Email to Client</button>
 
 
@@ -870,6 +871,83 @@ function openEmailModal(data){
 }
 
 
+
+async function previewProfitability(){
+  const client = document.getElementById('client').value.trim();
+  const address = document.getElementById('address').value.trim();
+  const base = parseFloat(document.getElementById('base_price')?.value)||2500;
+  let addonTotal = 0;
+  selAddons.forEach(e=>{ addonTotal += CATS[e.ci].sizes[e.oi].price; });
+  addonTotal += customs.reduce((s,a)=>s+(parseFloat(a.price)||0),0);
+  addonTotal += extraBedrooms.reduce((s,b)=>s+b.price,0);
+  const taxrate = parseFloat(document.getElementById('taxrate').value)||0;
+  const sub = base + addonTotal;
+  const grand = sub + sub * taxrate / 100;
+  const rooms = [...selRooms].join(', ');
+  const addons = [];
+  selAddons.forEach(e=>{ addons.push({desc:CATS[e.ci].name,price:CATS[e.ci].sizes[e.oi].price}); });
+  const data = {client,address,baserooms:rooms,addons};
+  window._lastInvoiceData = data;
+  window._lastGrand = grand;
+  await showProfitability(data, grand);
+}
+
+
+function editProfitField(field){
+  const v = window._profitVars;
+  if(!v) return;
+  const labels = {
+    truck: 'Truck cost ($)',
+    fuel: 'Fuel cost ($)',
+    miles: 'Total miles driven',
+    stage: 'Staging movers cost ($)',
+    destage: 'Destaging movers cost ($)',
+    wh: 'Warehouse cost this job ($)'
+  };
+  const current = {
+    truck: v.truckCost, fuel: v.fuelCost,
+    miles: v.totalMiles, stage: v.stageCost,
+    destage: v.destagetCost, wh: v.whCost
+  };
+  const val = prompt(labels[field] + ':', current[field]);
+  if(val === null || val === '') return;
+  const num = parseFloat(val);
+  if(isNaN(num)) return;
+
+  // Update the value
+  if(field === 'miles'){
+    v.totalMiles = num;
+    v.mileageCost = Math.round(num * 0.27);
+    v.fuelGallons = Math.round(num / 9 * 10) / 10;
+    v.fuelCost = Math.round(v.fuelGallons * 6);
+    document.getElementById('pd-miles-detail').textContent = num + ' total mi × $0.27 (edited)';
+    document.getElementById('pd-fuel-detail').textContent = '~' + v.fuelGallons + ' gal × $6.00 (updated)';
+    document.getElementById('pc-miles').textContent = '-' + fmt2(v.mileageCost);
+    document.getElementById('pc-fuel').textContent = '-' + fmt2(v.fuelCost);
+  } else {
+    if(field==='truck') v.truckCost = num;
+    else if(field==='fuel') v.fuelCost = num;
+    else if(field==='stage') v.stageCost = num;
+    else if(field==='destage') v.destagetCost = num;
+    else if(field==='wh') v.whCost = num;
+    document.getElementById('pc-' + (field==='destage'?'destage':field)).textContent = '-' + fmt2(num);
+  }
+
+  // Recalculate totals
+  const total = v.truckCost + v.fuelCost + v.mileageCost + v.stageCost + v.destagetCost + v.whCost;
+  const profit = v.grand - total;
+  const margin = (profit / v.grand * 100);
+  const takePay = Math.round(profit * 0.80);
+  const reinvest = profit - takePay;
+
+  document.getElementById('pm-costs').textContent = '-' + fmt2(total);
+  document.getElementById('pm-profit').textContent = fmt2(profit);
+  document.getElementById('pm-margin').textContent = margin.toFixed(1) + '%';
+  document.getElementById('pm-margin').className = 'profit-metric-value ' + (margin > 55 ? 'green' : margin > 35 ? 'amber' : 'red');
+  document.getElementById('pt-value').textContent = fmt2(takePay);
+  document.getElementById('pt-note').textContent = '80% of profit · reinvest ' + fmt2(reinvest) + ' · ~60% close rate';
+}
+
 function closeProfitModal(){ document.getElementById('profit-modal').classList.remove('show'); }
 function fmt2(n){ return '$'+Math.round(n).toLocaleString('en-US'); }
 
@@ -950,10 +1028,18 @@ async function showProfitability(invoiceData, grand){
   document.getElementById('pd-truck-detail').textContent = '2 days × $286/day';
   document.getElementById('pc-truck').textContent = '-' + fmt2(truckCost);
 
-  document.getElementById('pd-fuel-detail').textContent = `~${fuelGallons} gal × $6.00/gal${distEstimated?' (est.)':''}`;
+  // Store editable values globally for recalc
+  window._profitVars = {
+    truckCost, fuelCost, mileageCost, stageCost, destagetCost: destagetCost, whCost,
+    totalMiles, fuelGallons, milesOneWay, jobsThisMonth,
+    stageHrsMin, stageHrsMax, destageHrsMin, destageHrsMax,
+    grand, distEstimated
+  };
+
+  document.getElementById('pd-fuel-detail').textContent = `~${fuelGallons} gal × $6.00/gal · 2 refills${distEstimated?' (est.)':''}`;
   document.getElementById('pc-fuel').textContent = '-' + fmt2(fuelCost);
 
-  document.getElementById('pd-miles-detail').textContent = `${milesOneWay} mi × 4 trips × $0.27${distEstimated?' (est.)':''}`;
+  document.getElementById('pd-miles-detail').textContent = `${totalMiles} total mi × $0.27${distEstimated?' (est.)':''}`;
   document.getElementById('pc-miles').textContent = '-' + fmt2(mileageCost);
 
   document.getElementById('pd-stage-detail').textContent = `est. ${stageHrsMin}–${stageHrsMax} hrs · ${totalSpaces} space${totalSpaces!==1?'s':''}`;
@@ -1226,7 +1312,7 @@ document.addEventListener('DOMContentLoaded', function(){
             <div class="profit-cost-card">
               <div class="profit-cost-top">
                 <div class="profit-cost-label">🚛 Truck rental</div>
-                <div class="profit-cost-amount" id="pc-truck">$0</div>
+                <div class="profit-cost-amount" id="pc-truck" onclick="editProfitField('truck')" style="cursor:pointer;text-decoration:underline dotted" title="Tap to edit">$0</div>
               </div>
               <div class="profit-cost-detail" id="pd-truck-detail">2 days × $286</div>
               <div class="profit-cost-bar"><div class="profit-cost-bar-fill" id="pb-truck" style="background:#85b7eb;width:0%"></div></div>
@@ -1234,7 +1320,7 @@ document.addEventListener('DOMContentLoaded', function(){
             <div class="profit-cost-card">
               <div class="profit-cost-top">
                 <div class="profit-cost-label">⛽ Fuel refill</div>
-                <div class="profit-cost-amount" id="pc-fuel">$0</div>
+                <div class="profit-cost-amount" id="pc-fuel" onclick="editProfitField('fuel')" style="cursor:pointer;text-decoration:underline dotted" title="Tap to edit">$0</div>
               </div>
               <div class="profit-cost-detail" id="pd-fuel-detail">calculating...</div>
               <div class="profit-cost-bar"><div class="profit-cost-bar-fill" id="pb-fuel" style="background:#fac775;width:0%"></div></div>
@@ -1242,7 +1328,7 @@ document.addEventListener('DOMContentLoaded', function(){
             <div class="profit-cost-card">
               <div class="profit-cost-top">
                 <div class="profit-cost-label">🛣️ Mileage fee</div>
-                <div class="profit-cost-amount" id="pc-miles">$0</div>
+                <div class="profit-cost-amount" id="pc-miles" onclick="editProfitField('miles')" style="cursor:pointer;text-decoration:underline dotted" title="Tap to edit">$0</div>
               </div>
               <div class="profit-cost-detail" id="pd-miles-detail">calculating...</div>
               <div class="profit-cost-bar"><div class="profit-cost-bar-fill" id="pb-miles" style="background:#f9b84a;width:0%"></div></div>
@@ -1250,7 +1336,7 @@ document.addEventListener('DOMContentLoaded', function(){
             <div class="profit-cost-card">
               <div class="profit-cost-top">
                 <div class="profit-cost-label">🏭 Warehouse</div>
-                <div class="profit-cost-amount" id="pc-wh">$0</div>
+                <div class="profit-cost-amount" id="pc-wh" onclick="editProfitField('wh')" style="cursor:pointer;text-decoration:underline dotted" title="Tap to edit">$0</div>
               </div>
               <div class="profit-cost-detail" id="pd-wh-detail">$1,112 ÷ jobs</div>
               <div class="profit-cost-bar"><div class="profit-cost-bar-fill" id="pb-wh" style="background:#afa9ec;width:0%"></div></div>
@@ -1258,7 +1344,7 @@ document.addEventListener('DOMContentLoaded', function(){
             <div class="profit-cost-card">
               <div class="profit-cost-top">
                 <div class="profit-cost-label">👷 Movers staging</div>
-                <div class="profit-cost-amount" id="pc-stage">$0</div>
+                <div class="profit-cost-amount" id="pc-stage" onclick="editProfitField('stage')" style="cursor:pointer;text-decoration:underline dotted" title="Tap to edit">$0</div>
               </div>
               <div class="profit-cost-detail" id="pd-stage-detail">est. 6–8 hrs</div>
               <div class="profit-cost-bar"><div class="profit-cost-bar-fill" id="pb-stage" style="background:#ed93b1;width:0%"></div></div>
@@ -1266,7 +1352,7 @@ document.addEventListener('DOMContentLoaded', function(){
             <div class="profit-cost-card">
               <div class="profit-cost-top">
                 <div class="profit-cost-label">👷 Movers destaging</div>
-                <div class="profit-cost-amount" id="pc-destage">$0</div>
+                <div class="profit-cost-amount" id="pc-destage" onclick="editProfitField('destage')" style="cursor:pointer;text-decoration:underline dotted" title="Tap to edit">$0</div>
               </div>
               <div class="profit-cost-detail" id="pd-destage-detail">est. 4–6 hrs</div>
               <div class="profit-cost-bar"><div class="profit-cost-bar-fill" id="pb-destage" style="background:#ed93b1;width:0%"></div></div>
