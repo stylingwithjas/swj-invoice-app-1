@@ -893,6 +893,70 @@ async function previewProfitability(){
 }
 
 
+
+async function saveProfitReport(){
+  const v = window._profitVars;
+  const inv = window._lastInvoiceData;
+  if(!v || !inv) return;
+
+  // Save to Supabase linked to invoice
+  try {
+    const invnum = inv.invnum || 'unknown';
+    await _sb.from('invoices').update({
+      data: {...inv, profitability: v, profit_saved_at: new Date().toISOString()}
+    }).eq('invnum', invnum);
+  } catch(e) {}
+
+  // Download as text summary
+  const total = v.truckCost + v.fuelCost + v.mileageCost + v.stageCost + v.destagetCost + v.whCost;
+  const profit = v.grand - total;
+  const take = Math.round(profit * 0.50);
+  const reinvest = profit - take;
+
+  const report = [
+    'STYLING WITH JAS — JOB PROFITABILITY REPORT',
+    '============================================',
+    `Client: ${inv.client || ''}`,
+    `Address: ${inv.address || ''}`,
+    `Invoice #: ${inv.invnum || ''}`,
+    `Date: ${new Date().toLocaleDateString()}`,
+    '',
+    'REVENUE',
+    `Invoice Total: $${Math.round(v.grand).toLocaleString()}`,
+    '',
+    'COSTS',
+    `Truck rental (2 days): -$${Math.round(v.truckCost).toLocaleString()}`,
+    `Fuel refill: -$${Math.round(v.fuelCost).toLocaleString()}`,
+    `Mileage fee (${v.totalMiles} mi): -$${Math.round(v.mileageCost).toLocaleString()}`,
+    `Movers — staging: -$${Math.round(v.stageCost).toLocaleString()}`,
+    `Movers — destaging: -$${Math.round(v.destagetCost).toLocaleString()}`,
+    `Warehouse overhead: -$${Math.round(v.whCost).toLocaleString()}`,
+    `────────────────────────`,
+    `Total Costs: -$${Math.round(total).toLocaleString()}`,
+    '',
+    'PROFIT BREAKDOWN',
+    `Net Profit: $${Math.round(profit).toLocaleString()}`,
+    `Profit Margin: ${(profit/v.grand*100).toFixed(1)}%`,
+    '',
+    `Jasmine's Pay (50%): $${take.toLocaleString()}`,
+    `Reinvest (50%): $${reinvest.toLocaleString()}`,
+    '',
+    'Note: Based on ~60% proposal close rate',
+    `Generated: ${new Date().toLocaleString()}`,
+  ].join('\n');
+
+  const blob = new Blob([report], {type:'text/plain'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `SWJ_Profit_${inv.invnum||'report'}_${inv.client?.replace(/ /g,'_')||'client'}.txt`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  setSt('ok', 'Profitability report saved!');
+}
+
 function editProfitField(field){
   const v = window._profitVars;
   if(!v) return;
@@ -937,7 +1001,7 @@ function editProfitField(field){
   const total = v.truckCost + v.fuelCost + v.mileageCost + v.stageCost + v.destagetCost + v.whCost;
   const profit = v.grand - total;
   const margin = (profit / v.grand * 100);
-  const takePay = Math.round(profit * 0.80);
+  const takePay = Math.round(profit * 0.50);
   const reinvest = profit - takePay;
 
   document.getElementById('pm-costs').textContent = '-' + fmt2(total);
@@ -1019,7 +1083,7 @@ async function showProfitability(invoiceData, grand){
   const totalCosts = truckCost + fuelCost + mileageCost + stageCost + destagetCost + whCost;
   const profit = grand - totalCosts;
   const margin = (profit / grand * 100);
-  const takePay = Math.round(profit * 0.80);
+  const takePay = Math.round(profit * 0.50);
   const reinvest = profit - takePay;
 
   // Update UI
@@ -1073,7 +1137,7 @@ async function showProfitability(invoiceData, grand){
     document.getElementById('pm-profit').textContent = fmt2(profit);
     document.getElementById('pm-margin').textContent = margin.toFixed(1) + '%';
     document.getElementById('pt-value').textContent = fmt2(takePay);
-    document.getElementById('pt-note').textContent = `80% of profit · reinvest ${fmt2(reinvest)} · ~60% close rate`;
+    document.getElementById('pt-note').textContent = `50% of profit · reinvest ${fmt2(reinvest)} · ~60% close rate`;
   }, 200);
 }
 
@@ -1377,7 +1441,10 @@ document.addEventListener('DOMContentLoaded', function(){
               <div class="profit-take-value" id="pt-value">$0</div>
               <div class="profit-take-note" id="pt-note">80% of profit</div>
             </div>
+            <div style="display:flex;gap:8px;align-items:center">
+            <button class="profit-done-btn" onclick="saveProfitReport()" style="background:#a29c96">💾 Save Report</button>
             <button class="profit-done-btn" onclick="closeProfitModal()">Done</button>
+          </div>
           </div>
         </div>
       </div>
