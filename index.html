@@ -956,6 +956,10 @@ async function showProfitability(invoiceData, grand){
   modal.classList.add('show');
 
   document.getElementById('profit-address').textContent = invoiceData.address || '';
+  
+  // Show loading state for distance-based fields
+  document.getElementById('pd-fuel-detail').textContent = 'Calculating...';
+  document.getElementById('pd-miles-detail').textContent = 'Calculating...';
 
   // Count invoices this month for warehouse calculation
   let jobsThisMonth = 1;
@@ -1062,7 +1066,15 @@ async function showProfitability(invoiceData, grand){
     bars.forEach((id, i) => {
       document.getElementById(id).style.width = Math.max(4, costs[i]/maxCost*100) + '%';
     });
-  }, 100);
+    // Force update fuel and miles display after distance API responds
+    document.getElementById('pc-fuel').textContent = '-' + fmt2(fuelCost);
+    document.getElementById('pc-miles').textContent = '-' + fmt2(mileageCost);
+    document.getElementById('pm-costs').textContent = '-' + fmt2(totalCosts);
+    document.getElementById('pm-profit').textContent = fmt2(profit);
+    document.getElementById('pm-margin').textContent = margin.toFixed(1) + '%';
+    document.getElementById('pt-value').textContent = fmt2(takePay);
+    document.getElementById('pt-note').textContent = `80% of profit · reinvest ${fmt2(reinvest)} · ~60% close rate`;
+  }, 200);
 }
 
 
