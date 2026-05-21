@@ -49,6 +49,7 @@ class handler(BaseHTTPRequestHandler):
             msg['To'] = to_email
             msg['Subject'] = subject
             msg['Reply-To'] = FROM_EMAIL
+    msg['Cc'] = FROM_EMAIL  # CC Jasmine so she has a record in her inbox
 
             # Body
             msg.attach(MIMEText(message, 'plain'))
@@ -65,7 +66,7 @@ class handler(BaseHTTPRequestHandler):
             # Send via Hostinger SMTP SSL
             with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=20) as server:
                 server.login(FROM_EMAIL, password)
-                server.sendmail(FROM_EMAIL, to_email, msg.as_string())
+                server.sendmail(FROM_EMAIL, [to_email, FROM_EMAIL], msg.as_string())
 
             self._respond(200, {'sent': True, 'to': to_email})
 
