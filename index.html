@@ -730,6 +730,29 @@ function loadInvoiceData(d){
       });
     }
 
+    // Restore custom line items
+    customs = [];
+    if(d.addons && d.addons.length > 0){
+      d.addons.forEach(addon => {
+        // Check if this addon doesn't match any standard category — it's a custom item
+        let isStandard = false;
+        CATS.forEach(cat => {
+          if(addon.desc.toLowerCase().startsWith(cat.name.toLowerCase())) isStandard = true;
+        });
+        // Also check extra bedroom names
+        ['bedroom 2','bedroom 3','bedroom 4','downstairs','guest','upstairs'].forEach(n => {
+          if(addon.desc.toLowerCase().startsWith(n)) isStandard = true;
+        });
+        if(!isStandard){
+          const parts = addon.desc.split(': ');
+          const desc = parts[0] || addon.desc;
+          const scope = parts.slice(1).join(': ') || '';
+          customs.push({id: Date.now() + Math.random(), desc, scope, price: addon.price || 0});
+        }
+      });
+      renderCustoms();
+    }
+
     recalc();
     window.scrollTo({top:0,behavior:'smooth'});
     setSt('ok','Invoice loaded — edit and regenerate!');
