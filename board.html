@@ -460,16 +460,30 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
         <input class="m-input" id="m-sdate" type="date" >
       </div>
       <div class="m-row">
-        <span class="m-lbl">Mover</span>
+        <span class="m-lbl">Mover 1</span>
         <div class="m-tel-row">
           <select class="m-select" id="m-mover-select" onchange="setMover(this.value,'staging')" style="min-width:100px">
             <option value="anthony">Anthony</option>
             <option value="gabriel">Gabriel</option>
             <option value="other">Other...</option>
           </select>
-          <input class="m-tel-input" id="m-mover" type="text"  placeholder="Name" style="width:80px">
-          <input class="m-tel-input" id="m-mover-tel" type="tel"  placeholder="Phone" style="width:100px">
+          <input class="m-tel-input" id="m-mover" type="text" placeholder="Name" style="width:80px">
+          <input class="m-tel-input" id="m-mover-tel" type="tel" placeholder="Phone" style="width:100px">
           <button class="m-text-btn" onclick="textMover('staging')">Text</button>
+        </div>
+      </div>
+      <div class="m-row">
+        <span class="m-lbl">Mover 2</span>
+        <div class="m-tel-row">
+          <select class="m-select" id="m-mover2-select" onchange="setMover(this.value,'staging2')" style="min-width:100px">
+            <option value="">— None —</option>
+            <option value="anthony">Anthony</option>
+            <option value="gabriel">Gabriel</option>
+            <option value="other">Other...</option>
+          </select>
+          <input class="m-tel-input" id="m-mover2" type="text" placeholder="Name" style="width:80px">
+          <input class="m-tel-input" id="m-mover2-tel" type="tel" placeholder="Phone" style="width:100px">
+          <button class="m-text-btn" onclick="textMover('staging2')">Text</button>
         </div>
       </div>
       <div class="m-row">
@@ -586,6 +600,15 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
       <div class="m-sec-ttl">Notes</div>
       <div style="padding:8px 0">
         <textarea id="m-notes" style="font-family:'Inter',sans-serif;font-size:13px;color:var(--ink);border:1.5px solid var(--taupe-lt);border-radius:10px;background:var(--cream);outline:none;resize:none;width:100%;min-height:64px;padding:10px 12px;line-height:1.5;transition:border-color 0.15s" placeholder="Any notes about this job..."></textarea>
+      </div>
+    </div>
+
+    <!-- Signed contract (shown when signed) -->
+    <div class="m-sec" id="contract-row" style="display:none">
+      <div class="m-sec-ttl" style="color:var(--green)">✓ Signed Contract</div>
+      <div style="padding:8px 0;display:flex;align-items:center;gap:10px">
+        <span id="contract-signed-by" style="font-size:12px;color:var(--ink-soft)"></span>
+        <a id="contract-link" href="#" target="_blank" style="font-size:11px;color:var(--olive);font-weight:500;text-decoration:none;border:0.5px solid var(--olive-line);padding:5px 12px;border-radius:7px;background:var(--olive-tint);white-space:nowrap">Download PDF</a>
       </div>
     </div>
 
@@ -721,9 +744,13 @@ function setStage(s, el){
 function textMover(type){
   const name = type==='staging'
     ? document.getElementById('m-mover').value || 'Anthony'
+    : type==='staging2'
+    ? document.getElementById('m-mover2').value || ''
     : document.getElementById('m-dmover').value || '';
   const tel = type==='staging'
     ? document.getElementById('m-mover-tel').value || '+12065025216'
+    : type==='staging2'
+    ? document.getElementById('m-mover2-tel').value || ''
     : document.getElementById('m-dmover-tel').value || '';
   const addr = document.getElementById('m-addr').textContent;
   const date = type==='staging'
@@ -758,7 +785,7 @@ function addToCalendar(type){
 
   const title = isStaging ? `SWJ Staging — ${client}` : `SWJ Destage — ${client}`;
   const notes = isStaging
-    ? `Client: ${client}\nAddress: ${addr}\nMover: ${document.getElementById('m-mover').value}\nTruck: ${document.getElementById('m-truck-time').value}`
+    ? `Client: ${client}\nAddress: ${addr}\nMover 1: ${document.getElementById('m-mover').value}${document.getElementById('m-mover2').value?' Mover 2: '+document.getElementById('m-mover2').value:''}\nTruck: ${document.getElementById('m-truck-time').value}`
     : `Client: ${client}\nAddress: ${addr}\nMover: ${document.getElementById('m-dmover').value}\nTime: ${document.getElementById('m-dtime').value}`;
 
   // Format date for ICS
@@ -1054,8 +1081,14 @@ function buildCardHTML(inv){
   // Tags based on stage + status
   const tags = [];
   if(d.startdate) tags.push({text:'Staging ' + fmtDateShort(d.startdate)});
-  if(d.mover_name) tags.push({text:'Mover: ' + d.mover_name});
-  else if(stage==='confirmed' || stage==='staged') tags.push({text:'Mover: TBD', cls:'w'});
+  if(d.mover_name && d.mover2_name){
+    tags.push({text:'Movers: ' + d.mover_name + ' + ' + d.mover2_name});
+  } else if(d.mover_name){
+    tags.push({text:'Mover: ' + d.mover_name});
+  } else if(stage==='confirmed' || stage==='staged'){
+    tags.push({text:'Mover: TBD', cls:'w'});
+  }
+  if(d.signed) tags.push({text:'Signed ✓', cls:'ok'});
   if(d.paid) tags.push({text:'Paid'});
   else if(stage==='confirmed') tags.push({text:'Payment pending', cls:'a'});
   if(d.photo_date && (stage==='confirmed'||stage==='staged')) tags.push({text:'Photos ' + fmtDateShort(d.photo_date)});
@@ -1411,6 +1444,13 @@ function realOpenCard(invnum){
   setVal('m-sdate', d.startdate || '');
   setVal('m-mover', d.mover_name || '');
   setVal('m-mover-tel', d.mover_phone || '');
+  setVal('m-mover2', d.mover2_name || '');
+  setVal('m-mover2-tel', d.mover2_phone || '');
+  const mover2Sel = document.getElementById('m-mover2-select');
+  if(mover2Sel){
+    const known2 = Object.keys(MOVERS).find(k => MOVERS[k].name === d.mover2_name);
+    mover2Sel.value = known2 || '';
+  }
   // Mover select sync
   const moverSel = document.getElementById('m-mover-select');
   if(moverSel){
@@ -1455,6 +1495,20 @@ function realOpenCard(invnum){
     if(o.textContent.trim().toLowerCase().includes(STAGE_META[stage].label.toLowerCase().split(' ')[0])) o.classList.add('cur');
   });
 
+  // Show contract if signed
+  const contractRow = document.getElementById('contract-row');
+  const contractLink = document.getElementById('contract-link');
+  const contractSignedBy = document.getElementById('contract-signed-by');
+  if(contractRow){
+    if(d.signed && d.contract_url){
+      contractRow.style.display = 'block';
+      if(contractLink) contractLink.href = d.contract_url;
+      if(contractSignedBy) contractSignedBy.textContent = `Signed by ${d.signed_by||''}${d.signed_date?' on '+d.signed_date:''}`;
+    } else {
+      contractRow.style.display = 'none';
+    }
+  }
+
   document.getElementById('overlay').classList.add('on');
   setTimeout(()=>renderPrepList(invnum), 50);
 }
@@ -1474,6 +1528,8 @@ async function saveCard(){
   d.startdate = document.getElementById('m-sdate').value || null;
   d.mover_name = document.getElementById('m-mover').value || null;
   d.mover_phone = document.getElementById('m-mover-tel').value || null;
+  d.mover2_name = document.getElementById('m-mover2').value || null;
+  d.mover2_phone = document.getElementById('m-mover2-tel').value || null;
   d.truck_booked = document.getElementById('m-truck').value === 'Booked';
   d.truck_pickup_time = document.getElementById('m-truck-time').value || null;
   d.photo_date = document.getElementById('m-photo').value || null;

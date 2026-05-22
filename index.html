@@ -1230,98 +1230,68 @@ function loadInvoiceData(d){
     }
     updateRoomsBar();
 
-    // Restore addons (new ADDON_CATS system)
+    // Restore addons — trust the saved desc and price exactly
+    // Do NOT try to re-match to UI cards (prices may have changed, formats differ)
     selAddons.clear();
     selNewAddons = {};
     extraBedrooms = [];
-    const ADDON_CATS_RESTORE=[
-      {group:'Bedrooms',items:[
-        {name:'Primary Bedroom Staging',sizes:[{s:'Small',p:200},{s:'Medium',p:250},{s:'Large',p:300},{s:'Extra Large',p:350}]},
-        {name:'Secondary Bedroom Staging',sizes:[{s:'Small',p:150},{s:'Medium',p:200},{s:'Large',p:250},{s:'Extra Large',p:300}]},
-        {name:'Guest Bedroom Staging',sizes:[{s:'Small',p:150},{s:'Medium',p:200},{s:'Large',p:250}]},
-      ]},
-      {group:'Living Spaces',items:[
-        {name:'Living / Great Room',sizes:[{s:'Small',p:250},{s:'Medium',p:350},{s:'Large',p:450},{s:'Extra Large',p:550}]},
-        {name:'Dining Room Staging',sizes:[{s:'Small',p:150},{s:'Medium',p:200},{s:'Large',p:300}]},
-        {name:'Family / Bonus Room',sizes:[{s:'Small',p:200},{s:'Medium',p:275},{s:'Large',p:350}]},
-      ]},
-      {group:'Specialty',items:[
-        {name:'Home Office Staging',sizes:[{s:'Small',p:175},{s:'Medium',p:225},{s:'Large',p:300}]},
-        {name:'Outdoor / Patio Staging',sizes:[{s:'Small',p:250},{s:'Medium',p:350},{s:'Large',p:450}]},
-        {name:'Primary Bathroom Staging',sizes:[{s:'Small',p:150},{s:'Medium',p:200}]},
-        {name:'Secondary Bathroom',sizes:[{s:'Small',p:100},{s:'Medium',p:150}]},
-      ]},
-    ];
-    if(d.addons && d.addons.length > 0){
-      d.addons.forEach(addon => {
-        const desc = addon.desc;
-        // Extra bedroom restore — pattern: "Bedroom N (BedType): Small/Medium/Large"
-        const xbMatch = desc.match(/^(Bedroom\s+\d+|Downstairs|Upstairs|Guest)\s*\(([^)]+)\)\s*:\s*(.+)$/i);
-        if(xbMatch){
-          const sizePart = xbMatch[3].split(/\s/)[0]; // 'Small' / 'Medium' / 'Large'
-          extraBedrooms.push({id:Date.now()+Math.random(),name:xbMatch[1],bed:xbMatch[2],size:sizePart,price:addon.price});
-          return;
-        }
-        // New ADDON_CATS restore — pattern: "Name (BedType) — SizeName" OR "Name — SizeName"
-        if(desc.includes(' — ')){
-          const emParts = desc.split(' — ');
-          const nameAndBed = emParts[0];
-          const sizeName = emParts[1];
-          const bedMatch = nameAndBed.match(/^(.+?)\s*\(([^)]+)\)\s*$/);
-          const itemName = bedMatch ? bedMatch[1] : nameAndBed;
-          const bed = bedMatch ? bedMatch[2] : null;
-          for(let gi=0; gi<ADDON_CATS_RESTORE.length; gi++){
-            const grp = ADDON_CATS_RESTORE[gi];
-            for(let ii=0; ii<grp.items.length; ii++){
-              if(grp.items[ii].name === itemName){
-                for(let si=0; si<grp.items[ii].sizes.length; si++){
-                  if(grp.items[ii].sizes[si].s === sizeName){
-                    selNewAddons[`${gi}-${ii}`] = {gi,ii,si,price:grp.items[ii].sizes[si].p,name:itemName,sizeName,bed};
-                    if(bed) selNewAddons[`${gi}-${ii}:bed`] = bed;
-                  }
-                }
-              }
-            }
-          }
-          return;
-        }
-      });
-      // Re-render the addon UI so selections show visually
-      buildCats();
-      updateNewAddonTotals();
-    }
-
-    // Restore custom line items
     customs = [];
-    // List of all known addon name prefixes (old CATS + new ADDON_CATS items + extra bedrooms)
-    const knownAddonPrefixes = [
-      // Old CATS names (still in CATS array)
-      'primary bedroom','bedroom','kids room','living room','office','outdoor','dining room',
-      // New ADDON_CATS items
-      'primary bedroom staging','secondary bedroom staging','guest bedroom staging',
-      'living / great room','dining room staging','family / bonus room',
-      'home office staging','outdoor / patio staging','primary bathroom staging','secondary bathroom',
-    ];
+
     if(d.addons && d.addons.length > 0){
       d.addons.forEach(addon => {
-        const descLower = addon.desc.toLowerCase();
-        // New ADDON_CATS items contain " — " (em dash with spaces)
-        if(descLower.includes(' — ')) return;
-        // Extra bedrooms match pattern "Bedroom N (BedType): ..."
-        if(/^bedroom\s+\d+\s*\(/i.test(addon.desc)) return;
-        // Old CATS — check if starts with any known prefix
-        let isStandard = false;
-        for(const pfx of knownAddonPrefixes){
-          if(descLower.startsWith(pfx)){ isStandard = true; break; }
+        if(!addon.desc) return;
+        const desc = addon.desc;
+        const price = parseFloat(addon.price) || 0;
+
+        // Extra bedroom pattern: "Bedroom N (BedType): Size" or "Downstairs (BedType): Size"
+        const xbMatch = desc.match(/^(Bedroom\s*\d+|Downstairs|Upstairs|Guest\s*Bedroom?)\s*\(([^)]+)\)\s*:\s*(.+)$/i);
+        if(xbMatch){
+          extraBedrooms.push({
+            id: Date.now() + Math.random(),
+            name: xbMatch[1].trim(),
+            bed: xbMatch[2].trim(),
+            size: xbMatch[3].trim(),
+            scope: xbMatch[3].trim(),
+            price,
+          });
+          return;
         }
-        if(isStandard) return;
-        // It's a real custom line item — restore it
-        const parts = addon.desc.split(': ');
-        const desc = parts[0] || addon.desc;
-        const scope = parts.slice(1).join(': ') || '';
-        customs.push({id: Date.now() + Math.random(), desc, scope, price: addon.price || 0});
+
+        // New ADDON_CATS format: "Name (BedType) — SizeName" or "Name — SizeName"
+        if(desc.includes(' — ')){
+          const dashIdx = desc.lastIndexOf(' — ');
+          const nameAndBed = desc.slice(0, dashIdx).trim();
+          const sizeName = desc.slice(dashIdx + 3).trim();
+          const bedMatch = nameAndBed.match(/^(.+?)\s*\(([^)]+)\)\s*$/);
+          const itemName = bedMatch ? bedMatch[1].trim() : nameAndBed;
+          const bed = bedMatch ? bedMatch[2].trim() : null;
+          // Store as a custom addon with exact saved price
+          customs.push({
+            id: Date.now() + Math.random(),
+            desc: itemName + (bed ? ` (${bed})` : '') + ' — ' + sizeName,
+            scope: '',
+            price,
+            _isRestored: true,
+          });
+          return;
+        }
+
+        // Old CATS format: "Name (BedType): Scope" or "Name: Scope"
+        // Store as custom with exact saved price
+        const colonIdx = desc.indexOf(': ');
+        const itemDesc = colonIdx >= 0 ? desc.slice(0, colonIdx).trim() : desc.trim();
+        const itemScope = colonIdx >= 0 ? desc.slice(colonIdx + 2).trim() : '';
+        customs.push({
+          id: Date.now() + Math.random(),
+          desc: itemDesc,
+          scope: itemScope,
+          price,
+          _isRestored: true,
+        });
       });
+
       renderCustoms();
+      recalc();
     }
 
     recalc();
@@ -1461,7 +1431,8 @@ function openEmailModal(data){
   const firstName=client.toLowerCase().startsWith('estate of')?client.split(' ').slice(2).join(' ').split(' ')[0]:client.split(' ')[0];
   document.getElementById('email-to').value='';
   document.getElementById('email-subject').value=`Your Staging Proposal — ${address}`;
-  document.getElementById('email-body').value=`Hi ${firstName},\n\nThank you for the opportunity to work with you. I'm excited about this property and what we can create together.\n\nAttached you'll find your personalized staging proposal for ${address}. Inside you'll find the full scope of work, investment total, and payment details.\n\nA few important notes:\n• Full payment is due 48 hours before installation day\n• Once payment is received I'll lock in your staging date\n• The payment link is included in the proposal for your convenience\n\nPlease don't hesitate to reach out with any questions.\n\nLooking forward to transforming your space.\n\nWarmly,\nJasmine Santana\nOwner & Creative Director — Styling With Jas\n206-422-5618\ninfo@stylingwithjas.com`;
+  const proposalLink = `${window.location.origin}/proposal.html?inv=${encodeURIComponent(invnum)}`;
+  document.getElementById('email-body').value=`Hi ${firstName},\n\nThank you for the opportunity to work with you. I'm excited about this property and what we can create together.\n\nAttached you'll find your personalized staging proposal for ${address}. Inside you'll find the full scope of work, investment total, and payment details.\n\nTo approve this proposal and sign electronically, please visit:\n${proposalLink}\n\nThe signed contract and payment link are available on that page. Your proposal PDF is attached to this email for your reference.\n\nA few important notes:\n• Full payment is due 48 hours before installation day\n• Once payment is received I'll lock in your staging date\n\nPlease don't hesitate to reach out with any questions.\n\nLooking forward to transforming your space.\n\nWarmly,\nJasmine Santana\nOwner & Creative Director — Styling With Jas\n206-422-5618\ninfo@stylingwithjas.com`;
   document.getElementById('email-status').textContent='';
   document.getElementById('email-modal').classList.add('show');
   setTimeout(()=>document.getElementById('email-to').focus(),100);

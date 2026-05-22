@@ -6,6 +6,7 @@
     { "source": "/board.html", "destination": "/board.html" },
     { "source": "/today.html", "destination": "/today.html" },
     { "source": "/shopping.html", "destination": "/shopping.html" },
+    { "source": "/proposal.html", "destination": "/proposal.html" },
     { "source": "/", "destination": "/today.html" },
     { "source": "/((?!api/).*)", "destination": "/today.html" }
   ]

@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>SWJ — Staging Proposal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Cormorant+Garamond:wght@300;400;500;600&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg:#fcfaf7;--bg-soft:#ffffff;
+  --ink:#2c2926;--ink-soft:#3d3833;--muted:#8c847c;--muted-soft:#b8ada1;
+  --line:#e7e1d9;--line-soft:#ede8e0;
+  --olive:#7a8574;--olive-dark:#5f685a;--olive-tint:#eef1ea;--olive-line:#c9d0c2;
+  --green:#6f8a72;--green-tint:#edf4ee;--green-dark:#4a6b4e;
+  --gold:#b89a63;--gold-soft:#f6f1e7;
+  --red:#9a5a4a;--red-tint:#f8ece8;
+  --cta:#2c2926;--cta-hover:#3a3632;
+}
+body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var(--ink);min-height:100vh;}
+
+/* HEADER */
+.hdr{background:var(--cta);padding:20px 24px 18px;}
+.hdr-inner{max-width:600px;margin:0 auto;display:flex;align-items:flex-end;justify-content:space-between;}
+.brand{font-family:'Cormorant Garamond',serif;font-size:11px;letter-spacing:3px;color:rgba(255,255,255,0.5);text-transform:uppercase;}
+.hdr-title{font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:400;color:#f0ebe3;margin-top:3px;}
+.inv-num{font-size:11px;color:var(--gold);font-weight:500;letter-spacing:0.5px;}
+
+/* STATUS BANNER */
+.status-banner{padding:10px 24px;max-width:600px;margin:0 auto;}
+.status-pill{display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border-radius:20px;font-size:12px;font-weight:500;margin-top:12px;}
+.status-pill.pending{background:var(--gold-soft);color:var(--gold);}
+.status-pill.signed{background:var(--green-tint);color:var(--green-dark);}
+.status-pill.expired{background:var(--red-tint);color:var(--red);}
+.status-dot{width:7px;height:7px;border-radius:50%;background:currentColor;}
+
+/* CONTENT */
+.content{max-width:600px;margin:0 auto;padding:0 24px 60px;}
+
+/* LOADING / ERROR */
+.loading{text-align:center;padding:60px 20px;color:var(--muted);}
+.loading-spin{font-size:24px;animation:spin 1s linear infinite;display:inline-block;margin-bottom:12px;}
+@keyframes spin{to{transform:rotate(360deg)}}
+.error-box{background:var(--red-tint);border:0.5px solid var(--red);border-radius:12px;padding:20px;text-align:center;margin-top:24px;}
+
+/* PROPOSAL CARD */
+.prop-card{background:var(--bg-soft);border:0.5px solid var(--line);border-radius:14px;overflow:hidden;margin-top:20px;}
+.prop-client{padding:18px 20px 14px;border-bottom:0.5px solid var(--line);}
+.prop-client-name{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:400;color:var(--ink);margin-bottom:3px;}
+.prop-client-addr{font-size:12px;color:var(--muted);}
+.prop-total{padding:16px 20px;border-bottom:0.5px solid var(--line);text-align:center;}
+.prop-total-lbl{font-size:9px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:1.8px;margin-bottom:4px;}
+.prop-total-val{font-family:'Cormorant Garamond',serif;font-size:44px;font-weight:300;color:var(--ink);line-height:1;}
+.prop-total-sub{font-size:11px;color:var(--muted);margin-top:6px;}
+
+/* LINE ITEMS */
+.line-items{padding:4px 0;}
+.line-item{display:flex;justify-content:space-between;align-items:flex-start;padding:11px 20px;border-bottom:0.5px solid var(--line-soft);}
+.line-item:last-child{border-bottom:none;}
+.line-desc{font-size:13px;color:var(--ink);flex:1;}
+.line-sub{font-size:11px;color:var(--muted);margin-top:2px;}
+.line-price{font-family:'Cormorant Garamond',serif;font-size:16px;color:var(--ink);white-space:nowrap;margin-left:12px;}
+
+/* ROOMS */
+.rooms-section{padding:14px 20px;border-top:0.5px solid var(--line-soft);}
+.rooms-lbl{font-size:9px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:8px;}
+.rooms-pills{display:flex;flex-wrap:wrap;gap:6px;}
+.room-pill{font-size:11px;padding:4px 10px;background:var(--bg);border:0.5px solid var(--line);border-radius:20px;color:var(--ink-soft);}
+
+/* STAGING DATE */
+.date-row{padding:14px 20px;border-top:0.5px solid var(--line);display:flex;align-items:center;gap:10px;}
+.date-icon{font-size:18px;color:var(--muted);}
+.date-lbl{font-size:11px;color:var(--muted);}
+.date-val{font-size:13px;font-weight:500;color:var(--ink);}
+
+/* TERMS */
+.terms-section{margin-top:16px;}
+.terms-hdr{font-size:10px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px;}
+.term-row{display:flex;gap:8px;font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:5px;}
+.term-dot{flex-shrink:0;margin-top:1px;}
+
+/* ACTION BUTTONS */
+.action-btns{display:flex;gap:10px;margin-top:20px;}
+.action-btn{flex:1;padding:15px;border:none;border-radius:11px;font-family:'Cormorant Garamond',serif;font-size:16px;font-weight:400;letter-spacing:2px;text-transform:uppercase;cursor:pointer;transition:all 0.18s;text-align:center;text-decoration:none;display:flex;align-items:center;justify-content:center;gap:8px;}
+.action-btn.download{background:var(--cta);color:#f0ebe3;}
+.action-btn.download:hover{background:var(--cta-hover);}
+.action-btn.approve{background:var(--green);color:#fff;}
+.action-btn.approve:hover{background:var(--green-dark);}
+.action-btn:disabled{opacity:0.5;cursor:not-allowed;}
+
+/* SIGN SECTION */
+.sign-section{background:var(--bg-soft);border:0.5px solid var(--olive-line);border-radius:14px;padding:20px;margin-top:20px;}
+.sign-title{font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:400;color:var(--ink);margin-bottom:4px;}
+.sign-sub{font-size:12px;color:var(--muted);margin-bottom:18px;line-height:1.5;}
+.sign-field{margin-bottom:14px;}
+.sign-lbl{font-size:9px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px;}
+.sign-input{width:100%;font-family:'Cormorant Garamond',serif;font-size:22px;padding:12px 14px;border:0.5px solid var(--line);border-radius:9px;outline:none;background:var(--bg);color:var(--ink);transition:border-color 0.18s;}
+.sign-input:focus{border-color:var(--olive);}
+.sign-input::placeholder{color:var(--muted-soft);font-size:18px;}
+.sign-date{width:100%;font-family:'Inter',sans-serif;font-size:14px;padding:11px 14px;border:0.5px solid var(--line);border-radius:9px;outline:none;background:var(--bg);color:var(--ink);}
+.sign-agree{display:flex;align-items:flex-start;gap:11px;margin-bottom:18px;cursor:pointer;}
+.sign-agree input{width:18px;height:18px;flex-shrink:0;margin-top:1px;accent-color:var(--green);cursor:pointer;}
+.sign-agree-text{font-size:12px;color:var(--ink-soft);line-height:1.6;}
+.sign-agree-text strong{color:var(--ink);}
+.sign-submit{width:100%;padding:16px;background:var(--green);color:#fff;border:none;border-radius:11px;font-family:'Cormorant Garamond',serif;font-size:17px;font-weight:400;letter-spacing:2px;text-transform:uppercase;cursor:pointer;transition:all 0.18s;}
+.sign-submit:hover{background:var(--green-dark);}
+.sign-submit:disabled{opacity:0.5;cursor:not-allowed;}
+.sign-legal{font-size:10px;color:var(--muted-soft);margin-top:12px;text-align:center;line-height:1.6;}
+
+/* CONFIRMATION */
+.confirm-card{background:var(--green-tint);border:0.5px solid var(--olive-line);border-radius:14px;padding:28px 24px;text-align:center;margin-top:20px;}
+.confirm-icon{font-size:36px;margin-bottom:12px;}
+.confirm-title{font-family:'Cormorant Garamond',serif;font-size:28px;font-weight:400;color:var(--green-dark);margin-bottom:8px;}
+.confirm-sub{font-size:13px;color:var(--olive-dark);line-height:1.6;margin-bottom:18px;}
+.confirm-details{background:#fff;border-radius:10px;padding:14px 16px;text-align:left;font-size:12px;color:var(--muted);}
+.confirm-detail-row{display:flex;justify-content:space-between;padding:4px 0;}
+.confirm-detail-row strong{color:var(--ink);}
+.pay-btn{display:block;width:100%;padding:15px;background:var(--cta);color:#f0ebe3;border:none;border-radius:11px;font-family:'Cormorant Garamond',serif;font-size:17px;font-weight:400;letter-spacing:2px;text-transform:uppercase;cursor:pointer;margin-top:16px;text-decoration:none;text-align:center;}
+
+/* FOOTER */
+.footer{text-align:center;padding:24px;font-size:11px;color:var(--muted-soft);}
+.footer a{color:var(--muted);text-decoration:none;}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <div class="hdr-inner">
+    <div>
+      <div class="brand">Styling With Jas</div>
+      <div class="hdr-title">Staging Proposal</div>
+    </div>
+    <div class="inv-num" id="hdr-invnum"></div>
+  </div>
+</div>
+
+<div class="status-banner">
+  <div class="status-pill pending" id="status-pill">
+    <div class="status-dot"></div>
+    <span id="status-text">Loading proposal...</span>
+  </div>
+</div>
+
+<div class="content">
+  <div id="main-content">
+    <div class="loading">
+      <div class="loading-spin">⟳</div>
+      <div>Loading your proposal...</div>
+    </div>
+  </div>
+</div>
+
+<div class="footer">
+  <a href="tel:2064225618">206-422-5618</a> &nbsp;·&nbsp;
+  <a href="mailto:info@stylingwithjas.com">info@stylingwithjas.com</a>
+</div>
+
+<script>
+const _sb = supabase.createClient(
+  'https://cwvdfgrjlrpsdfwduwvn.supabase.co',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN3dmRmZ3JqbHJwc2Rmd2R1d3ZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwMDcyODUsImV4cCI6MjA5MzU4MzI4NX0.zam9AnIwW91TI6eCKUcg05LhvFcRa7op4QsjRpdcrCY'
+);
+
+function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function fmt(n){return '$'+(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function fmtDate(iso){if(!iso)return'';const d=new Date(iso+'T00:00:00');return d.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});}
+
+let _inv = null;
+let _grand = 0;
+
+function computeGrand(d){
+  const base=parseFloat(d.base_price)||2500;
+  const addons=(d.addons||[]).reduce((s,a)=>s+(parseFloat(a.price)||0),0);
+  return (base+addons)*(1+(parseFloat(d.taxrate)||0)/100);
+}
+
+async function loadProposal(){
+  const params = new URLSearchParams(window.location.search);
+  const invnum = params.get('inv');
+  if(!invnum){
+    showError('No proposal found. Please use the link sent to you by Styling With Jas.');
+    return;
+  }
+  document.getElementById('hdr-invnum').textContent = '#'+invnum;
+  try {
+    const {data,error} = await _sb.from('invoices').select('*').eq('invnum',invnum).limit(1);
+    if(error||!data||!data[0]){
+      showError('Proposal not found. Please contact Jasmine at 206-422-5618.');
+      return;
+    }
+    _inv = data[0];
+    const d = _inv.data||{};
+    _grand = computeGrand(d);
+
+    // Already signed?
+    if(d.signed){
+      showSigned(d);
+      return;
+    }
+    renderProposal(d);
+  } catch(e){
+    showError('Could not load proposal: '+e.message);
+  }
+}
+
+function renderProposal(d){
+  const invnum = _inv.invnum;
+  const client = _inv.client||d.client||'';
+  const addr = _inv.address||d.address||'';
+  const base = parseFloat(d.base_price)||2500;
+  const addons = d.addons||[];
+  const tax = _grand - (base + addons.reduce((s,a)=>s+(parseFloat(a.price)||0),0));
+  const rooms = (d.baserooms||'').split(', ').filter(Boolean);
+  const stagingDate = d.startdate;
+  const extrate = Math.round(_grand/3*100)/100;
+
+  // Update status
+  setStatus('pending','Awaiting your approval');
+
+  // Line items
+  const lineItemsHTML = [
+    {desc:'Base staging package',sub:'Delivery, setup, 45-day furniture rental & teardown',price:base},
+    ...addons.map(a=>({desc:a.desc,sub:null,price:parseFloat(a.price)||0})),
+  ].map(li=>`
+    <div class="line-item">
+      <div>
+        <div class="line-desc">${esc(li.desc)}</div>
+        ${li.sub?`<div class="line-sub">${esc(li.sub)}</div>`:''}
+      </div>
+      <div class="line-price">${fmt(li.price)}</div>
+    </div>
+  `).join('');
+
+  const taxHTML = `
+    <div class="line-item" style="background:var(--bg);">
+      <div class="line-desc" style="color:var(--muted)">Tax (${d.taxrate||0}%)</div>
+      <div class="line-price" style="color:var(--muted)">${fmt(tax)}</div>
+    </div>`;
+
+  document.getElementById('main-content').innerHTML = `
+    <div class="prop-card">
+      <div class="prop-client">
+        <div class="prop-client-name">${esc(client)}</div>
+        <div class="prop-client-addr">${esc(addr)}</div>
+      </div>
+      <div class="prop-total">
+        <div class="prop-total-lbl">Total Investment</div>
+        <div class="prop-total-val">${fmt(_grand)}</div>
+        <div class="prop-total-sub">Full payment due 48 hours before staging</div>
+      </div>
+      <div class="line-items">
+        ${lineItemsHTML}
+        ${taxHTML}
+      </div>
+      ${rooms.length?`
+      <div class="rooms-section">
+        <div class="rooms-lbl">Rooms included</div>
+        <div class="rooms-pills">${rooms.map(r=>`<span class="room-pill">${esc(r)}</span>`).join('')}</div>
+      </div>`:''}
+      ${stagingDate?`
+      <div class="date-row">
+        <div class="date-icon">📅</div>
+        <div>
+          <div class="date-lbl">Staging date</div>
+          <div class="date-val">${fmtDate(stagingDate)}</div>
+        </div>
+      </div>`:''}
+    </div>
+
+    <div class="terms-section">
+      <div class="terms-hdr">Key terms</div>
+      <div class="term-row"><span class="term-dot">·</span><span>Full payment due 48 hours before installation day</span></div>
+      <div class="term-row"><span class="term-dot">·</span><span>Includes 45-day furniture rental from staging date</span></div>
+      <div class="term-row"><span class="term-dot">·</span><span>Extensions available at ${fmt(extrate)} per 30-day period</span></div>
+      <div class="term-row"><span class="term-dot">·</span><span>Cancellations within 72 hours of install incur a $700 cancellation fee</span></div>
+      <div class="term-row"><span class="term-dot">·</span><span>Property must be clean, free of contractors, and have active utilities at staging time</span></div>
+      <div class="term-row"><span class="term-dot">·</span><span>Styling With Jas reserves the right to photograph staged spaces for portfolio use</span></div>
+    </div>
+
+
+
+    <div class="sign-section" id="sign-section">
+      <div class="sign-title">Sign this proposal</div>
+      <div class="sign-sub">Draw your signature using your finger or mouse. On desktop you can also type your name instead. This is legally binding under the ESIGN Act.</div>
+
+      <!-- Draw mode -->
+      <div class="sign-field" id="draw-mode">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+          <div class="sign-lbl" style="margin-bottom:0">Your signature</div>
+          <div style="display:flex;gap:12px;">
+            <button type="button" onclick="clearSig()" style="font-size:11px;color:var(--muted);background:none;border:none;cursor:pointer;font-family:'Inter',sans-serif;">Clear</button>
+            <button type="button" onclick="switchToType()" style="font-size:11px;color:var(--olive);background:none;border:none;cursor:pointer;font-family:'Inter',sans-serif;font-weight:500;">Type instead →</button>
+          </div>
+        </div>
+        <canvas id="sig-canvas" width="800" height="150" style="width:100%;height:130px;border:0.5px solid var(--line);border-radius:10px;background:#fff;cursor:crosshair;touch-action:none;display:block;"></canvas>
+        <div id="sig-canvas-hint" style="font-size:10px;color:var(--muted-soft);text-align:center;margin-top:5px;">Sign with your finger or mouse</div>
+      </div>
+
+      <!-- Type mode (hidden by default) -->
+      <div class="sign-field" id="type-mode" style="display:none;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+          <div class="sign-lbl" style="margin-bottom:0">Type your full name</div>
+          <button type="button" onclick="switchToDraw()" style="font-size:11px;color:var(--olive);background:none;border:none;cursor:pointer;font-family:'Inter',sans-serif;font-weight:500;">← Draw instead</button>
+        </div>
+        <input class="sign-input" id="sig-name-typed" type="text" placeholder="Your full name" autocomplete="name">
+        <div style="font-size:11px;color:var(--muted);margin-top:5px;">Rendered as cursive signature on the PDF</div>
+      </div>
+
+      <!-- Full name for records (always shown) -->
+      <div class="sign-field" style="margin-top:6px;">
+        <div class="sign-lbl">Full name (for records)</div>
+        <input class="sign-input" id="sig-name" type="text" placeholder="Type your full name" autocomplete="name" style="font-size:16px;">
+      </div>
+
+      <div class="sign-field">
+        <div class="sign-lbl">Date</div>
+        <input class="sign-date" id="sig-date" type="date" value="${new Date().toISOString().split('T')[0]}">
+      </div>
+      <label class="sign-agree">
+        <input type="checkbox" id="sig-agree">
+        <div class="sign-agree-text">I have read and agree to the staging proposal and terms above. I understand this is a binding agreement and authorize <strong>Styling With Jas</strong> to provide staging services as described for <strong>${fmt(_grand)}</strong>.</div>
+      </label>
+      <button class="sign-submit" id="sign-btn" onclick="submitSignature()">
+        I Approve &amp; Sign This Proposal
+      </button>
+      <div class="sign-legal">
+        Electronic signature · ${new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})} ·
+        Compliant with ESIGN Act (15 U.S.C. § 7001)
+      </div>
+    </div>
+  `;
+}
+
+async function submitSignature(){
+  const name = document.getElementById('sig-name').value.trim();
+  const date = document.getElementById('sig-date').value;
+  const agreed = document.getElementById('sig-agree').checked;
+  const drawMode = document.getElementById('draw-mode').style.display !== 'none';
+
+  // Validate
+  if(!name){ document.getElementById('sig-name').focus(); alert('Please enter your full name for records.'); return; }
+  if(!date){ document.getElementById('sig-date').focus(); return; }
+  if(!agreed){ alert('Please check the agreement box to proceed.'); return; }
+
+  // Get signature image
+  let sig_image = null;
+  if(drawMode){
+    const canvas = document.getElementById('sig-canvas');
+    if(_sigEmpty){ alert('Please draw your signature before approving.'); return; }
+    sig_image = canvas.toDataURL('image/png');
+  } else {
+    const typedName = document.getElementById('sig-name-typed').value.trim();
+    if(!typedName){ document.getElementById('sig-name-typed').focus(); alert('Please type your name in the signature field.'); return; }
+    // Render typed name as cursive image via canvas
+    sig_image = renderTypedSignature(typedName);
+  }
+
+  const btn = document.getElementById('sign-btn');
+  btn.disabled = true;
+  btn.textContent = 'Processing...';
+
+  try {
+    const r = await fetch('/api/sign', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        invnum: _inv.invnum,
+        signed_by: name,
+        signed_date: date,
+        agreed: true,
+        sig_image: sig_image,
+        sig_mode: drawMode ? 'drawn' : 'typed',
+      })
+    });
+    const result = await r.json();
+    if(result.error){ alert('Signing failed: '+result.error); btn.disabled=false; btn.textContent='I Approve &amp; Sign This Proposal'; return; }
+    showConfirmation(name, date, result.contract_url);
+  } catch(e){
+    alert('Error: '+e.message);
+    btn.disabled=false;
+    btn.textContent='I Approve &amp; Sign This Proposal';
+  }
+}
+
+function showConfirmation(name, date, contractUrl){
+  setStatus('signed','Approved & signed');
+  const d = _inv.data||{};
+  const paymentUrl = d.payment_url||null;
+  document.getElementById('main-content').innerHTML = `
+    <div class="confirm-card">
+      <div class="confirm-icon">✅</div>
+      <div class="confirm-title">Thank you, ${esc(name.split(' ')[0])}.</div>
+      <div class="confirm-sub">Your proposal has been approved and signed. A copy has been emailed to you and to Jasmine at Styling With Jas.</div>
+      <div class="confirm-details">
+        <div class="confirm-detail-row"><span>Signed by</span><strong>${esc(name)}</strong></div>
+        <div class="confirm-detail-row"><span>Date</span><strong>${fmtDate(date)}</strong></div>
+        <div class="confirm-detail-row"><span>Invoice</span><strong>#${esc(_inv.invnum)}</strong></div>
+        <div class="confirm-detail-row"><span>Total</span><strong>${fmt(_grand)}</strong></div>
+      </div>
+      ${paymentUrl?`
+      <div style="margin-top:16px;padding:14px 16px;background:#fff;border-radius:10px;font-size:12px;color:var(--muted);text-align:center;">
+        Your payment of <strong style="color:var(--ink)">${fmt(_grand)}</strong> is due 48 hours before staging.
+      </div>
+      <a href="${esc(paymentUrl)}" class="pay-btn" target="_blank">Pay Now — ${fmt(_grand)}</a>`:''}
+      ${contractUrl?`<a href="${esc(contractUrl)}" class="pay-btn" style="background:var(--olive);margin-top:10px;" target="_blank">Download Signed Contract</a>`:''}
+    </div>
+  `;
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+function showSigned(d){
+  setStatus('signed','Approved & signed');
+  document.getElementById('main-content').innerHTML = `
+    <div class="confirm-card">
+      <div class="confirm-icon">✅</div>
+      <div class="confirm-title">Already signed.</div>
+      <div class="confirm-sub">This proposal was approved by <strong>${esc(d.signed_by||'')}</strong> on ${fmtDate(d.signed_date)}.</div>
+      ${d.payment_url?`<a href="${esc(d.payment_url)}" class="pay-btn" target="_blank">Pay Now — ${fmt(computeGrand(d))}</a>`:''}
+    </div>
+  `;
+}
+
+function setStatus(type, text){
+  const pill = document.getElementById('status-pill');
+  const span = document.getElementById('status-text');
+  pill.className = 'status-pill '+type;
+  span.textContent = text;
+}
+
+function showError(msg){
+  setStatus('expired','Unavailable');
+  document.getElementById('main-content').innerHTML = `<div class="error-box"><div style="font-size:20px;margin-bottom:8px;">⚠</div><div style="font-size:14px;color:var(--red)">${esc(msg)}</div></div>`;
+}
+
+// ── SIGNATURE PAD ────────────────────────────────────
+let _sigDrawing = false;
+let _sigEmpty = true;
+
+function initCanvas(){
+  const canvas = document.getElementById('sig-canvas');
+  if(!canvas) return;
+  const ctx = canvas.getContext('2d');
+  ctx.strokeStyle = '#1a1816';
+  ctx.lineWidth = 2.5;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  function getPos(e){
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    if(e.touches){
+      return {x:(e.touches[0].clientX-rect.left)*scaleX, y:(e.touches[0].clientY-rect.top)*scaleY};
+    }
+    return {x:(e.clientX-rect.left)*scaleX, y:(e.clientY-rect.top)*scaleY};
+  }
+
+  function startDraw(e){ e.preventDefault(); _sigDrawing=true; const p=getPos(e); ctx.beginPath(); ctx.moveTo(p.x,p.y); }
+  function draw(e){ if(!_sigDrawing) return; e.preventDefault(); const p=getPos(e); ctx.lineTo(p.x,p.y); ctx.stroke(); _sigEmpty=false; document.getElementById('sig-canvas-hint').style.display='none'; }
+  function stopDraw(){ _sigDrawing=false; }
+
+  canvas.addEventListener('mousedown', startDraw);
+  canvas.addEventListener('mousemove', draw);
+  canvas.addEventListener('mouseup', stopDraw);
+  canvas.addEventListener('mouseleave', stopDraw);
+  canvas.addEventListener('touchstart', startDraw, {passive:false});
+  canvas.addEventListener('touchmove', draw, {passive:false});
+  canvas.addEventListener('touchend', stopDraw);
+}
+
+function clearSig(){
+  const canvas = document.getElementById('sig-canvas');
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  _sigEmpty = true;
+  const hint = document.getElementById('sig-canvas-hint');
+  if(hint) hint.style.display = 'block';
+}
+
+function switchToType(){
+  document.getElementById('draw-mode').style.display = 'none';
+  document.getElementById('type-mode').style.display = 'block';
+  setTimeout(()=>document.getElementById('sig-name-typed')?.focus(), 100);
+}
+
+function switchToDraw(){
+  document.getElementById('type-mode').style.display = 'none';
+  document.getElementById('draw-mode').style.display = 'block';
+  initCanvas();
+}
+
+function renderTypedSignature(name){
+  // Render name in a script-style font on a canvas, return as PNG data URL
+  const canvas = document.createElement('canvas');
+  canvas.width = 550; canvas.height = 120;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0,0,550,120);
+  // Use a cursive font stack
+  ctx.font = 'italic 52px "Brush Script MT", "Segoe Script", "Dancing Script", cursive';
+  ctx.fillStyle = '#1a1816';
+  ctx.textBaseline = 'middle';
+  // Scale text to fit
+  let fontSize = 52;
+  while(ctx.measureText(name).width > 500 && fontSize > 24){
+    fontSize -= 4;
+    ctx.font = 'italic '+fontSize+'px "Brush Script MT", "Segoe Script", cursive';
+  }
+  ctx.fillText(name, 20, 62);
+  return canvas.toDataURL('image/png');
+}
+
+// Init canvas when sign section appears
+const _sigObserver = new MutationObserver(()=>{
+  if(document.getElementById('sig-canvas')){ initCanvas(); _sigObserver.disconnect(); }
+});
+_sigObserver.observe(document.body, {childList:true, subtree:true});
+
+document.addEventListener('DOMContentLoaded', loadProposal);
+</script>
+</body>
+</html>
