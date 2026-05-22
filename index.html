@@ -1026,7 +1026,7 @@ async function saveDraft(){
     const cat = CATS[entry.ci], opt = cat.sizes[entry.oi];
     const bed = cat.hasBed ? bedSel.get(`${entry.ci}`) : '';
     const scope = document.getElementById(`sc-${entry.ci}`)?.value || entry.scope || '';
-    allAddons.push({desc:`${cat.name}${bed?` (${bed})`:''}: ${scope||opt.size}`,price:opt.price});
+    allAddons.push({desc:cat.name + (bed ? " (" + bed + ")" : "") + ": " + (scope||opt.size),price:opt.price});
   });
   customs.filter(a=>a.desc).forEach(a=>{allAddons.push({desc:a.desc+(a.scope?': '+a.scope:''),price:parseFloat(a.price)||0});});
   extraBedrooms.forEach(b=>{allAddons.push({desc:`${b.name} (${b.bed}): ${b.scope||b.size}`,price:b.price});});
@@ -1444,7 +1444,7 @@ async function generatePDF(){
     const cat=CATS[entry.ci],opt=cat.sizes[entry.oi];
     const bed=cat.hasBed?bedSel.get(`${entry.ci}`):'';
     const scope=document.getElementById(`sc-${entry.ci}`)?.value||entry.scope||'';
-    allAddons.push({desc:`${cat.name}${bed?` (${bed})`:''}: ${scope||opt.size}`,price:opt.price});
+    allAddons.push({desc:cat.name + (bed ? " (" + bed + ")" : "") + ": " + (scope||opt.size),price:opt.price});
   });
   customs.filter(a=>a.desc).forEach(a=>{allAddons.push({desc:a.desc+(a.scope?': '+a.scope:''),price:parseFloat(a.price)||0});});
   extraBedrooms.forEach(b=>{allAddons.push({desc:`${b.name} (${b.bed}): ${b.scope||b.size}`,price:b.price});});
@@ -1505,7 +1505,7 @@ async function generate(){
     const cat=CATS[entry.ci],opt=cat.sizes[entry.oi];
     const bed=cat.hasBed?bedSel.get(`${entry.ci}`):'';
     const scope=document.getElementById(`sc-${entry.ci}`)?.value||entry.scope||'';
-    allAddons.push({desc:`${cat.name}${bed?` (${bed})`:''}: ${scope||opt.size}`,price:opt.price});
+    allAddons.push({desc:cat.name + (bed ? " (" + bed + ")" : "") + ": " + (scope||opt.size),price:opt.price});
   });
   customs.filter(a=>a.desc).forEach(a=>{allAddons.push({desc:a.desc+(a.scope?': '+a.scope:''),price:parseFloat(a.price)||0});});
   extraBedrooms.forEach(b=>{allAddons.push({desc:`${b.name} (${b.bed}): ${b.scope||b.size}`,price:b.price});});
@@ -1522,7 +1522,7 @@ async function generate(){
   const invNumFinal = document.getElementById('invnum-display').value.trim() || '202093';
   invNum = invNumFinal;
 
-  let payment_url=null;
+  payment_url=null;
   try{
     payment_url=await createPaymentLink(grand,client,invNumFinal,address);
   }catch(e){
