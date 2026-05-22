@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>SWJ — Today</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Cormorant+Garamond:wght@300;400;500;600&display=swap">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*, *::before, *::after { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+
+:root {
+  --bg:           #fcfaf7;
+  --bg-soft:      #ffffff;
+  --bg-card:      #ffffff;
+  --bg-input:     #ffffff;
+  --bg-hover:     #f7f3ee;
+  --ink:          #2c2926;
+  --ink-soft:     #3d3833;
+  --muted:        #8c847c;
+  --muted-soft:   #b8ada1;
+  --line:         #e7e1d9;
+  --line-soft:    #ede8e0;
+  --olive:        #7a8574;
+  --olive-dark:   #5f685a;
+  --olive-tint:   #eef1ea;
+  --olive-line:   #c9d0c2;
+  --gold:         #b89a63;
+  --gold-soft:    #f6f1e7;
+  --gold-line:    #eadfcb;
+  --green:        #6f8a72;
+  --green-tint:   #edf4ee;
+  --amber:        #b77b62;
+  --amber-tint:   #faefea;
+  --red:          #9a5a4a;
+  --red-tint:     #f8ece8;
+  --cta:          #4a443e;
+  --cta-hover:    #5a534b;
+}
+
+body { font-family:'Inter',-apple-system,sans-serif; background:var(--bg); color:var(--ink); min-height:100vh; font-size:15px; letter-spacing:0.01em; }
+
+/* HEADER (same pattern as index.html / board.html) */
+.hdr { background:var(--bg); position:sticky; top:0; z-index:60; border-bottom:0.5px solid var(--line); }
+.hdr-top { display:flex; align-items:center; justify-content:space-between; padding:14px 24px 12px; gap:12px; max-width:760px; margin:0 auto; }
+.brand-stack { display:flex; flex-direction:column; gap:1px; }
+.brand-stack .b1 { font-family:'Cormorant Garamond',serif; font-size:13px; font-weight:400; color:var(--ink); letter-spacing:3px; text-transform:uppercase; }
+.brand-stack .b2 { font-size:9px; color:var(--muted); letter-spacing:2px; text-transform:uppercase; }
+.hdr-right { display:flex; align-items:center; gap:10px; }
+.nav-sw { display:flex; gap:2px; background:var(--bg-soft); border-radius:20px; padding:3px; border:0.5px solid var(--line); }
+.nav-btn { padding:5px 13px; border-radius:16px; border:none; font-size:11px; font-weight:500; cursor:pointer; font-family:'Inter',sans-serif; transition:all 0.18s; }
+.nav-btn.on  { background:var(--cta); color:var(--bg-soft); }
+.nav-btn.off { background:transparent; color:var(--muted); }
+
+/* CONTENT */
+.content { padding:8px 24px 64px; max-width:760px; margin:0 auto; }
+
+/* GREETING */
+.greeting { padding:32px 0 8px; }
+.greeting-hello { font-family:'Cormorant Garamond',serif; font-size:42px; font-weight:400; color:var(--green); line-height:1.1; letter-spacing:-0.015em; margin-bottom:6px; }
+.greeting-date { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:2px; }
+
+/* SECTIONS */
+.section { padding:28px 0 24px; border-bottom:0.5px solid var(--line); }
+.section:last-child { border-bottom:none; }
+.section-hdr { display:flex; align-items:baseline; justify-content:space-between; margin-bottom:14px; }
+.section-title { font-family:'Cormorant Garamond',serif; font-size:28px; font-weight:400; color:var(--ink); letter-spacing:-0.01em; }
+.section-meta { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:1.8px; }
+
+/* URGENT ACTION CARDS */
+.action-card { background:var(--bg-card); border:0.5px solid var(--line); border-left:3px solid var(--olive); border-radius:11px; padding:14px 16px; margin-bottom:10px; transition:all 0.15s; }
+.action-card.severity-high   { border-left-color:var(--red); }
+.action-card.severity-medium { border-left-color:var(--amber); }
+.action-card.severity-low    { border-left-color:var(--olive); }
+.action-card:hover { box-shadow:0 1px 3px rgba(0,0,0,0.04); }
+
+.action-row { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:10px; }
+.action-content { flex:1; min-width:0; }
+.action-label { font-size:9px; font-weight:600; text-transform:uppercase; letter-spacing:1.5px; margin-bottom:4px; }
+.action-card.severity-high   .action-label { color:var(--red); }
+.action-card.severity-medium .action-label { color:var(--amber); }
+.action-card.severity-low    .action-label { color:var(--olive-dark); }
+.action-client { font-family:'Cormorant Garamond',serif; font-size:21px; font-weight:400; color:var(--ink); line-height:1.2; }
+.action-detail { font-size:12px; color:var(--muted); margin-top:3px; }
+.action-amount { font-family:'Cormorant Garamond',serif; font-size:22px; font-weight:400; color:var(--ink); white-space:nowrap; }
+.action-amount.red { color:var(--red); }
+
+.action-btns { display:flex; gap:8px; }
+.action-btn { padding:8px 14px; font-size:12px; font-weight:500; border-radius:8px; border:0.5px solid var(--line); background:var(--bg-card); color:var(--ink-soft); cursor:pointer; font-family:'Inter',sans-serif; transition:all 0.15s; }
+.action-btn:hover { background:var(--bg-hover); border-color:var(--olive-line); }
+.action-btn.primary { background:var(--cta); color:var(--bg-soft); border-color:var(--cta); }
+.action-btn.primary:hover { background:var(--cta-hover); }
+.action-btn.ghost { background:transparent; border-color:var(--line-soft); }
+
+/* EMPTY STATE */
+.empty-state { padding:30px 16px; text-align:center; background:var(--olive-tint); border-radius:12px; }
+.empty-state-icon { font-size:24px; color:var(--olive); margin-bottom:8px; }
+.empty-state-text { font-family:'Cormorant Garamond',serif; font-size:18px; color:var(--ink); margin-bottom:4px; }
+.empty-state-sub  { font-size:11px; color:var(--muted-soft); }
+
+/* LOADING SKELETON */
+.skel { height:84px; background:var(--bg-soft); border:0.5px solid var(--line); border-radius:11px; margin-bottom:10px; animation:shimmer 1.4s infinite; }
+@keyframes shimmer { 0%,100%{opacity:1} 50%{opacity:0.5} }
+
+/* COMING SOON PLACEHOLDER SECTIONS */
+.coming-soon { padding:18px 16px; background:var(--bg-soft); border:0.5px dashed var(--line); border-radius:11px; text-align:center; }
+.coming-soon-icon { font-size:18px; color:var(--muted-soft); margin-bottom:6px; }
+.coming-soon-text { font-size:12px; color:var(--muted); font-style:italic; }
+
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="hdr">
+  <div class="hdr-top">
+    <div class="brand-stack">
+      <div class="b1">Styling With Jas</div>
+      <div class="b2">Staging & Design Services</div>
+    </div>
+    <div class="hdr-right">
+      <div class="nav-sw">
+        <button class="nav-btn on">Today</button>
+        <button class="nav-btn off" onclick="window.location.href='/board.html'">Board</button>
+        <button class="nav-btn off" onclick="window.location.href='/index.html'">Invoice</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="content">
+
+  <!-- GREETING -->
+  <div class="greeting">
+    <div class="greeting-hello" id="greeting-hello">Good morning, Jas.</div>
+    <div class="greeting-date" id="greeting-date">Loading...</div>
+  </div>
+
+  <!-- SECTION 1 — URGENT ACTIONS -->
+  <div class="section">
+    <div class="section-hdr">
+      <div class="section-title">Needs Attention</div>
+      <div class="section-meta" id="actions-count">— loading</div>
+    </div>
+    <div id="actions-list">
+      <div class="skel"></div>
+      <div class="skel"></div>
+    </div>
+  </div>
+
+  <!-- SECTION 2 — TODAY'S SCHEDULE (placeholder) -->
+  <div class="section">
+    <div class="section-hdr">
+      <div class="section-title">Today's Schedule</div>
+      <div class="section-meta">coming next</div>
+    </div>
+    <div class="coming-soon">
+      <div class="coming-soon-icon"><i class="ti ti-calendar-time" aria-hidden="true"></i></div>
+      <div class="coming-soon-text">Timeline view — truck pickup, staging start, photo delivery</div>
+    </div>
+  </div>
+
+  <!-- SECTION 3 — SHOPPING RUNS (placeholder) -->
+  <div class="section">
+    <div class="section-hdr">
+      <div class="section-title">Shopping Runs</div>
+      <div class="section-meta">coming next</div>
+    </div>
+    <div class="coming-soon">
+      <div class="coming-soon-icon"><i class="ti ti-shopping-cart" aria-hidden="true"></i></div>
+      <div class="coming-soon-text">Consolidated list by store, with mark-completed</div>
+    </div>
+  </div>
+
+  <!-- SECTION 4 — FOLLOW-UPS (placeholder) -->
+  <div class="section">
+    <div class="section-hdr">
+      <div class="section-title">Follow-ups</div>
+      <div class="section-meta">coming next</div>
+    </div>
+    <div class="coming-soon">
+      <div class="coming-soon-icon"><i class="ti ti-mail-forward" aria-hidden="true"></i></div>
+      <div class="coming-soon-text">Stale proposals with one-tap reminder send</div>
+    </div>
+  </div>
+
+  <!-- SECTION 5 — FINANCIAL HEALTH (placeholder) -->
+  <div class="section">
+    <div class="section-hdr">
+      <div class="section-title">Financial Health</div>
+      <div class="section-meta">coming next</div>
+    </div>
+    <div class="coming-soon">
+      <div class="coming-soon-icon"><i class="ti ti-coin" aria-hidden="true"></i></div>
+      <div class="coming-soon-text">Pending payment · MTD revenue · avg margin</div>
+    </div>
+  </div>
+
+  <!-- SECTION 6 — UPCOMING BOTTLENECKS (placeholder) -->
+  <div class="section">
+    <div class="section-hdr">
+      <div class="section-title">Upcoming Bottlenecks</div>
+      <div class="section-meta">coming next</div>
+    </div>
+    <div class="coming-soon">
+      <div class="coming-soon-icon"><i class="ti ti-alert-triangle" aria-hidden="true"></i></div>
+      <div class="coming-soon-text">Mover conflicts · inventory · weekly load</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const _sb = supabase.createClient(
+  'https://cwvdfgrjlrpsdfwduwvn.supabase.co',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN3dmRmZ3JqbHJwc2Rmd2R1d3ZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwMDcyODUsImV4cCI6MjA5MzU4MzI4NX0.zam9AnIwW91TI6eCKUcg05LhvFcRa7op4QsjRpdcrCY'
+);
+
+function setGreeting(){
+  const hr = new Date().getHours();
+  let g = 'Good morning';
+  if(hr >= 12 && hr < 17) g = 'Good afternoon';
+  else if(hr >= 17) g = 'Good evening';
+  document.getElementById('greeting-hello').textContent = `${g}, Jas.`;
+  const d = new Date();
+  const opts = { weekday:'long', month:'long', day:'numeric' };
+  document.getElementById('greeting-date').textContent = d.toLocaleDateString('en-US', opts);
+}
+
+function daysBetween(dateStr, today){
+  // Returns positive if dateStr is in the past relative to today (i.e. how many days ago)
+  if(!dateStr) return null;
+  const d = new Date(dateStr + 'T00:00:00');
+  const diff = (today - d) / (1000*60*60*24);
+  return Math.round(diff);
+}
+function daysUntil(dateStr, today){
+  if(!dateStr) return null;
+  const d = new Date(dateStr + 'T00:00:00');
+  const diff = (d - today) / (1000*60*60*24);
+  return Math.round(diff);
+}
+
+function fmt(n){ return '$' + Math.round(n).toLocaleString(); }
+
+async function loadUrgentActions(){
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  const listEl = document.getElementById('actions-list');
+  const countEl = document.getElementById('actions-count');
+
+  try {
+    const { data, error } = await _sb
+      .from('invoices')
+      .select('invnum,client,address,invdate,data,created_at')
+      .not('invnum', 'like', 'DRAFT-%')
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    if(error){
+      listEl.innerHTML = '<div class="empty-state"><div class="empty-state-text">Could not load</div><div class="empty-state-sub">' + error.message + '</div></div>';
+      countEl.textContent = 'error';
+      return;
+    }
+
+    const actions = [];
+
+    (data || []).forEach(inv => {
+      const d = inv.data || {};
+      const client = inv.client || d.client || 'Unknown';
+      const address = inv.address || d.address || '';
+      const addrShort = address.split(',')[0] || address;
+      const paid = d.paid === true;
+      const startdate = d.startdate;
+      const invdate = inv.invdate || d.invdate;
+
+      // Compute grand total from data
+      const base = parseFloat(d.base_price) || 2500;
+      const addonsTotal = (d.addons || []).reduce((s,a)=>s+(parseFloat(a.price)||0),0);
+      const taxrate = parseFloat(d.taxrate) || 0;
+      const grand = (base + addonsTotal) * (1 + taxrate/100);
+
+      // RULE 1 — Payment overdue
+      // Staging date is in the past and still not paid
+      if(!paid && startdate){
+        const daysAgo = daysBetween(startdate, today);
+        if(daysAgo > 0){
+          actions.push({
+            severity:'high',
+            label:'Payment Overdue',
+            client, address: addrShort,
+            detail: `Staging was ${daysAgo} day${daysAgo===1?'':'s'} ago · Invoice ${inv.invnum}`,
+            amount: grand,
+            actions: [
+              {text:'Send Reminder', primary:true, onclick:`sendReminder('${inv.invnum}')`},
+              {text:'View Invoice', onclick:`viewInvoice('${inv.invnum}')`},
+            ],
+            sortKey: 1000 + daysAgo,
+          });
+          return;
+        }
+      }
+
+      // RULE 2 — Payment due soon (within 48h of staging)
+      if(!paid && startdate){
+        const daysUntilStaging = daysUntil(startdate, today);
+        if(daysUntilStaging !== null && daysUntilStaging >= 0 && daysUntilStaging <= 2){
+          actions.push({
+            severity:'medium',
+            label:'Payment Due Soon',
+            client, address: addrShort,
+            detail: daysUntilStaging === 0
+              ? `Staging today — payment required`
+              : `Staging in ${daysUntilStaging} day${daysUntilStaging===1?'':'s'} · Invoice ${inv.invnum}`,
+            amount: grand,
+            actions: [
+              {text:'Send Reminder', primary:true, onclick:`sendReminder('${inv.invnum}')`},
+              {text:'View Invoice', onclick:`viewInvoice('${inv.invnum}')`},
+            ],
+            sortKey: 500 + (3 - daysUntilStaging),
+          });
+          return;
+        }
+      }
+
+      // RULE 3 — Proposal stale (>5 days, still unpaid, no staging date set yet)
+      if(!paid && invdate && !startdate){
+        const daysAgo = daysBetween(invdate, today);
+        if(daysAgo >= 5){
+          actions.push({
+            severity:'low',
+            label:'Proposal Stale',
+            client, address: addrShort,
+            detail: `Sent ${daysAgo} days ago · No response yet`,
+            amount: grand,
+            actions: [
+              {text:'Send Follow-up', primary:true, onclick:`sendFollowup('${inv.invnum}')`},
+              {text:'View Invoice', onclick:`viewInvoice('${inv.invnum}')`},
+            ],
+            sortKey: 100 + daysAgo,
+          });
+          return;
+        }
+      }
+
+      // RULE 4 — Destage approaching (staged + nearing 45-day rental limit)
+      if(paid && startdate){
+        const daysSinceStaging = daysBetween(startdate, today);
+        if(daysSinceStaging >= 40 && daysSinceStaging <= 50){
+          const daysLeft = 45 - daysSinceStaging;
+          actions.push({
+            severity: daysLeft <= 2 ? 'high' : 'medium',
+            label:'Destage Approaching',
+            client, address: addrShort,
+            detail: daysLeft > 0
+              ? `${daysLeft} day${daysLeft===1?'':'s'} until 45-day rental ends`
+              : `${Math.abs(daysLeft)} day${Math.abs(daysLeft)===1?'':'s'} past rental window — extension billing applies`,
+            amount: null,
+            actions: [
+              {text:'Plan Destage', primary:true, onclick:`viewInvoice('${inv.invnum}')`},
+            ],
+            sortKey: 800 - daysLeft,
+          });
+          return;
+        }
+      }
+    });
+
+    // Sort by sortKey descending so highest urgency floats up
+    actions.sort((a,b) => b.sortKey - a.sortKey);
+
+    if(actions.length === 0){
+      listEl.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-state-icon"><i class="ti ti-check" aria-hidden="true"></i></div>
+          <div class="empty-state-text">All clear.</div>
+          <div class="empty-state-sub">Nothing needs your attention right now.</div>
+        </div>`;
+      countEl.textContent = '0 items';
+      return;
+    }
+
+    listEl.innerHTML = actions.map(a => `
+      <div class="action-card severity-${a.severity}">
+        <div class="action-row">
+          <div class="action-content">
+            <div class="action-label">${a.label}</div>
+            <div class="action-client">${a.client}</div>
+            <div class="action-detail">${a.address ? a.address + ' · ' : ''}${a.detail}</div>
+          </div>
+          ${a.amount !== null ? `<div class="action-amount ${a.severity==='high'?'red':''}">${fmt(a.amount)}</div>` : ''}
+        </div>
+        <div class="action-btns">
+          ${a.actions.map(b => `<button class="action-btn ${b.primary?'primary':'ghost'}" onclick="${b.onclick}">${b.text}</button>`).join('')}
+        </div>
+      </div>
+    `).join('');
+    countEl.textContent = `${actions.length} item${actions.length===1?'':'s'}`;
+
+  } catch(e){
+    listEl.innerHTML = '<div class="empty-state"><div class="empty-state-text">Could not load</div><div class="empty-state-sub">'+e.message+'</div></div>';
+    countEl.textContent = 'error';
+  }
+}
+
+// Action button handlers
+function viewInvoice(invnum){
+  // Navigate to invoice page; could include a query param to auto-load this invoice
+  window.location.href = `/index.html?inv=${encodeURIComponent(invnum)}`;
+}
+
+function sendReminder(invnum){
+  // Placeholder — opens invoice page where Jasmine can re-send via the email modal
+  viewInvoice(invnum);
+}
+
+function sendFollowup(invnum){
+  // Placeholder — same flow
+  viewInvoice(invnum);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  setGreeting();
+  loadUrgentActions();
+});
+</script>
+</body>
+</html>

@@ -258,6 +258,8 @@ textarea.scope-area { width:100%; font-family:'Inter',sans-serif; font-size:12px
 #gen-btn:hover   { background:var(--bg-hover); }
 #email-btn       { background:var(--cta); color:var(--bg-soft); }
 #email-btn:hover { background:var(--cta-hover); }
+#update-invoice-btn       { background:var(--olive-tint); color:var(--olive-dark); border:0.5px solid var(--olive); }
+#update-invoice-btn:hover { background:var(--olive); color:var(--bg-soft); }
 #profit-preview-btn { background:var(--gold-soft); color:var(--gold); font-family:'Inter',sans-serif; font-size:12px; font-weight:500; letter-spacing:0.5px; text-transform:none; border:0.5px solid var(--gold-line); margin-bottom:18px; }
 .gen-btn:disabled { opacity:0.4; cursor:not-allowed; }
 
@@ -322,8 +324,9 @@ textarea.scope-area { width:100%; font-family:'Inter',sans-serif; font-size:12px
     <div class="hdr-right">
       <input class="inv-badge" id="invnum-display" type="text" value="202093">
       <div class="nav-sw">
+        <button class="nav-btn off" id="nav-today" onclick="window.location.href='/today.html'">Today</button>
+        <button class="nav-btn off" id="nav-board" onclick="window.location.href='/board.html'">Board</button>
         <button class="nav-btn on"  id="nav-invoice">Invoice</button>
-        <button class="nav-btn off" id="nav-board" onclick="window.location.href='board.html'">Board</button>
       </div>
     </div>
   </div>
@@ -502,6 +505,7 @@ textarea.scope-area { width:100%; font-family:'Inter',sans-serif; font-size:12px
     </div>
     <button class="gen-btn" id="email-btn"        onclick="generateAndEmail()">Generate + Email to Client</button>
     <button class="gen-btn" id="gen-btn"         onclick="generate()">Generate Invoice + Payment Link</button>
+    <button class="gen-btn" id="update-invoice-btn" onclick="updateLoadedInvoice()" style="display:none">Update This Invoice</button>
     <button class="gen-btn" id="profit-preview-btn" onclick="previewProfitability()">Preview Job Profitability</button>
   </div>
 
@@ -643,7 +647,7 @@ const CATS=[
   {name:'Dining room',hasBed:false,sizes:[{size:'Small',price:300},{size:'Medium',price:350},{size:'Large',price:425},{size:'Extra large',price:450}]},
 ];
 
-let selRooms=new Set(),selAddons=new Map(),bedSel=new Map(),selNewAddons={},customs=[],invNum='',extraBedrooms=[];
+let selRooms=new Set(),selAddons=new Map(),bedSel=new Map(),selNewAddons={},customs=[],invNum='',extraBedrooms=[],currentLoadedInvnum=null;
 
 function pad2(n){return String(n).padStart(2,'0');}
 async function initInvNum(){
@@ -1031,8 +1035,79 @@ function loadInvoice(idx){
   try{
     const inv = window._recentInvoices[idx];
     const d = inv.data || inv;
+    currentLoadedInvnum = inv.invnum;
     loadInvoiceData(d);
+    showUpdateBtn();
   }catch(e){console.log('Load error:',e);}
+}
+
+function showUpdateBtn(){
+  const btn = document.getElementById('update-invoice-btn');
+  if(!btn) return;
+  // Only show for real (non-draft) invoices that are loaded
+  const isReal = currentLoadedInvnum && !currentLoadedInvnum.startsWith('DRAFT-');
+  btn.style.display = isReal ? 'block' : 'none';
+}
+
+async function updateLoadedInvoice(){
+  if(!currentLoadedInvnum){ setSt('err','No invoice loaded to update'); return; }
+  if(currentLoadedInvnum.startsWith('DRAFT-')){
+    setSt('err','Use Save as Draft for drafts. Update is for finalized invoices.');
+    return;
+  }
+  const btn = document.getElementById('update-invoice-btn');
+  if(btn){ btn.disabled = true; btn.textContent = 'Updating...'; }
+  try {
+    // Rebuild the full data payload from current form state
+    const allAddons = [];
+    selAddons.forEach(entry => {
+      const cat = CATS[entry.ci], opt = cat.sizes[entry.oi];
+      const bed = cat.hasBed ? bedSel.get(`${entry.ci}`) : '';
+      const scope = document.getElementById(`sc-${entry.ci}`)?.value || entry.scope || '';
+      allAddons.push({desc:cat.name + (bed ? ' ('+bed+')' : '') + ': ' + (scope||opt.size),price:opt.price});
+    });
+    customs.filter(a=>a.desc).forEach(a=>{allAddons.push({desc:a.desc+(a.scope?': '+a.scope:''),price:parseFloat(a.price)||0});});
+    extraBedrooms.forEach(b=>{allAddons.push({desc:`${b.name} (${b.bed}): ${b.scope||b.size}`,price:b.price});});
+    Object.values(selNewAddons).forEach(a=>{if(a&&typeof a==='object')allAddons.push({desc:`${a.name}${a.bed?' ('+a.bed+')':''} — ${a.sizeName}`,price:a.price});});
+
+    const data = {
+      invnum: currentLoadedInvnum,
+      client: document.getElementById('client').value.trim(),
+      address: document.getElementById('address').value.trim(),
+      invdate: document.getElementById('invdate').value,
+      startdate: document.getElementById('startdate').value,
+      taxrate: parseFloat(document.getElementById('taxrate').value)||0,
+      base_price: parseFloat(document.getElementById('base_price').value)||2500,
+      baserooms: [...selRooms].join(', '),
+      addons: allAddons,
+      promo1: document.getElementById('promo1').checked,
+      promo2: document.getElementById('promo2').checked,
+      promo3: document.getElementById('promo3').checked,
+      promo4: document.getElementById('promo4').checked,
+      cover_page: document.getElementById('cover_page').checked,
+      cover_note: document.getElementById('cover_note')?.value.trim()||'',
+      paid: document.getElementById('paid').checked,
+      paid_date: document.getElementById('paid_date')?.value||'',
+    };
+
+    const { error } = await _sb.from('invoices').upsert({
+      invnum: currentLoadedInvnum,
+      client: data.client,
+      address: data.address,
+      invdate: data.invdate,
+      data: data
+    }, { onConflict: 'invnum' });
+
+    if(error){ setSt('err','Update failed: '+error.message); }
+    else {
+      setSt('ok','Invoice updated');
+      loadRecent();
+    }
+  } catch(e){
+    setSt('err','Update failed: '+e.message);
+  } finally {
+    if(btn){ btn.disabled = false; btn.textContent = 'Update This Invoice'; }
+  }
 }
 
 function loadInvoiceData(d){
@@ -1274,8 +1349,10 @@ async function deleteDraft(invnum){
 }
 
 function loadInvoice2(type, idx){
-  const inv = type==='draft' ? window._draftInvoices[idx] : window._recentInvoices[idx];
+  const inv = type==='draft' ? window._drafts[idx] : window._recentInvoices[idx];
   if(!inv) return;
+  currentLoadedInvnum = inv.invnum;
+  setTimeout(showUpdateBtn, 50);
   const d = inv.data || inv;
   loadInvoiceData(d);
 }
@@ -1801,6 +1878,22 @@ document.addEventListener('DOMContentLoaded', function(){
   loadRecent();
   loadDrafts();
   fetch('/api/config').then(r=>r.json()).then(d=>{if(d&&d.stripe_key)STRIPE_KEY=d.stripe_key;}).catch(()=>{});
+
+  // Auto-load specific invoice if ?inv=XXX is in URL (e.g. from Today page)
+  const urlInvnum = new URLSearchParams(window.location.search).get('inv');
+  if(urlInvnum){
+    setTimeout(async () => {
+      try {
+        const { data } = await _sb.from('invoices').select('*').eq('invnum', urlInvnum).limit(1);
+        if(data && data[0]){
+          currentLoadedInvnum = data[0].invnum;
+          loadInvoiceData(data[0].data || data[0]);
+          showUpdateBtn();
+          setSt('ok', 'Invoice ' + urlInvnum + ' loaded');
+        }
+      } catch(e){ console.log('Auto-load failed:', e); }
+    }, 400);
+  }
 });
 
 
