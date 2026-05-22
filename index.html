@@ -774,7 +774,6 @@ function recalc(){
   const sub=base+t,rate=parseFloat(document.getElementById('taxrate').value)||0;
   const tax=sub*rate/100,grand=sub+tax;
   const baseEl=document.getElementById('t-base'); if(baseEl) baseEl.textContent=fmt(base);
-  const baseEl=document.getElementById('t-base'); if(baseEl) baseEl.textContent=fmt(base);
   document.getElementById('t-addons').textContent=fmt(t);
   document.getElementById('t-sub').textContent=fmt(sub);
   document.getElementById('t-taxlabel').textContent=`Tax (${rate.toFixed(2)}%)`;
