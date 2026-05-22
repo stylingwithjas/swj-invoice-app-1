@@ -55,6 +55,40 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--bg); color
 .gen-main-btn .spin { animation:spin 0.8s linear infinite; }
 @keyframes spin { to { transform:rotate(360deg); } }
 
+/* Find Deals */
+.deals-btn { width:100%; padding:14px; background:var(--olive-tint); color:var(--olive-dark); border:0.5px solid var(--olive-line); border-radius:11px; font-family:'Cormorant Garamond',serif; font-size:17px; font-weight:300; letter-spacing:2px; text-transform:uppercase; cursor:pointer; transition:all 0.18s; display:flex; align-items:center; justify-content:center; gap:10px; margin-top:10px; }
+.deals-btn:hover { background:var(--olive); color:#fff; }
+.deals-btn:disabled { opacity:0.5; cursor:not-allowed; }
+.deals-section { margin-top:16px; }
+.deals-sec-hdr { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+.deals-sec-title { font-family:'Cormorant Garamond',serif; font-size:24px; font-weight:400; color:var(--ink); }
+.deals-count { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:1.5px; }
+.deal-card { background:var(--bg-card); border:0.5px solid var(--line); border-radius:12px; overflow:hidden; margin-bottom:10px; transition:all 0.15s; }
+.deal-card:hover { border-color:var(--olive-line); }
+.deal-img { width:100%; height:160px; object-fit:cover; background:var(--bg-soft); display:block; }
+.deal-img-placeholder { width:100%; height:120px; background:var(--olive-tint); display:flex; align-items:center; justify-content:center; color:var(--olive); font-size:28px; }
+.deal-body { padding:12px 14px; }
+.deal-top { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; margin-bottom:6px; }
+.deal-title { font-size:13px; font-weight:500; color:var(--ink); line-height:1.4; flex:1; }
+.deal-price { font-family:'Cormorant Garamond',serif; font-size:20px; font-weight:400; color:var(--green); white-space:nowrap; }
+.deal-price.no-price { font-size:12px; color:var(--muted); font-family:'Inter',sans-serif; }
+.deal-meta { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:8px; }
+.deal-tag { font-size:10px; font-weight:500; padding:2px 8px; border-radius:20px; }
+.deal-tag.source { background:var(--bg-soft); color:var(--muted); border:0.5px solid var(--line); }
+.deal-tag.job { background:var(--gold-soft); color:var(--gold); }
+.deal-tag.room { background:var(--olive-tint); color:var(--olive-dark); }
+.deal-location { font-size:11px; color:var(--muted); }
+.deal-ai-note { font-size:11px; color:var(--olive-dark); background:var(--olive-tint); border-radius:6px; padding:7px 10px; margin-bottom:8px; line-height:1.5; }
+.deal-btns { display:flex; gap:7px; }
+.deal-btn { flex:1; padding:8px; font-size:11px; font-weight:500; border-radius:8px; border:0.5px solid var(--line); background:var(--bg-soft); color:var(--ink-soft); cursor:pointer; font-family:'Inter',sans-serif; transition:all 0.15s; text-decoration:none; display:flex; align-items:center; justify-content:center; gap:4px; }
+.deal-btn:hover { background:var(--bg-hover); }
+.deal-btn.primary { background:var(--cta); color:#fff; border-color:var(--cta); }
+.deal-btn.primary:hover { background:var(--cta-hover); }
+.deals-send-btn { display:block; width:100%; padding:12px; background:var(--cta); color:#fff; border:none; border-radius:10px; font-size:12px; font-weight:500; cursor:pointer; font-family:'Inter',sans-serif; margin-top:4px; }
+.no-deals { padding:28px 16px; text-align:center; background:var(--bg-soft); border-radius:10px; border:0.5px dashed var(--line); }
+.no-deals-icon { font-size:22px; color:var(--muted-soft); margin-bottom:8px; }
+.no-deals-text { font-size:14px; color:var(--muted); }
+
 /* STATUS BAR */
 .status-bar { display:flex; align-items:center; gap:8px; padding:10px 14px; background:var(--bg-card); border:0.5px solid var(--line); border-radius:9px; margin-bottom:14px; font-size:12px; color:var(--muted); }
 .status-dot { width:7px; height:7px; border-radius:50%; background:var(--muted-soft); flex-shrink:0; }
@@ -141,6 +175,27 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--bg); color
       <i class="ti ti-sparkles" style="font-size:18px"></i>
       Build Shopping List
     </button>
+  </div>
+
+  <button class="deals-btn" id="deals-btn" onclick="findDeals('craigslist')">
+    <i class="ti ti-map-search" style="font-size:18px"></i>
+    Find Local Deals — Craigslist (75 mi)
+  </button>
+  <button class="deals-btn" id="web-deals-btn" onclick="findDeals('web')" style="background:var(--gold-soft);color:var(--gold);border-color:var(--gold-line);margin-top:8px;">
+    <i class="ti ti-world-search" style="font-size:18px"></i>
+    Find Online Deals — New + Delivery
+  </button>
+
+  <div class="deals-section" id="deals-section" style="display:none">
+    <div class="deals-sec-hdr">
+      <div class="deals-sec-title">Local Deals</div>
+      <div class="deals-count" id="deals-count">—</div>
+    </div>
+    <div id="deals-status" style="display:none;padding:10px 14px;background:var(--bg-card);border:0.5px solid var(--line);border-radius:9px;margin-bottom:12px;font-size:12px;color:var(--muted);display:flex;align-items:center;gap:8px;">
+      <div class="status-dot thinking" id="deals-dot"></div>
+      <span id="deals-msg">Searching Craigslist...</span>
+    </div>
+    <div id="deals-list"></div>
   </div>
 
   <div id="status-area" style="display:none">
@@ -263,6 +318,10 @@ async function runAgent(){
   // Gather selected job data
   const jobs = allJobs.filter(inv => selectedJobs.has(inv.invnum)).map(inv => {
     const d = inv.data||{};
+    const base = parseFloat(d.base_price)||2500;
+    const addonsTotal = (d.addons||[]).reduce((s,a)=>s+(parseFloat(a.price)||0),0);
+    const grand = (base+addonsTotal)*(1+(parseFloat(d.taxrate)||0)/100);
+    const pendingItems = (d.prep_items||[]).filter(p=>!p.done);
     return {
       invnum: inv.invnum,
       client: inv.client||'Unknown',
@@ -271,10 +330,10 @@ async function runAgent(){
       stagingDate: d.startdate||null,
       baserooms: d.baserooms||'Not specified',
       addons: (d.addons||[]).map(a=>a.desc),
-      existingItems: (d.prep_items||[]).filter(p=>!p.done).map(p=>({
-        desc: p.desc, store: p.store||'', price: p.price||null
-      })),
+      existingItems: pendingItems.map(p=>({desc:p.desc,store:p.store||'',price:p.price||null})),
       notes: d.notes||'',
+      grand_total: Math.round(grand),
+      item_count: pendingItems.length || 1,
     };
   });
 
@@ -482,6 +541,382 @@ function copyList(){
     ta.value = msg; document.body.appendChild(ta); ta.select();
     document.execCommand('copy'); document.body.removeChild(ta);
   });
+}
+
+// ── FIND DEALS ──────────────────────────────────────────
+let _lastDeals = [];
+
+async function findDeals(mode){
+  const btn = mode==='web' ? document.getElementById('web-deals-btn') : document.getElementById('deals-btn');
+  const otherBtn = mode==='web' ? document.getElementById('deals-btn') : document.getElementById('web-deals-btn');
+  const section = document.getElementById('deals-section');
+  const statusEl = document.getElementById('deals-status');
+  const dot = document.getElementById('deals-dot');
+  const msg = document.getElementById('deals-msg');
+  const list = document.getElementById('deals-list');
+  const count = document.getElementById('deals-count');
+
+  if(!allJobs.length){ alert('Load active jobs first.'); return; }
+
+  btn.disabled = true;
+  otherBtn.disabled = true;
+  const origHTML = btn.innerHTML;
+  btn.innerHTML = '<i class="ti ti-loader-2 spin" style="font-size:18px"></i> Searching...';
+  section.style.display = 'block';
+  statusEl.style.display = 'flex';
+  dot.className = 'status-dot thinking';
+  msg.textContent = mode==='web' ? 'Building search terms for online stores...' : 'Building search terms from your jobs...';
+  list.innerHTML = '';
+  count.textContent = '—';
+
+  try {
+    // Step 1: Build search terms from ALL active jobs via Claude
+    const jobSummaries = allJobs.map(inv => {
+      const d = inv.data||{};
+      const pendingItems = (d.prep_items||[]).filter(p=>!p.done).map(p=>p.desc);
+      return {
+        client: (inv.client||'').split(' ')[0],
+        rooms: d.baserooms||'',
+        addons: (d.addons||[]).map(a=>a.desc.split(':')[0].trim()),
+        needed: pendingItems,
+        stage: d.stage||'proposal',
+      };
+    });
+
+    msg.textContent = 'Asking Claude for the best search terms...';
+    dot.className = 'status-dot thinking';
+
+    const termPrompt = `You are a home staging coordinator. Generate Craigslist search terms for furniture and decor items needed for these active staging jobs.
+
+Jobs:
+${jobSummaries.map((j,i) => (i+1)+'. Client: '+j.client+' | Rooms: '+j.rooms+' | Add-ons: '+(j.addons.join(', ')||'none')+' | Already: '+(j.needed.join(', ')||'nothing yet')).join('\n')}
+')}
+
+Rules:
+- Focus on items a home stager typically needs: accent chairs, sofas, coffee tables, side tables, lamps, mirrors, artwork, accent pillows, throw blankets, rugs, dining chairs, nightstands, dressers, bed frames
+- Generate 6-8 specific search terms
+- Each term should be 2-4 words max (Craigslist search works best with short specific terms)
+- Include reasonable price ranges based on staging business economics (used furniture)
+- Assign each term to the most relevant job/room
+- DO NOT include items already heavily stocked by home stagers (mattresses, full bed sets)
+
+Respond ONLY with valid JSON, no markdown:
+{
+  "terms": [
+    {
+      "query": "accent chair",
+      "label": "Accent chairs",
+      "max_price": 150,
+      "job": "client first name",
+      "room": "Living room"
+    }
+  ]
+}`;
+
+    const jobsEcon = jobs.map(j=>({client:(j.client||'').split(' ')[0],grand_total:j.grand_total,item_count:j.item_count}));
+    const termRes = await fetch('/api/agent', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({prompt: termPrompt, jobs: jobsEcon})
+    });
+    const termData = await termRes.json();
+    const termRaw = (termData.text||'').replace(/```json|```/g,'').trim();
+    const terms = JSON.parse(termRaw).terms || [];
+
+    if(mode === 'web'){
+      // Web search mode — Claude searches online with web_search tool
+      msg.textContent = 'Claude is searching HomeGoods, Wayfair, Amazon, TJ Maxx...';
+
+      const webPrompt = `Search online for the best deals on home staging items needed for these active jobs.
+
+Jobs and what's needed:
+${jobSummaries.map((j,i) => (i+1)+'. Client: '+j.client+' | Rooms: '+j.rooms+' | Add-ons: '+(j.addons.join(', ')||'none')+' | Already on list: '+(j.needed.join(', ')||'nothing yet')).join('\n')}
+
+Search for staging-appropriate furniture and decor at these stores: HomeGoods, TJ Maxx, World Market, IKEA, Amazon, Wayfair, Target.
+
+For each item found:
+- Must be in stock and available for delivery to zip code 98391 (Bonney Lake, WA)
+- Prioritize neutral tones, clean lines, timeless style
+- Look for items under the per-job budget ceilings provided
+
+Return results as JSON with this structure:
+{
+  "best": [
+    {
+      "title": "Item name",
+      "store": "Store name",
+      "price": 45,
+      "url": "direct product URL",
+      "job": "client first name",
+      "room": "room it's for",
+      "note": "why it's good for staging",
+      "ships_to_zip": true
+    }
+  ],
+  "consider": [
+    {
+      "title": "Item name",
+      "store": "Store name",
+      "price": 120,
+      "url": "direct product URL",
+      "job": "client first name",
+      "room": "room it's for",
+      "note": "why it's worth considering despite higher price",
+      "ships_to_zip": true
+    }
+  ]
+}`;
+
+      const webRes = await fetch('/api/agent', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({prompt: webPrompt, web_search: true, jobs: jobsEcon})
+      });
+      if(!webRes.ok) throw new Error('Web search failed: ' + await webRes.text());
+      const webData = await webRes.json();
+      const webRaw = (webData.text||'').replace(/```json|```/g,'').trim();
+
+      let webResults = {best:[], consider:[]};
+      try { webResults = JSON.parse(webRaw); } catch(e){ console.error('Parse error:', webRaw.slice(0,200)); }
+
+      const allWeb = [
+        ...(webResults.best||[]).map(r=>({...r, evaluation:{section:'best', note:r.note, fit:r.room, value:'good deal'}, source:'Online', image:'', link:r.url||''})),
+        ...(webResults.consider||[]).map(r=>({...r, evaluation:{section:'consider', note:r.note, fit:r.room, value:'worth considering'}, source:'Online', image:'', link:r.url||''}))
+      ];
+
+      _lastDeals = allWeb;
+      dot.className = 'status-dot done';
+      const total = allWeb.length;
+      msg.textContent = `Found ${total} online deal${total===1?'':'s'} with delivery to Bonney Lake`;
+      count.textContent = `${total} found`;
+      renderWebDeals(allWeb);
+
+    } else {
+
+    msg.textContent = `Searching Craigslist within 75 miles of Bonney Lake (${terms.length} searches)...`;
+
+    // Step 2: Search Craigslist
+    const searchRes = await fetch('/api/search', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({terms})
+    });
+
+    if(!searchRes.ok) throw new Error('Search failed: ' + await searchRes.text());
+    const searchData = await searchRes.json();
+    const raw_results = searchData.results || [];
+
+    if(!raw_results.length){
+      dot.className = 'status-dot done';
+      msg.textContent = 'No listings found right now — try again later';
+      count.textContent = '0 deals';
+      list.innerHTML = `<div class="no-deals"><div class="no-deals-icon"><i class="ti ti-search-off"></i></div><div class="no-deals-text">No local listings found for these items right now.<br>Craigslist updates constantly — check back later.</div></div>`;
+      return;
+    }
+
+    msg.textContent = `Found ${raw_results.length} listings — asking Claude to evaluate...`;
+
+    // Step 3: Claude evaluates and ranks the listings
+    const evalPrompt = `You are a home staging expert evaluating Craigslist listings for a staging business near Bonney Lake, WA.
+
+Active jobs being staged:
+${jobSummaries.map(j=>`- ${j.client}: ${j.rooms}`).join('
+')}
+
+Listings found:
+${raw_results.slice(0,20).map((r,i)=>`${i+1}. "${r.title}" — $${r.price||'?'} — ${r.location||'unknown location'} — searched for: ${r.search_term}`).join('
+')}
+
+For each listing that looks genuinely useful for home staging, provide:
+- A short (1 sentence) note on why it's good or any concerns
+- Which job/room it best fits
+- Whether the price is fair (good deal / fair / overpriced)
+
+Skip listings that are clearly not useful (too expensive, wrong item, etc).
+
+Respond ONLY with valid JSON:
+{
+  "evaluations": [
+    {
+      "index": 1,
+      "note": "Clean neutral tone, great for living room staging",
+      "fit": "Living room — Shannon",
+      "value": "good deal",
+      "section": "best" 
+    }
+  ]
+}
+Use "section": "best" for items within the per-job budget ceiling and staging-appropriate.
+Use "section": "consider" for items slightly over budget but strong visual value.
+Skip listings that are clearly overpriced or not staging-appropriate (don't include them in evaluations at all).`;
+
+    const evalRes = await fetch('/api/agent', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({prompt: evalPrompt, jobs: jobsEcon})
+    });
+    const evalData = await evalRes.json();
+    const evalRaw = (evalData.text||'').replace(/```json|```/g,'').trim();
+    let evaluations = [];
+    try { evaluations = JSON.parse(evalRaw).evaluations || []; } catch(e){}
+
+    // Merge evaluations into results
+    const evalMap = {};
+    evaluations.forEach(e => { evalMap[e.index] = e; });
+    const finalResults = raw_results.slice(0,20).map((r,i) => ({
+      ...r,
+      evaluation: evalMap[i+1] || null
+    })).filter(r => r.evaluation !== undefined || r.price !== null);
+
+    _lastDeals = finalResults;
+
+    dot.className = 'status-dot done';
+    msg.textContent = `${finalResults.length} deals found within 75 miles`;
+    count.textContent = `${finalResults.length} found`;
+
+    renderDeals(finalResults);
+
+    } // end else (craigslist mode)
+
+  } catch(e){
+    dot.className = 'status-dot err';
+    msg.textContent = 'Error: ' + e.message;
+    console.error(e);
+  } finally {
+    btn.disabled = false;
+    otherBtn.disabled = false;
+    btn.innerHTML = origHTML;
+  }
+}
+
+function dealCardHTML(d){
+    const ev = d.evaluation;
+    const valueColor = ev?.value === 'good deal' ? 'color:var(--green)' : ev?.value === 'overpriced' ? 'color:var(--red)' : 'color:var(--muted)';
+    return `
+    <div class="deal-card">
+      ${d.image
+        ? `<img class="deal-img" src="${esc(d.image)}" alt="${esc(d.title)}" onerror="this.style.display='none'">`
+        : `<div class="deal-img-placeholder"><i class="ti ti-armchair" aria-hidden="true"></i></div>`
+      }
+      <div class="deal-body">
+        <div class="deal-top">
+          <div class="deal-title">${esc(d.title)}</div>
+          <div class="deal-price ${d.price?'':'no-price'}">${d.price?'$'+d.price.toLocaleString():'Price ?'}</div>
+        </div>
+        <div class="deal-meta">
+          <span class="deal-tag source">Craigslist</span>
+          ${d.job?`<span class="deal-tag job">${esc(d.job)}</span>`:''}
+          ${d.room?`<span class="deal-tag room">${esc(d.room)}</span>`:''}
+          ${ev?.value?`<span style="font-size:10px;font-weight:600;${valueColor};text-transform:uppercase;letter-spacing:0.8px;">${esc(ev.value)}</span>`:''}
+        </div>
+        ${d.location?`<div class="deal-location"><i class="ti ti-map-pin" style="font-size:12px;vertical-align:-1px;margin-right:3px;" aria-hidden="true"></i>${esc(d.location)}</div>`:''}
+        ${ev?.note?`<div class="deal-ai-note">${esc(ev.note)}${ev.fit?' · <em>Best for: '+esc(ev.fit)+'</em>':''}</div>`:''}
+        <div class="deal-btns">
+          <a href="${esc(d.link)}" target="_blank" class="deal-btn primary">
+            <i class="ti ti-external-link" style="font-size:12px;" aria-hidden="true"></i> View Listing
+          </a>
+          <button class="deal-btn" onclick="shareDealt('${esc(d.link)}','${esc(d.title)}','${d.price||''}')">
+            <i class="ti ti-message" style="font-size:12px;" aria-hidden="true"></i> Text Link
+          </button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+}
+
+function renderWebDeals(deals){
+  const list = document.getElementById('deals-list');
+  const best = deals.filter(d => d.evaluation?.section !== 'consider');
+  const consider = deals.filter(d => d.evaluation?.section === 'consider');
+
+  let html = '';
+  if(best.length){
+    html += `<div style="font-size:10px;font-weight:600;color:var(--green);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px;display:flex;align-items:center;gap:6px;"><i class="ti ti-circle-check" style="font-size:14px;" aria-hidden="true"></i>Best Deals — Within Budget</div>`;
+    html += best.map(d => webDealCardHTML(d)).join('');
+  }
+  if(consider.length){
+    html += `<div style="font-size:10px;font-weight:600;color:var(--amber);text-transform:uppercase;letter-spacing:1.5px;margin:18px 0 10px;display:flex;align-items:center;gap:6px;"><i class="ti ti-star" style="font-size:14px;" aria-hidden="true"></i>Worth Considering — Slightly Over Budget</div>`;
+    html += consider.map(d => webDealCardHTML(d)).join('');
+  }
+  if(!html){
+    html = `<div class="no-deals"><div class="no-deals-icon"><i class="ti ti-search-off"></i></div><div class="no-deals-text">No deals found. Try again or check individual stores.</div></div>`;
+  }
+  list.innerHTML = html;
+  if(deals.length){
+    list.insertAdjacentHTML('beforeend',`<button class="deals-send-btn" onclick="sendAllDeals()"><i class="ti ti-message" style="font-size:13px;vertical-align:-2px;margin-right:5px;" aria-hidden="true"></i>Send All Deals to Phone</button>`);
+  }
+}
+
+function webDealCardHTML(d){
+  const ev = d.evaluation;
+  return `<div class="deal-card">
+    <div class="deal-body">
+      <div class="deal-top">
+        <div class="deal-title">${esc(d.title)}</div>
+        <div class="deal-price">${d.price?'$'+d.price:''}</div>
+      </div>
+      <div class="deal-meta">
+        <span class="deal-tag source">${esc(d.store||'Online')}</span>
+        ${d.job?`<span class="deal-tag job">${esc(d.job)}</span>`:''}
+        ${d.room?`<span class="deal-tag room">${esc(d.room)}</span>`:''}
+        <span style="font-size:10px;color:var(--green);font-weight:500;"><i class="ti ti-truck" style="font-size:11px;vertical-align:-1px;" aria-hidden="true"></i> Ships to 98391</span>
+      </div>
+      ${ev?.note?`<div class="deal-ai-note">${esc(ev.note)}${ev.fit?' · <em>For: '+esc(ev.fit)+'</em>':''}</div>`:''}
+      <div class="deal-btns">
+        ${d.link?`<a href="${esc(d.link)}" target="_blank" class="deal-btn primary"><i class="ti ti-external-link" style="font-size:12px;" aria-hidden="true"></i> Buy Now</a>`:''}
+        <button class="deal-btn" onclick="shareDealt('${esc(d.link||'')}','${esc(d.title)}','${d.price||''}')"><i class="ti ti-message" style="font-size:12px;" aria-hidden="true"></i> Text Link</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderDeals(deals){
+  const list = document.getElementById('deals-list');
+  const best = deals.filter(d => !d.evaluation || d.evaluation.section !== 'consider');
+  const consider = deals.filter(d => d.evaluation && d.evaluation.section === 'consider');
+
+  let html = '';
+  if(best.length){
+    html += `<div style="font-size:10px;font-weight:600;color:var(--green);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px;display:flex;align-items:center;gap:6px;"><i class="ti ti-circle-check" style="font-size:14px;" aria-hidden="true"></i>Best Deals — Within Budget</div>`;
+    html += best.map(d => dealCardHTML(d)).join('');
+  }
+  if(consider.length){
+    html += `<div style="font-size:10px;font-weight:600;color:var(--amber);text-transform:uppercase;letter-spacing:1.5px;margin:18px 0 10px;display:flex;align-items:center;gap:6px;"><i class="ti ti-star" style="font-size:14px;" aria-hidden="true"></i>Worth Considering — Slightly Over Budget</div>`;
+    html += consider.map(d => dealCardHTML(d)).join('');
+  }
+  if(!html){
+    html = `<div class="no-deals"><div class="no-deals-icon"><i class="ti ti-search-off"></i></div><div class="no-deals-text">No staging-appropriate listings found right now.</div></div>`;
+  }
+  list.innerHTML = html;
+
+  if(deals.length > 0){
+    list.insertAdjacentHTML('beforeend', `
+      <button class="deals-send-btn" onclick="sendAllDeals()">
+        <i class="ti ti-message" style="font-size:13px;vertical-align:-2px;margin-right:5px;" aria-hidden="true"></i>
+        Send All Deals to Phone
+      </button>
+    `);
+  }
+}
+
+function shareDealt(link, title, price){
+  const msg = `SWJ Deal Find\n${title}${price?' · $'+price:''}\n${link}`;
+  window.open('sms:+12064225618&body='+encodeURIComponent(msg));
+}
+
+function sendAllDeals(){
+  if(!_lastDeals.length) return;
+  const d = new Date().toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  let msg = `SWJ Local Deals — ${d}\nWithin 75 miles of Bonney Lake · Craigslist\n\n`;
+  _lastDeals.forEach((deal,i) => {
+    msg += `${i+1}. ${deal.title}`;
+    if(deal.price) msg += ` · $${deal.price}`;
+    if(deal.location) msg += ` · ${deal.location}`;
+    if(deal.evaluation?.value) msg += ` (${deal.evaluation.value})`;
+    msg += `\n${deal.link}\n\n`;
+  });
+  window.open('sms:+12064225618&body='+encodeURIComponent(msg));
 }
 
 document.addEventListener('DOMContentLoaded', loadJobs);
