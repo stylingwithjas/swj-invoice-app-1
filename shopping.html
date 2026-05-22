@@ -269,10 +269,10 @@ async function runAgent(){
       address: inv.address||'',
       stage: d.stage||'proposal',
       stagingDate: d.startdate||null,
-      baserooms: d.baserooms||'',
+      baserooms: d.baserooms||'Not specified',
       addons: (d.addons||[]).map(a=>a.desc),
-      existingItems: (d.prep_items||[]).map(p=>({
-        desc: p.desc, store: p.store||'', price: p.price||null, done: p.done||false
+      existingItems: (d.prep_items||[]).filter(p=>!p.done).map(p=>({
+        desc: p.desc, store: p.store||'', price: p.price||null
       })),
       notes: d.notes||'',
     };
@@ -298,7 +298,7 @@ JOB ${i+1}: ${j.client}
 Address: ${j.address}
 Stage: ${j.stage}
 Staging date: ${j.stagingDate||'TBD'}
-Base rooms: ${j.baserooms||'not specified'}
+Base rooms being staged: ${j.baserooms||'not specified'}
 Add-on scopes: ${j.addons.length ? j.addons.join(', ') : 'none'}
 Notes: ${j.notes||'none'}
 Already on shopping list (do NOT re-add these): ${j.existingItems.filter(p=>!p.done).map(p=>p.desc).join(', ')||'nothing yet'}
@@ -325,6 +325,7 @@ Respond ONLY with valid JSON, no markdown, no explanation:
         {
           "desc": "Specific item description",
           "job": "First name of client",
+          "room": "Which room this item is for (e.g. Primary bedroom, Living room)",
           "type": "new" or "suggested",
           "price_low": 25,
           "price_high": 45,
@@ -339,18 +340,19 @@ Respond ONLY with valid JSON, no markdown, no explanation:
 
     statusMsg.textContent = 'Consulting the agent...';
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    const response = await fetch('/api/agent', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1000,
-        messages: [{ role: 'user', content: prompt }]
-      })
+      body: JSON.stringify({ prompt })
     });
 
+    if(!response.ok){
+      const err = await response.text();
+      throw new Error('Agent error: ' + err);
+    }
+
     const data = await response.json();
-    const raw = data.content?.find(b=>b.type==='text')?.text||'';
+    const raw = data.text||'';
 
     statusMsg.textContent = 'Building your list...';
 
@@ -410,7 +412,7 @@ function renderResults(parsed, jobs){
               <div class="shop-desc" id="desc-${esc(key)}">${esc(item.desc)}</div>
               <div class="shop-meta">
                 <span class="shop-tag ${item.type==='new'?'new':'existing'}">${item.type==='new'?'Suggested':'Confirmed'}</span>
-                ${esc(item.job)}${item.priority==='high'?' · <strong>High priority</strong>':''}
+                ${esc(item.job)}${item.room?' · <span style="color:var(--olive-dark);font-size:10px">'+esc(item.room)+'</span>':''}${item.priority==='high'?' · <strong style="color:var(--ink)">High priority</strong>':''}
               </div>
             </div>
             ${priceStr?`<div class="shop-price">${priceStr}</div>`:''}

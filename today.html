@@ -230,6 +230,14 @@ body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var
     <div class="greeting-hello" id="greeting-hello">Good morning, Jas.</div>
     <div class="greeting-date" id="greeting-date"></div>
     <div class="briefing" id="briefing"></div>
+    <div id="send-brief-row" style="display:none;margin-top:10px;display:flex;gap:8px;">
+      <button onclick="sendDailyBrief('text')" style="flex:1;padding:9px;font-size:12px;font-weight:500;border-radius:9px;border:0.5px solid var(--line);background:var(--bg-card);color:var(--ink-soft);cursor:pointer;font-family:'Inter',sans-serif;transition:all 0.15s;">
+        <i class="ti ti-message" style="font-size:13px;vertical-align:-2px;margin-right:4px;" aria-hidden="true"></i>Text brief
+      </button>
+      <button onclick="sendDailyBrief('email')" style="flex:1;padding:9px;font-size:12px;font-weight:500;border-radius:9px;border:0.5px solid var(--line);background:var(--bg-card);color:var(--ink-soft);cursor:pointer;font-family:'Inter',sans-serif;transition:all 0.15s;">
+        <i class="ti ti-mail" style="font-size:13px;vertical-align:-2px;margin-right:4px;" aria-hidden="true"></i>Email brief
+      </button>
+    </div>
   </div>
 
   <!-- WEEK VIEW (hidden by default) -->
@@ -498,15 +506,17 @@ function showSkeletons(){
 
 function buildBriefing(u,sc,t,sh,f){
   const el=document.getElementById('briefing');
+  const row=document.getElementById('send-brief-row');
   const parts=[];
   if(u>0) parts.push(`<strong>${u}</strong> urgent`);
   if(sc>0) parts.push(`<strong>${sc}</strong> scheduled`);
   if(t>0)  parts.push(`<strong>${t}</strong> task${t===1?'':'s'}`);
   if(sh>0) parts.push(`<strong>${sh}</strong> shopping item${sh===1?'':'s'}`);
   if(f>0)  parts.push(`<strong>${f}</strong> follow-up${f===1?'':'s'}`);
-  if(!parts.length){el.style.display='none';return;}
+  if(!parts.length){el.style.display='none';if(row)row.style.display='none';return;}
   el.innerHTML=parts.join(' · ');
   el.style.display='block';
+  if(row) row.style.display='flex';
 }
 
 function updateNavBadge(count){
@@ -903,6 +913,110 @@ document.addEventListener('click',e=>{
 });
 
 // ── INIT ───────────────────────────────────────────────
+function buildDailyBriefText(){
+  const d = new Date();
+  const dateStr = d.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
+  let msg = `SWJ Daily Brief — ${dateStr}\n`;
+  msg += '─'.repeat(32) + '\n\n';
+
+  // Urgent items
+  const urgentCards = document.querySelectorAll('#s1-body .alert-card');
+  if(urgentCards.length){
+    msg += `⚠ NEEDS ATTENTION (${urgentCards.length})\n`;
+    urgentCards.forEach(card => {
+      const lbl = card.querySelector('.alert-lbl')?.textContent||'';
+      const client = card.querySelector('.alert-client')?.textContent||'';
+      const detail = card.querySelector('.alert-detail')?.textContent||'';
+      const amt = card.querySelector('.alert-amt')?.textContent||'';
+      msg += `• ${lbl}: ${client}${amt?' · '+amt:''}\n`;
+      if(detail) msg += `  ${detail}\n`;
+    });
+    msg += '\n';
+  }
+
+  // Schedule
+  const schedRows = document.querySelectorAll('#s2-body .tl-row');
+  if(schedRows.length){
+    msg += `📅 SCHEDULE (${schedRows.length})\n`;
+    schedRows.forEach(row => {
+      const time = row.querySelector('.tl-time')?.textContent||'';
+      const title = row.querySelector('.tl-title')?.textContent||'';
+      const sub = row.querySelector('.tl-sub')?.textContent||'';
+      msg += `• ${time} — ${title}${sub?' · '+sub:''}\n`;
+    });
+    msg += '\n';
+  }
+
+  // Tasks
+  const taskCards = document.querySelectorAll('#s3-body .task-card:not(.done)');
+  if(taskCards.length){
+    msg += `✓ TASKS (${taskCards.length})\n`;
+    taskCards.forEach(card => {
+      const title = card.querySelector('.task-title')?.textContent||'';
+      msg += `• ${title}\n`;
+    });
+    msg += '\n';
+  }
+
+  // Shopping
+  const shopCards = document.querySelectorAll('#s4-body .task-card:not(.done)');
+  if(shopCards.length){
+    msg += `🛒 SHOPPING (${shopCards.length})\n`;
+    shopCards.forEach(card => {
+      const title = card.querySelector('.task-title')?.textContent||'';
+      const meta = card.querySelector('.task-meta')?.textContent?.trim()||'';
+      msg += `• ${title}${meta?' · '+meta:''}\n`;
+    });
+    msg += '\n';
+  }
+
+  // Follow-ups
+  const fuCards = document.querySelectorAll('#s5-body .alert-card');
+  if(fuCards.length){
+    msg += `📨 FOLLOW-UPS (${fuCards.length})\n`;
+    fuCards.forEach(card => {
+      const client = card.querySelector('.alert-client')?.textContent||'';
+      const lbl = card.querySelector('.alert-lbl')?.textContent||'';
+      msg += `• ${client} — ${lbl}\n`;
+    });
+    msg += '\n';
+  }
+
+  msg += '─'.repeat(32) + '\nStyling With Jas · 206-422-5618';
+  return msg;
+}
+
+async function sendDailyBrief(method){
+  const text = buildDailyBriefText();
+  if(method === 'text'){
+    window.open('sms:+12064225618&body=' + encodeURIComponent(text));
+  } else {
+    // Send via email API
+    try {
+      const dateStr = new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
+      const r = await fetch('/api/email', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({
+          to: 'info@stylingwithjas.com',
+          subject: `SWJ Daily Brief — ${dateStr}`,
+          message: text,
+          filename: null,
+          pdf: null,
+        })
+      });
+      const d = await r.json();
+      if(d.sent){
+        // Flash confirmation
+        const btn = document.querySelector('[onclick="sendDailyBrief(\'email\')"]');
+        if(btn){const orig=btn.innerHTML;btn.innerHTML='<i class="ti ti-check" style="font-size:13px;vertical-align:-2px;margin-right:4px;"></i>Sent!';btn.style.color='var(--green)';setTimeout(()=>{btn.innerHTML=orig;btn.style.color='';},2500);}
+      } else {
+        alert('Email failed: ' + (d.error||'unknown error'));
+      }
+    } catch(e){ alert('Send failed: ' + e.message); }
+  }
+}
+
 document.addEventListener('DOMContentLoaded',async()=>{
   setGreeting();
   updateDateBar();

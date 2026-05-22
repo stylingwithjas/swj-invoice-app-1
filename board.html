@@ -330,9 +330,9 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
     </div>
   </div>
   <div class="tabs">
-    <button class="tab off" onclick="filter('all',this)">All <span class="tab-n" id="tab-n-all">0</span></button>
+    <button class="tab on"  onclick="filter('all',this)">All <span class="tab-n" id="tab-n-all">0</span></button>
     <button class="tab off" onclick="filter('proposal',this)">Proposal Sent <span class="tab-n" id="tab-n-proposal">0</span></button>
-    <button class="tab on"  onclick="filter('confirmed',this)">Confirmed <span class="tab-n" id="tab-n-confirmed">0</span></button>
+    <button class="tab off" onclick="filter('confirmed',this)">Confirmed <span class="tab-n" id="tab-n-confirmed">0</span></button>
     <button class="tab off" onclick="filter('staged',this)">Staged <span class="tab-n" id="tab-n-staged">0</span></button>
     <button class="tab off" onclick="filter('destage',this)">Destage <span class="tab-n" id="tab-n-destage">0</span></button>
     <button class="tab off" onclick="filter('done',this)">Completed <span class="tab-n" id="tab-n-done">0</span></button>
@@ -1526,6 +1526,12 @@ async function saveCard(){
 
     // Update in-memory cache and re-render
     CARDS[currentCardId].data = d;
+
+    // Auto-create truck reminder if staging date was just set
+    if(d.startdate && !d.truck_booked){
+      await autoCreateTruckReminder(inv.client||'', d.startdate, inv.invnum);
+    }
+
     closeModal();
     loadBoard();
   } catch(e){
@@ -1537,11 +1543,43 @@ async function saveCard(){
 }
 
 // Initialize board on load
+async function autoCreateTruckReminder(client, stagingDate, invnum){
+  try {
+    // Check if a truck reminder already exists for this invoice
+    const { data: existing } = await _sb
+      .from('tasks')
+      .select('id')
+      .eq('invnum', invnum)
+      .eq('type', 'task')
+      .ilike('title', '%truck%');
+    if(existing && existing.length > 0) return; // already exists
+
+    // Create reminder for 48 hours before staging
+    const stagingD = new Date(stagingDate + 'T00:00:00');
+    const reminderD = new Date(stagingD);
+    reminderD.setDate(reminderD.getDate() - 2);
+    const reminderDate = reminderD.toISOString().split('T')[0];
+    const firstName = (client||'').split(' ')[0];
+
+    await _sb.from('tasks').insert({
+      date: reminderDate,
+      type: 'task',
+      title: `Book truck for ${firstName} staging`,
+      notes: `Staging on ${stagingD.toLocaleDateString('en-US',{month:'short',day:'numeric'})} · Book 48hrs ahead`,
+      status: 'pending',
+      invnum: invnum,
+    });
+    console.log('[Truck reminder] Created for', reminderDate);
+  } catch(e){
+    console.log('[Truck reminder] Failed:', e.message);
+  }
+}
+
 document.addEventListener('DOMContentLoaded', ()=>{
   renderShoppingConsolidator();
   // Default view: Confirmed
-  const confirmedTab = document.querySelectorAll('.tab')[2];
-  if(confirmedTab) filter('confirmed', confirmedTab);
+  const allTab = document.querySelectorAll('.tab')[0];
+  if(allTab) filter('all', allTab);
   loadBoard();
 });
 
