@@ -83,6 +83,7 @@ def generate_invoice_pdf(data):
     promo1     = data['promo1']
     promo2     = data['promo2']
     promo3     = data['promo3']
+    promo4     = data.get('promo4', False)
     paid       = data.get('paid', False)
     paid_date  = data.get('paid_date', '')
     cover_note = data.get('cover_note', '')
@@ -100,6 +101,8 @@ def generate_invoice_pdf(data):
     promos = []
     if promo1: promos.append('Monthly Special: Complimentary staging for Kitchen and all Bathrooms.')
     if promo2: promos.append('First-Time Client Bonus: 25 complimentary professional real estate photos included by our preferred photographer.')
+    if promo3: promos.append('Photography Package: Up to 25 professional real estate photos included.')
+    if promo4: promos.append('Drone Photography: Up to 5 aerial photos included, when permitted and outside no-fly zones.')
     
     safe_client = client.replace(' ','_').replace('/','_').replace(',','')
     safe_addr   = address.replace(' ','_').replace('/','_').replace(',','')[:25]
@@ -498,7 +501,8 @@ def generate_invoice_pdf(data):
         # Promos
         if promos:
             cv.setFont('Helvetica-Bold', 8.5); cv.setFillColor(BLACK)
-            label = 'Two promotions have been applied:' if len(promos)>1 else 'Promotion has been applied:'
+            count_words = {1:'One promotion has', 2:'Two promotions have', 3:'Three promotions have', 4:'Four promotions have'}
+            label = f"{count_words.get(len(promos), f'{len(promos)} promotions have')} been applied:"
             cv.drawString(dx, ry, label); ry -= 11
             cv.setFont('Helvetica', 8.5)
             for p in promos:
@@ -718,31 +722,47 @@ def generate_invoice_pdf(data):
     
     y -= 8
     
-    # Photography Addendum (only if promo3)
-    if promo3:
+    # Photography Addendum (when photography or drone promo is selected)
+    if promo3 or promo4:
         cv.setStrokeColor(LGRAY); cv.setLineWidth(0.4)
         cv.line(ML, y, PW-MR, y); y -= 12
         cv.setFont('Helvetica-Bold', 8.5); cv.setFillColor(BLACK)
         cv.drawString(ML, y, 'Photography Services Addendum'); y -= 12
         cv.setFont('Helvetica', 8); cv.setFillColor(colors.HexColor('#333333'))
-        disclaimer = ("Up to 25 professional real estate photos are included as a complimentary service. "
-                      "Photography will be done with Jasmine's preferred photographer. Drone photography may be "
-                      "provided upon client request, when permitted, and if the property is not located in a "
-                      "restricted no-fly zone. Photos will be scheduled at the photographer's convenience, typically "
-                      "the following day after staging. Please allow up to 24-26 hours after the photography session "
-                      "for delivery of final images.")
+        if promo3 and promo4:
+            disclaimer = ("Up to 25 professional real estate photos plus up to 5 aerial drone photos are included "
+                          "as a complimentary service. Photography will be done with Jasmine's preferred photographer. "
+                          "Drone photography is provided when permitted and if the property is not located in a "
+                          "restricted no-fly zone. Photos will be scheduled at the photographer's convenience, typically "
+                          "the following day after staging. Please allow up to 24-26 hours after the photography session "
+                          "for delivery of final images.")
+        elif promo4:
+            disclaimer = ("Up to 5 aerial drone photos are included as a complimentary service. Drone photography is "
+                          "provided when permitted and if the property is not located in a restricted no-fly zone. "
+                          "Photos will be scheduled at the photographer's convenience, typically the following day "
+                          "after staging. Please allow up to 24-26 hours after the photography session for delivery "
+                          "of final images.")
+        else:
+            disclaimer = ("Up to 25 professional real estate photos are included as a complimentary service. "
+                          "Photography will be done with Jasmine's preferred photographer. Drone photography may be "
+                          "provided upon client request, when permitted, and if the property is not located in a "
+                          "restricted no-fly zone. Photos will be scheduled at the photographer's convenience, typically "
+                          "the following day after staging. Please allow up to 24-26 hours after the photography session "
+                          "for delivery of final images.")
         for l in wrap(cv, disclaimer, 'Helvetica', 8, CW):
             cv.drawString(ML, y, l); y -= 10
         y -= 6
-        cv.setFont('Helvetica', 8.5); cv.setFillColor(BLACK)
-        cv.rect(ML, y - 1, 9, 9, stroke=1, fill=0)
-        cv.drawString(ML + 14, y + 7, 'Client requests drone photography (if available and permitted)')
-        y -= 18
-        cv.setFont('Helvetica', 8); cv.setFillColor(colors.HexColor('#333333'))
-        cv.drawString(ML, y, 'Client Initials:')
-        cv.setStrokeColor(colors.HexColor('#999999')); cv.setLineWidth(0.5)
-        cv.line(ML + 80, y + 2, ML + 180, y + 2)
-        y -= 16
+        # Only show "client requests drone" checkbox if photography is selected but drone is not — i.e. they may add it later
+        if promo3 and not promo4:
+            cv.setFont('Helvetica', 8.5); cv.setFillColor(BLACK)
+            cv.rect(ML, y - 1, 9, 9, stroke=1, fill=0)
+            cv.drawString(ML + 14, y + 7, 'Client requests drone photography (if available and permitted)')
+            y -= 18
+            cv.setFont('Helvetica', 8); cv.setFillColor(colors.HexColor('#333333'))
+            cv.drawString(ML, y, 'Client Initials:')
+            cv.setStrokeColor(colors.HexColor('#999999')); cv.setLineWidth(0.5)
+            cv.line(ML + 80, y + 2, ML + 180, y + 2)
+            y -= 16
     
     # Signatures
     cv.setStrokeColor(LGRAY); cv.setLineWidth(0.4)

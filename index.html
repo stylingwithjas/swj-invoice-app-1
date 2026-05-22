@@ -11,8 +11,8 @@
 *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
 
 :root {
-  --bg:         #ffffff;
-  --bg-soft:    #faf8f5;
+  --bg:         #faf8f5;
+  --bg-soft:    #ffffff;
   --bg-card:    #ffffff;
   --bg-input:   #ffffff;
   --ink:        #1a1814;
@@ -48,7 +48,7 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--bg); color
 /* ── CHAPTER SECTIONS ── */
 .chapter { padding:28px 0 24px; border-bottom:0.5px solid var(--line); }
 .chapter:last-child { border-bottom:none; }
-.ch-eye { font-size:10px; font-weight:400; letter-spacing:3.5px; text-transform:uppercase; color:var(--muted); margin-bottom:6px; }
+.ch-eye { display:none; }
 .ch-title { font-family:'Cormorant Garamond',serif; font-size:24px; font-weight:300; color:var(--ink); margin-bottom:18px; line-height:1.2; }
 
 /* ── RECENT/DRAFT CARDS (collapsible at top) ── */
@@ -745,6 +745,9 @@ function buildCats(){
       item.sizes.forEach((sz,si)=>{
         const btn=document.createElement('button');btn.className='size-pill';btn.id=`asz-${gi}-${ii}-${si}`;
         btn.innerHTML=`${sz.s} <span class="price">$${sz.p}</span>`;
+        // Restore selected state if previously selected
+        const existingSel=selNewAddons[`${gi}-${ii}`];
+        if(existingSel && existingSel.si===si) btn.classList.add('sel');
         btn.onclick=()=>{
           const key=`${gi}-${ii}`;
           const prev=selNewAddons[key];
@@ -1039,49 +1042,96 @@ function loadInvoiceData(d){
     }
     updateRoomsBar();
 
-    // Restore addons
+    // Restore addons (new ADDON_CATS system)
     selAddons.clear();
-    document.querySelectorAll('.size-chip').forEach(c => c.classList.remove('sel'));
+    selNewAddons = {};
+    extraBedrooms = [];
+    const ADDON_CATS_RESTORE=[
+      {group:'Bedrooms',items:[
+        {name:'Primary Bedroom Staging',sizes:[{s:'Small',p:200},{s:'Medium',p:250},{s:'Large',p:300},{s:'Extra Large',p:350}]},
+        {name:'Secondary Bedroom Staging',sizes:[{s:'Small',p:150},{s:'Medium',p:200},{s:'Large',p:250},{s:'Extra Large',p:300}]},
+        {name:'Guest Bedroom Staging',sizes:[{s:'Small',p:150},{s:'Medium',p:200},{s:'Large',p:250}]},
+      ]},
+      {group:'Living Spaces',items:[
+        {name:'Living / Great Room',sizes:[{s:'Small',p:250},{s:'Medium',p:350},{s:'Large',p:450},{s:'Extra Large',p:550}]},
+        {name:'Dining Room Staging',sizes:[{s:'Small',p:150},{s:'Medium',p:200},{s:'Large',p:300}]},
+        {name:'Family / Bonus Room',sizes:[{s:'Small',p:200},{s:'Medium',p:275},{s:'Large',p:350}]},
+      ]},
+      {group:'Specialty',items:[
+        {name:'Home Office Staging',sizes:[{s:'Small',p:175},{s:'Medium',p:225},{s:'Large',p:300}]},
+        {name:'Outdoor / Patio Staging',sizes:[{s:'Small',p:250},{s:'Medium',p:350},{s:'Large',p:450}]},
+        {name:'Primary Bathroom Staging',sizes:[{s:'Small',p:150},{s:'Medium',p:200}]},
+        {name:'Secondary Bathroom',sizes:[{s:'Small',p:100},{s:'Medium',p:150}]},
+      ]},
+    ];
     if(d.addons && d.addons.length > 0){
       d.addons.forEach(addon => {
-        // Match addon desc to category
-        CATS.forEach((cat, ci) => {
-          cat.sizes.forEach((opt, oi) => {
-            const descLower = addon.desc.toLowerCase();
-            const catLower = cat.name.toLowerCase();
-            if(descLower.startsWith(catLower)){
-              const key = `${ci}-${oi}`;
-              selAddons.set(`${ci}`, {key, ci, oi, scope: addon.desc});
-              const chip = document.getElementById(`chip-${key}`);
-              if(chip) chip.classList.add('sel');
-              // Set scope textarea
-              const ta = document.getElementById(`sc-${ci}`);
-              if(ta) ta.value = addon.desc.split(': ').slice(1).join(': ') || addon.desc;
+        const desc = addon.desc;
+        // Extra bedroom restore — pattern: "Bedroom N (BedType): Small/Medium/Large"
+        const xbMatch = desc.match(/^(Bedroom\s+\d+|Downstairs|Upstairs|Guest)\s*\(([^)]+)\)\s*:\s*(.+)$/i);
+        if(xbMatch){
+          const sizePart = xbMatch[3].split(/\s/)[0]; // 'Small' / 'Medium' / 'Large'
+          extraBedrooms.push({id:Date.now()+Math.random(),name:xbMatch[1],bed:xbMatch[2],size:sizePart,price:addon.price});
+          return;
+        }
+        // New ADDON_CATS restore — pattern: "Name (BedType) — SizeName" OR "Name — SizeName"
+        if(desc.includes(' — ')){
+          const emParts = desc.split(' — ');
+          const nameAndBed = emParts[0];
+          const sizeName = emParts[1];
+          const bedMatch = nameAndBed.match(/^(.+?)\s*\(([^)]+)\)\s*$/);
+          const itemName = bedMatch ? bedMatch[1] : nameAndBed;
+          const bed = bedMatch ? bedMatch[2] : null;
+          for(let gi=0; gi<ADDON_CATS_RESTORE.length; gi++){
+            const grp = ADDON_CATS_RESTORE[gi];
+            for(let ii=0; ii<grp.items.length; ii++){
+              if(grp.items[ii].name === itemName){
+                for(let si=0; si<grp.items[ii].sizes.length; si++){
+                  if(grp.items[ii].sizes[si].s === sizeName){
+                    selNewAddons[`${gi}-${ii}`] = {gi,ii,si,price:grp.items[ii].sizes[si].p,name:itemName,sizeName,bed};
+                    if(bed) selNewAddons[`${gi}-${ii}:bed`] = bed;
+                  }
+                }
+              }
             }
-          });
-        });
+          }
+          return;
+        }
       });
+      // Re-render the addon UI so selections show visually
+      buildCats();
+      updateNewAddonTotals();
     }
 
     // Restore custom line items
     customs = [];
+    // List of all known addon name prefixes (old CATS + new ADDON_CATS items + extra bedrooms)
+    const knownAddonPrefixes = [
+      // Old CATS names (still in CATS array)
+      'primary bedroom','bedroom','kids room','living room','office','outdoor','dining room',
+      // New ADDON_CATS items
+      'primary bedroom staging','secondary bedroom staging','guest bedroom staging',
+      'living / great room','dining room staging','family / bonus room',
+      'home office staging','outdoor / patio staging','primary bathroom staging','secondary bathroom',
+    ];
     if(d.addons && d.addons.length > 0){
       d.addons.forEach(addon => {
-        // Check if this addon doesn't match any standard category — it's a custom item
+        const descLower = addon.desc.toLowerCase();
+        // New ADDON_CATS items contain " — " (em dash with spaces)
+        if(descLower.includes(' — ')) return;
+        // Extra bedrooms match pattern "Bedroom N (BedType): ..."
+        if(/^bedroom\s+\d+\s*\(/i.test(addon.desc)) return;
+        // Old CATS — check if starts with any known prefix
         let isStandard = false;
-        CATS.forEach(cat => {
-          if(addon.desc.toLowerCase().startsWith(cat.name.toLowerCase())) isStandard = true;
-        });
-        // Also check extra bedroom names
-        ['bedroom 2','bedroom 3','bedroom 4','downstairs','guest','upstairs'].forEach(n => {
-          if(addon.desc.toLowerCase().startsWith(n)) isStandard = true;
-        });
-        if(!isStandard){
-          const parts = addon.desc.split(': ');
-          const desc = parts[0] || addon.desc;
-          const scope = parts.slice(1).join(': ') || '';
-          customs.push({id: Date.now() + Math.random(), desc, scope, price: addon.price || 0});
+        for(const pfx of knownAddonPrefixes){
+          if(descLower.startsWith(pfx)){ isStandard = true; break; }
         }
+        if(isStandard) return;
+        // It's a real custom line item — restore it
+        const parts = addon.desc.split(': ');
+        const desc = parts[0] || addon.desc;
+        const scope = parts.slice(1).join(': ') || '';
+        customs.push({id: Date.now() + Math.random(), desc, scope, price: addon.price || 0});
       });
       renderCustoms();
     }
