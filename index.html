@@ -269,12 +269,17 @@ textarea:focus { border-color:var(--gold); background:var(--warm); }
 
   <!-- RECENT INVOICES -->
   <div class="card" id="recent-card">
-    <div class="card-hdr">
-      <span class="sec-lbl">Recent Invoices</span>
-      <div class="sec-accent"></div>
+    <div class="card-hdr" style="padding-bottom:12px">
+      <button class="drafts-toggle" onclick="toggleRecent()">
+        <span class="sec-lbl">Recent Invoices</span>
+        <span class="drafts-arr" id="recent-arr">▼</span>
+      </button>
     </div>
-    <div class="card-body" style="padding-top:6px">
-      <div id="recent-list" style="font-size:12px;color:var(--taupe)">Loading...</div>
+    <div class="drafts-body open" id="recent-body">
+      <div style="padding:0 18px 14px">
+        <div id="recent-list" style="font-size:12px;color:var(--taupe)">Loading...</div>
+        <button class="add-btn" id="recent-expand-btn" onclick="expandRecent()" style="display:none;margin-top:6px">+ Show more</button>
+      </div>
     </div>
   </div>
 
@@ -885,7 +890,11 @@ async function loadRecent(){
     if(error||!data||data.length===0){el.textContent='No recent invoices.';return;}
     // Store data globally for click access
     window._recentInvoices = data;
-    el.innerHTML = data.map((inv,i)=>`
+    // Show only 3 unless expanded
+    const showData = recentExpanded ? data : data.slice(0,3);
+    const expandBtn = document.getElementById('recent-expand-btn');
+    if(expandBtn) expandBtn.style.display = (!recentExpanded && data.length > 3) ? 'block' : 'none';
+    el.innerHTML = showData.map((inv,i)=>`
       <div class="ri" onclick="loadInvoice(${i})">
         <div>
           <div class="ri-name">${inv.client}</div>
@@ -1272,6 +1281,22 @@ function editProfitField(field){
   document.getElementById('pm-margin').className = 'profit-metric-value ' + (margin > 55 ? 'green' : margin > 35 ? 'amber' : 'red');
   document.getElementById('pt-value').textContent = fmt2(takePay);
   document.getElementById('pt-note').textContent = '80% of profit · reinvest ' + fmt2(reinvest) + ' · ~60% close rate';
+}
+
+
+let recentExpanded = false;
+
+function toggleRecent(){
+  const body = document.getElementById('recent-body');
+  const arr = document.getElementById('recent-arr');
+  const open = body.classList.toggle('open');
+  arr.classList.toggle('open', open);
+}
+
+function expandRecent(){
+  recentExpanded = true;
+  document.getElementById('recent-expand-btn').style.display = 'none';
+  loadRecent();
 }
 
 function closeProfitModal(){ document.getElementById('profit-modal').classList.remove('show'); }

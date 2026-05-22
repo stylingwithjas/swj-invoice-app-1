@@ -94,7 +94,7 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
 .pipeline { display:grid; grid-template-columns:repeat(5,1fr); gap:1px; background:var(--taupe-lt); border-bottom:1px solid var(--taupe-lt); }
 .pipe { background:var(--warm); padding:11px 14px; }
 .pipe-lbl { font-size:9px; font-weight:500; color:var(--taupe); text-transform:uppercase; letter-spacing:1.2px; margin-bottom:3px; }
-.pipe-val { font-family:'Cormorant Garamond',serif; font-size:19px; font-weight:400; color:var(--ink); }
+.pipe-val { font-family:'Cormorant Garamond',serif; font-size:22px; font-weight:400; color:var(--ink); }
 .pipe-val.g { color:var(--green); }
 .pipe-val.r { color:var(--red); }
 .pipe-note { font-size:10px; color:var(--taupe); margin-top:2px; }
@@ -278,7 +278,7 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
       <button class="compact-toggle" id="compact-btn" onclick="toggleCompact()">Compact</button>
       <div class="nav-sw">
         <button class="nav-btn on">Board</button>
-        <button class="nav-btn off">Invoice</button>
+        <button class="nav-btn off" onclick="window.location.href='index.html'">Invoice</button>
       </div>
     </div>
   </div>
@@ -293,8 +293,11 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
 </div>
 
 <!-- TODAY SECTION -->
-<div class="today-wrap">
-  <div class="today-label">Today — Wednesday, May 21</div>
+<div class="today-wrap" style="background:var(--ink);padding:0 16px 16px;border-bottom:3px solid var(--gold)">
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0 10px">
+    <div style="font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:300;color:#fff;letter-spacing:1px">Today</div>
+    <div style="font-size:10px;color:rgba(255,255,255,0.3);letter-spacing:1px;text-transform:uppercase">Friday, May 22</div>
+  </div>
   <div class="today-items">
     <div class="today-item urgent" onclick="filter('confirmed',document.querySelectorAll('.tab')[2])">
       <div class="ti-label urgent">Payment overdue</div>
@@ -319,15 +322,7 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
   </div>
 </div>
 
-<!-- SHOPPING CONSOLIDATOR -->
-<div style="background:var(--warm);border-bottom:2px solid rgba(162,156,150,0.15);padding:14px 16px 16px">
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-    <div style="font-size:9px;font-weight:600;color:var(--taupe);text-transform:uppercase;letter-spacing:1.8px">Shopping Run</div>
-    <div style="font-size:10px;color:var(--taupe);font-style:italic" id="shop-summary">3 items · 2 stores</div>
-  </div>
-  <div id="shop-consolidated"></div>
-  <button class="shop-send-btn" onclick="sendShoppingList()">Send Shopping List to My Phone</button>
-</div>
+<!-- SHOPPING CONSOLIDATOR — moved to bottom, clean card -->
 
 <!-- PIPELINE -->
 <div class="pipeline">
@@ -367,8 +362,6 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
       <span class="col-lbl" style="color:var(--taupe-dk)">Proposal Sent</span>
       <span class="col-n" style="background:var(--taupe)">2</span>
     </div>
-    <button class="mtb-btn">+ Move to Board</button>
-
     <div class="card proposal" onclick="openCard('chad')">
       <div class="c-row1">
         <div class="c-name">Chad & Genevieve</div>
@@ -555,7 +548,7 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
     </div>
 
     <!-- Profitability strip -->
-    <div class="profit-strip" onclick="alert('Profitability view coming — shows truck, fuel, movers, warehouse breakdown')">
+    <div class="profit-strip" id="m-profit-strip" onclick="showCardProfitability()">
       <div>
         <div class="ps-lbl">Est. Profit this job</div>
         <div class="ps-sub">Tap to see full breakdown</div>
@@ -576,8 +569,13 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
       <div class="m-row">
         <span class="m-lbl">Mover</span>
         <div class="m-tel-row">
-          <input class="m-tel-input" id="m-mover" type="text" value="Anthony" placeholder="Name">
-          <input class="m-tel-input" id="m-mover-tel" type="tel" value="+12065025216" placeholder="Phone" style="width:110px">
+          <select class="m-select" id="m-mover-select" onchange="setMover(this.value,'staging')" style="min-width:100px">
+            <option value="anthony">Anthony</option>
+            <option value="gabriel">Gabriel</option>
+            <option value="other">Other...</option>
+          </select>
+          <input class="m-tel-input" id="m-mover" type="text" value="Anthony" placeholder="Name" style="width:80px">
+          <input class="m-tel-input" id="m-mover-tel" type="tel" value="+12065025216" placeholder="Phone" style="width:100px">
           <button class="m-text-btn" onclick="textMover('staging')">Text</button>
         </div>
       </div>
@@ -621,12 +619,17 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
         <span class="m-lbl">Status</span>
         <select class="m-select" id="m-payment">
           <option>Awaiting payment</option>
-          <option selected>Paid</option>
+          <option>Paid</option>
+          <option selected>Confirmed via Stripe</option>
         </select>
       </div>
       <div class="m-row">
         <span class="m-lbl">Payment date</span>
         <input class="m-input" id="m-paid-date" type="date" value="2026-05-28">
+      </div>
+      <div class="m-row">
+        <span class="m-lbl">Est. bank deposit</span>
+        <input class="m-input" id="m-deposit-date" type="text" placeholder="TBA — from Stripe" value="">
       </div>
     </div>
 
@@ -640,8 +643,14 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
       <div class="m-row">
         <span class="m-lbl">Destage mover</span>
         <div class="m-tel-row">
+          <select class="m-select" id="m-dmover-select" onchange="setMover(this.value,'destage')" style="min-width:100px">
+            <option value="">Select...</option>
+            <option value="anthony">Anthony</option>
+            <option value="gabriel">Gabriel</option>
+            <option value="other">Other...</option>
+          </select>
           <input class="m-tel-input" id="m-dmover" type="text" placeholder="Name">
-          <input class="m-tel-input" id="m-dmover-tel" type="tel" placeholder="Phone" style="width:110px">
+          <input class="m-tel-input" id="m-dmover-tel" type="tel" placeholder="Phone" style="width:100px">
           <button class="m-text-btn" onclick="textMover('destage')">Text</button>
         </div>
       </div>
@@ -1040,6 +1049,50 @@ document.addEventListener('DOMContentLoaded', ()=>{
   renderShoppingConsolidator();
 });
 
+
+const MOVERS = {
+  anthony: {name:'Anthony', tel:'+12065025216'},
+  gabriel: {name:'Gabriel', tel:'+12064225618'},
+};
+
+function setMover(val, type){
+  const prefix = type==='staging' ? 'm' : 'm-d';
+  const nameEl = document.getElementById(type==='staging'?'m-mover':'m-dmover');
+  const telEl = document.getElementById(type==='staging'?'m-mover-tel':'m-dmover-tel');
+  if(MOVERS[val]){
+    nameEl.value = MOVERS[val].name;
+    telEl.value = MOVERS[val].tel;
+  } else if(val==='other'){
+    nameEl.value = '';
+    telEl.value = '';
+    nameEl.focus();
+  }
+}
+
+function showCardProfitability(){
+  // Use the invoice grand total from the modal
+  const amtText = document.getElementById('m-amt').textContent;
+  const grand = parseFloat(amtText.replace(/[$,]/g,'')) || 0;
+  const addr = document.getElementById('m-addr').textContent;
+  const client = document.getElementById('m-name').textContent;
+  if(typeof showProfitability === 'function'){
+    showProfitability({client, address:addr, baserooms:'Living Room', addons:[]}, grand);
+  }
+}
+
 </script>
+<!-- SHOPPING RUN CARD -->
+<div style="margin:0 16px 24px;background:var(--warm);border-radius:16px;border:1px solid rgba(162,156,150,0.18);overflow:hidden">
+  <div style="padding:14px 18px 0;display:flex;align-items:center;justify-content:space-between">
+    <span style="font-size:9px;font-weight:600;color:var(--taupe);text-transform:uppercase;letter-spacing:1.8px">Shopping Run</span>
+    <span style="font-size:10px;color:var(--taupe);font-style:italic" id="shop-summary"></span>
+  </div>
+  <div style="padding:10px 18px 16px">
+    <div id="shop-consolidated"></div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button onclick="sendShoppingList()" style="flex:1;padding:11px;background:var(--ink);color:#fff;border:none;border-radius:10px;font-size:12px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif">Send All to Phone</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
