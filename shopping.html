@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>SWJ — Shopping Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Cormorant+Garamond:wght@300;400;500;600&display=swap">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*, *::before, *::after { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+:root {
+  --bg:#fcfaf7; --bg-soft:#ffffff; --bg-card:#ffffff;
+  --ink:#2c2926; --ink-soft:#3d3833; --muted:#8c847c; --muted-soft:#b8ada1;
+  --line:#e7e1d9; --line-soft:#ede8e0;
+  --olive:#7a8574; --olive-dark:#5f685a; --olive-tint:#eef1ea; --olive-line:#c9d0c2;
+  --gold:#b89a63; --gold-soft:#f6f1e7; --gold-line:#eadfcb;
+  --green:#6f8a72; --green-tint:#edf4ee;
+  --amber:#b77b62; --amber-tint:#faefea;
+  --red:#9a5a4a; --red-tint:#f8ece8;
+  --cta:#4a443e; --cta-hover:#5a534b;
+}
+body { font-family:'Inter',-apple-system,sans-serif; background:var(--bg); color:var(--ink); min-height:100vh; }
+
+.hdr { background:var(--bg); position:sticky; top:0; z-index:60; border-bottom:0.5px solid var(--line); }
+.hdr-top { display:flex; align-items:center; justify-content:space-between; padding:14px 24px 12px; max-width:760px; margin:0 auto; }
+.brand-stack .b1 { font-family:'Cormorant Garamond',serif; font-size:13px; color:var(--ink); letter-spacing:3px; text-transform:uppercase; }
+.brand-stack .b2 { font-size:9px; color:var(--muted); letter-spacing:2px; text-transform:uppercase; margin-top:1px; }
+.nav-sw { display:flex; gap:2px; background:var(--bg-soft); border-radius:20px; padding:3px; border:0.5px solid var(--line); }
+.nav-btn { padding:5px 13px; border-radius:16px; border:none; font-size:11px; font-weight:500; cursor:pointer; font-family:'Inter',sans-serif; transition:all 0.18s; }
+.nav-btn.on  { background:var(--cta); color:var(--bg-soft); }
+.nav-btn.off { background:transparent; color:var(--muted); }
+
+.content { padding:8px 24px 80px; max-width:760px; margin:0 auto; }
+
+/* HERO */
+.hero { padding:28px 0 20px; }
+.hero-title { font-family:'Cormorant Garamond',serif; font-size:40px; font-weight:400; color:var(--green); letter-spacing:-0.015em; line-height:1.1; margin-bottom:6px; }
+.hero-sub { font-size:13px; color:var(--muted); line-height:1.5; }
+
+/* JOB PILLS */
+.jobs-row { display:flex; gap:8px; flex-wrap:wrap; margin:18px 0 6px; }
+.job-pill { display:inline-flex; align-items:center; gap:6px; padding:7px 13px; border:0.5px solid var(--line); border-radius:100px; font-size:12px; font-weight:500; color:var(--ink-soft); background:var(--bg-card); cursor:pointer; transition:all 0.15s; user-select:none; }
+.job-pill.sel { border-color:var(--olive); background:var(--olive-tint); color:var(--olive-dark); }
+.job-pill .dot { width:6px; height:6px; border-radius:50%; background:var(--muted-soft); flex-shrink:0; }
+.job-pill.sel .dot { background:var(--olive); }
+.jobs-note { font-size:11px; color:var(--muted); margin-bottom:14px; }
+
+/* GENERATE BUTTON */
+.gen-area { margin:16px 0; }
+.gen-main-btn { width:100%; padding:16px; background:var(--cta); color:#fff; border:none; border-radius:11px; font-family:'Cormorant Garamond',serif; font-size:17px; font-weight:300; letter-spacing:2px; text-transform:uppercase; cursor:pointer; transition:all 0.18s; display:flex; align-items:center; justify-content:center; gap:10px; }
+.gen-main-btn:hover { background:var(--cta-hover); }
+.gen-main-btn:disabled { opacity:0.5; cursor:not-allowed; }
+.gen-main-btn .spin { animation:spin 0.8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+/* STATUS BAR */
+.status-bar { display:flex; align-items:center; gap:8px; padding:10px 14px; background:var(--bg-card); border:0.5px solid var(--line); border-radius:9px; margin-bottom:14px; font-size:12px; color:var(--muted); }
+.status-dot { width:7px; height:7px; border-radius:50%; background:var(--muted-soft); flex-shrink:0; }
+.status-dot.thinking { background:var(--amber); animation:blink 0.7s infinite; }
+.status-dot.done { background:var(--green); }
+.status-dot.err { background:var(--red); }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+/* RESULTS */
+.results { margin-top:4px; }
+
+/* STORE SECTION */
+.store-block { background:var(--bg-card); border:0.5px solid var(--line); border-radius:12px; overflow:hidden; margin-bottom:12px; }
+.store-hdr { padding:13px 16px; border-bottom:0.5px solid var(--line); display:flex; align-items:center; justify-content:space-between; }
+.store-name { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:1.2px; color:var(--ink); }
+.store-est { font-size:11px; color:var(--muted); }
+.store-items { padding:4px 0; }
+.shop-item { display:flex; align-items:flex-start; gap:11px; padding:11px 16px; border-bottom:0.5px solid var(--line-soft); }
+.shop-item:last-child { border-bottom:none; }
+.shop-chk { width:19px; height:19px; border-radius:50%; border:1.5px solid var(--muted-soft); flex-shrink:0; display:flex; align-items:center; justify-content:center; cursor:pointer; transition:all 0.15s; margin-top:1px; }
+.shop-chk.done { background:var(--green); border-color:var(--green); }
+.shop-chk svg { opacity:0; }
+.shop-chk.done svg { opacity:1; }
+.shop-body { flex:1; min-width:0; }
+.shop-desc { font-size:13px; color:var(--ink); line-height:1.4; transition:all 0.15s; }
+.shop-desc.done { color:var(--muted-soft); text-decoration:line-through; }
+.shop-meta { font-size:10px; color:var(--muted); margin-top:2px; }
+.shop-tag { display:inline-block; font-size:9px; font-weight:600; text-transform:uppercase; letter-spacing:0.8px; padding:2px 7px; border-radius:20px; margin-right:4px; }
+.shop-tag.new { background:var(--gold-soft); color:var(--gold); }
+.shop-tag.existing { background:var(--olive-tint); color:var(--olive-dark); }
+.shop-price { font-size:12px; color:var(--muted); white-space:nowrap; flex-shrink:0; margin-top:1px; }
+
+/* TOTALS */
+.totals-bar { background:var(--gold-soft); border:0.5px solid var(--gold-line); border-radius:11px; padding:14px 16px; display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+.totals-lbl { font-size:11px; color:var(--gold); font-weight:500; text-transform:uppercase; letter-spacing:1px; }
+.totals-val { font-family:'Cormorant Garamond',serif; font-size:24px; font-weight:400; color:var(--ink); }
+
+/* AGENT NOTE */
+.agent-note { background:var(--olive-tint); border:0.5px solid var(--olive-line); border-radius:11px; padding:13px 16px; margin-bottom:12px; font-size:12px; color:var(--olive-dark); line-height:1.6; }
+.agent-note strong { color:var(--ink); }
+
+/* ACTION ROW */
+.action-row { display:flex; gap:9px; margin-top:4px; }
+.act-btn { flex:1; padding:13px; border-radius:10px; border:0.5px solid var(--line); background:var(--bg-card); color:var(--ink-soft); font-size:12px; font-weight:500; cursor:pointer; font-family:'Inter',sans-serif; transition:all 0.15s; }
+.act-btn:hover { background:var(--bg-soft); }
+.act-btn.primary { background:var(--cta); color:#fff; border-color:var(--cta); }
+.act-btn.primary:hover { background:var(--cta-hover); }
+
+/* EMPTY */
+.empty { padding:40px 20px; text-align:center; }
+.empty-icon { font-size:32px; color:var(--muted-soft); margin-bottom:10px; }
+.empty-title { font-family:'Cormorant Garamond',serif; font-size:22px; color:var(--ink); margin-bottom:6px; }
+.empty-sub { font-size:12px; color:var(--muted); line-height:1.5; }
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <div class="hdr-top">
+    <div class="brand-stack">
+      <div class="b1">Styling With Jas</div>
+      <div class="b2">Shopping Agent</div>
+    </div>
+    <div class="nav-sw">
+      <button class="nav-btn off" onclick="window.location.href='/today.html'">Today</button>
+      <button class="nav-btn off" onclick="window.location.href='/board.html'">Board</button>
+      <button class="nav-btn off" onclick="window.location.href='/index.html'">Invoice</button>
+    </div>
+  </div>
+</div>
+
+<div class="content">
+  <div class="hero">
+    <div class="hero-title">Shopping Agent</div>
+    <div class="hero-sub">Select the jobs you're shopping for and the agent will build a consolidated list — including suggestions based on what rooms are being staged.</div>
+  </div>
+
+  <div id="jobs-section">
+    <div style="font-size:11px;color:var(--muted);padding:20px 0;font-style:italic">Loading active jobs...</div>
+  </div>
+
+  <div class="gen-area">
+    <button class="gen-main-btn" id="gen-btn" onclick="runAgent()" disabled>
+      <i class="ti ti-sparkles" style="font-size:18px"></i>
+      Build Shopping List
+    </button>
+  </div>
+
+  <div id="status-area" style="display:none">
+    <div class="status-bar">
+      <div class="status-dot thinking" id="status-dot"></div>
+      <span id="status-msg">Thinking...</span>
+    </div>
+  </div>
+
+  <div id="results"></div>
+</div>
+
+<script>
+const _sb = supabase.createClient(
+  'https://cwvdfgrjlrpsdfwduwvn.supabase.co',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN3dmRmZ3JqbHJwc2Rmd2R1d3ZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwMDcyODUsImV4cCI6MjA5MzU4MzI4NX0.zam9AnIwW91TI6eCKUcg05LhvFcRa7op4QsjRpdcrCY'
+);
+
+let allJobs = [];
+let selectedJobs = new Set();
+const checkState = {};
+
+function esc(s){ return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function fmt(n){ return '$'+Math.round(n||0).toLocaleString(); }
+
+function computeGrand(d){
+  const base=parseFloat(d.base_price)||2500;
+  const addons=(d.addons||[]).reduce((s,a)=>s+(parseFloat(a.price)||0),0);
+  return (base+addons)*(1+(parseFloat(d.taxrate)||0)/100);
+}
+
+async function loadJobs(){
+  try {
+    const {data,error} = await _sb
+      .from('invoices')
+      .select('invnum,client,address,invdate,data')
+      .not('invnum','like','DRAFT-%')
+      .order('created_at',{ascending:false})
+      .limit(50);
+
+    if(error) throw error;
+
+    // Only active stages
+    allJobs = (data||[]).filter(inv => {
+      const stage = (inv.data&&inv.data.stage)||'proposal';
+      return ['proposal','confirmed','staged','destage'].includes(stage);
+    });
+
+    renderJobs();
+  } catch(e) {
+    document.getElementById('jobs-section').innerHTML =
+      `<div style="color:var(--red);font-size:12px">Could not load jobs: ${esc(e.message)}</div>`;
+  }
+}
+
+function renderJobs(){
+  const sec = document.getElementById('jobs-section');
+  if(!allJobs.length){
+    sec.innerHTML = `<div class="empty"><div class="empty-icon"><i class="ti ti-clipboard-off"></i></div><div class="empty-title">No active jobs</div><div class="empty-sub">Generate invoices first and move them to the Board.</div></div>`;
+    return;
+  }
+
+  const pills = allJobs.map(inv => {
+    const d = inv.data||{};
+    const stage = d.stage||'proposal';
+    const city = (inv.address||'').split(',')[1]||'';
+    const label = (inv.client||'Unknown') + (city?' · '+city.trim():'');
+    const stageLbl = {proposal:'Proposal',confirmed:'Confirmed',staged:'Staged',destage:'Destage'}[stage]||stage;
+    return `<div class="job-pill ${selectedJobs.has(inv.invnum)?'sel':''}" onclick="toggleJob('${inv.invnum}')">
+      <div class="dot"></div>
+      <span>${esc(label)}</span>
+      <span style="font-size:10px;color:var(--muted);font-weight:400">${stageLbl}</span>
+    </div>`;
+  }).join('');
+
+  const selAll = `<button onclick="selectAllJobs()" style="font-size:11px;color:var(--olive);background:none;border:none;cursor:pointer;padding:4px 0;font-family:'Inter',sans-serif">Select all</button>`;
+
+  sec.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <div style="font-size:10px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px">Active Jobs</div>
+      ${selAll}
+    </div>
+    <div class="jobs-row" id="pills-row">${pills}</div>
+    <div class="jobs-note" id="sel-note">Select jobs to include in the shopping list</div>
+  `;
+  updateGenBtn();
+}
+
+function toggleJob(invnum){
+  if(selectedJobs.has(invnum)) selectedJobs.delete(invnum);
+  else selectedJobs.add(invnum);
+  // Update pill visuals
+  document.querySelectorAll('.job-pill').forEach((pill,i) => {
+    if(allJobs[i]) pill.classList.toggle('sel', selectedJobs.has(allJobs[i].invnum));
+  });
+  updateGenBtn();
+}
+
+function selectAllJobs(){
+  allJobs.forEach(inv => selectedJobs.add(inv.invnum));
+  document.querySelectorAll('.job-pill').forEach(p => p.classList.add('sel'));
+  updateGenBtn();
+}
+
+function updateGenBtn(){
+  const btn = document.getElementById('gen-btn');
+  const note = document.getElementById('sel-note');
+  const n = selectedJobs.size;
+  btn.disabled = n === 0;
+  if(note) note.textContent = n ? `${n} job${n===1?'':'s'} selected` : 'Select jobs to include in the shopping list';
+}
+
+async function runAgent(){
+  const btn = document.getElementById('gen-btn');
+  const statusArea = document.getElementById('status-area');
+  const statusDot = document.getElementById('status-dot');
+  const statusMsg = document.getElementById('status-msg');
+  const results = document.getElementById('results');
+
+  // Gather selected job data
+  const jobs = allJobs.filter(inv => selectedJobs.has(inv.invnum)).map(inv => {
+    const d = inv.data||{};
+    return {
+      invnum: inv.invnum,
+      client: inv.client||'Unknown',
+      address: inv.address||'',
+      stage: d.stage||'proposal',
+      stagingDate: d.startdate||null,
+      baserooms: d.baserooms||'',
+      addons: (d.addons||[]).map(a=>a.desc),
+      existingItems: (d.prep_items||[]).map(p=>({
+        desc: p.desc, store: p.store||'', price: p.price||null, done: p.done||false
+      })),
+      notes: d.notes||'',
+    };
+  });
+
+  // Show status
+  btn.disabled = true;
+  btn.innerHTML = '<i class="ti ti-loader-2 spin" style="font-size:18px"></i> Building list...';
+  statusArea.style.display = 'block';
+  statusDot.className = 'status-dot thinking';
+  statusMsg.textContent = 'Reading your active jobs...';
+  results.innerHTML = '';
+
+  try {
+    statusMsg.textContent = 'Analyzing staging scopes and existing items...';
+
+    const prompt = `You are a professional home staging coordinator assistant for Styling With Jas, a premium home staging company in the Seattle/Tacoma area.
+
+Here are the active staging jobs that need shopping:
+
+${jobs.map((j,i) => `
+JOB ${i+1}: ${j.client}
+Address: ${j.address}
+Stage: ${j.stage}
+Staging date: ${j.stagingDate||'TBD'}
+Base rooms: ${j.baserooms||'not specified'}
+Add-on scopes: ${j.addons.length ? j.addons.join(', ') : 'none'}
+Notes: ${j.notes||'none'}
+Already on shopping list (do NOT re-add these): ${j.existingItems.filter(p=>!p.done).map(p=>p.desc).join(', ')||'nothing yet'}
+`).join('\n')}
+
+Your task: Build a consolidated shopping list for all these jobs.
+
+Rules:
+1. Suggest items that a home stager would typically need based on the rooms being staged
+2. DO NOT suggest items already on the existing list
+3. Group by store (HomeGoods, TJ Maxx, World Market, Target, Amazon, Warehouse/Inventory)
+4. For each item include: description, which job it's for (use first name only), estimated price range, and whether it's a NEW suggestion or you're confirming something implied by the scope
+5. Prioritize: accent pillows, artwork, throws, lamps, greenery/plants, mirrors, decorative objects, bedding accents, towels for bathrooms, table decor for dining rooms, outdoor furniture for patios
+6. Be specific — not "pillows" but "2x accent pillows, neutral tone" 
+7. Keep total estimated spend realistic for a professional staging business
+
+Respond ONLY with valid JSON, no markdown, no explanation:
+{
+  "agent_note": "Brief 1-2 sentence summary of what you found and your approach",
+  "stores": [
+    {
+      "store": "Store name",
+      "items": [
+        {
+          "desc": "Specific item description",
+          "job": "First name of client",
+          "type": "new" or "suggested",
+          "price_low": 25,
+          "price_high": 45,
+          "priority": "high" or "medium" or "low"
+        }
+      ]
+    }
+  ],
+  "total_low": 350,
+  "total_high": 520
+}`;
+
+    statusMsg.textContent = 'Consulting the agent...';
+
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+
+    const data = await response.json();
+    const raw = data.content?.find(b=>b.type==='text')?.text||'';
+
+    statusMsg.textContent = 'Building your list...';
+
+    // Parse JSON — strip any accidental markdown
+    const clean = raw.replace(/```json|```/g,'').trim();
+    const parsed = JSON.parse(clean);
+
+    statusDot.className = 'status-dot done';
+    statusMsg.textContent = `List ready · ${parsed.stores?.reduce((s,st)=>s+st.items.length,0)||0} items across ${parsed.stores?.length||0} stores`;
+
+    renderResults(parsed, jobs);
+
+  } catch(e) {
+    statusDot.className = 'status-dot err';
+    statusMsg.textContent = 'Error: ' + e.message;
+    console.error(e);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="ti ti-refresh" style="font-size:18px"></i> Regenerate List';
+  }
+}
+
+function renderResults(parsed, jobs){
+  const results = document.getElementById('results');
+  let html = '';
+
+  // Agent note
+  if(parsed.agent_note){
+    html += `<div class="agent-note"><strong>Agent note:</strong> ${esc(parsed.agent_note)}</div>`;
+  }
+
+  // Totals
+  if(parsed.total_low||parsed.total_high){
+    html += `<div class="totals-bar">
+      <span class="totals-lbl">Estimated Spend</span>
+      <span class="totals-val">${fmt(parsed.total_low)} – ${fmt(parsed.total_high)}</span>
+    </div>`;
+  }
+
+  // Stores
+  (parsed.stores||[]).forEach(store => {
+    const storeKey = store.store.replace(/\s+/g,'-');
+    html += `<div class="store-block">
+      <div class="store-hdr">
+        <span class="store-name">${esc(store.store)}</span>
+        <span class="store-est">${store.items.length} item${store.items.length===1?'':'s'}</span>
+      </div>
+      <div class="store-items">
+        ${store.items.map((item,idx) => {
+          const key = `${storeKey}-${idx}`;
+          const priceStr = item.price_low&&item.price_high ? `~$${item.price_low}–$${item.price_high}` : '';
+          return `<div class="shop-item" id="si-${esc(key)}">
+            <div class="shop-chk" id="chk-${esc(key)}" onclick="toggleCheck('${esc(key)}')">
+              <svg width="9" height="7" viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <div class="shop-body">
+              <div class="shop-desc" id="desc-${esc(key)}">${esc(item.desc)}</div>
+              <div class="shop-meta">
+                <span class="shop-tag ${item.type==='new'?'new':'existing'}">${item.type==='new'?'Suggested':'Confirmed'}</span>
+                ${esc(item.job)}${item.priority==='high'?' · <strong>High priority</strong>':''}
+              </div>
+            </div>
+            ${priceStr?`<div class="shop-price">${priceStr}</div>`:''}
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+  });
+
+  // Action buttons
+  html += `<div class="action-row">
+    <button class="act-btn primary" onclick="sendToPhone()">Send to Phone</button>
+    <button class="act-btn" onclick="copyList()">Copy List</button>
+  </div>`;
+
+  results.innerHTML = html;
+
+  // Store parsed for send/copy
+  window._lastParsed = parsed;
+}
+
+function toggleCheck(key){
+  checkState[key] = !checkState[key];
+  const chk = document.getElementById('chk-'+key);
+  const desc = document.getElementById('desc-'+key);
+  if(chk) chk.classList.toggle('done', checkState[key]);
+  if(desc) desc.classList.toggle('done', checkState[key]);
+}
+
+function buildTextMsg(){
+  const p = window._lastParsed;
+  if(!p) return '';
+  const today = new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
+  let msg = `SWJ Shopping Run — ${today}\n\n`;
+  (p.stores||[]).forEach(store => {
+    const unchecked = store.items.filter((_,i) => {
+      const key = store.store.replace(/\s+/g,'-')+'-'+i;
+      return !checkState[key];
+    });
+    if(!unchecked.length) return;
+    msg += store.store.toUpperCase()+'\n';
+    unchecked.forEach(item => {
+      msg += `• ${item.desc} (${item.job})`;
+      if(item.price_low) msg += ` ~$${item.price_low}–${item.price_high}`;
+      msg += '\n';
+    });
+    msg += '\n';
+  });
+  if(p.total_low) msg += `Est. total: $${p.total_low}–$${p.total_high}`;
+  return msg;
+}
+
+function sendToPhone(){
+  const msg = buildTextMsg();
+  if(!msg.trim()){ alert('Nothing to send — all items checked off!'); return; }
+  window.open('sms:+12064225618&body='+encodeURIComponent(msg));
+}
+
+function copyList(){
+  const msg = buildTextMsg();
+  navigator.clipboard.writeText(msg).then(()=>{
+    const btn = document.querySelector('.act-btn:not(.primary)');
+    if(btn){ btn.textContent='Copied!'; setTimeout(()=>btn.textContent='Copy List',2000); }
+  }).catch(()=>{
+    // Fallback
+    const ta = document.createElement('textarea');
+    ta.value = msg; document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); document.body.removeChild(ta);
+  });
+}
+
+document.addEventListener('DOMContentLoaded', loadJobs);
+</script>
+</body>
+</html>
