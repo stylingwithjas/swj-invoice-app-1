@@ -11,17 +11,17 @@
 *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
 
 :root {
-  --bg:         #1c1a17;
-  --bg-soft:    #252220;
-  --bg-card:    #2a2724;
-  --bg-input:   #1f1d1a;
+  --bg:         #000000;
+  --bg-soft:    #0e0e0e;
+  --bg-card:    #161616;
+  --bg-input:   #0a0a0a;
   --ink:        #f0ebe3;
   --ink-soft:   #d4cdc0;
   --muted:      #9b948a;
   --muted-soft: #6e6862;
-  --line:       #3a3530;
+  --line:       #2a2a2a;
   --gold:       #c9a96e;
-  --gold-soft:  #5a4a30;
+  --gold-soft:  #3d3220;
   --green:      #88b876;
   --amber:      #d4a05e;
   --red:        #d97474;
@@ -401,19 +401,19 @@ textarea.scope-area { width:100%; font-family:'Inter',sans-serif; font-size:12px
     <div class="ch-title">Promotions</div>
     <div class="promo-grid">
       <div class="promo-card" id="pc-promo1" onclick="togglePromoCard('promo1')">
-        <div class="promo-dot"><svg width="9" height="7" viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="#1c1a17" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="promo-dot"><svg width="9" height="7" viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="#000000" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
         <div class="promo-text"><strong>Monthly Special</strong><span>Complimentary staging for Kitchen & all Bathrooms</span></div>
       </div>
       <div class="promo-card" id="pc-promo2" onclick="togglePromoCard('promo2')">
-        <div class="promo-dot"><svg width="9" height="7" viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="#1c1a17" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="promo-dot"><svg width="9" height="7" viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="#000000" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
         <div class="promo-text"><strong>First-Time Client Bonus</strong><span>25 complimentary professional real estate photos</span></div>
       </div>
       <div class="promo-card" id="pc-promo3" onclick="togglePromoCard('promo3')">
-        <div class="promo-dot"><svg width="9" height="7" viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="#1c1a17" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="promo-dot"><svg width="9" height="7" viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="#000000" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
         <div class="promo-text"><strong>Photography Package</strong><span>Up to 25 professional real estate photos included</span></div>
       </div>
       <div class="promo-card" id="pc-promo4" onclick="togglePromoCard('promo4')">
-        <div class="promo-dot"><svg width="9" height="7" viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="#1c1a17" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="promo-dot"><svg width="9" height="7" viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="#000000" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
         <div class="promo-text"><strong>Drone Photography</strong><span>Up to 5 aerial photos, complimentary (when permitted)</span></div>
       </div>
     </div>
@@ -717,6 +717,30 @@ function buildCats(){
       const iDiv=document.createElement('div');iDiv.className='item-block';
       const lbl=document.createElement('div');lbl.className='item-name';lbl.textContent=item.name;
       iDiv.appendChild(lbl);
+      // Bed size selector for Bedrooms group only
+      if(grp.group==='Bedrooms'){
+        const key=`${gi}-${ii}`;
+        if(!selNewAddons[key+':bed']) selNewAddons[key+':bed']='Twin';
+        const br=document.createElement('div');br.className='bed-row';
+        br.innerHTML='<label>Bed size:</label>';
+        ['Twin','Full','Queen','King'].forEach(b=>{
+          const bbtn=document.createElement('button');
+          bbtn.className='bed-btn'+(selNewAddons[key+':bed']===b?' active':'');
+          bbtn.textContent=b;
+          bbtn.id=`abed-${gi}-${ii}-${b}`;
+          bbtn.onclick=(e)=>{
+            e.stopPropagation();
+            selNewAddons[key+':bed']=b;
+            ['Twin','Full','Queen','King'].forEach(bb=>{
+              const el=document.getElementById(`abed-${gi}-${ii}-${bb}`);
+              if(el)el.classList.toggle('active',bb===b);
+            });
+            if(selNewAddons[key]) selNewAddons[key].bed=b;
+          };
+          br.appendChild(bbtn);
+        });
+        iDiv.appendChild(br);
+      }
       const sr=document.createElement('div');sr.className='size-row';
       item.sizes.forEach((sz,si)=>{
         const btn=document.createElement('button');btn.className='size-pill';btn.id=`asz-${gi}-${ii}-${si}`;
@@ -726,7 +750,11 @@ function buildCats(){
           const prev=selNewAddons[key];
           if(prev){const pb=document.getElementById(`asz-${gi}-${ii}-${prev.si}`);if(pb)pb.classList.remove('sel');}
           if(prev&&prev.si===si){delete selNewAddons[key];}
-          else{selNewAddons[key]={gi,ii,si,price:sz.p,name:item.name,sizeName:sz.s};btn.classList.add('sel');}
+          else{
+            const bed=grp.group==='Bedrooms'?(selNewAddons[key+':bed']||'Twin'):null;
+            selNewAddons[key]={gi,ii,si,price:sz.p,name:item.name,sizeName:sz.s,bed};
+            btn.classList.add('sel');
+          }
           updateNewAddonTotals();recalc();
         };
         sr.appendChild(btn);
@@ -742,7 +770,7 @@ function buildCats(){
 
 function updateNewAddonTotals(){
   [0,1,2].forEach(gi=>{
-    const tot=Object.values(selNewAddons).filter(a=>a.gi===gi).reduce((s,a)=>s+a.price,0);
+    const tot=Object.values(selNewAddons).filter(a=>a&&typeof a==='object'&&a.gi===gi).reduce((s,a)=>s+a.price,0);
     const el=document.getElementById(`agrp-total-${gi}`);
     if(el)el.textContent=tot>0?`+$${tot.toLocaleString()}`:'';
   });
@@ -829,7 +857,7 @@ function updCustom(id,k,v){const a=customs.find(x=>x.id===id);if(a){a[k]=v;if(k=
 
 function fmt(n){return'$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
 function recalc(){
-  let t=0;selAddons.forEach(e=>{t+=CATS[e.ci].sizes[e.oi].price;});Object.values(selNewAddons).forEach(a=>{t+=a.price;});
+  let t=0;selAddons.forEach(e=>{t+=CATS[e.ci].sizes[e.oi].price;});Object.values(selNewAddons).forEach(a=>{if(a&&typeof a==='object')t+=a.price;});
   t+=customs.reduce((s,a)=>s+(parseFloat(a.price)||0),0);
   t+=extraBedrooms.reduce((s,b)=>s+b.price,0);
   const base=parseFloat(document.getElementById('base_price')?.value)||2500;
@@ -1095,7 +1123,7 @@ async function saveDraft(){
   });
   customs.filter(a=>a.desc).forEach(a=>{allAddons.push({desc:a.desc+(a.scope?': '+a.scope:''),price:parseFloat(a.price)||0});});
   extraBedrooms.forEach(b=>{allAddons.push({desc:`${b.name} (${b.bed}): ${b.scope||b.size}`,price:b.price});});
-  Object.values(selNewAddons).forEach(a=>{allAddons.push({desc:`${a.name} — ${a.sizeName}`,price:a.price});});
+  Object.values(selNewAddons).forEach(a=>{if(a&&typeof a==='object')allAddons.push({desc:`${a.name}${a.bed?' ('+a.bed+')':''} — ${a.sizeName}`,price:a.price});});
 
   const sub = parseFloat(document.getElementById('base_price')?.value)||2500;
   const taxrate = parseFloat(document.getElementById('taxrate').value)||0;
@@ -1207,7 +1235,7 @@ async function previewProfitability(){
   const base = parseFloat(document.getElementById('base_price')?.value)||2500;
   let addonTotal = 0;
   selAddons.forEach(e=>{ addonTotal += CATS[e.ci].sizes[e.oi].price; });
-  Object.values(selNewAddons).forEach(a=>{ addonTotal += a.price; });
+  Object.values(selNewAddons).forEach(a=>{ if(a&&typeof a==='object') addonTotal += a.price; });
   addonTotal += customs.reduce((s,a)=>s+(parseFloat(a.price)||0),0);
   addonTotal += extraBedrooms.reduce((s,b)=>s+b.price,0);
   const taxrate = parseFloat(document.getElementById('taxrate').value)||0;
@@ -1515,8 +1543,8 @@ async function generatePDF(){
   let valid=true;
   [['f-client','e-client','client'],['f-address','e-address','address'],['f-invdate','e-invdate','invdate'],['f-startdate','e-startdate','startdate']].forEach(([fid,eid,iid])=>{
     const inp=document.getElementById(iid);
-    if(!inp.value.trim()){inp.classList.add('err');document.getElementById(eid).classList.add('show');valid=false;}
-    else{inp.classList.remove('err');document.getElementById(eid).classList.remove('show');}
+    const errEl=document.getElementById(eid);if(!inp.value.trim()){inp.classList.add('err');if(errEl)errEl.classList.add('show');valid=false;}
+    else{inp.classList.remove('err');if(errEl)errEl.classList.remove('show');}
   });
   if(selRooms.size===0){document.getElementById('rooms-grid').classList.add('err');document.getElementById('e-rooms').classList.add('show');valid=false;}
   else{document.getElementById('rooms-grid').classList.remove('err');document.getElementById('e-rooms').classList.remove('show');}
@@ -1531,7 +1559,7 @@ async function generatePDF(){
   });
   customs.filter(a=>a.desc).forEach(a=>{allAddons.push({desc:a.desc+(a.scope?': '+a.scope:''),price:parseFloat(a.price)||0});});
   extraBedrooms.forEach(b=>{allAddons.push({desc:`${b.name} (${b.bed}): ${b.scope||b.size}`,price:b.price});});
-  Object.values(selNewAddons).forEach(a=>{allAddons.push({desc:`${a.name} — ${a.sizeName}`,price:a.price});});
+  Object.values(selNewAddons).forEach(a=>{if(a&&typeof a==='object')allAddons.push({desc:`${a.name}${a.bed?' ('+a.bed+')':''} — ${a.sizeName}`,price:a.price});});
 
   const addonTotal=allAddons.reduce((s,a)=>s+a.price,0);
   const base=parseFloat(document.getElementById('base_price')?.value)||2500;
@@ -1575,8 +1603,8 @@ async function generate(){
   let valid=true;
   [['f-client','e-client','client'],['f-address','e-address','address'],['f-invdate','e-invdate','invdate'],['f-startdate','e-startdate','startdate']].forEach(([fid,eid,iid])=>{
     const inp=document.getElementById(iid);
-    if(!inp.value.trim()){inp.classList.add('err');document.getElementById(eid).classList.add('show');valid=false;}
-    else{inp.classList.remove('err');document.getElementById(eid).classList.remove('show');}
+    const errEl=document.getElementById(eid);if(!inp.value.trim()){inp.classList.add('err');if(errEl)errEl.classList.add('show');valid=false;}
+    else{inp.classList.remove('err');if(errEl)errEl.classList.remove('show');}
   });
   if(selRooms.size===0){document.getElementById('rooms-grid').classList.add('err');document.getElementById('e-rooms').classList.add('show');valid=false;}
   else{document.getElementById('rooms-grid').classList.remove('err');document.getElementById('e-rooms').classList.remove('show');}
@@ -1593,7 +1621,7 @@ async function generate(){
   });
   customs.filter(a=>a.desc).forEach(a=>{allAddons.push({desc:a.desc+(a.scope?': '+a.scope:''),price:parseFloat(a.price)||0});});
   extraBedrooms.forEach(b=>{allAddons.push({desc:`${b.name} (${b.bed}): ${b.scope||b.size}`,price:b.price});});
-  Object.values(selNewAddons).forEach(a=>{allAddons.push({desc:`${a.name} — ${a.sizeName}`,price:a.price});});
+  Object.values(selNewAddons).forEach(a=>{if(a&&typeof a==='object')allAddons.push({desc:`${a.name}${a.bed?' ('+a.bed+')':''} — ${a.sizeName}`,price:a.price});});
 
   const addonTotal=allAddons.reduce((s,a)=>s+a.price,0);
   const base=parseFloat(document.getElementById('base_price')?.value)||2500; const sub=base+addonTotal,taxrate=parseFloat(document.getElementById('taxrate').value)||0;
