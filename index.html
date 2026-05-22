@@ -5,291 +5,530 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>SWJ — Invoice Generator</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
-*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f4f0;color:#111;padding:0;font-size:16px}
-.header{background:#fff;padding:16px 20px;border-bottom:1px solid #e0ddd8;position:sticky;top:0;z-index:10}
-.header-inner{display:flex;align-items:center;justify-content:space-between}
-.logo-txt{font-size:20px;font-weight:600;letter-spacing:2px}
-.logo-sub{font-size:10px;color:#a29c96;letter-spacing:1.5px;text-transform:uppercase;margin-top:2px}
-.invnum-badge{font-size:12px;font-weight:500;color:#a29c96;background:#f5f4f0;padding:4px 10px;border-radius:20px;border:1px solid #e0ddd8;letter-spacing:0.5px}
-.content{padding:16px}
-.card{background:#fff;border-radius:14px;padding:16px;margin-bottom:12px;border:1px solid #e8e5e0}
-.sec{font-size:11px;font-weight:700;color:#a29c96;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:14px}
-.field{margin-bottom:14px}
-.field label{display:block;font-size:13px;color:#666;margin-bottom:5px;font-weight:500}
-.field input{width:100%;font-family:inherit;font-size:16px;padding:12px 14px;border:1.5px solid #e0ddd8;border-radius:10px;outline:none;background:#faf9f7;color:#111}
-.field input:focus{border-color:#a29c96;background:#fff}
-.field input.err{border-color:#e24b4a;background:#fff5f5}
-.ferr{font-size:12px;color:#e24b4a;margin-top:4px;display:none}
-.ferr.show{display:block}
-.rooms-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.rooms-grid.err .chip{border-color:#e24b4a}
-.chip{display:flex;align-items:center;gap:8px;padding:11px 12px;border:1.5px solid #e0ddd8;border-radius:10px;cursor:pointer;font-size:14px;background:#faf9f7;transition:all 0.1s;-webkit-user-select:none}
-.chip.sel{border-color:#a29c96;background:#f5f1ee;color:#7a6f69}
-.chk{width:16px;height:16px;border:1.5px solid currentColor;border-radius:4px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.chk svg{display:none}
-.sel .chk svg{display:block}
-.addon-cat{border:1.5px solid #e0ddd8;border-radius:12px;margin-bottom:10px;overflow:hidden;background:#fff}
-.addon-cat-hdr{display:flex;align-items:center;justify-content:space-between;padding:13px 14px;background:#faf9f7;cursor:pointer}
-.addon-cat-title{font-size:15px;font-weight:500}
-.addon-cat-range{font-size:13px;color:#888}
-.addon-cat-body{padding:14px;display:none}
-.size-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
-.size-chip{display:flex;align-items:center;gap:8px;padding:11px 12px;border:1.5px solid #e0ddd8;border-radius:10px;cursor:pointer;background:#faf9f7;-webkit-user-select:none}
-.size-chip.sel{border-color:#a29c96;background:#f5f1ee;color:#7a6f69}
-.size-chip .chk{color:#888}
-.size-chip.sel .chk{color:#7a6f69}
-.size-label{font-size:14px;flex:1}
-.size-price{font-size:14px;font-weight:600}
-.bed-row{display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap}
-.bed-row label{font-size:13px;color:#666;font-weight:500}
-.bed-btn{padding:7px 16px;border:1.5px solid #e0ddd8;border-radius:20px;font-size:13px;cursor:pointer;background:#faf9f7;font-family:inherit;color:#111}
-.bed-btn.active{background:#f5f1ee;border-color:#a29c96;color:#7a6f69;font-weight:600}
-.scope-lbl{font-size:12px;color:#888;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center}
-.scope-reset{font-size:12px;color:#a29c96;cursor:pointer;padding:2px 0}
-textarea{width:100%;font-family:inherit;font-size:14px;border:1.5px solid #e0ddd8;border-radius:10px;padding:10px 12px;resize:none;min-height:80px;line-height:1.5;outline:none;background:#faf9f7;color:#111}
-textarea:focus{border-color:#a29c96;background:#fff}
-.promo-row{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid #f0ede8}
-.promo-row:last-child{border-bottom:none}
-.promo-row input[type=checkbox]{width:20px;height:20px;flex-shrink:0;accent-color:#a29c96;cursor:pointer}
-.promo-row label{font-size:14px;cursor:pointer;line-height:1.4}
-.totals{background:#faf9f7;border-radius:12px;padding:14px 16px}
-.t-row{display:flex;justify-content:space-between;padding:5px 0;font-size:15px;color:#666}
-.t-row.grand{font-size:18px;font-weight:600;color:#111;border-top:1.5px solid #e0ddd8;margin-top:8px;padding-top:12px}
-.t-row.ext{font-size:12px;font-style:italic;color:#aaa}
-.stripe-bar{display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border-radius:10px;font-size:13px;margin-top:12px;border:1px solid #e0ddd8;background:#faf9f7;line-height:1.4}
-.sdot{width:10px;height:10px;border-radius:50%;background:#ccc;flex-shrink:0;margin-top:2px}
-.sdot.loading{background:#f59e0b;animation:blink 0.7s infinite}
-.sdot.ok{background:#22c55e}
-.sdot.err{background:#e24b4a}
-@keyframes blink{0%,100%{opacity:1}50%{opacity:0.3}}
-.gen-btn{width:100%;padding:16px;background:#111;color:#fff;border:none;border-radius:12px;font-size:17px;font-weight:600;cursor:pointer;margin-top:14px;font-family:inherit;letter-spacing:0.3px}
-.gen-btn:active{background:#333}
-.gen-btn:disabled{opacity:0.4}
-.add-btn{font-size:14px;color:#a29c96;background:none;border:none;cursor:pointer;padding:8px 0;font-family:inherit;font-weight:500}
-.rm-btn{background:#f5f4f0;border:none;color:#888;cursor:pointer;font-size:18px;padding:6px 10px;border-radius:8px}
-.output-box{display:none;margin-top:12px}
-.output-box.show{display:block}
-.output-label{font-size:13px;color:#444;margin-bottom:8px;font-weight:500}
-.output-text{width:100%;min-height:90px;font-size:11px;font-family:monospace;background:#f5f4f0;border:1px solid #ddd;border-radius:10px;padding:10px;line-height:1.4;color:#444;word-break:break-all}
-.copy-btn{width:100%;margin-top:10px;padding:14px;background:#a29c96;color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer;font-family:inherit}
-.copy-btn:active{background:#8a8480}
-.copied{background:#22c55e!important}
-.custom-item{border:1.5px solid #e0ddd8;border-radius:12px;padding:12px;margin-bottom:10px;background:#faf9f7}
-.custom-header{display:flex;gap:8px;align-items:center;margin-bottom:10px}
-.custom-header input[type=text]{flex:1;font-family:inherit;font-size:15px;padding:10px 12px;border:1.5px solid #e0ddd8;border-radius:10px;outline:none;background:#fff}
-.custom-header input[type=number]{width:90px;font-family:inherit;font-size:15px;padding:10px 12px;border:1.5px solid #e0ddd8;border-radius:10px;outline:none;background:#fff;text-align:right}
-.toggle-row{display:flex;align-items:center;gap:12px;padding:12px 0}
-.toggle-row input[type=checkbox]{width:20px;height:20px;flex-shrink:0;accent-color:#a29c96;cursor:pointer}
-.toggle-row label{font-size:14px;cursor:pointer}
+*, *::before, *::after { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
 
-@media (min-width: 600px) {
-  body { padding: 2rem; background: #f0ede8; }
-  .content { max-width: 680px; margin: 0 auto; }
-  .header { border-radius: 14px 14px 0 0; }
-  .rooms-grid { grid-template-columns: repeat(4, 1fr); }
-  .size-grid { grid-template-columns: repeat(4, 1fr); }
+:root {
+  --ink:      #1a1814;
+  --ink-soft: #3d3830;
+  --cream:    #f5f2ed;
+  --warm:     #faf8f5;
+  --taupe:    #a29c96;
+  --taupe-lt: #d4cfc9;
+  --taupe-dk: #7a6f69;
+  --gold:     #c9a96e;
+  --gold-lt:  #f5ead8;
+  --gold-dk:  #9d7a44;
+  --green:    #4a7c50;
+  --green-lt: #edf4ed;
+  --amber:    #c97c2e;
+  --red:      #b53535;
+  --slate:    #4a5e82;
 }
 
-    .modal-overlay {
-        display: none; position: fixed; top:0;left:0;right:0;bottom:0;
-        background: rgba(0,0,0,0.5); z-index:100;
-        align-items:center; justify-content:center; padding:20px;
-    }
-    .modal-overlay.show { display:flex; }
-    .modal {
-        background:#fff; border-radius:16px; padding:24px;
-        width:100%; max-width:520px; max-height:90vh; overflow-y:auto;
-    }
-    .modal-title { font-size:16px; font-weight:700; margin-bottom:16px; color:#111; }
-    .modal-field { margin-bottom:14px; }
-    .modal-field label { display:block; font-size:12px; color:#888; margin-bottom:4px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; }
-    .modal-field input, .modal-field textarea { width:100%; font-family:inherit; font-size:15px; padding:10px 12px; border:1.5px solid #e0ddd8; border-radius:10px; outline:none; background:#faf9f7; }
-    .modal-field textarea { min-height:160px; resize:vertical; }
-    .modal-btns { display:flex; gap:10px; margin-top:16px; }
-    .modal-send-btn { flex:1; padding:14px; background:#111; color:#fff; border:none; border-radius:10px; font-size:15px; font-weight:600; cursor:pointer; font-family:inherit; }
-    .modal-cancel-btn { padding:14px 20px; background:#f5f4f0; color:#666; border:none; border-radius:10px; font-size:15px; cursor:pointer; font-family:inherit; }
+body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); color:var(--ink); min-height:100vh; font-size:16px; }
 
-    .profit-overlay {
-        display:none;position:fixed;top:0;left:0;right:0;bottom:0;
-        background:rgba(0,0,0,0.7);z-index:200;
-        align-items:center;justify-content:center;padding:16px;
-    }
-    .profit-overlay.show { display:flex; }
-    .profit-modal {
-        background:#fff;border-radius:20px;padding:0;
-        width:100%;max-width:640px;
-        overflow:hidden;
-    }
-    .profit-header {
-        background:#111;padding:16px 20px;color:#fff;
-        display:flex;align-items:center;justify-content:space-between;
-    }
-    .profit-header-left {}
-    .profit-header-title { font-size:15px;font-weight:600;letter-spacing:0.3px; }
-    .profit-address { font-size:11px;color:rgba(255,255,255,0.45);margin-top:2px; }
-    .profit-close { background:none;border:none;color:rgba(255,255,255,0.5);font-size:24px;cursor:pointer;padding:0;line-height:1; }
-    .profit-metrics { display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#e8e5e0; }
-    .profit-metric { background:#fff;padding:12px 14px; }
-    .profit-metric-label { font-size:10px;color:#aaa;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:3px; }
-    .profit-metric-value { font-size:17px;font-weight:500;color:#111; }
-    .profit-metric-value.green { color:#2d6a0a; }
-    .profit-metric-value.red { color:#b53535; }
-    .profit-metric-value.amber { color:#8a5200; }
-    .profit-body { padding:16px 20px; }
-    .profit-costs-grid { display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px; }
-    .profit-cost-card { background:#faf9f7;border-radius:10px;padding:10px 12px; }
-    .profit-cost-top { display:flex;justify-content:space-between;align-items:center;margin-bottom:4px; }
-    .profit-cost-label { font-size:12px;font-weight:500;color:#111; }
-    .profit-cost-amount { font-size:13px;font-weight:600;color:#b53535; }
-    .profit-cost-detail { font-size:10px;color:#aaa;margin-bottom:5px; }
-    .profit-cost-bar { height:3px;background:#e8e5e0;border-radius:99px;overflow:hidden; }
-    .profit-cost-bar-fill { height:100%;border-radius:99px;transition:width 0.8s cubic-bezier(.4,0,.2,1); }
-    .profit-take { background:#f0f7e8;border-radius:14px;padding:14px 18px;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:14px; }
-    .profit-take-icon { width:42px;height:42px;background:#c8e6a0;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0; }
-    .profit-take-label { font-size:10px;color:#4a8020;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px; }
-    .profit-take-value { font-size:26px;font-weight:500;color:#2d6a0a; }
-    .profit-take-note { font-size:10px;color:#6aaa30;margin-top:1px; }
-    .profit-done-btn { padding:11px 24px;background:#111;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap; }
+/* ── HEADER ── */
+.hdr { background:var(--ink); position:sticky; top:0; z-index:60; }
+.hdr-top { display:flex; align-items:center; justify-content:space-between; padding:12px 16px 10px; gap:8px; }
+.brand { display:flex; align-items:baseline; gap:10px; }
+.brand-name { font-family:"Cormorant Garamond",serif; font-size:24px; font-weight:300; color:#fff; letter-spacing:4px; }
+.brand-sep { width:1px; height:16px; background:rgba(255,255,255,0.18); }
+.brand-sub { font-size:10px; color:rgba(255,255,255,0.35); letter-spacing:2.5px; text-transform:uppercase; }
+.hdr-right { display:flex; align-items:center; gap:10px; }
+.inv-badge { font-family:"Cormorant Garamond",serif; font-size:13px; font-weight:300; color:rgba(255,255,255,0.45); letter-spacing:0.5px; padding:4px 8px; border:1px solid rgba(255,255,255,0.1); border-radius:20px; cursor:text; background:transparent; outline:none; text-align:center; width:110px; }
+@media(max-width:380px){ .inv-badge { display:none; } }
+.nav-sw { display:flex; gap:2px; background:rgba(255,255,255,0.07); border-radius:20px; padding:3px; }
+.nav-btn { padding:5px 12px; border-radius:16px; border:none; font-size:11px; font-weight:500; cursor:pointer; font-family:"Inter",sans-serif; transition:all 0.18s; white-space:nowrap; }
+.nav-btn.on  { background:#fff; color:var(--ink); }
+.nav-btn.off { background:transparent; color:rgba(255,255,255,0.4); }
+
+/* ── CONTENT ── */
+.content { padding:16px; max-width:640px; margin:0 auto; }
+
+/* ── CARDS ── */
+.card { background:var(--warm); border-radius:16px; margin-bottom:12px; border:1px solid rgba(162,156,150,0.18); overflow:hidden; }
+.card-hdr { padding:14px 18px 0; display:flex; align-items:center; justify-content:space-between; }
+.sec-lbl { font-size:9px; font-weight:600; color:var(--taupe); text-transform:uppercase; letter-spacing:1.8px; }
+.sec-accent { width:20px; height:1px; background:var(--gold); opacity:0.6; }
+.card-body { padding:10px 18px 16px; }
+
+/* ── FIELDS ── */
+.field { padding:9px 0; border-bottom:1px solid rgba(162,156,150,0.07); }
+.field:last-child { border-bottom:none; }
+.field-lbl { font-size:10px; font-weight:500; color:var(--taupe); text-transform:uppercase; letter-spacing:1px; margin-bottom:5px; }
+.field-input { width:100%; font-family:"Inter",sans-serif; font-size:15px; font-weight:400; color:var(--ink); background:transparent; border:none; border-bottom:1.5px solid var(--taupe-lt); padding:4px 0 6px; outline:none; transition:border-color 0.18s; }
+.field-input:focus { border-bottom-color:var(--gold); }
+.field-input::placeholder { color:var(--taupe-lt); }
+.field-row { display:flex; gap:14px; }
+.field-row .field { flex:1; }
+.client-input { font-family:"Cormorant Garamond",serif !important; font-size:20px !important; font-weight:400 !important; }
+.zip-note { font-size:11px; color:var(--green); margin-top:4px; min-height:14px; }
+
+/* ── BASE ROW ── */
+.base-row { display:flex; align-items:center; justify-content:space-between; padding:10px 0; border-bottom:1px solid rgba(162,156,150,0.07); }
+.base-lbl { font-size:13px; color:var(--ink-soft); }
+.base-input { font-family:"Cormorant Garamond",serif; font-size:19px; font-weight:400; color:var(--green); background:transparent; border:none; border-bottom:1.5px solid var(--taupe-lt); outline:none; text-align:right; width:120px; padding:2px 0 4px; transition:border-color 0.18s; }
+.base-input:focus { border-bottom-color:var(--gold); }
+
+/* ── ROOMS GRID ── */
+.rooms-grid { display:grid; grid-template-columns:1fr 1fr; gap:7px; margin-top:12px; }
+@media(min-width:480px){ .rooms-grid { grid-template-columns:repeat(3,1fr); } }
+@media(min-width:640px){ .rooms-grid { grid-template-columns:repeat(4,1fr); } }
+.chip { display:flex; align-items:center; gap:8px; padding:10px 11px; border-radius:10px; border:1.5px solid var(--taupe-lt); background:var(--cream); cursor:pointer; transition:all 0.15s; font-size:12px; font-weight:500; color:var(--taupe-dk); -webkit-user-select:none; }
+.chip.sel { border-color:var(--gold); background:var(--gold-lt); color:var(--gold-dk); }
+.chip-dot { width:7px; height:7px; border-radius:50%; border:1.5px solid currentColor; flex-shrink:0; transition:all 0.15s; }
+.chip.sel .chip-dot { background:var(--gold-dk); border-color:var(--gold-dk); }
+.rooms-grid.err .chip { border-color:var(--red); }
+.ferr { font-size:11px; color:var(--red); margin-top:6px; display:none; }
+.ferr.show { display:block; }
+
+/* ── ADDON CATEGORIES ── */
+.addon-cat { border:1px solid rgba(162,156,150,0.14); border-radius:12px; margin-bottom:8px; overflow:hidden; background:var(--cream); }
+.addon-cat-hdr { display:flex; align-items:center; justify-content:space-between; padding:12px 14px; cursor:pointer; }
+.addon-cat-title { font-size:13px; font-weight:500; color:var(--ink); }
+.addon-cat-range { font-size:12px; color:var(--taupe); }
+.addon-cat-arr { font-size:10px; color:var(--taupe-lt); transition:transform 0.2s; margin-left:6px; }
+.addon-cat-body { padding:12px 14px; display:none; border-top:1px solid rgba(162,156,150,0.08); background:var(--warm); }
+.size-grid { display:grid; grid-template-columns:1fr 1fr; gap:7px; margin-bottom:12px; }
+@media(min-width:480px){ .size-grid { grid-template-columns:repeat(4,1fr); } }
+.size-chip { display:flex; flex-direction:column; align-items:center; padding:10px 8px; border-radius:10px; border:1.5px solid var(--taupe-lt); background:var(--cream); cursor:pointer; transition:all 0.15s; text-align:center; -webkit-user-select:none; }
+.size-chip.sel { border-color:var(--gold); background:var(--gold-lt); }
+.size-label { font-size:11px; font-weight:500; color:var(--taupe-dk); margin-bottom:3px; }
+.size-chip.sel .size-label { color:var(--gold-dk); }
+.size-price { font-family:"Cormorant Garamond",serif; font-size:15px; color:var(--green); }
+.size-chip.sel .size-price { color:var(--gold-dk); }
+.bed-row { display:flex; align-items:center; gap:7px; margin-bottom:12px; flex-wrap:wrap; }
+.bed-row label { font-size:12px; color:var(--taupe); font-weight:500; }
+.bed-btn { padding:6px 14px; border:1.5px solid var(--taupe-lt); border-radius:20px; font-size:12px; cursor:pointer; background:var(--cream); font-family:"Inter",sans-serif; color:var(--ink-soft); transition:all 0.15s; }
+.bed-btn.active { background:var(--gold-lt); border-color:var(--gold); color:var(--gold-dk); font-weight:600; }
+.scope-lbl { font-size:10px; color:var(--taupe); margin-bottom:5px; display:flex; justify-content:space-between; letter-spacing:0.5px; text-transform:uppercase; }
+.scope-reset { font-size:11px; color:var(--taupe); cursor:pointer; text-decoration:none; font-style:italic; text-transform:none; letter-spacing:0; }
+textarea { width:100%; font-family:"Inter",sans-serif; font-size:13px; border:1.5px solid var(--taupe-lt); border-radius:10px; padding:9px 11px; resize:none; min-height:72px; line-height:1.5; outline:none; background:var(--cream); color:var(--ink); transition:border-color 0.18s; }
+textarea:focus { border-color:var(--gold); background:var(--warm); }
+
+/* Custom line items */
+.custom-item { border:1px solid rgba(162,156,150,0.15); border-radius:10px; padding:11px 13px; margin-bottom:8px; background:var(--cream); }
+.custom-header { display:flex; gap:8px; align-items:center; margin-bottom:8px; }
+.custom-header input[type=text] { flex:1; font-family:"Inter",sans-serif; font-size:14px; padding:8px 10px; border:1.5px solid var(--taupe-lt); border-radius:8px; outline:none; background:var(--warm); transition:border-color 0.18s; }
+.custom-header input[type=text]:focus { border-color:var(--gold); }
+.custom-header input[type=number] { width:88px; font-family:"Cormorant Garamond",serif; font-size:16px; padding:8px 10px; border:1.5px solid var(--taupe-lt); border-radius:8px; outline:none; background:var(--warm); text-align:right; transition:border-color 0.18s; }
+.custom-header input[type=number]:focus { border-color:var(--gold); }
+.rm-btn { background:var(--cream); border:1px solid var(--taupe-lt); color:var(--taupe); cursor:pointer; font-size:16px; padding:6px 10px; border-radius:8px; transition:all 0.15s; }
+.rm-btn:hover { border-color:var(--red); color:var(--red); }
+.add-btn { font-size:12px; font-weight:500; color:var(--taupe); background:none; border:none; cursor:pointer; padding:7px 0; font-family:"Inter",sans-serif; letter-spacing:0.3px; transition:color 0.15s; display:block; }
+.add-btn:hover { color:var(--ink); }
+
+/* ── PROMO ROWS ── */
+.promo-row { display:flex; align-items:flex-start; gap:13px; padding:11px 0; border-bottom:1px solid rgba(162,156,150,0.07); }
+.promo-row:last-child { border-bottom:none; }
+.promo-row input[type=checkbox] { width:18px; height:18px; flex-shrink:0; accent-color:var(--gold); cursor:pointer; margin-top:1px; }
+.promo-row label { font-size:13px; color:var(--ink-soft); cursor:pointer; line-height:1.45; }
+
+/* ── TOGGLES ── */
+.toggle-row { display:flex; align-items:center; gap:13px; padding:10px 0; }
+.toggle-row input[type=checkbox] { width:18px; height:18px; flex-shrink:0; accent-color:var(--gold); cursor:pointer; }
+.toggle-row label { font-size:13px; color:var(--ink-soft); cursor:pointer; }
+#paid-date-wrap { display:none; margin-top:8px; }
+#cover-note-wrap { display:none; margin-top:8px; }
+
+/* ── FIELD ERRORS ── */
+.field input.err { border-bottom-color:var(--red); }
+
+/* ── SUMMARY CARD ── */
+.summary-card { background:var(--ink); border-radius:16px; margin-bottom:12px; overflow:hidden; }
+.summary-hdr { padding:16px 20px 12px; border-bottom:1px solid rgba(255,255,255,0.06); }
+.summary-client { font-family:"Cormorant Garamond",serif; font-size:20px; font-weight:300; color:#fff; min-height:26px; }
+.summary-addr { font-size:11px; color:rgba(255,255,255,0.38); margin-top:3px; min-height:16px; }
+.summary-rows { padding:12px 20px 4px; }
+.t-row { display:flex; justify-content:space-between; padding:5px 0; font-size:13px; }
+.t-row span:first-child { color:rgba(255,255,255,0.4); }
+.t-row span:last-child { color:rgba(255,255,255,0.65); font-weight:500; }
+.t-divider { height:1px; background:rgba(255,255,255,0.07); margin:6px 0; }
+.sum-grand { display:flex; justify-content:space-between; align-items:baseline; padding:10px 20px 6px; }
+.sum-grand-lbl { font-size:10px; font-weight:500; color:rgba(255,255,255,0.35); text-transform:uppercase; letter-spacing:1.2px; }
+.sum-grand-val { font-family:"Cormorant Garamond",serif; font-size:30px; font-weight:300; color:#fff; }
+.sum-ext { padding:0 20px 14px; font-size:11px; color:rgba(255,255,255,0.2); font-style:italic; }
+
+/* Stripe bar */
+.stripe-bar { margin:0 16px 14px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.07); border-radius:10px; padding:10px 14px; display:flex; align-items:center; gap:10px; }
+.sdot { width:8px; height:8px; border-radius:50%; background:rgba(255,255,255,0.18); flex-shrink:0; }
+.sdot.loading { background:var(--amber); animation:blink 0.7s infinite; }
+.sdot.ok { background:var(--green); }
+.sdot.err { background:var(--red); }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+#smsg { font-size:12px; color:rgba(255,255,255,0.38); flex:1; }
+
+/* Generate buttons */
+.gen-btn { display:block; width:calc(100% - 32px); margin:0 16px 10px; padding:14px; border:none; border-radius:11px; font-size:14px; font-weight:600; cursor:pointer; font-family:"Inter",sans-serif; letter-spacing:0.3px; transition:opacity 0.15s; }
+.gen-btn:active { opacity:0.8; }
+.gen-btn:disabled { opacity:0.35; }
+#gen-btn { background:#fff; color:var(--ink); }
+#email-btn { background:rgba(255,255,255,0.08); color:rgba(255,255,255,0.55); font-size:13px; }
+#profit-preview-btn { background:rgba(201,169,110,0.12); color:rgba(201,169,110,0.65); font-size:13px; margin-bottom:16px; }
+
+/* ── RECENT INVOICES ── */
+.recent-wrap { overflow-y:auto; max-height:none; }
+.ri { display:flex; justify-content:space-between; align-items:center; padding:11px 0; border-bottom:1px solid rgba(162,156,150,0.07); cursor:pointer; transition:opacity 0.12s; }
+.ri:active { opacity:0.7; }
+.ri:last-child { border-bottom:none; }
+.ri-name { font-family:"Cormorant Garamond",serif; font-size:15px; font-weight:400; color:var(--ink); }
+.ri-addr { font-size:11px; color:var(--taupe); margin-top:1px; }
+.ri-num { font-size:11px; font-weight:500; color:var(--taupe); }
+.ri-date { font-size:10px; color:var(--taupe-lt); margin-top:2px; text-align:right; }
+
+/* ── DRAFTS (collapsible) ── */
+.drafts-toggle { display:flex; align-items:center; justify-content:space-between; cursor:pointer; width:100%; background:none; border:none; padding:0; font-family:"Inter",sans-serif; }
+.drafts-arr { font-size:11px; color:var(--taupe-lt); transition:transform 0.2s; }
+.drafts-arr.open { transform:rotate(180deg); }
+.drafts-body { display:none; margin-top:10px; padding-top:10px; border-top:1px solid rgba(162,156,150,0.08); }
+.drafts-body.open { display:block; }
+.draft-item { display:flex; align-items:center; justify-content:space-between; padding:9px 0; border-bottom:1px solid rgba(162,156,150,0.07); cursor:pointer; }
+.draft-item:last-child { border-bottom:none; }
+.draft-name { font-size:13px; color:var(--ink-soft); }
+.draft-date { font-size:11px; color:var(--taupe); }
+.draft-del { background:none; border:none; color:var(--taupe-lt); font-size:16px; cursor:pointer; padding:2px 6px; }
+
+/* ── MODAL SHARED ── */
+.modal-overlay { display:none; position:fixed; top:0;left:0;right:0;bottom:0; background:rgba(26,24,20,0.65); z-index:100; align-items:center; justify-content:center; padding:20px; backdrop-filter:blur(3px); }
+.modal-overlay.show { display:flex; }
+.modal { background:var(--warm); border-radius:20px; width:100%; max-width:520px; max-height:88vh; overflow-y:auto; }
+
+/* Email modal */
+.modal-title { font-family:"Cormorant Garamond",serif; font-size:20px; font-weight:300; color:var(--ink); padding:20px 22px 14px; border-bottom:1px solid rgba(162,156,150,0.1); }
+.modal-field { padding:12px 22px; border-bottom:1px solid rgba(162,156,150,0.07); }
+.modal-field label { display:block; font-size:10px; font-weight:500; color:var(--taupe); text-transform:uppercase; letter-spacing:1px; margin-bottom:5px; }
+.modal-field input, .modal-field textarea { width:100%; font-family:"Inter",sans-serif; font-size:14px; padding:8px 0; border:none; border-bottom:1.5px solid var(--taupe-lt); background:transparent; outline:none; color:var(--ink); transition:border-color 0.18s; }
+.modal-field input:focus, .modal-field textarea:focus { border-bottom-color:var(--gold); }
+.modal-field textarea { min-height:130px; resize:vertical; padding:8px 0; border-radius:0; }
+.modal-btns { display:flex; gap:10px; padding:16px 22px; }
+.modal-send-btn { flex:1; padding:13px; background:var(--ink); color:#fff; border:none; border-radius:11px; font-size:14px; font-weight:600; cursor:pointer; font-family:"Inter",sans-serif; }
+.modal-cancel-btn { padding:13px 18px; background:var(--cream); color:var(--taupe-dk); border:none; border-radius:11px; font-size:14px; cursor:pointer; font-family:"Inter",sans-serif; }
+
+/* Profit modal */
+.profit-overlay { display:none; position:fixed; inset:0; background:rgba(26,24,20,0.65); z-index:200; align-items:center; justify-content:center; padding:16px; backdrop-filter:blur(3px); }
+.profit-overlay.show { display:flex; }
+.profit-modal { background:var(--warm); border-radius:20px; width:100%; max-width:640px; overflow:hidden; }
+.profit-header { background:var(--ink); padding:16px 20px; display:flex; align-items:center; justify-content:space-between; }
+.profit-header-left {}
+.profit-header-title { font-family:"Cormorant Garamond",serif; font-size:18px; font-weight:300; color:#fff; letter-spacing:1px; }
+.profit-address { font-size:11px; color:rgba(255,255,255,0.38); margin-top:2px; }
+.profit-close { background:none; border:none; color:rgba(255,255,255,0.4); font-size:22px; cursor:pointer; padding:0; line-height:1; }
+.profit-metrics { display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:rgba(162,156,150,0.2); }
+.profit-metric { background:var(--warm); padding:12px 14px; }
+.profit-metric-label { font-size:9px; color:var(--taupe); text-transform:uppercase; letter-spacing:1px; margin-bottom:3px; }
+.profit-metric-value { font-family:"Cormorant Garamond",serif; font-size:17px; font-weight:400; color:var(--ink); }
+.profit-metric-value.green { color:var(--green); }
+.profit-metric-value.red { color:var(--red); }
+.profit-metric-value.amber { color:var(--amber); }
+.profit-body { padding:16px 20px; }
+.profit-costs-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:12px; }
+.profit-cost-card { background:var(--cream); border-radius:10px; padding:10px 12px; }
+.profit-cost-top { display:flex; justify-content:space-between; align-items:center; margin-bottom:3px; }
+.profit-cost-label { font-size:12px; font-weight:500; color:var(--ink); }
+.profit-cost-amount { font-size:13px; font-weight:600; color:var(--red); cursor:pointer; text-decoration:underline dotted; }
+.profit-cost-detail { font-size:10px; color:var(--taupe); margin-bottom:5px; }
+.profit-cost-bar { height:3px; background:var(--taupe-lt); border-radius:99px; overflow:hidden; }
+.profit-cost-bar-fill { height:100%; border-radius:99px; transition:width 0.8s ease; }
+.profit-take { background:var(--green-lt); border-radius:12px; padding:14px 18px; display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:14px; }
+.profit-take-icon { width:40px; height:40px; background:#c8e6a0; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0; }
+.profit-take-label { font-size:10px; color:var(--green); font-weight:600; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:2px; }
+.profit-take-value { font-family:"Cormorant Garamond",serif; font-size:26px; font-weight:400; color:#2d6a0a; }
+.profit-take-note { font-size:10px; color:var(--green); margin-top:1px; }
+.profit-done-btn { padding:10px 20px; background:var(--ink); color:#fff; border:none; border-radius:10px; font-size:13px; font-weight:600; cursor:pointer; font-family:"Inter",sans-serif; white-space:nowrap; }
+
+@media(min-width:600px){
+  body { padding:2rem; background:#ede9e3; }
+  .content { padding:0; }
+}
 </style>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 
-<div class="header">
-  <div class="header-inner">
-    <div>
-      <div class="logo-txt">SWJ</div>
-      <div class="logo-sub">Styling With Jas</div>
+<!-- HEADER -->
+<div class="hdr">
+  <div class="hdr-top">
+    <div class="brand">
+      <div class="brand-name">SWJ</div>
+      <div class="brand-sep"></div>
+      <div class="brand-sub">Invoice Generator</div>
     </div>
-    <input class="invnum-badge" id="invnum-display" type="text" value="202093" style="font-size:12px;font-weight:500;color:#a29c96;background:#f5f4f0;padding:4px 10px;border-radius:20px;border:1px solid #e0ddd8;letter-spacing:0.5px;cursor:text;text-align:center">
+    <div class="hdr-right">
+      <input class="inv-badge" id="invnum-display" type="text" value="202093">
+      <div class="nav-sw">
+        <button class="nav-btn on" id="nav-invoice">Invoice</button>
+        <button class="nav-btn off" id="nav-board" onclick="window.location.href='/board.html'">Board</button>
+      </div>
+    </div>
   </div>
 </div>
 
 <div class="content">
-<div class="card" id="recent-card"><div class="sec">Recent Invoices</div><div id="recent-list" style="font-size:13px;color:#888">Loading...</div></div>
-<div class="card" id="drafts-card"><div class="sec">Saved Drafts</div><div id="drafts-list" style="font-size:13px;color:#888">No drafts saved.</div><button class="add-btn" style="margin-top:10px" onclick="saveDraft()">+ Save Current as Draft</button></div>
 
-  <!-- Invoice Details -->
-  <div class="card">
-    <div class="sec">Invoice Details</div>
-    <div class="field" id="f-invdate">
-      <label>Invoice Date</label>
-      <input id="invdate" type="date">
-      <div class="ferr" id="e-invdate">Required</div>
+  <!-- RECENT INVOICES -->
+  <div class="card" id="recent-card">
+    <div class="card-hdr">
+      <span class="sec-lbl">Recent Invoices</span>
+      <div class="sec-accent"></div>
     </div>
-    <div class="field" id="f-startdate">
-      <label>Project Start Date</label>
-      <input id="startdate" type="date">
-      <div class="ferr" id="e-startdate">Required</div>
+    <div class="card-body" style="padding-top:6px">
+      <div id="recent-list" style="font-size:12px;color:var(--taupe)">Loading...</div>
     </div>
   </div>
 
-  <!-- Client & Property -->
-  <div class="card">
-    <div class="sec">Client &amp; Property</div>
-    <div class="field" id="f-client">
-      <label>Client Name</label>
-      <input id="client" type="text" placeholder="Jane Smith" autocomplete="name">
-      <div class="ferr" id="e-client">Required</div>
+  <!-- SAVED DRAFTS (collapsible) -->
+  <div class="card" id="drafts-card">
+    <div class="card-hdr" style="padding-bottom:12px">
+      <button class="drafts-toggle" onclick="toggleDrafts()">
+        <span class="sec-lbl">Saved Drafts</span>
+        <span class="drafts-arr" id="drafts-arr">▼</span>
+      </button>
     </div>
-    <div class="field" id="f-address">
-      <label>Property Address</label>
-      <input id="address" type="text" placeholder="123 Main St, Seattle WA" autocomplete="street-address">
-      <div class="ferr" id="e-address">Required</div>
-    </div>
-    <div class="field" id="f-zip" style="max-width:180px">
-      <label>ZIP Code</label>
-      <input id="zipcode" type="text" inputmode="numeric" maxlength="5" placeholder="98126" oninput="getWATaxByZip(this.value)">
-      <div id="tax-note" style="font-size:11px;margin-top:4px">&nbsp;</div>
+    <div class="drafts-body" id="drafts-body">
+      <div style="padding:0 18px 14px">
+        <div id="drafts-list" style="font-size:12px;color:var(--taupe);font-style:italic">No drafts saved.</div>
+        <button class="add-btn" onclick="saveDraft()" style="margin-top:8px">+ Save current as draft</button>
+      </div>
     </div>
   </div>
 
-
-  <!-- Base Package -->
+  <!-- INVOICE DETAILS -->
   <div class="card">
-    <div class="sec">Base Package — Select Rooms</div>
-    <div class="field" style="max-width:180px;margin-bottom:12px"><label>Base Package Price ($)</label><input id="base_price" type="number" value="2500" step="100" inputmode="decimal" oninput="recalc()"></div>
-    <div class="rooms-grid" id="rooms-grid"></div>
-    <div class="ferr" id="e-rooms" style="margin-top:6px">Please select at least one room</div>
-  </div>
-
-  <!-- Add-ons -->
-  <div class="card">
-    <div class="sec">Add-ons by Room</div>
-    <div id="addon-categories"></div>
-    <div style="margin-top:12px">
-      <div style="font-size:12px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">Custom Line Items</div>
-      <div id="extra-bedrooms"></div>
-      <button class="add-btn" onclick="addExtraBedroom()">+ Add another bedroom</button>
-      <div id="custom-addons"></div>
-      <button class="add-btn" onclick="addCustom()">+ Add custom line item</button>
+    <div class="card-hdr"><span class="sec-lbl">Invoice Details</span><div class="sec-accent"></div></div>
+    <div class="card-body">
+      <div class="field-row">
+        <div class="field" id="f-invdate">
+          <div class="field-lbl">Invoice Date</div>
+          <input class="field-input" id="invdate" type="date">
+        </div>
+        <div class="field" id="f-startdate">
+          <div class="field-lbl">Start Date</div>
+          <input class="field-input" id="startdate" type="date">
+        </div>
+      </div>
     </div>
   </div>
 
-  <!-- Promotions -->
+  <!-- CLIENT & PROPERTY -->
   <div class="card">
-    <div class="sec">Promotions</div>
-    <div class="promo-row"><input type="checkbox" id="promo1"><label for="promo1">Monthly Special — complimentary staging for Kitchen &amp; all Bathrooms</label></div>
-    <div class="promo-row"><input type="checkbox" id="promo2"><label for="promo2">First-Time Client Bonus — 25 complimentary professional photos by our preferred photographer</label></div>
-    <div class="promo-row"><input type="checkbox" id="promo3"><label for="promo3">Photography Services (no charge line item)</label></div>
-  </div>
-
-  <!-- Tax -->
-  <div class="card">
-    <div class="sec">Tax Rate</div>
-    <div class="field">
-      <label>Tax Rate (%)</label>
-      <input id="taxrate" type="number" value="10.25" step="0.01" inputmode="decimal" oninput="recalc()">
+    <div class="card-hdr"><span class="sec-lbl">Client & Property</span><div class="sec-accent"></div></div>
+    <div class="card-body">
+      <div class="field" id="f-client">
+        <div class="field-lbl">Client Name</div>
+        <input class="field-input client-input" id="client" type="text" placeholder="Jane Smith" autocomplete="name">
+        <div class="ferr" id="e-client">Required</div>
+      </div>
+      <div class="field" id="f-address">
+        <div class="field-lbl">Property Address</div>
+        <input class="field-input" id="address" type="text" placeholder="123 Main St, Seattle WA" autocomplete="street-address">
+        <div class="ferr" id="e-address">Required</div>
+      </div>
+      <div class="field" style="max-width:180px">
+        <div class="field-lbl">ZIP Code</div>
+        <input class="field-input" id="zipcode" type="text" inputmode="numeric" maxlength="5" placeholder="98126" oninput="getWATaxByZip(this.value)">
+        <div class="zip-note" id="tax-note">&nbsp;</div>
+      </div>
     </div>
   </div>
 
-  <!-- Cover Page -->
+  <!-- BASE PACKAGE -->
   <div class="card">
-    <div class="sec">Cover Page</div>
-    <div class="toggle-row"><input type="checkbox" id="cover_page" onchange="toggleCover()"><label for="cover_page">Include a cover page before the invoice</label></div>
-    <div id="cover-note-wrap" style="display:none;margin-top:10px">
-      <div class="field"><label>Personal note (optional)</label><textarea id="cover_note" rows="3" placeholder="Thank you for choosing Styling With Jas..."></textarea></div>
+    <div class="card-hdr"><span class="sec-lbl">Base Package — Select Rooms</span><div class="sec-accent"></div></div>
+    <div class="card-body">
+      <div class="base-row">
+        <span class="base-lbl">Base package price</span>
+        <input class="base-input" id="base_price" type="number" value="2500" step="100" inputmode="decimal">
+      </div>
+      <div style="font-size:11px;color:var(--taupe);margin:10px 0 12px;line-height:1.5">
+        Includes delivery, setup, 45-day furniture rental & teardown.
+      </div>
+      <div class="rooms-grid" id="rooms-grid"></div>
+      <div class="ferr" id="e-rooms" style="margin-top:6px">Please select at least one room</div>
     </div>
   </div>
 
-  <!-- Mark as Paid -->
+  <!-- ADD-ONS -->
   <div class="card">
-    <div class="sec">Mark as Paid</div>
-    <div class="toggle-row"><input type="checkbox" id="paid" onchange="togglePaid()"><label for="paid">Mark this invoice as PAID</label></div>
-    <div id="paid-date-wrap" style="display:none;margin-top:8px">
-      <div class="field"><label>Payment Date</label><input id="paid_date" type="date"></div>
+    <div class="card-hdr"><span class="sec-lbl">Add-ons by Room</span><div class="sec-accent"></div></div>
+    <div class="card-body" style="padding-top:8px">
+      <div id="addon-categories"></div>
+      <div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(162,156,150,0.08)">
+        <div class="sec-lbl" style="margin-bottom:8px">Additional Bedrooms</div>
+        <div id="extra-bedrooms"></div>
+        <button class="add-btn" onclick="addExtraBedroom()">+ Add another bedroom</button>
+      </div>
+      <div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(162,156,150,0.08)">
+        <div class="sec-lbl" style="margin-bottom:8px">Custom Line Items</div>
+        <div id="custom-addons"></div>
+        <button class="add-btn" onclick="addCustom()">+ Add custom line item</button>
+      </div>
     </div>
   </div>
 
-  <!-- Totals -->
+  <!-- PROMOTIONS -->
   <div class="card">
-    <div class="sec">Summary</div>
-    <div class="totals">
+    <div class="card-hdr"><span class="sec-lbl">Promotions</span><div class="sec-accent"></div></div>
+    <div class="card-body">
+      <div class="promo-row">
+        <input type="checkbox" id="promo1">
+        <label for="promo1">Monthly Special — complimentary staging for Kitchen & all Bathrooms</label>
+      </div>
+      <div class="promo-row">
+        <input type="checkbox" id="promo2">
+        <label for="promo2">First-Time Client Bonus — 25 complimentary professional real estate photos by our preferred photographer</label>
+      </div>
+      <div class="promo-row">
+        <input type="checkbox" id="promo3">
+        <label for="promo3">Photography Services (no charge line item)</label>
+      </div>
+      <div class="promo-row">
+        <input type="checkbox" id="promo4">
+        <label for="promo4">Drone Photography — up to 5 aerial photos, complimentary (when permitted)</label>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAX -->
+  <div class="card">
+    <div class="card-hdr"><span class="sec-lbl">Tax Rate</span><div class="sec-accent"></div></div>
+    <div class="card-body">
+      <div class="field" style="max-width:160px">
+        <div class="field-lbl">Rate (%)</div>
+        <input class="field-input" id="taxrate" type="number" value="10.25" step="0.01" inputmode="decimal" oninput="recalc()">
+      </div>
+    </div>
+  </div>
+
+  <!-- OPTIONS -->
+  <div class="card">
+    <div class="card-hdr"><span class="sec-lbl">Options</span><div class="sec-accent"></div></div>
+    <div class="card-body">
+      <div class="toggle-row">
+        <input type="checkbox" id="cover_page" onchange="toggleCover()">
+        <label for="cover_page">Include cover page</label>
+      </div>
+      <div id="cover-note-wrap">
+        <div class="field">
+          <div class="field-lbl">Personal note (optional)</div>
+          <textarea id="cover_note" rows="3" placeholder="Thank you for choosing Styling With Jas..."></textarea>
+        </div>
+      </div>
+      <div class="toggle-row" style="padding-top:8px;border-top:1px solid rgba(162,156,150,0.07)">
+        <input type="checkbox" id="paid" onchange="togglePaid()">
+        <label for="paid">Mark as Paid</label>
+      </div>
+      <div id="paid-date-wrap">
+        <div class="field">
+          <div class="field-lbl">Payment Date</div>
+          <input class="field-input" id="paid_date" type="date">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SUMMARY -->
+  <div class="summary-card">
+    <div class="summary-hdr">
+      <div class="summary-client" id="sum-client">&nbsp;</div>
+      <div class="summary-addr" id="sum-addr">&nbsp;</div>
+    </div>
+    <div class="summary-rows">
       <div class="t-row"><span>Base package</span><span id="t-base">$2,500.00</span></div>
       <div class="t-row"><span>Add-ons</span><span id="t-addons">$0.00</span></div>
+      <div class="t-divider"></div>
       <div class="t-row"><span>Subtotal</span><span id="t-sub">$2,500.00</span></div>
       <div class="t-row"><span id="t-taxlabel">Tax (10.25%)</span><span id="t-tax">$256.25</span></div>
-      <div class="t-row grand"><span>Grand Total</span><span id="t-grand">$2,756.25</span></div>
-      <div class="t-row ext"><span>Extension rate (1/3 of grand total)</span><span id="t-ext">$918.75 / 30 days</span></div>
     </div>
-
-    <div class="stripe-bar">
+    <div class="sum-grand">
+      <span class="sum-grand-lbl">Grand Total</span>
+      <span class="sum-grand-val" id="t-grand">$2,756.25</span>
+    </div>
+    <div class="sum-ext"><span id="t-ext">Extension: $918.75 / 30 days</span></div>
+    <div class="stripe-bar" style="margin:0 16px 14px">
       <span class="sdot" id="sdot"></span>
-      <span id="smsg" style="color:#666">Stripe payment link will be created automatically on generate.</span>
+      <span id="smsg">Stripe payment link will be created automatically.</span>
     </div>
-
-    <button class="gen-btn" id="profit-preview-btn" onclick="previewProfitability()" style="margin-bottom:10px;background:#f5f1ee;color:#7a6f69;border:1.5px solid #e0ddd8">💰 Preview Job Profitability</button>
-            <button class="gen-btn" id="gen-btn" onclick="generate()">Generate Invoice + Payment Link</button>
-            <button class="gen-btn" id="email-btn" onclick="generateAndEmail()" style="margin-top:10px;background:#a29c96">Generate + Email to Client</button>
-
-
+    <button class="gen-btn" id="gen-btn" onclick="generate()">Generate Invoice + Payment Link</button>
+    <button class="gen-btn" id="email-btn" onclick="generateAndEmail()">Generate + Email to Client</button>
+    <button class="gen-btn" id="profit-preview-btn" onclick="previewProfitability()">Preview Job Profitability</button>
   </div>
 
 </div>
 
+<div class="modal-overlay" id="email-modal">
+        <div class="modal">
+            <div class="modal-title">✉️ Send Proposal</div>
+            <div class="modal-field"><label>To</label><input id="email-to" type="email" placeholder="client@email.com"></div>
+            <div class="modal-field"><label>Subject</label><input id="email-subject" type="text"></div>
+            <div class="modal-field"><label>Message</label><textarea id="email-body"></textarea></div>
+            <div id="email-status" style="font-size:13px;color:#888;margin-top:8px;min-height:18px"></div>
+            <div class="modal-btns">
+                <button class="modal-cancel-btn" onclick="closeEmailModal()">Cancel</button>
+                <button class="modal-send-btn" id="email-send-btn" onclick="sendEmail()">Send Email</button>
+            </div>
+        </div>
+    </div>
+<div class="profit-overlay" id="profit-modal">
+      <div class="profit-modal">
+        <div class="profit-header">
+          <div class="profit-header-top">
+            <div class="profit-header-title">💰 Job Profitability</div>
+            <button class="profit-close" onclick="closeProfitModal()">×</button>
+          </div>
+          <div class="profit-address" id="profit-address"></div>
+        </div>
+        <div class="profit-metrics">
+          <div class="profit-metric">
+            <div class="profit-metric-label">Invoice</div>
+            <div class="profit-metric-value" id="pm-invoice">$0</div>
+          </div>
+          <div class="profit-metric">
+            <div class="profit-metric-label">Costs</div>
+            <div class="profit-metric-value red" id="pm-costs">$0</div>
+          </div>
+          <div class="profit-metric">
+            <div class="profit-metric-label">Profit</div>
+            <div class="profit-metric-value green" id="pm-profit">$0</div>
+          </div>
+          <div class="profit-metric">
+            <div class="profit-metric-label">Margin</div>
+            <div class="profit-metric-value amber" id="pm-margin">0%</div>
+          </div>
+        </div>
+
 <script>
+function toggleDrafts(){
+  const body = document.getElementById('drafts-body');
+  const arr = document.getElementById('drafts-arr');
+  const open = body.classList.toggle('open');
+  arr.classList.toggle('open', open);
+  if(open) loadDrafts();
+}
+
+function toggleCover(){
+  document.getElementById('cover-note-wrap').style.display = document.getElementById('cover_page').checked ? 'block' : 'none';
+}
+function togglePaid(){
+  document.getElementById('paid-date-wrap').style.display = document.getElementById('paid').checked ? 'block' : 'none';
+  if(document.getElementById('paid').checked && !document.getElementById('paid_date').value)
+    document.getElementById('paid_date').value = new Date().toISOString().split('T')[0];
+}
+
+// Live summary update
+function updateSummaryHeader(){
+  const c = document.getElementById('client').value;
+  const a = document.getElementById('address').value;
+  document.getElementById('sum-client').textContent = c || ' ';
+  document.getElementById('sum-addr').textContent = a || ' ';
+}
+document.addEventListener('DOMContentLoaded',()=>{
+  document.getElementById('client').addEventListener('input', updateSummaryHeader);
+  document.getElementById('address').addEventListener('input', updateSummaryHeader);
+});
+
+
 let STRIPE_KEY='';
 
 const ROOMS=['Living Room','Primary Bedroom','Bedroom 2','Bedroom 3','Kitchen','Dining Room','Office/Den','Loft','Entryway','Bonus Room','Sunroom','Patio/Outdoor'];
@@ -441,7 +680,7 @@ function buildRooms(){
   const g=document.getElementById('rooms-grid');
   ROOMS.forEach(r=>{
     const c=document.createElement('div');c.className='chip';
-    c.innerHTML=`<span class="chk">${chk()}</span><span style="font-size:13px">${r}</span>`;
+    c.innerHTML=`<span class="chip-dot"></span><span>${r}</span>`;
     c.onclick=()=>{
       if(selRooms.has(r)){selRooms.delete(r);c.classList.remove('sel');}
       else{selRooms.add(r);c.classList.add('sel');}
@@ -534,6 +773,7 @@ function recalc(){
   const base=parseFloat(document.getElementById('base_price')?.value)||2500;
   const sub=base+t,rate=parseFloat(document.getElementById('taxrate').value)||0;
   const tax=sub*rate/100,grand=sub+tax;
+  const baseEl=document.getElementById('t-base'); if(baseEl) baseEl.textContent=fmt(base);
   const baseEl=document.getElementById('t-base'); if(baseEl) baseEl.textContent=fmt(base);
   document.getElementById('t-addons').textContent=fmt(t);
   document.getElementById('t-sub').textContent=fmt(sub);
@@ -647,14 +887,14 @@ async function loadRecent(){
     // Store data globally for click access
     window._recentInvoices = data;
     el.innerHTML = data.map((inv,i)=>`
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #f0ede8;cursor:pointer" onclick="loadInvoice(${i})">
+      <div class="ri" onclick="loadInvoice(${i})">
         <div>
-          <div style="font-weight:500;color:#111">${inv.client}</div>
-          <div style="font-size:11px;color:#aaa">${inv.address}</div>
+          <div class="ri-name">${inv.client}</div>
+          <div class="ri-addr">${inv.address||''}</div>
         </div>
-        <div style="text-align:right">
-          <div style="font-size:12px;color:#a29c96;font-weight:500">#${inv.invnum}</div>
-          <div style="font-size:11px;color:#aaa">${inv.invdate}</div>
+        <div>
+          <div class="ri-num">#${inv.invnum}</div>
+          <div class="ri-date">${inv.invdate||''}</div>
         </div>
       </div>
     `).join('');
@@ -728,6 +968,29 @@ function loadInvoiceData(d){
           });
         });
       });
+    }
+
+    // Restore custom line items
+    customs = [];
+    if(d.addons && d.addons.length > 0){
+      d.addons.forEach(addon => {
+        // Check if this addon doesn't match any standard category — it's a custom item
+        let isStandard = false;
+        CATS.forEach(cat => {
+          if(addon.desc.toLowerCase().startsWith(cat.name.toLowerCase())) isStandard = true;
+        });
+        // Also check extra bedroom names
+        ['bedroom 2','bedroom 3','bedroom 4','downstairs','guest','upstairs'].forEach(n => {
+          if(addon.desc.toLowerCase().startsWith(n)) isStandard = true;
+        });
+        if(!isStandard){
+          const parts = addon.desc.split(': ');
+          const desc = parts[0] || addon.desc;
+          const scope = parts.slice(1).join(': ') || '';
+          customs.push({id: Date.now() + Math.random(), desc, scope, price: addon.price || 0});
+        }
+      });
+      renderCustoms();
     }
 
     recalc();
@@ -822,12 +1085,12 @@ async function loadDrafts(){
     if(error||!data||data.length===0){el.textContent='No drafts saved.';return;}
     window._draftInvoices = data;
     el.innerHTML = data.map((inv,i)=>`
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #f0ede8">
-        <div style="cursor:pointer;flex:1" onclick="loadInvoice2('draft',${i})">
-          <div style="font-weight:500;color:#111">${inv.client}</div>
-          <div style="font-size:11px;color:#aaa">${inv.address||'No address'} · ${inv.data?._draft_saved||''}</div>
+      <div class="draft-item">
+        <div onclick="loadInvoice2('draft',${i})" style="flex:1">
+          <div class="draft-name">${inv.client}</div>
+          <div class="draft-date">${inv.address||''} · ${inv.data?._draft_saved||''}</div>
         </div>
-        <button onclick="deleteDraft('${inv.invnum}')" style="background:none;border:none;color:#e24b4a;font-size:18px;cursor:pointer;padding:4px 8px">×</button>
+        <button class="draft-del" onclick="deleteDraft('${inv.invnum}')">×</button>
       </div>
     `).join('');
   }catch(e){}
@@ -1203,7 +1466,8 @@ async function generatePDF(){
   catch(e){setSt('err','Stripe error — continuing without payment link');}
 
   setSt('loading','Generating your invoice PDF...');
-  const data={client,address,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:document.getElementById('startdate').value,baserooms:[...selRooms].join(', '),extrate,taxrate,base_price:base,addons:allAddons,promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,payment_url,cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||''};
+  const data={client,address,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:document.getElementById('startdate').value,baserooms:[...selRooms].join(', '),extrate,taxrate,base_price:base,addons:allAddons,promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
+            promo4:document.getElementById('promo4').checked,payment_url,cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||''};
 
   try{
     const response=await fetch('/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
@@ -1269,7 +1533,8 @@ async function generate(){
 
   
 
-  const data={client,address,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:document.getElementById('startdate').value,baserooms:[...selRooms].join(', '),extrate,taxrate,base_price:parseFloat(document.getElementById('base_price')?.value)||2500,addons:allAddons,promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,payment_url,cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||''};
+  const data={client,address,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:document.getElementById('startdate').value,baserooms:[...selRooms].join(', '),extrate,taxrate,base_price:parseFloat(document.getElementById('base_price')?.value)||2500,addons:allAddons,promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
+            promo4:document.getElementById('promo4').checked,payment_url,cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||''};
 
   // Send to API and download PDF
   try {
@@ -1338,117 +1603,23 @@ document.addEventListener('DOMContentLoaded', function(){
   loadDrafts();
   fetch('/api/config').then(r=>r.json()).then(d=>{if(d&&d.stripe_key)STRIPE_KEY=d.stripe_key;}).catch(()=>{});
 });
+
+
+document.addEventListener('DOMContentLoaded', function(){
+  try {
+    document.getElementById('invdate').value = new Date().toISOString().split('T')[0];
+    const bp = document.getElementById('base_price');
+    if(bp){ bp.addEventListener('input', recalc); bp.addEventListener('change', recalc); }
+    buildRooms();
+    buildCats();
+    recalc();
+    initInvNum();
+    loadRecent();
+    fetch('/api/config').then(r=>r.json()).then(d=>{if(d&&d.stripe_key)STRIPE_KEY=d.stripe_key;}).catch(()=>{});
+  } catch(e) {
+    console.error('Init error:', e.message, e.stack);
+  }
+});
 </script>
-
-    <div class="modal-overlay" id="email-modal">
-        <div class="modal">
-            <div class="modal-title">✉️ Send Proposal</div>
-            <div class="modal-field"><label>To</label><input id="email-to" type="email" placeholder="client@email.com"></div>
-            <div class="modal-field"><label>Subject</label><input id="email-subject" type="text"></div>
-            <div class="modal-field"><label>Message</label><textarea id="email-body"></textarea></div>
-            <div id="email-status" style="font-size:13px;color:#888;margin-top:8px;min-height:18px"></div>
-            <div class="modal-btns">
-                <button class="modal-cancel-btn" onclick="closeEmailModal()">Cancel</button>
-                <button class="modal-send-btn" id="email-send-btn" onclick="sendEmail()">Send Email</button>
-            </div>
-        </div>
-    </div>
-
-
-    <!-- Profitability Modal -->
-    <div class="profit-overlay" id="profit-modal">
-      <div class="profit-modal">
-        <div class="profit-header">
-          <div class="profit-header-top">
-            <div class="profit-header-title">💰 Job Profitability</div>
-            <button class="profit-close" onclick="closeProfitModal()">×</button>
-          </div>
-          <div class="profit-address" id="profit-address"></div>
-        </div>
-        <div class="profit-metrics">
-          <div class="profit-metric">
-            <div class="profit-metric-label">Invoice</div>
-            <div class="profit-metric-value" id="pm-invoice">$0</div>
-          </div>
-          <div class="profit-metric">
-            <div class="profit-metric-label">Costs</div>
-            <div class="profit-metric-value red" id="pm-costs">$0</div>
-          </div>
-          <div class="profit-metric">
-            <div class="profit-metric-label">Profit</div>
-            <div class="profit-metric-value green" id="pm-profit">$0</div>
-          </div>
-          <div class="profit-metric">
-            <div class="profit-metric-label">Margin</div>
-            <div class="profit-metric-value amber" id="pm-margin">0%</div>
-          </div>
-        </div>
-        <div class="profit-body">
-          <div class="profit-costs-grid">
-            <div class="profit-cost-card">
-              <div class="profit-cost-top">
-                <div class="profit-cost-label">🚛 Truck rental</div>
-                <div class="profit-cost-amount" id="pc-truck" onclick="editProfitField('truck')" style="cursor:pointer;text-decoration:underline dotted" title="Tap to edit">$0</div>
-              </div>
-              <div class="profit-cost-detail" id="pd-truck-detail">2 days × $286</div>
-              <div class="profit-cost-bar"><div class="profit-cost-bar-fill" id="pb-truck" style="background:#85b7eb;width:0%"></div></div>
-            </div>
-            <div class="profit-cost-card">
-              <div class="profit-cost-top">
-                <div class="profit-cost-label">⛽ Fuel refill</div>
-                <div class="profit-cost-amount" id="pc-fuel" onclick="editProfitField('fuel')" style="cursor:pointer;text-decoration:underline dotted" title="Tap to edit">$0</div>
-              </div>
-              <div class="profit-cost-detail" id="pd-fuel-detail">calculating...</div>
-              <div class="profit-cost-bar"><div class="profit-cost-bar-fill" id="pb-fuel" style="background:#fac775;width:0%"></div></div>
-            </div>
-            <div class="profit-cost-card">
-              <div class="profit-cost-top">
-                <div class="profit-cost-label">🛣️ Mileage fee</div>
-                <div class="profit-cost-amount" id="pc-miles" onclick="editProfitField('miles')" style="cursor:pointer;text-decoration:underline dotted" title="Tap to edit">$0</div>
-              </div>
-              <div class="profit-cost-detail" id="pd-miles-detail">calculating...</div>
-              <div class="profit-cost-bar"><div class="profit-cost-bar-fill" id="pb-miles" style="background:#f9b84a;width:0%"></div></div>
-            </div>
-            <div class="profit-cost-card">
-              <div class="profit-cost-top">
-                <div class="profit-cost-label">🏭 Warehouse</div>
-                <div class="profit-cost-amount" id="pc-wh" onclick="editProfitField('wh')" style="cursor:pointer;text-decoration:underline dotted" title="Tap to edit">$0</div>
-              </div>
-              <div class="profit-cost-detail" id="pd-wh-detail">$1,112 ÷ jobs</div>
-              <div class="profit-cost-bar"><div class="profit-cost-bar-fill" id="pb-wh" style="background:#afa9ec;width:0%"></div></div>
-            </div>
-            <div class="profit-cost-card">
-              <div class="profit-cost-top">
-                <div class="profit-cost-label">👷 Movers staging</div>
-                <div class="profit-cost-amount" id="pc-stage" onclick="editProfitField('stage')" style="cursor:pointer;text-decoration:underline dotted" title="Tap to edit">$0</div>
-              </div>
-              <div class="profit-cost-detail" id="pd-stage-detail">est. 6–8 hrs</div>
-              <div class="profit-cost-bar"><div class="profit-cost-bar-fill" id="pb-stage" style="background:#ed93b1;width:0%"></div></div>
-            </div>
-            <div class="profit-cost-card">
-              <div class="profit-cost-top">
-                <div class="profit-cost-label">👷 Movers destaging</div>
-                <div class="profit-cost-amount" id="pc-destage" onclick="editProfitField('destage')" style="cursor:pointer;text-decoration:underline dotted" title="Tap to edit">$0</div>
-              </div>
-              <div class="profit-cost-detail" id="pd-destage-detail">est. 4–6 hrs</div>
-              <div class="profit-cost-bar"><div class="profit-cost-bar-fill" id="pb-destage" style="background:#ed93b1;width:0%"></div></div>
-            </div>
-          </div>
-          <div class="profit-take">
-            <div class="profit-take-icon">💵</div>
-            <div>
-              <div class="profit-take-label">Safe to pay yourself</div>
-              <div class="profit-take-value" id="pt-value">$0</div>
-              <div class="profit-take-note" id="pt-note">80% of profit</div>
-            </div>
-            <div style="display:flex;gap:8px;align-items:center">
-            <button class="profit-done-btn" onclick="saveProfitReport()" style="background:#a29c96">💾 Save Report</button>
-            <button class="profit-done-btn" onclick="closeProfitModal()">Done</button>
-          </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
 </body>
 </html>

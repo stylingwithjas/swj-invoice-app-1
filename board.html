@@ -1,0 +1,1045 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>SWJ — Project Board</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+:root {
+  --ink:        #1a1814;
+  --ink-soft:   #3d3830;
+  --cream:      #f5f2ed;
+  --warm:       #faf8f5;
+  --taupe:      #a29c96;
+  --taupe-lt:   #d4cfc9;
+  --taupe-dk:   #7a6f69;
+  --gold:       #c9a96e;
+  --gold-lt:    #f5ead8;
+  --gold-dk:    #9d7a44;
+  --green:      #4a7c50;
+  --green-lt:   #edf4ed;
+  --amber:      #c97c2e;
+  --amber-lt:   #fdf0e0;
+  --red:        #b53535;
+  --red-lt:     #fef0f0;
+  --slate:      #4a5e82;
+  --slate-lt:   #edf0f6;
+
+  --proposal-bg:  #f2f0ee;
+  --confirmed-bg: #edf4ed;
+  --staged-bg:    #faf3e8;
+  --destage-bg:   #edf0f6;
+  --done-bg:      #f0eeec;
+  --denied-bg:    #fdf0f0;
+}
+
+body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); color:var(--ink); min-height:100vh; }
+
+/* ── HEADER ── */
+.hdr { background:var(--ink); position:sticky; top:0; z-index:60; }
+.hdr-top { display:flex; align-items:center; justify-content:space-between; padding:14px 20px 10px; }
+.brand { display:flex; align-items:baseline; gap:10px; }
+.brand-name { font-family:'Cormorant Garamond',serif; font-size:24px; font-weight:300; color:#fff; letter-spacing:4px; }
+.brand-sep { width:1px; height:16px; background:rgba(255,255,255,0.18); }
+.brand-sub { font-size:10px; color:rgba(255,255,255,0.35); letter-spacing:2.5px; text-transform:uppercase; }
+.hdr-right { display:flex; align-items:center; gap:10px; }
+.compact-toggle {
+  font-size:11px; font-weight:500; color:rgba(255,255,255,0.45);
+  background:rgba(255,255,255,0.07); border:none; border-radius:16px;
+  padding:5px 12px; cursor:pointer; font-family:'Inter',sans-serif;
+  transition:all 0.18s;
+}
+.compact-toggle.on { background:var(--gold); color:var(--ink); }
+.nav-sw { display:flex; gap:2px; background:rgba(255,255,255,0.07); border-radius:20px; padding:3px; }
+.nav-btn { padding:5px 14px; border-radius:16px; border:none; font-size:11px; font-weight:500; cursor:pointer; font-family:'Inter',sans-serif; transition:all 0.18s; }
+.nav-btn.on { background:#fff; color:var(--ink); }
+.nav-btn.off { background:transparent; color:rgba(255,255,255,0.4); }
+
+.tabs { display:flex; overflow-x:auto; padding:0 16px; scrollbar-width:none; border-top:1px solid rgba(255,255,255,0.05); }
+.tabs::-webkit-scrollbar { display:none; }
+.tab { padding:9px 14px; font-size:11px; font-weight:500; color:rgba(255,255,255,0.35); cursor:pointer; border:none; border-bottom:2px solid transparent; white-space:nowrap; background:none; font-family:'Inter',sans-serif; transition:all 0.18s; letter-spacing:0.4px; }
+.tab.on { color:#fff; border-bottom-color:var(--gold); }
+.tab-n { display:inline-flex; align-items:center; justify-content:center; min-width:15px; height:15px; border-radius:8px; font-size:9px; font-weight:600; margin-left:5px; padding:0 4px; background:rgba(255,255,255,0.1); color:rgba(255,255,255,0.45); }
+.tab.on .tab-n { background:var(--gold); color:var(--ink); }
+
+/* ── TODAY SECTION ── */
+.today-wrap { background:var(--ink); padding:0 16px 14px; border-bottom:2px solid var(--gold); }
+.today-label { font-size:9px; font-weight:500; color:rgba(255,255,255,0.3); text-transform:uppercase; letter-spacing:2px; padding-top:2px; margin-bottom:8px; }
+.today-items { display:flex; gap:8px; overflow-x:auto; scrollbar-width:none; }
+.today-items::-webkit-scrollbar { display:none; }
+.today-item {
+  flex-shrink:0;
+  background:rgba(255,255,255,0.06);
+  border:1px solid rgba(255,255,255,0.1);
+  border-radius:10px;
+  padding:9px 13px;
+  cursor:pointer;
+  transition:background 0.15s;
+  min-width:140px;
+}
+.today-item:hover { background:rgba(255,255,255,0.1); }
+.today-item.urgent { border-color:rgba(181,53,53,0.5); background:rgba(181,53,53,0.1); }
+.today-item.warn { border-color:rgba(201,124,46,0.4); background:rgba(201,124,46,0.08); }
+.today-item.info { border-color:rgba(201,169,110,0.35); background:rgba(201,169,110,0.06); }
+.ti-label { font-size:10px; font-weight:500; color:rgba(255,255,255,0.5); margin-bottom:3px; letter-spacing:0.3px; }
+.ti-label.urgent { color:rgba(255,120,100,0.85); }
+.ti-label.warn { color:rgba(255,180,80,0.85); }
+.ti-label.info { color:rgba(201,169,110,0.9); }
+.ti-value { font-family:'Cormorant Garamond',serif; font-size:15px; font-weight:400; color:#fff; line-height:1.2; }
+
+/* ── PIPELINE ── */
+.pipeline { display:grid; grid-template-columns:repeat(5,1fr); gap:1px; background:var(--taupe-lt); border-bottom:1px solid var(--taupe-lt); }
+.pipe { background:var(--warm); padding:11px 14px; }
+.pipe-lbl { font-size:9px; font-weight:500; color:var(--taupe); text-transform:uppercase; letter-spacing:1.2px; margin-bottom:3px; }
+.pipe-val { font-family:'Cormorant Garamond',serif; font-size:19px; font-weight:400; color:var(--ink); }
+.pipe-val.g { color:var(--green); }
+.pipe-val.r { color:var(--red); }
+.pipe-note { font-size:10px; color:var(--taupe); margin-top:2px; }
+
+/* ── BOARD ── */
+.board { display:flex; gap:12px; padding:16px; overflow-x:auto; align-items:flex-start; }
+.board.single { display:block; overflow-x:visible; }
+.col { min-width:252px; max-width:265px; flex-shrink:0; }
+.col.single { min-width:unset; max-width:unset; }
+.col-hdr { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; padding:0 2px; }
+.col-lbl { font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:1.3px; }
+.col-n { font-size:10px; font-weight:600; color:#fff; min-width:18px; height:18px; border-radius:9px; padding:0 5px; display:inline-flex; align-items:center; justify-content:center; }
+.mtb-btn { width:100%; padding:9px; background:transparent; border:1.5px dashed rgba(162,156,150,0.3); border-radius:10px; color:var(--taupe); font-size:11px; font-weight:500; cursor:pointer; font-family:'Inter',sans-serif; transition:all 0.15s; letter-spacing:0.3px; margin-bottom:9px; }
+.mtb-btn:hover { background:var(--warm); border-color:var(--taupe); }
+
+/* ── CARDS ── */
+.card { border-radius:13px; padding:13px 14px 11px; margin-bottom:8px; cursor:pointer; transition:transform 0.12s,box-shadow 0.12s; border:1px solid transparent; }
+.card:active { transform:scale(0.976); }
+.card.proposal  { background:var(--proposal-bg);  border-color:rgba(122,111,105,0.14); }
+.card.confirmed { background:var(--confirmed-bg); border-color:rgba(74,124,80,0.14); }
+.card.staged    { background:var(--staged-bg);    border-color:rgba(157,122,68,0.16); }
+.card.destage   { background:var(--destage-bg);   border-color:rgba(74,94,130,0.14); }
+.card.done      { background:var(--done-bg);      border-color:rgba(162,156,150,0.1); opacity:0.6; }
+.card.denied    { background:var(--denied-bg);    border-color:rgba(181,53,53,0.12); opacity:0.55; }
+
+.c-row1 { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:3px; }
+.c-name { font-family:'Cormorant Garamond',serif; font-size:16px; font-weight:400; line-height:1.2; }
+.card.proposal  .c-name { color:var(--ink); }
+.card.confirmed .c-name { color:#1e3d21; }
+.card.staged    .c-name { color:#3d2e10; }
+.card.destage   .c-name { color:#1e2e45; }
+.c-amt { font-size:12px; font-weight:600; white-space:nowrap; margin-left:8px; }
+.card.proposal  .c-amt { color:var(--taupe-dk); }
+.card.confirmed .c-amt { color:var(--green); }
+.card.staged    .c-amt { color:var(--gold-dk); }
+.card.destage   .c-amt { color:var(--slate); }
+.c-addr { font-size:11px; color:var(--taupe); margin-bottom:8px; line-height:1.35; }
+
+.tags { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:6px; }
+.tag { font-size:10px; font-weight:500; padding:3px 8px; border-radius:20px; letter-spacing:0.2px; }
+.card.proposal  .tag { background:rgba(122,111,105,0.1);  color:var(--taupe-dk); }
+.card.confirmed .tag { background:rgba(74,124,80,0.1);    color:var(--green); }
+.card.confirmed .tag.w { background:rgba(201,124,46,0.1); color:var(--amber); }
+.card.confirmed .tag.a { background:rgba(181,53,53,0.1);  color:var(--red); }
+.card.staged    .tag { background:rgba(157,122,68,0.1);   color:var(--gold-dk); }
+.card.destage   .tag { background:rgba(74,94,130,0.1);    color:var(--slate); }
+.card.done      .tag { background:rgba(162,156,150,0.1);  color:var(--taupe); }
+
+/* Compact mode */
+.card.compact { padding:10px 13px 9px; }
+.card.compact .c-addr,
+.card.compact .tags,
+.card.compact .c-note,
+.card.compact .day-wrap { display:none; }
+.card.compact .c-row1 { margin-bottom:0; }
+
+/* Day ring */
+.day-wrap { display:flex; align-items:center; gap:9px; padding:8px 10px; border-radius:9px; margin-top:5px; }
+.day-wrap.g { background:rgba(74,124,80,0.09); }
+.day-wrap.a { background:rgba(201,124,46,0.09); }
+.day-wrap.r { background:rgba(181,53,53,0.09); }
+.ring-outer { position:relative; width:36px; height:36px; flex-shrink:0; }
+.ring-svg { position:absolute; top:0; left:0; transform:rotate(-90deg); }
+.ring-num { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-size:11px; font-weight:700; }
+.ring-num.g { color:var(--green); }
+.ring-num.a { color:var(--amber); }
+.ring-num.r { color:var(--red); }
+.day-info { flex:1; }
+.day-main { font-size:11px; font-weight:600; }
+.day-main.g { color:var(--green); }
+.day-main.a { color:var(--amber); }
+.day-main.r { color:var(--red); }
+.day-sub { font-size:10px; color:var(--taupe); margin-top:1px; }
+
+.destage-chip { display:inline-block; background:var(--ink); color:#fff; font-size:10px; font-weight:500; padding:4px 10px; border-radius:6px; margin:6px 0 0; letter-spacing:0.3px; }
+.c-note { font-size:11px; color:var(--taupe); font-style:italic; margin-top:7px; padding-top:7px; border-top:1px solid rgba(162,156,150,0.18); line-height:1.5; }
+
+/* ── DETAIL MODAL ── */
+.overlay { display:none; position:fixed; inset:0; background:rgba(26,24,20,0.6); z-index:100; align-items:flex-end; justify-content:center; backdrop-filter:blur(3px); }
+.overlay.on { display:flex; }
+.modal { background:var(--warm); border-radius:22px 22px 0 0; width:100%; max-width:580px; max-height:90vh; overflow-y:auto; padding-bottom:32px; }
+.m-pull { width:34px; height:4px; background:var(--taupe-lt); border-radius:2px; margin:10px auto 0; }
+.m-bar { height:3px; margin:10px 20px 0; border-radius:2px; }
+.m-bar.proposal  { background:var(--taupe); }
+.m-bar.confirmed { background:var(--green); }
+.m-bar.staged    { background:var(--gold); }
+.m-bar.destage   { background:var(--slate); }
+
+/* Modal header */
+.m-hdr { padding:14px 20px 12px; border-bottom:1px solid rgba(162,156,150,0.1); }
+.m-name { font-family:'Cormorant Garamond',serif; font-size:22px; font-weight:400; color:var(--ink); }
+.m-addr { font-size:12px; color:var(--taupe); margin-top:3px; }
+.m-amt { font-size:19px; font-weight:600; color:var(--green); margin-top:5px; }
+
+/* Modal sections */
+.m-sec { padding:14px 20px; border-bottom:1px solid rgba(162,156,150,0.08); }
+.m-sec-ttl { font-size:9px; font-weight:600; color:var(--taupe); text-transform:uppercase; letter-spacing:1.5px; margin-bottom:12px; }
+.m-row { display:flex; align-items:center; justify-content:space-between; padding:8px 0; border-bottom:1px solid rgba(162,156,150,0.05); }
+.m-row:last-child { border-bottom:none; }
+.m-lbl { font-size:13px; color:var(--ink-soft); }
+.m-input { font-family:'Inter',sans-serif; font-size:13px; font-weight:500; color:var(--ink); border:none; border-bottom:1.5px solid var(--taupe-lt); background:transparent; text-align:right; outline:none; padding:2px 4px; min-width:130px; transition:border-color 0.15s; }
+.m-input:focus { border-bottom-color:var(--gold); }
+.m-select { font-family:'Inter',sans-serif; font-size:13px; font-weight:500; color:var(--ink); border:none; border-bottom:1.5px solid var(--taupe-lt); background:transparent; outline:none; padding:2px 4px; cursor:pointer; }
+.m-tel-row { display:flex; align-items:center; gap:8px; justify-content:flex-end; }
+.m-tel-input { font-family:'Inter',sans-serif; font-size:13px; font-weight:500; color:var(--ink); border:none; border-bottom:1.5px solid var(--taupe-lt); background:transparent; outline:none; padding:2px 4px; width:130px; text-align:right; transition:border-color 0.15s; }
+.m-tel-input:focus { border-bottom-color:var(--gold); }
+.m-text-btn { padding:4px 10px; background:var(--green); color:#fff; border:none; border-radius:6px; font-size:10px; font-weight:600; cursor:pointer; font-family:'Inter',sans-serif; white-space:nowrap; }
+.m-cal-btn { padding:4px 10px; background:var(--slate); color:#fff; border:none; border-radius:6px; font-size:10px; font-weight:600; cursor:pointer; font-family:'Inter',sans-serif; white-space:nowrap; }
+
+/* Move stage grid */
+.m-move { padding:14px 20px; }
+.m-move-ttl { font-size:9px; font-weight:600; color:var(--taupe); text-transform:uppercase; letter-spacing:1.5px; margin-bottom:10px; }
+.move-grid { display:grid; grid-template-columns:1fr 1fr; gap:7px; }
+.move-opt { padding:10px 12px; border-radius:10px; border:1.5px solid var(--taupe-lt); background:var(--cream); cursor:pointer; font-size:11px; font-weight:500; color:var(--taupe-dk); text-align:center; font-family:'Inter',sans-serif; transition:all 0.15s; letter-spacing:0.3px; }
+.move-opt:hover { border-color:var(--gold); color:var(--ink); background:var(--gold-lt); }
+.move-opt.cur { border-color:var(--gold); background:var(--gold-lt); color:var(--gold-dk); font-weight:600; }
+.move-opt.denied-opt { background:var(--denied-bg); border-color:rgba(181,53,53,0.2); color:var(--red); grid-column:1/-1; }
+.move-opt.denied-opt:hover { border-color:var(--red); }
+
+/* Profitability strip */
+.profit-strip { margin:10px 20px 0; background:var(--cream); border-radius:10px; padding:10px 14px; display:flex; align-items:center; justify-content:space-between; cursor:pointer; border:1px solid rgba(162,156,150,0.15); transition:background 0.15s; }
+.profit-strip:hover { background:var(--gold-lt); }
+.ps-lbl { font-size:10px; font-weight:600; color:var(--taupe); text-transform:uppercase; letter-spacing:1px; }
+.ps-val { font-family:'Cormorant Garamond',serif; font-size:18px; font-weight:400; color:var(--green); }
+.ps-sub { font-size:10px; color:var(--taupe); }
+.ps-arrow { font-size:16px; color:var(--taupe); }
+
+/* Modal actions */
+.m-btns { display:flex; gap:10px; padding:14px 20px 0; }
+.mbtn { flex:1; padding:13px; border-radius:11px; border:none; font-size:14px; font-weight:600; cursor:pointer; font-family:'Inter',sans-serif; transition:opacity 0.15s; }
+.mbtn:active { opacity:0.8; }
+.mbtn.pri { background:var(--ink); color:#fff; }
+.mbtn.sec { background:var(--cream); color:var(--taupe-dk); }
+
+/* ── PREP CHECKLIST ── */
+.prep-item { display:flex; align-items:center; gap:8px; padding:8px 0; border-bottom:1px solid rgba(162,156,150,0.06); }
+.prep-item:last-child { border-bottom:none; }
+.prep-check { width:18px; height:18px; flex-shrink:0; accent-color:var(--green); cursor:pointer; }
+.prep-desc { flex:1; font-size:13px; color:var(--ink-soft); }
+.prep-desc.done { text-decoration:line-through; color:var(--taupe); }
+.prep-store { font-size:10px; font-weight:500; padding:2px 7px; border-radius:20px; background:var(--cream); color:var(--taupe-dk); border:1px solid var(--taupe-lt); white-space:nowrap; }
+.prep-cost { font-size:12px; color:var(--taupe); white-space:nowrap; font-style:italic; }
+.prep-del { background:none; border:none; color:var(--taupe-lt); font-size:16px; cursor:pointer; padding:0 4px; flex-shrink:0; }
+.prep-del:hover { color:var(--red); }
+.prep-add-row { display:flex; gap:6px; margin-top:10px; align-items:center; }
+.prep-add-input { flex:1; font-family:'Inter',sans-serif; font-size:13px; padding:7px 10px; border:1.5px solid var(--taupe-lt); border-radius:8px; background:var(--cream); outline:none; color:var(--ink); transition:border-color 0.15s; }
+.prep-add-input:focus { border-color:var(--gold); }
+.prep-add-select { font-family:'Inter',sans-serif; font-size:12px; padding:7px 8px; border:1.5px solid var(--taupe-lt); border-radius:8px; background:var(--cream); outline:none; color:var(--taupe-dk); cursor:pointer; max-width:110px; }
+.prep-add-price { width:72px; font-family:'Inter',sans-serif; font-size:13px; padding:7px 8px; border:1.5px solid var(--taupe-lt); border-radius:8px; background:var(--cream); outline:none; color:var(--ink); text-align:right; }
+.prep-add-price:focus, .prep-add-select:focus { border-color:var(--gold); }
+.prep-add-btn { padding:7px 14px; background:var(--ink); color:#fff; border:none; border-radius:8px; font-size:12px; font-weight:600; cursor:pointer; font-family:'Inter',sans-serif; white-space:nowrap; }
+
+/* ── SHOPPING CONSOLIDATOR (Today section) ── */
+.shop-store-group { margin-bottom:12px; }
+.shop-store-name { font-size:10px; font-weight:600; color:var(--taupe-dk); text-transform:uppercase; letter-spacing:1px; margin-bottom:6px; padding-bottom:4px; border-bottom:1px solid rgba(162,156,150,0.12); }
+.shop-item-row { display:flex; align-items:center; justify-content:space-between; padding:5px 0; }
+.shop-item-left { flex:1; }
+.shop-item-desc { font-size:13px; color:var(--ink); }
+.shop-item-job { font-size:10px; color:var(--taupe); margin-top:1px; }
+.shop-item-cost { font-size:12px; color:var(--green); font-style:italic; }
+.shop-total { display:flex; justify-content:space-between; padding:10px 0 0; border-top:1px solid rgba(162,156,150,0.1); margin-top:8px; }
+.shop-total-lbl { font-size:11px; color:var(--taupe); }
+.shop-total-val { font-family:'Cormorant Garamond',serif; font-size:16px; color:var(--green); }
+.shop-send-btn { width:100%; padding:11px; background:var(--ink); color:#fff; border:none; border-radius:10px; font-size:13px; font-weight:600; cursor:pointer; font-family:'Inter',sans-serif; margin-top:12px; letter-spacing:0.3px; transition:opacity 0.15s; }
+.shop-send-btn:active { opacity:0.8; }
+.shop-empty { font-size:12px; color:var(--taupe); font-style:italic; text-align:center; padding:8px 0; }
+
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="hdr">
+  <div class="hdr-top">
+    <div class="brand">
+      <div class="brand-name">SWJ</div>
+      <div class="brand-sep"></div>
+      <div class="brand-sub">Project Board</div>
+    </div>
+    <div class="hdr-right">
+      <button class="compact-toggle" id="compact-btn" onclick="toggleCompact()">Compact</button>
+      <div class="nav-sw">
+        <button class="nav-btn on">Board</button>
+        <button class="nav-btn off">Invoice</button>
+      </div>
+    </div>
+  </div>
+  <div class="tabs">
+    <button class="tab on"  onclick="filter('all',this)">All <span class="tab-n">7</span></button>
+    <button class="tab off" onclick="filter('proposal',this)">Proposal Sent <span class="tab-n">2</span></button>
+    <button class="tab off" onclick="filter('confirmed',this)">Confirmed <span class="tab-n">2</span></button>
+    <button class="tab off" onclick="filter('staged',this)">Staged <span class="tab-n">2</span></button>
+    <button class="tab off" onclick="filter('destage',this)">Destage <span class="tab-n">1</span></button>
+    <button class="tab off" onclick="filter('done',this)">Completed <span class="tab-n">0</span></button>
+  </div>
+</div>
+
+<!-- TODAY SECTION -->
+<div class="today-wrap">
+  <div class="today-label">Today — Wednesday, May 21</div>
+  <div class="today-items">
+    <div class="today-item urgent" onclick="filter('confirmed',document.querySelectorAll('.tab')[2])">
+      <div class="ti-label urgent">Payment overdue</div>
+      <div class="ti-value">Donovan Shelton</div>
+    </div>
+    <div class="today-item warn" onclick="filter('staged',document.querySelectorAll('.tab')[3])">
+      <div class="ti-label warn">Plan destage soon</div>
+      <div class="ti-value">Estate of Leon — Day 29</div>
+    </div>
+    <div class="today-item info">
+      <div class="ti-label info">Staging tomorrow</div>
+      <div class="ti-value">Brianne Borden — May 22</div>
+    </div>
+    <div class="today-item info">
+      <div class="ti-label info">Photos due today</div>
+      <div class="ti-value">Deliver to KC Sanders</div>
+    </div>
+    <div class="today-item warn">
+      <div class="ti-label warn">Find mover</div>
+      <div class="ti-value">Donovan — Jun 2 staging</div>
+    </div>
+  </div>
+</div>
+
+<!-- SHOPPING CONSOLIDATOR -->
+<div style="background:var(--warm);border-bottom:2px solid rgba(162,156,150,0.15);padding:14px 16px 16px">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+    <div style="font-size:9px;font-weight:600;color:var(--taupe);text-transform:uppercase;letter-spacing:1.8px">Shopping Run</div>
+    <div style="font-size:10px;color:var(--taupe);font-style:italic" id="shop-summary">3 items · 2 stores</div>
+  </div>
+  <div id="shop-consolidated"></div>
+  <button class="shop-send-btn" onclick="sendShoppingList()">Send Shopping List to My Phone</button>
+</div>
+
+<!-- PIPELINE -->
+<div class="pipeline">
+  <div class="pipe">
+    <div class="pipe-lbl">Proposals</div>
+    <div class="pipe-val">2</div>
+    <div class="pipe-note">$5,958 out</div>
+  </div>
+  <div class="pipe">
+    <div class="pipe-lbl">Confirmed</div>
+    <div class="pipe-val">2</div>
+    <div class="pipe-note">$6,784 locked</div>
+  </div>
+  <div class="pipe">
+    <div class="pipe-lbl">On Site</div>
+    <div class="pipe-val">2</div>
+    <div class="pipe-note">$7,938 staged</div>
+  </div>
+  <div class="pipe">
+    <div class="pipe-lbl">MTD Revenue</div>
+    <div class="pipe-val g">$8,900</div>
+    <div class="pipe-note">3 completed</div>
+  </div>
+  <div class="pipe">
+    <div class="pipe-lbl">Needs Attention</div>
+    <div class="pipe-val r">3</div>
+    <div class="pipe-note">action required</div>
+  </div>
+</div>
+
+<!-- BOARD -->
+<div class="board" id="board">
+
+  <!-- PROPOSAL SENT -->
+  <div class="col" data-s="proposal">
+    <div class="col-hdr">
+      <span class="col-lbl" style="color:var(--taupe-dk)">Proposal Sent</span>
+      <span class="col-n" style="background:var(--taupe)">2</span>
+    </div>
+    <button class="mtb-btn">+ Move to Board</button>
+
+    <div class="card proposal" onclick="openCard('chad')">
+      <div class="c-row1">
+        <div class="c-name">Chad & Genevieve</div>
+        <div class="c-amt">$3,202</div>
+      </div>
+      <div class="c-addr">Westport · Sent May 14</div>
+      <div class="tags">
+        <span class="tag">Staging May 16</span>
+        <span class="tag">Awaiting approval</span>
+      </div>
+    </div>
+
+    <div class="card proposal" onclick="openCard('lead')">
+      <div class="c-row1">
+        <div class="c-name">New Lead</div>
+        <div class="c-amt">$2,756</div>
+      </div>
+      <div class="c-addr">Seattle, WA · Sent May 15</div>
+      <div class="tags">
+        <span class="tag">Date TBD</span>
+        <span class="tag">Awaiting approval</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONFIRMED -->
+  <div class="col" data-s="confirmed">
+    <div class="col-hdr">
+      <span class="col-lbl" style="color:var(--green)">Confirmed</span>
+      <span class="col-n" style="background:var(--green)">2</span>
+    </div>
+    <button class="mtb-btn">+ Move to Board</button>
+
+    <div class="card confirmed" onclick="openCard('brianne')">
+      <div class="c-row1">
+        <div class="c-name">Brianne Borden</div>
+        <div class="c-amt">$3,202</div>
+      </div>
+      <div class="c-addr">19911 138th Ave E, Graham</div>
+      <div class="tags">
+        <span class="tag">Staging May 30</span>
+        <span class="tag">Mover: Anthony</span>
+        <span class="tag">Photos May 31</span>
+        <span class="tag">Paid</span>
+      </div>
+      <div class="c-note">Truck booked 8am. Shopping: accent pillows needed.</div>
+    </div>
+
+    <div class="card confirmed" onclick="openCard('donovan')">
+      <div class="c-row1">
+        <div class="c-name">Donovan Shelton</div>
+        <div class="c-amt">$3,582</div>
+      </div>
+      <div class="c-addr">1025 S 59th St, Tacoma</div>
+      <div class="tags">
+        <span class="tag">Staging Jun 2</span>
+        <span class="tag w">Mover: TBD</span>
+        <span class="tag a">Payment due Jun 1</span>
+      </div>
+      <div class="c-note">Early morning start requested. Confirm Thursday.</div>
+    </div>
+  </div>
+
+  <!-- CURRENTLY STAGED -->
+  <div class="col" data-s="staged">
+    <div class="col-hdr">
+      <span class="col-lbl" style="color:var(--gold-dk)">Currently Staged</span>
+      <span class="col-n" style="background:var(--gold);color:var(--ink)">2</span>
+    </div>
+
+    <div class="card staged" onclick="openCard('kc')">
+      <div class="c-row1">
+        <div class="c-name">KC Sanders</div>
+        <div class="c-amt">$3,969</div>
+      </div>
+      <div class="c-addr">2105 Westlake Ave N, Seattle</div>
+      <div class="tags">
+        <span class="tag">Staged May 9</span>
+        <span class="tag">Paid</span>
+        <span class="tag">Shopping: $180</span>
+      </div>
+      <div class="day-wrap g">
+        <div class="ring-outer">
+          <svg class="ring-svg" width="36" height="36" viewBox="0 0 36 36">
+            <circle cx="18" cy="18" r="14" fill="none" stroke="rgba(74,124,80,0.18)" stroke-width="3"/>
+            <circle cx="18" cy="18" r="14" fill="none" stroke="var(--green)" stroke-width="3"
+              stroke-dasharray="87.96" stroke-dashoffset="64.5" stroke-linecap="round"/>
+          </svg>
+          <div class="ring-num g">12</div>
+        </div>
+        <div class="day-info">
+          <div class="day-main g">Day 12 of 45</div>
+          <div class="day-sub">33 days remaining</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card staged" onclick="openCard('leon')">
+      <div class="c-row1">
+        <div class="c-name">Estate of Leon Sanders</div>
+        <div class="c-amt">$3,969</div>
+      </div>
+      <div class="c-addr">2105 Westlake Ave N #201</div>
+      <div class="tags">
+        <span class="tag">Staged Apr 22</span>
+        <span class="tag">Paid</span>
+      </div>
+      <div class="day-wrap a">
+        <div class="ring-outer">
+          <svg class="ring-svg" width="36" height="36" viewBox="0 0 36 36">
+            <circle cx="18" cy="18" r="14" fill="none" stroke="rgba(201,124,46,0.18)" stroke-width="3"/>
+            <circle cx="18" cy="18" r="14" fill="none" stroke="var(--amber)" stroke-width="3"
+              stroke-dasharray="87.96" stroke-dashoffset="26.4" stroke-linecap="round"/>
+          </svg>
+          <div class="ring-num a">29</div>
+        </div>
+        <div class="day-info">
+          <div class="day-main a">Day 29 of 45</div>
+          <div class="day-sub">Plan destage soon — 16 left</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DESTAGE SCHEDULED -->
+  <div class="col" data-s="destage">
+    <div class="col-hdr">
+      <span class="col-lbl" style="color:var(--slate)">Destage Scheduled</span>
+      <span class="col-n" style="background:var(--slate)">1</span>
+    </div>
+
+    <div class="card destage" onclick="openCard('jane')">
+      <div class="c-row1">
+        <div class="c-name">Jane Smith</div>
+        <div class="c-amt">$2,764</div>
+      </div>
+      <div class="c-addr">123 Main St, Seattle</div>
+      <div class="tags">
+        <span class="tag">Staged Apr 12</span>
+        <span class="tag">Mover: Gabriel</span>
+        <span class="tag">Paid</span>
+      </div>
+      <div class="destage-chip">Destage: May 22  ·  9am</div>
+      <div class="day-wrap g" style="margin-top:9px">
+        <div class="ring-outer">
+          <svg class="ring-svg" width="36" height="36" viewBox="0 0 36 36">
+            <circle cx="18" cy="18" r="14" fill="none" stroke="rgba(74,124,80,0.18)" stroke-width="3"/>
+            <circle cx="18" cy="18" r="14" fill="none" stroke="var(--green)" stroke-width="3"
+              stroke-dasharray="87.96" stroke-dashoffset="61" stroke-linecap="round"/>
+          </svg>
+          <div class="ring-num g">19</div>
+        </div>
+        <div class="day-info">
+          <div class="day-main g">Destage confirmed</div>
+          <div class="day-sub">Cleared before day 40</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- COMPLETED -->
+  <div class="col" data-s="done">
+    <div class="col-hdr">
+      <span class="col-lbl" style="color:var(--taupe)">Completed</span>
+      <span class="col-n">0</span>
+    </div>
+    <div style="padding:24px 12px;text-align:center;font-size:12px;color:var(--taupe);font-style:italic;line-height:1.6">
+      Completed jobs<br>will appear here
+    </div>
+  </div>
+
+</div>
+
+<!-- DETAIL MODAL -->
+<div class="overlay" id="overlay" onclick="bgClose(event)">
+  <div class="modal">
+    <div class="m-pull"></div>
+    <div class="m-bar confirmed" id="m-bar"></div>
+
+    <div class="m-hdr">
+      <div class="m-name" id="m-name">Brianne Borden</div>
+      <div class="m-addr" id="m-addr">19911 138th Ave E, Graham WA 98338</div>
+      <div class="m-amt" id="m-amt">$3,202</div>
+    </div>
+
+    <!-- Profitability strip -->
+    <div class="profit-strip" onclick="alert('Profitability view coming — shows truck, fuel, movers, warehouse breakdown')">
+      <div>
+        <div class="ps-lbl">Est. Profit this job</div>
+        <div class="ps-sub">Tap to see full breakdown</div>
+      </div>
+      <div style="text-align:right">
+        <div class="ps-val">$1,892</div>
+      </div>
+      <div class="ps-arrow">›</div>
+    </div>
+
+    <!-- Staging -->
+    <div class="m-sec" style="margin-top:10px">
+      <div class="m-sec-ttl">Staging Day</div>
+      <div class="m-row">
+        <span class="m-lbl">Staging date</span>
+        <input class="m-input" id="m-sdate" type="date" value="2026-05-30">
+      </div>
+      <div class="m-row">
+        <span class="m-lbl">Mover</span>
+        <div class="m-tel-row">
+          <input class="m-tel-input" id="m-mover" type="text" value="Anthony" placeholder="Name">
+          <input class="m-tel-input" id="m-mover-tel" type="tel" value="+12065025216" placeholder="Phone" style="width:110px">
+          <button class="m-text-btn" onclick="textMover('staging')">Text</button>
+        </div>
+      </div>
+      <div class="m-row">
+        <span class="m-lbl">Truck booked</span>
+        <select class="m-select" id="m-truck">
+          <option>Not yet</option>
+          <option selected>Booked</option>
+        </select>
+      </div>
+      <div class="m-row">
+        <span class="m-lbl">Truck pickup time</span>
+        <input class="m-input" id="m-truck-time" type="text" value="8:00 AM">
+      </div>
+      <div class="m-row">
+        <span class="m-lbl">Calendar</span>
+        <button class="m-cal-btn" onclick="addToCalendar('staging')">Add Staging to Calendar</button>
+      </div>
+    </div>
+
+    <!-- Photography -->
+    <div class="m-sec">
+      <div class="m-sec-ttl">Photography</div>
+      <div class="m-row">
+        <span class="m-lbl">Photo date</span>
+        <div class="m-tel-row">
+          <input class="m-input" id="m-photo" type="date" value="2026-05-31">
+          <button class="m-text-btn" onclick="textPhotographer()" style="background:var(--rose,#b5706a)">Text Gabriel</button>
+        </div>
+      </div>
+      <div class="m-row">
+        <span class="m-lbl">Photo delivery</span>
+        <input class="m-input" id="m-photo-del" type="text" value="Jun 1 — 24hrs after shoot">
+      </div>
+    </div>
+
+    <!-- Payment -->
+    <div class="m-sec">
+      <div class="m-sec-ttl">Payment</div>
+      <div class="m-row">
+        <span class="m-lbl">Status</span>
+        <select class="m-select" id="m-payment">
+          <option>Awaiting payment</option>
+          <option selected>Paid</option>
+        </select>
+      </div>
+      <div class="m-row">
+        <span class="m-lbl">Payment date</span>
+        <input class="m-input" id="m-paid-date" type="date" value="2026-05-28">
+      </div>
+    </div>
+
+    <!-- Destage -->
+    <div class="m-sec">
+      <div class="m-sec-ttl">Destage</div>
+      <div class="m-row">
+        <span class="m-lbl">Destage date</span>
+        <input class="m-input" id="m-ddate" type="date">
+      </div>
+      <div class="m-row">
+        <span class="m-lbl">Destage mover</span>
+        <div class="m-tel-row">
+          <input class="m-tel-input" id="m-dmover" type="text" placeholder="Name">
+          <input class="m-tel-input" id="m-dmover-tel" type="tel" placeholder="Phone" style="width:110px">
+          <button class="m-text-btn" onclick="textMover('destage')">Text</button>
+        </div>
+      </div>
+      <div class="m-row">
+        <span class="m-lbl">Destage time</span>
+        <input class="m-input" id="m-dtime" type="text" placeholder="9:00 AM">
+      </div>
+      <div class="m-row">
+        <span class="m-lbl">Calendar</span>
+        <button class="m-cal-btn" onclick="addToCalendar('destage')">Add Destage to Calendar</button>
+      </div>
+    </div>
+
+    <!-- Prep & Shopping Checklist -->
+    <div class="m-sec">
+      <div class="m-sec-ttl">Prep & Shopping</div>
+      <div id="m-prep-list"></div>
+      <div class="prep-add-row">
+        <input class="prep-add-input" id="prep-desc" type="text" placeholder="Item needed..." onkeydown="if(event.key==='Enter')addPrepItem()">
+        <select class="prep-add-select" id="prep-store">
+          <option value="">Store</option>
+          <option>World Market</option>
+          <option>HomeGoods</option>
+          <option>TJ Maxx</option>
+          <option>Amazon</option>
+          <option>Warehouse</option>
+          <option>Other</option>
+        </select>
+        <input class="prep-add-price" id="prep-price" type="number" placeholder="$">
+        <button class="prep-add-btn" onclick="addPrepItem()">Add</button>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button onclick="sendJobShoppingList()" style="flex:1;padding:9px;background:var(--ink);color:#fff;border:none;border-radius:9px;font-size:11px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;letter-spacing:0.3px">Send This Job's List</button>
+        <button onclick="sendShoppingList()" style="flex:1;padding:9px;background:var(--cream);color:var(--taupe-dk);border:1.5px solid var(--taupe-lt);border-radius:9px;font-size:11px;font-weight:500;cursor:pointer;font-family:'Inter',sans-serif;letter-spacing:0.3px">Send All Projects</button>
+      </div>
+    </div>
+
+    <!-- Notes -->
+    <div class="m-sec">
+      <div class="m-sec-ttl">Notes</div>
+      <div style="padding:8px 0">
+        <textarea id="m-notes" style="font-family:'Inter',sans-serif;font-size:13px;color:var(--ink);border:1.5px solid var(--taupe-lt);border-radius:10px;background:var(--cream);outline:none;resize:none;width:100%;min-height:64px;padding:10px 12px;line-height:1.5;transition:border-color 0.15s" placeholder="Any notes about this job...">Truck booked 8am. Accent pillows needed for primary.</textarea>
+      </div>
+    </div>
+
+    <!-- Move stage -->
+    <div class="m-move">
+      <div class="m-move-ttl">Move to Stage</div>
+      <div class="move-grid">
+        <div class="move-opt" onclick="setStage('proposal',this)">Proposal Sent</div>
+        <div class="move-opt cur" onclick="setStage('confirmed',this)">Confirmed</div>
+        <div class="move-opt" onclick="setStage('staged',this)">Currently Staged</div>
+        <div class="move-opt" onclick="setStage('destage',this)">Destage Scheduled</div>
+        <div class="move-opt" onclick="setStage('done',this)" style="grid-column:1/-1">Mark Completed</div>
+        <div class="move-opt denied-opt" onclick="setStage('denied',this)">Mark as Declined</div>
+      </div>
+    </div>
+
+    <div class="m-btns">
+      <button class="mbtn sec" onclick="closeModal()">Cancel</button>
+      <button class="mbtn pri">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let compact = false;
+
+function toggleCompact(){
+  compact = !compact;
+  document.getElementById('compact-btn').classList.toggle('on', compact);
+  document.getElementById('compact-btn').textContent = compact ? 'Expanded' : 'Compact';
+  document.querySelectorAll('.card').forEach(c => c.classList.toggle('compact', compact));
+}
+
+function filter(stage, btn){
+  document.querySelectorAll('.tab').forEach(t=>{ t.className='tab off'; });
+  if(btn) btn.className='tab on';
+  const board = document.getElementById('board');
+  const cols = document.querySelectorAll('.col');
+  if(stage==='all'){
+    board.classList.remove('single');
+    cols.forEach(c=>{ c.style.display=''; c.classList.remove('single'); });
+  } else {
+    board.classList.add('single');
+    cols.forEach(c=>{
+      if(c.dataset.s===stage){ c.style.display=''; c.classList.add('single'); }
+      else { c.style.display='none'; c.classList.remove('single'); }
+    });
+  }
+}
+
+function openCard(id){
+  document.getElementById('overlay').classList.add('on');
+}
+function closeModal(){
+  document.getElementById('overlay').classList.remove('on');
+}
+function bgClose(e){
+  if(e.target===document.getElementById('overlay')) closeModal();
+}
+function setStage(s, el){
+  document.querySelectorAll('.move-opt').forEach(o=>o.classList.remove('cur'));
+  el.classList.add('cur');
+}
+
+function textMover(type){
+  const name = type==='staging'
+    ? document.getElementById('m-mover').value || 'Anthony'
+    : document.getElementById('m-dmover').value || '';
+  const tel = type==='staging'
+    ? document.getElementById('m-mover-tel').value || '+12065025216'
+    : document.getElementById('m-dmover-tel').value || '';
+  const addr = document.getElementById('m-addr').textContent;
+  const date = type==='staging'
+    ? document.getElementById('m-sdate').value
+    : document.getElementById('m-ddate').value;
+
+  const fmtDate = date ? new Date(date+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'}) : '[date TBD]';
+  const action = type==='staging' ? 'staging' : 'destage/pickup';
+  const msg = `Hi ${name}, we have a new ${action} coming up at ${addr} on ${fmtDate}. Are you available?`;
+
+  const clean = tel.replace(/\D/g,'');
+  window.open(`sms:${clean}&body=${encodeURIComponent(msg)}`);
+}
+
+function textPhotographer(){
+  const addr = document.getElementById('m-addr').textContent;
+  const date = document.getElementById('m-photo').value;
+  const fmtDate = date ? new Date(date+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'}) : '[date TBD]';
+  const msg = `Hi Gabriel, photos are scheduled for ${addr} on ${fmtDate}, the day after staging. Let me know if that works!`;
+  window.open(`sms:+1&body=${encodeURIComponent(msg)}`);
+}
+
+function addToCalendar(type){
+  const addr = document.getElementById('m-addr').textContent;
+  const client = document.getElementById('m-name').textContent;
+  const isStaging = type==='staging';
+  const dateVal = isStaging
+    ? document.getElementById('m-sdate').value
+    : document.getElementById('m-ddate').value;
+
+  if(!dateVal){ alert('Please set a date first.'); return; }
+
+  const title = isStaging ? `SWJ Staging — ${client}` : `SWJ Destage — ${client}`;
+  const notes = isStaging
+    ? `Client: ${client}\nAddress: ${addr}\nMover: ${document.getElementById('m-mover').value}\nTruck: ${document.getElementById('m-truck-time').value}`
+    : `Client: ${client}\nAddress: ${addr}\nMover: ${document.getElementById('m-dmover').value}\nTime: ${document.getElementById('m-dtime').value}`;
+
+  // Format date for ICS
+  const d = new Date(dateVal+'T08:00:00');
+  const pad = n => String(n).padStart(2,'0');
+  const fmt = dt => `${dt.getFullYear()}${pad(dt.getMonth()+1)}${pad(dt.getDate())}T${pad(dt.getHours())}${pad(dt.getMinutes())}00`;
+  const end = new Date(d.getTime() + 6*60*60*1000);
+
+  // Reminder: 48hrs before for staging
+  const ics = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//SWJ//Project Board//EN',
+    'BEGIN:VEVENT',
+    `DTSTART:${fmt(d)}`,
+    `DTEND:${fmt(end)}`,
+    `SUMMARY:${title}`,
+    `DESCRIPTION:${notes.replace(/\n/g,'\\n')}`,
+    `LOCATION:${addr}`,
+    isStaging ? 'BEGIN:VALARM\nTRIGGER:-PT2880M\nACTION:DISPLAY\nDESCRIPTION:Payment due — 48hrs before staging\nEND:VALARM' : '',
+    'BEGIN:VALARM',
+    'TRIGGER:-PT120M',
+    'ACTION:DISPLAY',
+    `DESCRIPTION:${title} in 2 hours`,
+    'END:VALARM',
+    'END:VEVENT',
+    'END:VCALENDAR'
+  ].filter(Boolean).join('\r\n');
+
+  const blob = new Blob([ics], {type:'text/calendar'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${title.replace(/\s/g,'_')}.ics`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ── PREP ITEMS DATA (per job, keyed by card id) ──
+const prepData = {
+  'brianne': [
+    {id:1, desc:'Accent pillows for primary', store:'HomeGoods', price:85, done:false},
+    {id:2, desc:'Art for living room', store:'World Market', price:140, done:false},
+  ],
+  'donovan': [
+    {id:3, desc:'2 twin mattress & frames (master)', store:'Warehouse', price:null, done:false},
+    {id:4, desc:'2 Queen headboards — fix/repair', store:'Warehouse', price:null, done:false},
+    {id:5, desc:'Patio furniture ×2', store:'World Market', price:300, done:false},
+    {id:6, desc:'5 accent chairs', store:'HomeGoods', price:250, done:false},
+    {id:7, desc:'King comforter', store:'Warehouse', price:null, done:true},
+    {id:8, desc:'2-3 curtains', store:'TJ Maxx', price:90, done:false},
+    {id:9, desc:'Coffee table', store:'HomeGoods', price:120, done:false},
+  ],
+  'kc': [],
+  'leon': [],
+  'jane': [],
+  'chad': [],
+  'lead': [],
+};
+
+let currentCardId = null;
+let nextPrepId = 100;
+
+function renderPrepList(cardId){
+  const items = prepData[cardId] || [];
+  const el = document.getElementById('m-prep-list');
+  if(!el) return;
+  if(items.length === 0){
+    el.innerHTML = '<div style="font-size:12px;color:var(--taupe);font-style:italic;padding:4px 0 8px">No prep items yet — add below.</div>';
+    return;
+  }
+  el.innerHTML = items.map(item => `
+    <div class="prep-item" id="prep-${item.id}">
+      <input type="checkbox" class="prep-check" ${item.done?'checked':''} onchange="togglePrep('${cardId}',${item.id})">
+      <span class="prep-desc${item.done?' done':''}">${item.desc}</span>
+      ${item.store ? `<span class="prep-store">${item.store}</span>` : ''}
+      ${item.price ? `<span class="prep-cost">$${item.price}</span>` : ''}
+      <button class="prep-del" onclick="delPrep('${cardId}',${item.id})">×</button>
+    </div>
+  `).join('');
+}
+
+function addPrepItem(){
+  const desc = document.getElementById('prep-desc').value.trim();
+  if(!desc) return;
+  const store = document.getElementById('prep-store').value;
+  const price = parseFloat(document.getElementById('prep-price').value) || null;
+  if(!prepData[currentCardId]) prepData[currentCardId] = [];
+  prepData[currentCardId].push({id: nextPrepId++, desc, store, price, done:false});
+  document.getElementById('prep-desc').value = '';
+  document.getElementById('prep-store').value = '';
+  document.getElementById('prep-price').value = '';
+  renderPrepList(currentCardId);
+  renderShoppingConsolidator();
+}
+
+function togglePrep(cardId, id){
+  const item = (prepData[cardId]||[]).find(i=>i.id===id);
+  if(item){ item.done = !item.done; renderPrepList(cardId); renderShoppingConsolidator(); }
+}
+
+function delPrep(cardId, id){
+  prepData[cardId] = (prepData[cardId]||[]).filter(i=>i.id!==id);
+  renderPrepList(cardId);
+  renderShoppingConsolidator();
+}
+
+function renderShoppingConsolidator(){
+  // Gather all unchecked items with a store across all jobs
+  const byStore = {};
+  let totalCost = 0;
+  let totalItems = 0;
+
+  const jobNames = {
+    brianne:'Brianne — Graham', donovan:'Donovan — Tacoma',
+    kc:'KC — Seattle', leon:'Leon — Seattle',
+    jane:'Jane — Seattle', chad:'Chad & Gen — Westport'
+  };
+
+  Object.entries(prepData).forEach(([cardId, items])=>{
+    items.filter(i=>!i.done && i.store).forEach(item=>{
+      if(!byStore[item.store]) byStore[item.store] = [];
+      byStore[item.store].push({...item, job: jobNames[cardId]||cardId});
+      if(item.price) totalCost += item.price;
+      totalItems++;
+    });
+  });
+
+  const el = document.getElementById('shop-consolidated');
+  const summary = document.getElementById('shop-summary');
+  if(!el) return;
+
+  const stores = Object.keys(byStore);
+  if(stores.length === 0){
+    el.innerHTML = '<div class="shop-empty">No shopping items pending.</div>';
+    if(summary) summary.textContent = 'No items';
+    return;
+  }
+
+  if(summary) summary.textContent = `${totalItems} item${totalItems!==1?'s':''} · ${stores.length} store${stores.length!==1?'s':''}`;
+
+  el.innerHTML = stores.map(store => `
+    <div class="shop-store-group">
+      <div class="shop-store-name">${store}</div>
+      ${byStore[store].map(item=>`
+        <div class="shop-item-row">
+          <div class="shop-item-left">
+            <div class="shop-item-desc">${item.desc}</div>
+            <div class="shop-item-job">${item.job}</div>
+          </div>
+          ${item.price ? `<div class="shop-item-cost">~$${item.price}</div>` : ''}
+        </div>
+      `).join('')}
+    </div>
+  `).join('') + (totalCost > 0 ? `
+    <div class="shop-total">
+      <span class="shop-total-lbl">Est. total spend</span>
+      <span class="shop-total-val">~$${totalCost.toLocaleString()}</span>
+    </div>` : '');
+}
+
+
+function sendJobShoppingList(){
+  const id = currentCardId;
+  const items = (prepData[id]||[]).filter(i=>!i.done && i.store);
+  if(items.length === 0){ alert('No shopping items for this job yet.'); return; }
+
+  const jobNames = {
+    brianne:'Brianne — Graham', donovan:'Donovan — Tacoma',
+    kc:'KC — Seattle', leon:'Leon — Seattle',
+    jane:'Jane — Seattle', chad:'Chad & Gen — Westport'
+  };
+
+  const byStore = {};
+  let totalCost = 0;
+  items.forEach(item=>{
+    if(!byStore[item.store]) byStore[item.store] = [];
+    byStore[item.store].push(item);
+    if(item.price) totalCost += item.price;
+  });
+
+  const today = new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
+  const jobName = jobNames[id] || id;
+  let msg = `SWJ Shopping — ${jobName}\n${today}\n\n`;
+
+  Object.entries(byStore).forEach(([store, storeItems])=>{
+    msg += `${store.toUpperCase()}\n`;
+    storeItems.forEach(item=>{
+      msg += `• ${item.desc}${item.price ? ` (~$${item.price})` : ''}\n`;
+    });
+    msg += '\n';
+  });
+
+  if(totalCost > 0) msg += `Est. total: ~$${totalCost.toLocaleString()}`;
+
+  window.open(`sms:+12064225618&body=${encodeURIComponent(msg)}`);
+}
+
+function sendShoppingList(){
+  const byStore = {};
+  let totalCost = 0;
+
+  const jobNames = {
+    brianne:'Brianne/Graham', donovan:'Donovan/Tacoma',
+    kc:'KC/Seattle', leon:'Leon/Seattle',
+    jane:'Jane/Seattle', chad:'Chad/Westport'
+  };
+
+  Object.entries(prepData).forEach(([cardId, items])=>{
+    items.filter(i=>!i.done && i.store).forEach(item=>{
+      if(!byStore[item.store]) byStore[item.store] = [];
+      byStore[item.store].push({...item, job: jobNames[cardId]||cardId});
+      if(item.price) totalCost += item.price;
+    });
+  });
+
+  const stores = Object.keys(byStore);
+  if(stores.length === 0){ alert('No shopping items to send.'); return; }
+
+  const today = new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
+  let msg = `SWJ Shopping Run — ${today}\n\n`;
+
+  stores.forEach(store => {
+    msg += `${store.toUpperCase()}\n`;
+    byStore[store].forEach(item => {
+      msg += `• ${item.desc}${item.price?` (~$${item.price})':''} (${item.job})\n`;
+    });
+    msg += '\n';
+  });
+
+  if(totalCost > 0) msg += `Est. total: ~$${totalCost.toLocaleString()}`;
+
+  // Text to Jasmine's phone
+  window.open(`sms:+12064225618&body=${encodeURIComponent(msg)}`);
+}
+
+// Hook into openCard to load prep items
+const _origOpenCard = window.open_card || openCard;
+function openCard(id){
+  currentCardId = id;
+  document.getElementById('overlay').classList.add('on');
+  setTimeout(()=>renderPrepList(id), 50);
+}
+
+// Initialize shopping consolidator on load
+document.addEventListener('DOMContentLoaded', ()=>{
+  renderShoppingConsolidator();
+});
+
+</script>
+</body>
+</html>
