@@ -1016,7 +1016,7 @@ function sendShoppingList(){
   stores.forEach(store => {
     msg += `${store.toUpperCase()}\n`;
     byStore[store].forEach(item => {
-      msg += `• ${item.desc}${item.price?` (~$${item.price})':''} (${item.job})\n`;
+      msg += `• ${item.desc}${item.price ? ' (~$' + item.price + ')' : ''} (${item.job})\n`;
     });
     msg += '\n';
   });
