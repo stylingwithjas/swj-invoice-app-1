@@ -41,174 +41,183 @@
   --cta-hover:    #5a534b;
 }
 
-body { font-family:'Inter',-apple-system,sans-serif; background:var(--bg); color:var(--ink); min-height:100vh; font-size:15px; letter-spacing:0.01em; }
+body { font-family:'Inter',-apple-system,sans-serif; background:var(--bg); color:var(--ink); min-height:100vh; font-size:15px; }
 
-/* HEADER (same pattern as index.html / board.html) */
 .hdr { background:var(--bg); position:sticky; top:0; z-index:60; border-bottom:0.5px solid var(--line); }
-.hdr-top { display:flex; align-items:center; justify-content:space-between; padding:14px 24px 12px; gap:12px; max-width:760px; margin:0 auto; }
-.brand-stack { display:flex; flex-direction:column; gap:1px; }
-.brand-stack .b1 { font-family:'Cormorant Garamond',serif; font-size:13px; font-weight:400; color:var(--ink); letter-spacing:3px; text-transform:uppercase; }
-.brand-stack .b2 { font-size:9px; color:var(--muted); letter-spacing:2px; text-transform:uppercase; }
-.hdr-right { display:flex; align-items:center; gap:10px; }
+.hdr-top { display:flex; align-items:center; justify-content:space-between; padding:14px 24px 12px; max-width:760px; margin:0 auto; }
+.brand-stack .b1 { font-family:'Cormorant Garamond',serif; font-size:13px; color:var(--ink); letter-spacing:3px; text-transform:uppercase; }
+.brand-stack .b2 { font-size:9px; color:var(--muted); letter-spacing:2px; text-transform:uppercase; margin-top:1px; }
 .nav-sw { display:flex; gap:2px; background:var(--bg-soft); border-radius:20px; padding:3px; border:0.5px solid var(--line); }
 .nav-btn { padding:5px 13px; border-radius:16px; border:none; font-size:11px; font-weight:500; cursor:pointer; font-family:'Inter',sans-serif; transition:all 0.18s; }
 .nav-btn.on  { background:var(--cta); color:var(--bg-soft); }
 .nav-btn.off { background:transparent; color:var(--muted); }
 
-/* CONTENT */
-.content { padding:8px 24px 64px; max-width:760px; margin:0 auto; }
+.content { padding:8px 24px 80px; max-width:760px; margin:0 auto; }
 
 /* GREETING */
-.greeting { padding:32px 0 8px; }
-.greeting-hello { font-family:'Cormorant Garamond',serif; font-size:42px; font-weight:400; color:var(--green); line-height:1.1; letter-spacing:-0.015em; margin-bottom:6px; }
+.greeting { padding:28px 0 6px; }
+.greeting-hello { font-family:'Cormorant Garamond',serif; font-size:40px; font-weight:400; color:var(--green); line-height:1.1; letter-spacing:-0.015em; margin-bottom:5px; }
 .greeting-date { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:2px; }
+.greeting-summary { font-size:13px; color:var(--ink-soft); margin-top:10px; line-height:1.6; padding:12px 14px; background:var(--bg-soft); border-radius:10px; border:0.5px solid var(--line); }
+.greeting-summary strong { color:var(--ink); font-weight:600; }
 
 /* SECTIONS */
-.section { padding:28px 0 24px; border-bottom:0.5px solid var(--line); }
+.section { padding:26px 0 22px; border-bottom:0.5px solid var(--line); }
 .section:last-child { border-bottom:none; }
 .section-hdr { display:flex; align-items:baseline; justify-content:space-between; margin-bottom:14px; }
 .section-title { font-family:'Cormorant Garamond',serif; font-size:28px; font-weight:400; color:var(--ink); letter-spacing:-0.01em; }
 .section-meta { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:1.8px; }
 
-/* URGENT ACTION CARDS */
-.action-card { background:var(--bg-card); border:0.5px solid var(--line); border-left:3px solid var(--olive); border-radius:11px; padding:14px 16px; margin-bottom:10px; transition:all 0.15s; }
-.action-card.severity-high   { border-left-color:var(--red); }
-.action-card.severity-medium { border-left-color:var(--amber); }
-.action-card.severity-low    { border-left-color:var(--olive); }
-.action-card:hover { box-shadow:0 1px 3px rgba(0,0,0,0.04); }
-
-.action-row { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:10px; }
+/* ACTION CARDS (Urgent + Follow-ups) */
+.action-card { background:var(--bg-card); border:0.5px solid var(--line); border-left:3px solid var(--olive); border-radius:11px; padding:14px 16px; margin-bottom:10px; cursor:pointer; transition:all 0.15s; }
+.action-card:active { transform:scale(0.99); }
+.action-card.sev-high   { border-left-color:var(--red); background:var(--red-tint); }
+.action-card.sev-medium { border-left-color:var(--amber); background:var(--amber-tint); }
+.action-card.sev-low    { border-left-color:var(--olive); background:var(--olive-tint); }
+.action-top { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:10px; }
 .action-content { flex:1; min-width:0; }
 .action-label { font-size:9px; font-weight:600; text-transform:uppercase; letter-spacing:1.5px; margin-bottom:4px; }
-.action-card.severity-high   .action-label { color:var(--red); }
-.action-card.severity-medium .action-label { color:var(--amber); }
-.action-card.severity-low    .action-label { color:var(--olive-dark); }
-.action-client { font-family:'Cormorant Garamond',serif; font-size:21px; font-weight:400; color:var(--ink); line-height:1.2; }
-.action-detail { font-size:12px; color:var(--muted); margin-top:3px; }
-.action-amount { font-family:'Cormorant Garamond',serif; font-size:22px; font-weight:400; color:var(--ink); white-space:nowrap; }
+.sev-high   .action-label { color:var(--red); }
+.sev-medium .action-label { color:var(--amber); }
+.sev-low    .action-label { color:var(--olive-dark); }
+.action-client { font-family:'Cormorant Garamond',serif; font-size:20px; font-weight:400; color:var(--ink); line-height:1.2; }
+.action-detail { font-size:11px; color:var(--muted); margin-top:3px; }
+.action-amount { font-family:'Cormorant Garamond',serif; font-size:20px; font-weight:400; white-space:nowrap; }
 .action-amount.red { color:var(--red); }
+.action-btns { display:flex; gap:7px; flex-wrap:wrap; }
+.abn { padding:7px 13px; font-size:11px; font-weight:500; border-radius:7px; border:0.5px solid var(--line); background:var(--bg-card); color:var(--ink-soft); cursor:pointer; font-family:'Inter',sans-serif; transition:all 0.15s; }
+.abn:hover { background:var(--bg-hover); }
+.abn.primary { background:var(--cta); color:#fff; border-color:var(--cta); }
+.abn.primary:hover { background:var(--cta-hover); }
+.abn.green-btn { background:var(--green-tint); color:var(--green); border-color:var(--olive-line); }
+.abn.green-btn:hover { background:var(--olive-tint); }
 
-.action-btns { display:flex; gap:8px; }
-.action-btn { padding:8px 14px; font-size:12px; font-weight:500; border-radius:8px; border:0.5px solid var(--line); background:var(--bg-card); color:var(--ink-soft); cursor:pointer; font-family:'Inter',sans-serif; transition:all 0.15s; }
-.action-btn:hover { background:var(--bg-hover); border-color:var(--olive-line); }
-.action-btn.primary { background:var(--cta); color:var(--bg-soft); border-color:var(--cta); }
-.action-btn.primary:hover { background:var(--cta-hover); }
-.action-btn.ghost { background:transparent; border-color:var(--line-soft); }
+/* SCHEDULE */
+.schedule-empty { font-size:13px; color:var(--muted); font-style:italic; padding:8px 0; }
+.sched-item { display:flex; gap:16px; align-items:flex-start; padding:12px 0; border-bottom:0.5px solid var(--line-soft); }
+.sched-item:last-child { border-bottom:none; }
+.sched-time { font-size:12px; font-weight:600; color:var(--muted); min-width:58px; padding-top:2px; letter-spacing:0.3px; }
+.sched-body { flex:1; }
+.sched-client { font-family:'Cormorant Garamond',serif; font-size:17px; font-weight:400; color:var(--ink); }
+.sched-detail { font-size:11px; color:var(--muted); margin-top:2px; }
+.sched-tags { display:flex; gap:5px; flex-wrap:wrap; margin-top:6px; }
+.sched-tag { font-size:10px; font-weight:500; padding:3px 9px; border-radius:20px; background:var(--olive-tint); color:var(--olive-dark); }
+.sched-tag.warn { background:var(--amber-tint); color:var(--amber); }
+.sched-tag.ok   { background:var(--green-tint); color:var(--green); }
+.sched-nav { font-size:11px; color:var(--olive); font-weight:500; cursor:pointer; padding-top:3px; white-space:nowrap; }
+.sched-nav:hover { color:var(--olive-dark); }
 
-/* EMPTY STATE */
-.empty-state { padding:30px 16px; text-align:center; background:var(--olive-tint); border-radius:12px; }
-.empty-state-icon { font-size:24px; color:var(--olive); margin-bottom:8px; }
-.empty-state-text { font-family:'Cormorant Garamond',serif; font-size:18px; color:var(--ink); margin-bottom:4px; }
+/* SHOPPING RUNS */
+.shop-store { background:var(--bg-card); border:0.5px solid var(--line); border-radius:11px; overflow:hidden; margin-bottom:10px; }
+.shop-store-hdr { padding:12px 14px; display:flex; align-items:center; justify-content:space-between; border-bottom:0.5px solid var(--line); }
+.shop-store-name { font-size:11px; font-weight:600; color:var(--ink); text-transform:uppercase; letter-spacing:1px; }
+.shop-store-count { font-size:11px; color:var(--muted); }
+.shop-item { display:flex; align-items:center; gap:10px; padding:11px 14px; border-bottom:0.5px solid var(--line-soft); }
+.shop-item:last-child { border-bottom:none; }
+.shop-check { width:18px; height:18px; border-radius:50%; border:1.5px solid var(--muted-soft); flex-shrink:0; display:flex; align-items:center; justify-content:center; cursor:pointer; transition:all 0.15s; background:transparent; }
+.shop-check.done { background:var(--green); border-color:var(--green); }
+.shop-check.done svg { opacity:1; }
+.shop-check svg { opacity:0; }
+.shop-item-body { flex:1; min-width:0; }
+.shop-item-desc { font-size:13px; color:var(--ink); transition:all 0.15s; }
+.shop-item-desc.done { color:var(--muted-soft); text-decoration:line-through; }
+.shop-item-job { font-size:10px; color:var(--muted); margin-top:1px; }
+.shop-item-price { font-size:12px; color:var(--muted); white-space:nowrap; }
+.shop-send-btn { display:block; width:calc(100% - 28px); margin:10px 14px; padding:10px; background:var(--cta); color:#fff; border:none; border-radius:9px; font-size:12px; font-weight:500; cursor:pointer; font-family:'Inter',sans-serif; letter-spacing:0.3px; }
+.shop-send-btn:hover { background:var(--cta-hover); }
+.shop-total { padding:10px 14px; border-top:0.5px solid var(--line); display:flex; justify-content:space-between; font-size:12px; color:var(--muted); }
+.shop-total strong { color:var(--ink); }
+
+/* FINANCIAL HEALTH */
+.fin-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.fin-card { background:var(--bg-card); border:0.5px solid var(--line); border-radius:11px; padding:14px 16px; }
+.fin-card.full { grid-column:1/-1; }
+.fin-lbl { font-size:9px; font-weight:500; color:var(--muted); text-transform:uppercase; letter-spacing:1.5px; margin-bottom:6px; }
+.fin-val { font-family:'Cormorant Garamond',serif; font-size:26px; font-weight:400; color:var(--ink); line-height:1; }
+.fin-val.green { color:var(--green); }
+.fin-val.amber { color:var(--amber); }
+.fin-val.red   { color:var(--red); }
+.fin-note { font-size:11px; color:var(--muted); margin-top:4px; }
+.fin-bar { height:4px; background:var(--line); border-radius:99px; margin-top:8px; overflow:hidden; }
+.fin-bar-fill { height:100%; border-radius:99px; background:var(--green); transition:width 0.6s ease; }
+
+/* EMPTY + LOADING */
+.empty-state { padding:28px 16px; text-align:center; background:var(--olive-tint); border-radius:11px; }
+.empty-state-icon { font-size:22px; color:var(--olive); margin-bottom:7px; }
+.empty-state-text { font-family:'Cormorant Garamond',serif; font-size:17px; color:var(--ink); margin-bottom:3px; }
 .empty-state-sub  { font-size:11px; color:var(--muted-soft); }
-
-/* LOADING SKELETON */
-.skel { height:84px; background:var(--bg-soft); border:0.5px solid var(--line); border-radius:11px; margin-bottom:10px; animation:shimmer 1.4s infinite; }
+.skel { height:80px; background:var(--bg-soft); border:0.5px solid var(--line); border-radius:11px; margin-bottom:10px; animation:shimmer 1.4s infinite; }
 @keyframes shimmer { 0%,100%{opacity:1} 50%{opacity:0.5} }
-
-/* COMING SOON PLACEHOLDER SECTIONS */
-.coming-soon { padding:18px 16px; background:var(--bg-soft); border:0.5px dashed var(--line); border-radius:11px; text-align:center; }
-.coming-soon-icon { font-size:18px; color:var(--muted-soft); margin-bottom:6px; }
-.coming-soon-text { font-size:12px; color:var(--muted); font-style:italic; }
 
 </style>
 </head>
 <body>
 
-<!-- HEADER -->
 <div class="hdr">
   <div class="hdr-top">
     <div class="brand-stack">
       <div class="b1">Styling With Jas</div>
       <div class="b2">Staging & Design Services</div>
     </div>
-    <div class="hdr-right">
-      <div class="nav-sw">
-        <button class="nav-btn on">Today</button>
-        <button class="nav-btn off" onclick="window.location.href='/board.html'">Board</button>
-        <button class="nav-btn off" onclick="window.location.href='/index.html'">Invoice</button>
-      </div>
+    <div class="nav-sw">
+      <button class="nav-btn on">Today</button>
+      <button class="nav-btn off" onclick="window.location.href='/board.html'">Board</button>
+      <button class="nav-btn off" onclick="window.location.href='/index.html'">Invoice</button>
     </div>
   </div>
 </div>
 
 <div class="content">
 
-  <!-- GREETING -->
   <div class="greeting">
     <div class="greeting-hello" id="greeting-hello">Good morning, Jas.</div>
-    <div class="greeting-date" id="greeting-date">Loading...</div>
+    <div class="greeting-date" id="greeting-date"></div>
+    <div class="greeting-summary" id="greeting-summary" style="display:none"></div>
   </div>
 
-  <!-- SECTION 1 — URGENT ACTIONS -->
+  <!-- S1 NEEDS ATTENTION -->
   <div class="section">
     <div class="section-hdr">
       <div class="section-title">Needs Attention</div>
-      <div class="section-meta" id="actions-count">— loading</div>
+      <div class="section-meta" id="s1-meta">—</div>
     </div>
-    <div id="actions-list">
-      <div class="skel"></div>
-      <div class="skel"></div>
-    </div>
+    <div id="s1-body"><div class="skel"></div><div class="skel"></div></div>
   </div>
 
-  <!-- SECTION 2 — TODAY'S SCHEDULE (placeholder) -->
+  <!-- S2 TODAY'S SCHEDULE -->
   <div class="section">
     <div class="section-hdr">
       <div class="section-title">Today's Schedule</div>
-      <div class="section-meta">coming next</div>
+      <div class="section-meta" id="s2-meta">—</div>
     </div>
-    <div class="coming-soon">
-      <div class="coming-soon-icon"><i class="ti ti-calendar-time" aria-hidden="true"></i></div>
-      <div class="coming-soon-text">Timeline view — truck pickup, staging start, photo delivery</div>
-    </div>
+    <div id="s2-body"><div class="skel"></div></div>
   </div>
 
-  <!-- SECTION 3 — SHOPPING RUNS (placeholder) -->
+  <!-- S3 SHOPPING RUNS -->
   <div class="section">
     <div class="section-hdr">
       <div class="section-title">Shopping Runs</div>
-      <div class="section-meta">coming next</div>
+      <div class="section-meta" id="s3-meta">—</div>
     </div>
-    <div class="coming-soon">
-      <div class="coming-soon-icon"><i class="ti ti-shopping-cart" aria-hidden="true"></i></div>
-      <div class="coming-soon-text">Consolidated list by store, with mark-completed</div>
-    </div>
+    <div id="s3-body"><div class="skel"></div></div>
   </div>
 
-  <!-- SECTION 4 — FOLLOW-UPS (placeholder) -->
+  <!-- S4 FOLLOW-UPS -->
   <div class="section">
     <div class="section-hdr">
       <div class="section-title">Follow-ups</div>
-      <div class="section-meta">coming next</div>
+      <div class="section-meta" id="s4-meta">—</div>
     </div>
-    <div class="coming-soon">
-      <div class="coming-soon-icon"><i class="ti ti-mail-forward" aria-hidden="true"></i></div>
-      <div class="coming-soon-text">Stale proposals with one-tap reminder send</div>
-    </div>
+    <div id="s4-body"><div class="skel"></div></div>
   </div>
 
-  <!-- SECTION 5 — FINANCIAL HEALTH (placeholder) -->
+  <!-- S5 FINANCIAL HEALTH -->
   <div class="section">
     <div class="section-hdr">
       <div class="section-title">Financial Health</div>
-      <div class="section-meta">coming next</div>
+      <div class="section-meta" id="s5-meta">this month</div>
     </div>
-    <div class="coming-soon">
-      <div class="coming-soon-icon"><i class="ti ti-coin" aria-hidden="true"></i></div>
-      <div class="coming-soon-text">Pending payment · MTD revenue · avg margin</div>
-    </div>
-  </div>
-
-  <!-- SECTION 6 — UPCOMING BOTTLENECKS (placeholder) -->
-  <div class="section">
-    <div class="section-hdr">
-      <div class="section-title">Upcoming Bottlenecks</div>
-      <div class="section-meta">coming next</div>
-    </div>
-    <div class="coming-soon">
-      <div class="coming-soon-icon"><i class="ti ti-alert-triangle" aria-hidden="true"></i></div>
-      <div class="coming-soon-text">Mover conflicts · inventory · weekly load</div>
-    </div>
+    <div id="s5-body"><div class="skel" style="height:120px"></div></div>
   </div>
 
 </div>
@@ -219,212 +228,468 @@ const _sb = supabase.createClient(
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN3dmRmZ3JqbHJwc2Rmd2R1d3ZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwMDcyODUsImV4cCI6MjA5MzU4MzI4NX0.zam9AnIwW91TI6eCKUcg05LhvFcRa7op4QsjRpdcrCY'
 );
 
+// ─── helpers ───────────────────────────────────────────
+function esc(s){ return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function fmt(n){ return '$'+Math.round(n||0).toLocaleString(); }
+function fmtFull(n){ return '$'+(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function toDate(iso){ return iso ? new Date(iso+'T00:00:00') : null; }
+function daysAgo(iso, today){ const d=toDate(iso); return d ? Math.round((today-d)/864e5) : null; }
+function daysAway(iso, today){ const d=toDate(iso); return d ? Math.round((d-today)/864e5) : null; }
+function fmtShort(iso){ if(!iso)return''; const d=toDate(iso); return d.toLocaleDateString('en-US',{month:'short',day:'numeric'}); }
+function fmtDay(iso){ if(!iso)return''; const d=toDate(iso); return d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}); }
+function computeGrand(d){
+  const base=parseFloat(d.base_price)||2500;
+  const addons=(d.addons||[]).reduce((s,a)=>s+(parseFloat(a.price)||0),0);
+  return (base+addons)*(1+(parseFloat(d.taxrate)||0)/100);
+}
+function firstName(client){ return (client||'').split(' ')[0]; }
+
+// ─── navigation ────────────────────────────────────────
+function goInvoice(invnum){ window.location.href='/index.html?inv='+encodeURIComponent(invnum); }
+function goBoard(invnum){ window.location.href='/board.html'; }
+
+// ─── greeting ──────────────────────────────────────────
 function setGreeting(){
-  const hr = new Date().getHours();
-  let g = 'Good morning';
-  if(hr >= 12 && hr < 17) g = 'Good afternoon';
-  else if(hr >= 17) g = 'Good evening';
-  document.getElementById('greeting-hello').textContent = `${g}, Jas.`;
-  const d = new Date();
-  const opts = { weekday:'long', month:'long', day:'numeric' };
-  document.getElementById('greeting-date').textContent = d.toLocaleDateString('en-US', opts);
+  const hr=new Date().getHours();
+  let g='Good morning';
+  if(hr>=12&&hr<17)g='Good afternoon';
+  else if(hr>=17)g='Good evening';
+  document.getElementById('greeting-hello').textContent=g+', Jas.';
+  document.getElementById('greeting-date').textContent=new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
 }
 
-function daysBetween(dateStr, today){
-  // Returns positive if dateStr is in the past relative to today (i.e. how many days ago)
-  if(!dateStr) return null;
-  const d = new Date(dateStr + 'T00:00:00');
-  const diff = (today - d) / (1000*60*60*24);
-  return Math.round(diff);
-}
-function daysUntil(dateStr, today){
-  if(!dateStr) return null;
-  const d = new Date(dateStr + 'T00:00:00');
-  const diff = (d - today) / (1000*60*60*24);
-  return Math.round(diff);
+function setGreetingSummary(urgentCount, todayCount, shopCount, followupCount){
+  const el=document.getElementById('greeting-summary');
+  const parts=[];
+  if(urgentCount>0) parts.push(`<strong>${urgentCount}</strong> item${urgentCount===1?'':'s'} need${urgentCount===1?'s':''} attention`);
+  if(todayCount>0)  parts.push(`<strong>${todayCount}</strong> staging${todayCount===1?'':'s'} today`);
+  if(shopCount>0)   parts.push(`<strong>${shopCount}</strong> shopping item${shopCount===1?'':'s'} pending`);
+  if(followupCount>0) parts.push(`<strong>${followupCount}</strong> follow-up${followupCount===1?'':'s'} due`);
+  if(parts.length===0){ el.style.display='none'; return; }
+  el.innerHTML=parts.join(' · ');
+  el.style.display='block';
 }
 
-function fmt(n){ return '$' + Math.round(n).toLocaleString(); }
+// ─── MAIN LOAD ─────────────────────────────────────────
+async function loadToday(){
+  const today=new Date(); today.setHours(0,0,0,0);
 
-async function loadUrgentActions(){
-  const today = new Date();
-  today.setHours(0,0,0,0);
-  const listEl = document.getElementById('actions-list');
-  const countEl = document.getElementById('actions-count');
-
-  try {
-    const { data, error } = await _sb
+  let invoices=[];
+  try{
+    const {data,error}=await _sb
       .from('invoices')
       .select('invnum,client,address,invdate,data,created_at')
-      .not('invnum', 'like', 'DRAFT-%')
-      .order('created_at', { ascending: false })
-      .limit(50);
-
-    if(error){
-      listEl.innerHTML = '<div class="empty-state"><div class="empty-state-text">Could not load</div><div class="empty-state-sub">' + error.message + '</div></div>';
-      countEl.textContent = 'error';
-      return;
-    }
-
-    const actions = [];
-
-    (data || []).forEach(inv => {
-      const d = inv.data || {};
-      const client = inv.client || d.client || 'Unknown';
-      const address = inv.address || d.address || '';
-      const addrShort = address.split(',')[0] || address;
-      const paid = d.paid === true;
-      const startdate = d.startdate;
-      const invdate = inv.invdate || d.invdate;
-
-      // Compute grand total from data
-      const base = parseFloat(d.base_price) || 2500;
-      const addonsTotal = (d.addons || []).reduce((s,a)=>s+(parseFloat(a.price)||0),0);
-      const taxrate = parseFloat(d.taxrate) || 0;
-      const grand = (base + addonsTotal) * (1 + taxrate/100);
-
-      // RULE 1 — Payment overdue
-      // Staging date is in the past and still not paid
-      if(!paid && startdate){
-        const daysAgo = daysBetween(startdate, today);
-        if(daysAgo > 0){
-          actions.push({
-            severity:'high',
-            label:'Payment Overdue',
-            client, address: addrShort,
-            detail: `Staging was ${daysAgo} day${daysAgo===1?'':'s'} ago · Invoice ${inv.invnum}`,
-            amount: grand,
-            actions: [
-              {text:'Send Reminder', primary:true, onclick:`sendReminder('${inv.invnum}')`},
-              {text:'View Invoice', onclick:`viewInvoice('${inv.invnum}')`},
-            ],
-            sortKey: 1000 + daysAgo,
-          });
-          return;
-        }
-      }
-
-      // RULE 2 — Payment due soon (within 48h of staging)
-      if(!paid && startdate){
-        const daysUntilStaging = daysUntil(startdate, today);
-        if(daysUntilStaging !== null && daysUntilStaging >= 0 && daysUntilStaging <= 2){
-          actions.push({
-            severity:'medium',
-            label:'Payment Due Soon',
-            client, address: addrShort,
-            detail: daysUntilStaging === 0
-              ? `Staging today — payment required`
-              : `Staging in ${daysUntilStaging} day${daysUntilStaging===1?'':'s'} · Invoice ${inv.invnum}`,
-            amount: grand,
-            actions: [
-              {text:'Send Reminder', primary:true, onclick:`sendReminder('${inv.invnum}')`},
-              {text:'View Invoice', onclick:`viewInvoice('${inv.invnum}')`},
-            ],
-            sortKey: 500 + (3 - daysUntilStaging),
-          });
-          return;
-        }
-      }
-
-      // RULE 3 — Proposal stale (>5 days, still unpaid, no staging date set yet)
-      if(!paid && invdate && !startdate){
-        const daysAgo = daysBetween(invdate, today);
-        if(daysAgo >= 5){
-          actions.push({
-            severity:'low',
-            label:'Proposal Stale',
-            client, address: addrShort,
-            detail: `Sent ${daysAgo} days ago · No response yet`,
-            amount: grand,
-            actions: [
-              {text:'Send Follow-up', primary:true, onclick:`sendFollowup('${inv.invnum}')`},
-              {text:'View Invoice', onclick:`viewInvoice('${inv.invnum}')`},
-            ],
-            sortKey: 100 + daysAgo,
-          });
-          return;
-        }
-      }
-
-      // RULE 4 — Destage approaching (staged + nearing 45-day rental limit)
-      if(paid && startdate){
-        const daysSinceStaging = daysBetween(startdate, today);
-        if(daysSinceStaging >= 40 && daysSinceStaging <= 50){
-          const daysLeft = 45 - daysSinceStaging;
-          actions.push({
-            severity: daysLeft <= 2 ? 'high' : 'medium',
-            label:'Destage Approaching',
-            client, address: addrShort,
-            detail: daysLeft > 0
-              ? `${daysLeft} day${daysLeft===1?'':'s'} until 45-day rental ends`
-              : `${Math.abs(daysLeft)} day${Math.abs(daysLeft)===1?'':'s'} past rental window — extension billing applies`,
-            amount: null,
-            actions: [
-              {text:'Plan Destage', primary:true, onclick:`viewInvoice('${inv.invnum}')`},
-            ],
-            sortKey: 800 - daysLeft,
-          });
-          return;
-        }
-      }
+      .not('invnum','like','DRAFT-%')
+      .order('created_at',{ascending:false})
+      .limit(100);
+    if(!error) invoices=(data||[]).filter(inv=>{
+      const stage=(inv.data&&inv.data.stage)||'proposal';
+      return stage!=='denied';
     });
+  }catch(e){ console.error('Load error:',e); }
 
-    // Sort by sortKey descending so highest urgency floats up
-    actions.sort((a,b) => b.sortKey - a.sortKey);
+  const urgentCount = buildS1(invoices, today);
+  const todayCount  = buildS2(invoices, today);
+  const shopCount   = buildS3(invoices);
+  const followCount = buildS4(invoices, today);
+                      buildS5(invoices, today);
 
-    if(actions.length === 0){
-      listEl.innerHTML = `
-        <div class="empty-state">
-          <div class="empty-state-icon"><i class="ti ti-check" aria-hidden="true"></i></div>
-          <div class="empty-state-text">All clear.</div>
-          <div class="empty-state-sub">Nothing needs your attention right now.</div>
-        </div>`;
-      countEl.textContent = '0 items';
-      return;
+  setGreetingSummary(urgentCount, todayCount, shopCount, followCount);
+}
+
+// ─── S1: NEEDS ATTENTION ───────────────────────────────
+function buildS1(invoices, today){
+  const actions=[];
+  invoices.forEach(inv=>{
+    const d=inv.data||{};
+    const client=inv.client||d.client||'Unknown';
+    const addr=(inv.address||d.address||'').split(',')[0];
+    const paid=d.paid===true;
+    const grand=computeGrand(d);
+
+    // Payment overdue
+    if(!paid&&d.startdate){
+      const ago=daysAgo(d.startdate,today);
+      if(ago>0){
+        actions.push({sev:'sev-high',label:'Payment Overdue',client,addr,
+          detail:`Staging was ${ago} day${ago===1?'':'s'} ago · #${inv.invnum}`,
+          amount:grand,amtRed:true,invnum:inv.invnum,
+          btns:[{t:'Send Reminder',cls:'primary',fn:`openReminderModal('${inv.invnum}')`},
+                {t:'Mark Paid',cls:'green-btn',fn:`markPaid('${inv.invnum}')`},
+                {t:'View',cls:'',fn:`goInvoice('${inv.invnum}')`}],
+          sortKey:1000+ago});
+        return;
+      }
     }
+    // Payment due within 48h
+    if(!paid&&d.startdate){
+      const away=daysAway(d.startdate,today);
+      if(away!==null&&away>=0&&away<=2){
+        actions.push({sev:'sev-medium',label:'Payment Due Soon',client,addr,
+          detail:away===0?'Staging today — payment required':`Staging in ${away} day${away===1?'':'s'} · #${inv.invnum}`,
+          amount:grand,amtRed:false,invnum:inv.invnum,
+          btns:[{t:'Send Reminder',cls:'primary',fn:`openReminderModal('${inv.invnum}')`},
+                {t:'View Invoice',cls:'',fn:`goInvoice('${inv.invnum}')`}],
+          sortKey:500+(3-away)});
+        return;
+      }
+    }
+    // Destage approaching
+    if(paid&&d.startdate&&(d.stage==='staged'||!d.stage)){
+      const ago=daysAgo(d.startdate,today);
+      if(ago>=40&&ago<=50){
+        const left=45-ago;
+        actions.push({sev:left<=2?'sev-high':'sev-medium',label:'Destage Approaching',client,addr,
+          detail:left>0?`${left} day${left===1?'':'s'} until 45-day rental ends`:`${Math.abs(left)} day${Math.abs(left)===1?'':'s'} past rental window`,
+          amount:null,amtRed:false,invnum:inv.invnum,
+          btns:[{t:'Plan Destage',cls:'primary',fn:`goBoard('${inv.invnum}')`},
+                {t:'View Card',cls:'',fn:`goBoard('${inv.invnum}')`}],
+          sortKey:800-left});
+      }
+    }
+  });
 
-    listEl.innerHTML = actions.map(a => `
-      <div class="action-card severity-${a.severity}">
-        <div class="action-row">
-          <div class="action-content">
-            <div class="action-label">${a.label}</div>
-            <div class="action-client">${a.client}</div>
-            <div class="action-detail">${a.address ? a.address + ' · ' : ''}${a.detail}</div>
-          </div>
-          ${a.amount !== null ? `<div class="action-amount ${a.severity==='high'?'red':''}">${fmt(a.amount)}</div>` : ''}
+  actions.sort((a,b)=>b.sortKey-a.sortKey);
+  const el=document.getElementById('s1-body');
+  const meta=document.getElementById('s1-meta');
+  meta.textContent=actions.length?`${actions.length} item${actions.length===1?'':'s'}`:'all clear';
+
+  if(!actions.length){
+    el.innerHTML=`<div class="empty-state"><div class="empty-state-icon"><i class="ti ti-check"></i></div><div class="empty-state-text">All clear.</div><div class="empty-state-sub">Nothing urgent right now.</div></div>`;
+    return 0;
+  }
+  el.innerHTML=actions.map(a=>`
+    <div class="action-card ${a.sev}" onclick="goInvoice('${a.invnum}')">
+      <div class="action-top">
+        <div class="action-content">
+          <div class="action-label">${a.label}</div>
+          <div class="action-client">${esc(a.client)}</div>
+          <div class="action-detail">${a.addr?esc(a.addr)+' · ':''}${a.detail}</div>
         </div>
-        <div class="action-btns">
-          ${a.actions.map(b => `<button class="action-btn ${b.primary?'primary':'ghost'}" onclick="${b.onclick}">${b.text}</button>`).join('')}
-        </div>
+        ${a.amount!==null?`<div class="action-amount${a.amtRed?' red':''}">${fmt(a.amount)}</div>`:''}
       </div>
-    `).join('');
-    countEl.textContent = `${actions.length} item${actions.length===1?'':'s'}`;
+      <div class="action-btns" onclick="event.stopPropagation()">
+        ${a.btns.map(b=>`<button class="abn ${b.cls}" onclick="${b.fn}">${b.t}</button>`).join('')}
+      </div>
+    </div>
+  `).join('');
+  return actions.length;
+}
 
-  } catch(e){
-    listEl.innerHTML = '<div class="empty-state"><div class="empty-state-text">Could not load</div><div class="empty-state-sub">'+e.message+'</div></div>';
-    countEl.textContent = 'error';
+// ─── S2: TODAY'S SCHEDULE ──────────────────────────────
+function buildS2(invoices, today){
+  const el=document.getElementById('s2-body');
+  const meta=document.getElementById('s2-meta');
+  // Items: staging today/tomorrow, destage today, photos today
+  const items=[];
+
+  invoices.forEach(inv=>{
+    const d=inv.data||{};
+    const client=inv.client||d.client||'Unknown';
+    const addr=(inv.address||d.address||'').split(',').slice(0,2).join(',');
+
+    if(d.startdate){
+      const away=daysAway(d.startdate,today);
+      if(away===0){
+        const tags=[];
+        if(d.truck_booked) tags.push({t:'Truck booked',cls:'ok'});
+        else tags.push({t:'Truck not booked',cls:'warn'});
+        if(d.mover_name) tags.push({t:d.mover_name,cls:'ok'});
+        else tags.push({t:'No mover set',cls:'warn'});
+        if(d.truck_pickup_time) tags.push({t:d.truck_pickup_time,cls:''});
+        items.push({time:d.truck_pickup_time||'All day',label:'Staging',client,addr,tags,invnum:inv.invnum,sortKey:0});
+      } else if(away===1){
+        items.push({time:'Tomorrow',label:'Staging',client,addr,tags:[{t:fmtShort(d.startdate),cls:''}],invnum:inv.invnum,sortKey:100});
+      }
+    }
+    if(d.destage_date){
+      const away=daysAway(d.destage_date,today);
+      if(away===0){
+        const tags=[{t:d.destage_mover||'No mover set',cls:d.destage_mover?'ok':'warn'}];
+        if(d.destage_time) tags.push({t:d.destage_time,cls:''});
+        items.push({time:d.destage_time||'All day',label:'Destage',client,addr,tags,invnum:inv.invnum,sortKey:10});
+      }
+    }
+    if(d.photo_date){
+      const away=daysAway(d.photo_date,today);
+      if(away===0){
+        items.push({time:'Today',label:'Photos',client,addr,tags:[{t:'Photo session',cls:'ok'}],invnum:inv.invnum,sortKey:50});
+      }
+    }
+  });
+
+  items.sort((a,b)=>a.sortKey-b.sortKey);
+  const todayItems=items.filter(i=>i.time!=='Tomorrow');
+  meta.textContent=todayItems.length?`${todayItems.length} today`:'nothing today';
+
+  if(!items.length){
+    el.innerHTML=`<div class="empty-state"><div class="empty-state-icon"><i class="ti ti-calendar-off"></i></div><div class="empty-state-text">Nothing scheduled.</div><div class="empty-state-sub">No stagings, destages, or photo sessions today or tomorrow.</div></div>`;
+    return 0;
+  }
+
+  el.innerHTML=items.map(item=>`
+    <div class="sched-item" onclick="goBoard('${item.invnum}')">
+      <div>
+        <div class="sched-time">${esc(item.time)}</div>
+      </div>
+      <div class="sched-body">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div>
+            <div style="font-size:9px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:2px">${item.label}</div>
+            <div class="sched-client">${esc(item.client)}</div>
+            <div class="sched-detail">${esc(item.addr)}</div>
+          </div>
+          <div class="sched-nav" onclick="event.stopPropagation();goBoard('${item.invnum}')">Open →</div>
+        </div>
+        <div class="sched-tags">${item.tags.map(t=>`<span class="sched-tag ${t.cls}">${esc(t.t)}</span>`).join('')}</div>
+      </div>
+    </div>
+  `).join('');
+  return todayItems.length;
+}
+
+// ─── S3: SHOPPING RUNS ─────────────────────────────────
+// Local toggle state (persists until page refresh — board.html handles full persistence)
+const shopState={};
+function buildS3(invoices){
+  const el=document.getElementById('s3-body');
+  const meta=document.getElementById('s3-meta');
+  // Aggregate prep_items from all active invoices
+  const byStore={};
+  let totalItems=0, totalCost=0;
+
+  invoices.forEach(inv=>{
+    const d=inv.data||{};
+    const client=inv.client||d.client||'';
+    const city=(inv.address||'').split(',')[1]||'';
+    const label=firstName(client)+(city?' — '+city.trim():'');
+    (d.prep_items||[]).filter(p=>!p.done&&p.store).forEach(p=>{
+      if(!byStore[p.store]) byStore[p.store]=[];
+      const key=inv.invnum+':'+p.desc;
+      byStore[p.store].push({...p,job:label,key,invnum:inv.invnum});
+      if(p.price) totalCost+=parseFloat(p.price)||0;
+      totalItems++;
+    });
+  });
+
+  const stores=Object.keys(byStore);
+  meta.textContent=totalItems?`${totalItems} item${totalItems===1?'':'s'}`:'nothing pending';
+
+  if(!stores.length){
+    el.innerHTML=`<div class="empty-state"><div class="empty-state-icon"><i class="ti ti-shopping-cart-off"></i></div><div class="empty-state-text">Nothing to buy.</div><div class="empty-state-sub">No pending shopping items across active jobs.</div></div>`;
+    return 0;
+  }
+
+  el.innerHTML=stores.map(store=>{
+    const items=byStore[store];
+    const storeCost=items.reduce((s,i)=>s+(parseFloat(i.price)||0),0);
+    return `
+      <div class="shop-store" id="store-${esc(store.replace(/\s+/g,'-'))}">
+        <div class="shop-store-hdr">
+          <span class="shop-store-name">${esc(store)}</span>
+          <span class="shop-store-count">${items.length} item${items.length===1?'':'s'}${storeCost?' · ~'+fmt(storeCost):''}</span>
+        </div>
+        ${items.map(item=>`
+          <div class="shop-item" id="si-${esc(item.key.replace(/[^a-z0-9]/gi,'-'))}">
+            <div class="shop-check ${shopState[item.key]?'done':''}" onclick="toggleShopItem('${esc(item.key)}')">
+              <svg width="9" height="7" viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <div class="shop-item-body">
+              <div class="shop-item-desc ${shopState[item.key]?'done':''}">${esc(item.desc)}</div>
+              <div class="shop-item-job">${esc(item.job)}</div>
+            </div>
+            ${item.price?`<div class="shop-item-price">~$${item.price}</div>`:''}
+          </div>
+        `).join('')}
+        ${storeCost>0?`<div class="shop-total"><span>Est. spend</span><strong>~${fmt(storeCost)}</strong></div>`:''}
+      </div>
+    `;
+  }).join('');
+
+  // Send all button
+  el.insertAdjacentHTML('beforeend',`
+    <button class="shop-send-btn" onclick="sendAllShopping()">Send Full List to Phone</button>
+    ${totalCost>0?`<div style="text-align:center;font-size:11px;color:var(--muted);margin-top:6px">Est. total ~${fmt(totalCost)}</div>`:''}
+  `);
+
+  return totalItems;
+}
+
+function toggleShopItem(key){
+  shopState[key]=!shopState[key];
+  // Re-render just this item's check state
+  const check=document.querySelector(`[onclick="toggleShopItem('${CSS.escape(key)}')"]`);
+  if(check){
+    check.classList.toggle('done',shopState[key]);
+    const desc=check.closest('.shop-item')?.querySelector('.shop-item-desc');
+    if(desc) desc.classList.toggle('done',shopState[key]);
   }
 }
 
-// Action button handlers
-function viewInvoice(invnum){
-  // Navigate to invoice page; could include a query param to auto-load this invoice
-  window.location.href = `/index.html?inv=${encodeURIComponent(invnum)}`;
+function sendAllShopping(){
+  const today=new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
+  let msg=`SWJ Shopping Run — ${today}\n\n`;
+  document.querySelectorAll('.shop-store').forEach(storeEl=>{
+    const name=storeEl.querySelector('.shop-store-name')?.textContent||'';
+    const items=[...storeEl.querySelectorAll('.shop-item')].filter(i=>!i.querySelector('.shop-check.done'));
+    if(!items.length) return;
+    msg+=name.toUpperCase()+'\n';
+    items.forEach(i=>{
+      const desc=i.querySelector('.shop-item-desc')?.textContent||'';
+      const price=i.querySelector('.shop-item-price')?.textContent||'';
+      const job=i.querySelector('.shop-item-job')?.textContent||'';
+      msg+=`• ${desc}${price?' ('+price+')':''} — ${job}\n`;
+    });
+    msg+='\n';
+  });
+  window.open('sms:+12064225618&body='+encodeURIComponent(msg));
 }
 
-function sendReminder(invnum){
-  // Placeholder — opens invoice page where Jasmine can re-send via the email modal
-  viewInvoice(invnum);
+// ─── S4: FOLLOW-UPS ───────────────────────────────────
+function buildS4(invoices, today){
+  const el=document.getElementById('s4-body');
+  const meta=document.getElementById('s4-meta');
+  // Proposals sent >5 days ago with no confirmation (no startdate, not paid, not denied)
+  const followups=invoices.filter(inv=>{
+    const d=inv.data||{};
+    const stage=d.stage||'proposal';
+    const paid=d.paid===true;
+    const hasStartdate=!!d.startdate;
+    const invdate=inv.invdate||d.invdate;
+    if(paid||hasStartdate||stage==='denied'||stage==='done') return false;
+    const ago=daysAgo(invdate,today);
+    return ago!==null&&ago>=3; // show if 3+ days old
+  }).map(inv=>{
+    const d=inv.data||{};
+    const invdate=inv.invdate||d.invdate;
+    const ago=daysAgo(invdate,today);
+    const grand=computeGrand(d);
+    return {
+      invnum:inv.invnum,
+      client:inv.client||d.client||'Unknown',
+      addr:(inv.address||d.address||'').split(',')[0],
+      daysAgo:ago,
+      grand,
+      sev:ago>=10?'sev-high':ago>=7?'sev-medium':'sev-low',
+    };
+  }).sort((a,b)=>b.daysAgo-a.daysAgo);
+
+  meta.textContent=followups.length?`${followups.length} pending`:'all responded';
+
+  if(!followups.length){
+    el.innerHTML=`<div class="empty-state"><div class="empty-state-icon"><i class="ti ti-mail-check"></i></div><div class="empty-state-text">No follow-ups needed.</div><div class="empty-state-sub">All recent proposals are progressing.</div></div>`;
+    return 0;
+  }
+
+  el.innerHTML=followups.map(f=>`
+    <div class="action-card ${f.sev}" onclick="goInvoice('${f.invnum}')">
+      <div class="action-top">
+        <div class="action-content">
+          <div class="action-label">Proposal Sent ${f.daysAgo} Day${f.daysAgo===1?'':'s'} Ago</div>
+          <div class="action-client">${esc(f.client)}</div>
+          <div class="action-detail">${esc(f.addr)} · No response yet</div>
+        </div>
+        <div class="action-amount">${fmt(f.grand)}</div>
+      </div>
+      <div class="action-btns" onclick="event.stopPropagation()">
+        <button class="abn primary" onclick="openFollowupModal('${f.invnum}')">Send Follow-up</button>
+        <button class="abn" onclick="goInvoice('${f.invnum}')">View Invoice</button>
+      </div>
+    </div>
+  `).join('');
+  return followups.length;
 }
 
-function sendFollowup(invnum){
-  // Placeholder — same flow
-  viewInvoice(invnum);
+// ─── S5: FINANCIAL HEALTH ─────────────────────────────
+function buildS5(invoices, today){
+  const el=document.getElementById('s5-body');
+  const now=new Date();
+  const monthStart=new Date(now.getFullYear(),now.getMonth(),1);
+  const monthName=now.toLocaleDateString('en-US',{month:'long'});
+
+  let mtdRevenue=0, mtdCount=0;
+  let pendingTotal=0, pendingCount=0;
+  let pipelineTotal=0;
+
+  invoices.forEach(inv=>{
+    const d=inv.data||{};
+    const grand=computeGrand(d);
+    const stage=d.stage||'proposal';
+
+    // MTD: paid invoices this month
+    if(d.paid&&d.paid_date){
+      const pd=toDate(d.paid_date);
+      if(pd&&pd>=monthStart){ mtdRevenue+=grand; mtdCount++; }
+    }
+    // Pending: confirmed/staged but not paid
+    if(!d.paid&&(stage==='confirmed'||stage==='staged')){
+      pendingTotal+=grand; pendingCount++;
+    }
+    // Pipeline: proposals
+    if(stage==='proposal'&&!d.paid){
+      pipelineTotal+=grand;
+    }
+  });
+
+  // Simple monthly goal — hardcoded $15k (could be made editable later)
+  const monthlyGoal=15000;
+  const pct=Math.min(100,Math.round((mtdRevenue/monthlyGoal)*100));
+
+  el.innerHTML=`
+    <div class="fin-grid">
+      <div class="fin-card">
+        <div class="fin-lbl">${monthName} Revenue</div>
+        <div class="fin-val green">${fmt(mtdRevenue)}</div>
+        <div class="fin-note">${mtdCount} paid invoice${mtdCount===1?'':'s'}</div>
+        <div class="fin-bar"><div class="fin-bar-fill" style="width:${pct}%"></div></div>
+        <div class="fin-note" style="margin-top:4px">${pct}% of $${monthlyGoal.toLocaleString()} goal</div>
+      </div>
+      <div class="fin-card">
+        <div class="fin-lbl">Pending Payment</div>
+        <div class="fin-val amber">${fmt(pendingTotal)}</div>
+        <div class="fin-note">${pendingCount} invoice${pendingCount===1?'':'s'} confirmed</div>
+      </div>
+      <div class="fin-card full">
+        <div class="fin-lbl">Open Pipeline</div>
+        <div class="fin-val">${fmt(pipelineTotal)}</div>
+        <div class="fin-note">Proposals not yet confirmed — potential revenue if all close</div>
+      </div>
+    </div>
+  `;
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+// ─── ACTION HANDLERS ──────────────────────────────────
+function openReminderModal(invnum){
+  // Navigate to invoice page with that invoice loaded — Jasmine can use the Generate+Email button
+  window.location.href='/index.html?inv='+encodeURIComponent(invnum);
+}
+
+function openFollowupModal(invnum){
+  window.location.href='/index.html?inv='+encodeURIComponent(invnum);
+}
+
+async function markPaid(invnum){
+  if(!confirm('Mark invoice #'+invnum+' as paid today?')) return;
+  try {
+    // Fetch current data
+    const {data}=await _sb.from('invoices').select('*').eq('invnum',invnum).limit(1);
+    if(!data||!data[0]){ alert('Invoice not found'); return; }
+    const d={...(data[0].data||{})};
+    d.paid=true;
+    d.paid_date=new Date().toISOString().split('T')[0];
+    const {error}=await _sb.from('invoices').upsert({
+      invnum:data[0].invnum, client:data[0].client,
+      address:data[0].address, invdate:data[0].invdate, data:d
+    },{onConflict:'invnum'});
+    if(error){ alert('Update failed: '+error.message); return; }
+    alert('Marked as paid.');
+    loadToday(); // refresh page
+  } catch(e){ alert('Error: '+e.message); }
+}
+
+document.addEventListener('DOMContentLoaded',()=>{
   setGreeting();
-  loadUrgentActions();
+  loadToday();
 });
 </script>
 </body>

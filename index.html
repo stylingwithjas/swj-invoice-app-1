@@ -1015,15 +1015,16 @@ async function loadRecent(){
     const expandBtn = document.getElementById('recent-expand-btn');
     if(expandBtn) expandBtn.style.display = (!recentExpanded && data.length > 3) ? 'block' : 'none';
     el.innerHTML = showData.map((inv,i)=>`
-      <div class="ri" onclick="loadInvoice(${i})">
-        <div>
+      <div class="ri" style="position:relative">
+        <div style="flex:1" onclick="loadInvoice(${i})">
           <div class="ri-name">${inv.client}</div>
           <div class="ri-addr">${inv.address||''}</div>
         </div>
-        <div>
+        <div onclick="loadInvoice(${i})" style="flex-shrink:0;text-align:right;margin-right:8px">
           <div class="ri-num">#${inv.invnum}</div>
           <div class="ri-date">${inv.invdate||''}</div>
         </div>
+        <button onclick="hardDeleteInvoice('${inv.invnum}',event)" title="Permanently delete" style="background:none;border:none;color:var(--muted-soft);font-size:16px;cursor:pointer;padding:4px 6px;border-radius:6px;flex-shrink:0;line-height:1;transition:color 0.15s" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--muted-soft)'">×</button>
       </div>
     `).join('');
   }catch(e){
@@ -1047,6 +1048,22 @@ function showUpdateBtn(){
   // Only show for real (non-draft) invoices that are loaded
   const isReal = currentLoadedInvnum && !currentLoadedInvnum.startsWith('DRAFT-');
   btn.style.display = isReal ? 'block' : 'none';
+}
+
+async function hardDeleteInvoice(invnum, e){
+  e.stopPropagation();
+  if(!confirm('Permanently delete invoice #' + invnum + '?\n\nThis cannot be undone.')) return;
+  try {
+    const { error } = await _sb.from('invoices').delete().eq('invnum', invnum);
+    if(error){ alert('Delete failed: ' + error.message); return; }
+    // If this was the loaded invoice, clear it
+    if(currentLoadedInvnum === invnum){
+      currentLoadedInvnum = null;
+      showUpdateBtn();
+    }
+    loadRecent();
+    setSt('ok', 'Invoice deleted');
+  } catch(e2){ alert('Delete failed: ' + e2.message); }
 }
 
 async function updateLoadedInvoice(){
