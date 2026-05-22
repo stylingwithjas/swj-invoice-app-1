@@ -1068,16 +1068,26 @@ async function hardDeleteInvoice(invnum, e){
 
 async function updateLoadedInvoice(){
   console.log('[UPDATE] clicked. currentLoadedInvnum =', currentLoadedInvnum);
-  if(!currentLoadedInvnum){ setSt('err','No invoice loaded to update'); console.warn('[UPDATE] no invoice loaded'); return; }
+  if(!currentLoadedInvnum){ setSt('err','No invoice loaded to update'); return; }
   if(currentLoadedInvnum.startsWith('DRAFT-')){
     setSt('err','Use Save as Draft for drafts. Update is for finalized invoices.');
-    console.warn('[UPDATE] is a draft, aborting');
     return;
   }
   const btn = document.getElementById('update-invoice-btn');
   if(btn){ btn.disabled = true; btn.textContent = 'Updating...'; }
   try {
-    // Rebuild the full data payload from current form state
+    // Step 1: Fetch current invoice to compare grand total + get old payment_url
+    const { data: existing, error: fetchErr } = await _sb
+      .from('invoices').select('data').eq('invnum', currentLoadedInvnum).limit(1);
+    const oldData = (existing && existing[0] && existing[0].data) || {};
+    const oldGrand = (() => {
+      const base = parseFloat(oldData.base_price)||2500;
+      const addons = (oldData.addons||[]).reduce((s,a)=>s+(parseFloat(a.price)||0),0);
+      return (base+addons)*(1+(parseFloat(oldData.taxrate)||0)/100);
+    })();
+    const oldPaymentUrl = oldData.payment_url || null;
+
+    // Step 2: Rebuild data payload from current form state
     const allAddons = [];
     selAddons.forEach(entry => {
       const cat = CATS[entry.ci], opt = cat.sizes[entry.oi];
@@ -1089,14 +1099,60 @@ async function updateLoadedInvoice(){
     extraBedrooms.forEach(b=>{allAddons.push({desc:`${b.name} (${b.bed}): ${b.scope||b.size}`,price:b.price});});
     Object.values(selNewAddons).forEach(a=>{if(a&&typeof a==='object')allAddons.push({desc:`${a.name}${a.bed?' ('+a.bed+')':''} — ${a.sizeName}`,price:a.price});});
 
+    const client = document.getElementById('client').value.trim();
+    const address = document.getElementById('address').value.trim();
+    const taxrate = parseFloat(document.getElementById('taxrate').value)||0;
+    const base_price = parseFloat(document.getElementById('base_price').value)||2500;
+    const addonsTotal = allAddons.reduce((s,a)=>s+(parseFloat(a.price)||0),0);
+    const newGrand = (base_price + addonsTotal) * (1 + taxrate/100);
+
+    // Step 3: Detect if total changed — if so regenerate Stripe payment link
+    const totalChanged = Math.abs(newGrand - oldGrand) > 0.01;
+    let payment_url = oldPaymentUrl;
+
+    if(totalChanged && !document.getElementById('paid').checked){
+      if(btn) btn.textContent = 'Updating payment link...';
+      setSt('loading', 'Total changed — updating Stripe payment link...');
+
+      // Deactivate old payment link if it exists
+      if(oldPaymentUrl){
+        try {
+          // Extract payment link ID from URL (format: .../pay/plink_xxx#...)
+          const plinkMatch = oldPaymentUrl.match(/plink_[a-zA-Z0-9]+/);
+          if(plinkMatch){
+            await fetch('/api/stripe', {
+              method: 'POST',
+              headers: {'Content-Type':'application/json'},
+              body: JSON.stringify({
+                action: 'deactivate',
+                payment_link_id: plinkMatch[0]
+              })
+            });
+            console.log('[UPDATE] Old payment link deactivated:', plinkMatch[0]);
+          }
+        } catch(e){ console.log('[UPDATE] Deactivate failed (non-fatal):', e.message); }
+      }
+
+      // Create new payment link with updated amount
+      try {
+        const newLink = await createPaymentLink(newGrand, client, currentLoadedInvnum, address);
+        payment_url = newLink;
+        console.log('[UPDATE] New payment link created:', payment_url);
+      } catch(e){
+        console.log('[UPDATE] Payment link creation failed:', e.message);
+        // Non-fatal — save invoice anyway, Jasmine can regenerate manually
+        setSt('loading', 'Saved (payment link update failed — regenerate if needed)');
+      }
+    }
+
     const data = {
       invnum: currentLoadedInvnum,
-      client: document.getElementById('client').value.trim(),
-      address: document.getElementById('address').value.trim(),
+      client,
+      address,
       invdate: document.getElementById('invdate').value,
       startdate: document.getElementById('startdate').value,
-      taxrate: parseFloat(document.getElementById('taxrate').value)||0,
-      base_price: parseFloat(document.getElementById('base_price').value)||2500,
+      taxrate,
+      base_price,
       baserooms: [...selRooms].join(', '),
       addons: allAddons,
       promo1: document.getElementById('promo1').checked,
@@ -1108,10 +1164,10 @@ async function updateLoadedInvoice(){
       paid: document.getElementById('paid').checked,
       paid_date: document.getElementById('paid_date')?.value||'',
       stage: window._lastLoadedStage || 'proposal',
+      payment_url,
     };
 
-    console.log('[UPDATE] upserting to Supabase:', { invnum: currentLoadedInvnum, paid: data.paid, paid_date: data.paid_date });
-
+    if(btn) btn.textContent = 'Saving...';
     const result = await _sb.from('invoices').upsert({
       invnum: currentLoadedInvnum,
       client: data.client,
@@ -1120,14 +1176,14 @@ async function updateLoadedInvoice(){
       data: data
     }, { onConflict: 'invnum' });
 
-    console.log('[UPDATE] Supabase result:', result);
-
     if(result.error){
       setSt('err','Update failed: '+(result.error.message||JSON.stringify(result.error)));
-      console.error('[UPDATE] error:', result.error);
     } else {
-      setSt('ok','Invoice updated ✓');
-      console.log('[UPDATE] success');
+      if(totalChanged && !data.paid){
+        setSt('ok', `Invoice updated ✓ — new payment link created ($${Math.round(newGrand).toLocaleString()})`);
+      } else {
+        setSt('ok','Invoice updated ✓');
+      }
       loadRecent();
     }
   } catch(e){
