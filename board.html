@@ -102,6 +102,24 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
 /* Attention overlay */
 .attn-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:200; display:flex; align-items:flex-end; justify-content:center; backdrop-filter:blur(4px); }
 @media(min-width:600px){ .attn-overlay { align-items:center; } }
+
+/* Invoice picker (Move to Board) */
+.picker-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:210; display:flex; align-items:flex-end; justify-content:center; backdrop-filter:blur(4px); }
+@media(min-width:600px){ .picker-overlay { align-items:center; } }
+.picker-modal { background:var(--warm); border-radius:18px 18px 0 0; width:100%; max-width:520px; max-height:80vh; overflow-y:auto; box-shadow:0 -12px 40px rgba(0,0,0,0.2); }
+@media(min-width:600px){ .picker-modal { border-radius:18px; max-height:75vh; } }
+.picker-hdr { padding:18px 22px 12px; display:flex; align-items:center; justify-content:space-between; border-bottom:0.5px solid rgba(162,156,150,0.18); position:sticky; top:0; background:var(--warm); z-index:1; }
+.picker-hdr span { font-family:'Cormorant Garamond',serif; font-size:22px; font-weight:300; color:var(--ink); letter-spacing:0.5px; }
+.picker-x { background:none; border:none; color:var(--taupe); font-size:24px; cursor:pointer; padding:0 4px; line-height:1; }
+.picker-body { padding:6px 14px 18px; }
+.picker-item { display:flex; align-items:center; justify-content:space-between; padding:14px 14px; background:#fff; border:1px solid rgba(162,156,150,0.2); border-radius:11px; margin-top:9px; cursor:pointer; transition:all 0.12s; gap:10px; }
+.picker-item:active { transform:scale(0.985); }
+.picker-item:hover { border-color:var(--green); }
+.picker-left { flex:1; min-width:0; }
+.picker-name { font-family:'Cormorant Garamond',serif; font-size:16px; font-weight:400; color:var(--ink); }
+.picker-meta { font-size:10px; color:var(--taupe); margin-top:3px; }
+.picker-amt { font-family:'Cormorant Garamond',serif; font-size:17px; color:var(--ink); white-space:nowrap; }
+
 .attn-modal { background:var(--warm); border-radius:18px 18px 0 0; width:100%; max-width:520px; max-height:80vh; overflow-y:auto; box-shadow:0 -12px 40px rgba(0,0,0,0.2); }
 @media(min-width:600px){ .attn-modal { border-radius:18px; max-height:75vh; } }
 .attn-hdr { padding:18px 22px 12px; display:flex; align-items:center; justify-content:space-between; border-bottom:0.5px solid rgba(162,156,150,0.18); position:sticky; top:0; background:var(--warm); z-index:1; }
@@ -247,11 +265,13 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
 .ps-arrow { font-size:16px; color:var(--taupe); }
 
 /* Modal actions */
-.m-btns { display:flex; gap:10px; padding:14px 20px 0; }
-.mbtn { flex:1; padding:13px; border-radius:11px; border:none; font-size:14px; font-weight:600; cursor:pointer; font-family:'Inter',sans-serif; transition:opacity 0.15s; }
+.m-btns { display:flex; gap:10px; padding:14px 20px 0; align-items:center; }
+.mbtn { padding:13px; border-radius:11px; border:none; font-size:14px; font-weight:600; cursor:pointer; font-family:'Inter',sans-serif; transition:opacity 0.15s; }
 .mbtn:active { opacity:0.8; }
-.mbtn.pri { background:var(--ink); color:#fff; }
-.mbtn.sec { background:var(--cream); color:var(--taupe-dk); }
+.mbtn.pri { background:var(--ink); color:#fff; flex:1; }
+.mbtn.sec { background:var(--cream); color:var(--taupe-dk); flex:1; }
+.mbtn.del { background:transparent; color:var(--red); font-size:12px; font-weight:500; padding:8px 12px; border:1px solid rgba(181,53,53,0.25); border-radius:9px; }
+.mbtn.del:hover { background:rgba(181,53,53,0.06); border-color:var(--red); }
 
 /* ── PREP CHECKLIST ── */
 .prep-item { display:flex; align-items:center; gap:8px; padding:8px 0; border-bottom:1px solid rgba(162,156,150,0.06); }
@@ -581,6 +601,8 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
     </div>
 
     <div class="m-btns">
+      <button class="mbtn del" onclick="deleteCard()">Remove from Board</button>
+      <div style="flex:1"></div>
       <button class="mbtn sec" onclick="closeModal()">Cancel</button>
       <button class="mbtn pri" onclick="saveCard()">Save Changes</button>
     </div>
@@ -1227,9 +1249,121 @@ function updateTodayStrip(invoices){
   `).join('');
 }
 
-function moveToStagePrompt(targetStage){
-  // Placeholder: in future, show a picker of proposals to move into that stage
-  alert('To add to ' + STAGE_META[targetStage].label + ', generate an invoice and it will appear here automatically. Tap an existing card to move it through stages.');
+async function moveToStagePrompt(targetStage){
+  // Find invoices in earlier stages (or with unknown/no stage) that could move into targetStage
+  // Strategy: load ALL non-DRAFT invoices and let user pick any one that's currently in a different stage
+  try {
+    const { data, error } = await _sb
+      .from('invoices')
+      .select('invnum,client,address,invdate,data')
+      .order('created_at', { ascending: false })
+      .limit(100);
+    if(error){ alert('Could not load invoices: ' + error.message); return; }
+
+    const candidates = (data||[])
+      .filter(inv => !inv.invnum.startsWith('DRAFT-'))
+      .filter(inv => {
+        const curStage = (inv.data && inv.data.stage) || 'proposal';
+        return curStage !== targetStage && curStage !== 'denied';
+      });
+
+    if(candidates.length === 0){
+      alert('No invoices available to move into ' + STAGE_META[targetStage].label + '.\n\nGenerate a new invoice first from the Invoice tab.');
+      return;
+    }
+
+    // Build a bottom-sheet picker
+    const html = `
+      <div class="picker-overlay" onclick="closePicker(event)">
+        <div class="picker-modal">
+          <div class="picker-hdr">
+            <span>Move to ${STAGE_META[targetStage].label}</span>
+            <button class="picker-x" onclick="closePicker(event,true)">×</button>
+          </div>
+          <div class="picker-body">
+            ${candidates.map(inv => {
+              const d = inv.data || {};
+              const curStage = d.stage || 'proposal';
+              const grand = computeGrand(d);
+              return `
+                <div class="picker-item" onclick="confirmMove('${inv.invnum}','${targetStage}')">
+                  <div class="picker-left">
+                    <div class="picker-name">${escapeHtml(inv.client||'')}</div>
+                    <div class="picker-meta">${escapeHtml(shortAddr(inv.address||''))} · #${inv.invnum} · Currently in ${STAGE_META[curStage].label}</div>
+                  </div>
+                  <div class="picker-amt">${fmtMoney(grand)}</div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      </div>
+    `;
+    const wrap = document.createElement('div');
+    wrap.id = 'picker-wrap';
+    wrap.innerHTML = html;
+    document.body.appendChild(wrap);
+  } catch(e){
+    alert('Error: ' + e.message);
+  }
+}
+
+function closePicker(e, force){
+  if(force || (e && e.target.classList.contains('picker-overlay'))){
+    const w = document.getElementById('picker-wrap');
+    if(w) w.remove();
+  }
+}
+
+async function confirmMove(invnum, targetStage){
+  const inv = CARDS[invnum];
+  let fullInv = inv;
+  if(!fullInv){
+    // Not loaded in current view — fetch it
+    const { data } = await _sb.from('invoices').select('*').eq('invnum', invnum).limit(1);
+    if(data && data[0]) fullInv = data[0];
+  }
+  if(!fullInv){ alert('Invoice not found'); return; }
+
+  const d = { ...(fullInv.data || {}) };
+  d.stage = targetStage;
+
+  const { error } = await _sb.from('invoices').upsert({
+    invnum: fullInv.invnum,
+    client: fullInv.client,
+    address: fullInv.address,
+    invdate: fullInv.invdate,
+    data: d
+  }, { onConflict: 'invnum' });
+
+  if(error){ alert('Move failed: ' + error.message); return; }
+
+  closePicker(null, true);
+  loadBoard();
+}
+
+async function deleteCard(){
+  if(!currentCardId) return;
+  const inv = CARDS[currentCardId];
+  if(!inv) return;
+  const clientName = inv.client || '(no name)';
+  if(!confirm(`Remove "${clientName}" from the board?\n\nThe invoice will be kept in the database but hidden from active columns. You can recover it later if needed.`)) return;
+
+  const d = { ...(inv.data || {}) };
+  d.stage = 'denied';
+
+  const { error } = await _sb.from('invoices').upsert({
+    invnum: inv.invnum,
+    client: inv.client,
+    address: inv.address,
+    invdate: inv.invdate,
+    data: d
+  }, { onConflict: 'invnum' });
+
+  if(error){ alert('Delete failed: ' + error.message); return; }
+
+  closeModal();
+  loadBoard();
 }
 
 // ─────────────────────────────────────────────────────────────
