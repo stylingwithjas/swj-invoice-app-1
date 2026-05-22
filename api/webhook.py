@@ -153,18 +153,31 @@ class handler(BaseHTTPRequestHandler):
         obj = event.get('data', {}).get('object', {})
 
         # ── PAYMENT RECEIVED ──
-        if event_type == 'payment_intent.succeeded':
-            amount = obj.get('amount', 0)
+        if event_type in ('payment_intent.succeeded', 'checkout.session.completed'):
+            # Normalize fields between the two event shapes
+            if event_type == 'checkout.session.completed':
+                amount      = obj.get('amount_total', 0)           # cents
+                created     = obj.get('created', 0)
+                metadata    = obj.get('metadata', {})
+                invnum      = metadata.get('invoice', '').strip()
+                client      = metadata.get('client', '').strip()
+                payment_id  = obj.get('payment_intent', '')
+                # If metadata empty, try customer_details name
+                if not client:
+                    cd = obj.get('customer_details', {})
+                    client = cd.get('name', '') or cd.get('email', '')
+            else:
+                # payment_intent.succeeded (direct API payments)
+                amount      = obj.get('amount', 0)
+                created     = obj.get('created', 0)
+                metadata    = obj.get('metadata', {})
+                invnum      = metadata.get('invoice', '').strip()
+                client      = metadata.get('client', '').strip()
+                payment_id  = obj.get('id', '')
+
             amount_str = fmt_amount(amount)
-            created = obj.get('created', 0)
             date_str = fmt_date(created)
             paid_date = datetime.datetime.fromtimestamp(created).strftime('%Y-%m-%d')
-            metadata = obj.get('metadata', {})
-            invnum = metadata.get('invoice', '').strip()
-            client = metadata.get('client', '').strip()
-            payment_id = obj.get('id', '')
-
-            # Fallback: find by amount if no invoice number
             if not invnum or not client:
                 matched = supabase_get_by_amount(amount)
                 if matched:
