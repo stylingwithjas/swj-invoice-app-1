@@ -32,26 +32,16 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
 
 /* ── HEADER ── */
 .hdr { background:var(--ink); position:sticky; top:0; z-index:60; }
-<<<<<<< HEAD
 .hdr-top { display:flex; align-items:center; justify-content:space-between; padding:12px 16px 10px; gap:8px; }
-=======
-.hdr-top { display:flex; align-items:center; justify-content:space-between; padding:14px 20px 12px; }
->>>>>>> bc88df00afa0f1b0db7513c56ff69e954f343a84
 .brand { display:flex; align-items:baseline; gap:10px; }
 .brand-name { font-family:"Cormorant Garamond",serif; font-size:24px; font-weight:300; color:#fff; letter-spacing:4px; }
 .brand-sep { width:1px; height:16px; background:rgba(255,255,255,0.18); }
 .brand-sub { font-size:10px; color:rgba(255,255,255,0.35); letter-spacing:2.5px; text-transform:uppercase; }
 .hdr-right { display:flex; align-items:center; gap:10px; }
-<<<<<<< HEAD
 .inv-badge { font-family:"Cormorant Garamond",serif; font-size:13px; font-weight:300; color:rgba(255,255,255,0.45); letter-spacing:0.5px; padding:4px 8px; border:1px solid rgba(255,255,255,0.1); border-radius:20px; cursor:text; background:transparent; outline:none; text-align:center; width:110px; }
 @media(max-width:380px){ .inv-badge { display:none; } }
 .nav-sw { display:flex; gap:2px; background:rgba(255,255,255,0.07); border-radius:20px; padding:3px; }
 .nav-btn { padding:5px 12px; border-radius:16px; border:none; font-size:11px; font-weight:500; cursor:pointer; font-family:"Inter",sans-serif; transition:all 0.18s; white-space:nowrap; }
-=======
-.inv-badge { font-family:"Cormorant Garamond",serif; font-size:14px; font-weight:300; color:rgba(255,255,255,0.45); letter-spacing:0.5px; padding:4px 10px; border:1px solid rgba(255,255,255,0.1); border-radius:20px; cursor:text; background:transparent; outline:none; text-align:center; width:160px; }
-.nav-sw { display:flex; gap:2px; background:rgba(255,255,255,0.07); border-radius:20px; padding:3px; }
-.nav-btn { padding:5px 14px; border-radius:16px; border:none; font-size:11px; font-weight:500; cursor:pointer; font-family:"Inter",sans-serif; transition:all 0.18s; }
->>>>>>> bc88df00afa0f1b0db7513c56ff69e954f343a84
 .nav-btn.on  { background:#fff; color:var(--ink); }
 .nav-btn.off { background:transparent; color:rgba(255,255,255,0.4); }
 
@@ -268,13 +258,8 @@ textarea:focus { border-color:var(--gold); background:var(--warm); }
     <div class="hdr-right">
       <input class="inv-badge" id="invnum-display" type="text" value="202093">
       <div class="nav-sw">
-<<<<<<< HEAD
         <button class="nav-btn on" id="nav-invoice">Invoice</button>
         <button class="nav-btn off" id="nav-board" onclick="window.location.href='/board.html'">Board</button>
-=======
-        <button class="nav-btn on">Invoice</button>
-        <button class="nav-btn off">Board</button>
->>>>>>> bc88df00afa0f1b0db7513c56ff69e954f343a84
       </div>
     </div>
   </div>
@@ -1621,7 +1606,6 @@ document.addEventListener('DOMContentLoaded', function(){
 
 
 document.addEventListener('DOMContentLoaded', function(){
-<<<<<<< HEAD
   try {
     document.getElementById('invdate').value = new Date().toISOString().split('T')[0];
     const bp = document.getElementById('base_price');
@@ -1635,17 +1619,6 @@ document.addEventListener('DOMContentLoaded', function(){
   } catch(e) {
     console.error('Init error:', e.message, e.stack);
   }
-=======
-  document.getElementById('invdate').value = new Date().toISOString().split('T')[0];
-  const bp = document.getElementById('base_price');
-  if(bp){ bp.addEventListener('input', recalc); bp.addEventListener('change', recalc); }
-  buildRooms();
-  buildCats();
-  recalc();
-  initInvNum();
-  loadRecent();
-  fetch('/api/config').then(r=>r.json()).then(d=>{if(d&&d.stripe_key)STRIPE_KEY=d.stripe_key;}).catch(()=>{});
->>>>>>> bc88df00afa0f1b0db7513c56ff69e954f343a84
 });
 </script>
 </body>
