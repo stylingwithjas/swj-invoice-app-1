@@ -371,6 +371,7 @@ textarea.scope-area { width:100%; font-family:'Inter',sans-serif; font-size:12px
       <div class="field-block" id="f-invdate">
         <div class="field-lbl">Invoice Date</div>
         <input class="field-input" id="invdate" type="date">
+        <div class="ferr" id="e-invdate">Required</div>
       </div>
     </div>
     <div class="field-row">
@@ -382,6 +383,7 @@ textarea.scope-area { width:100%; font-family:'Inter',sans-serif; font-size:12px
       <div class="field-block" id="f-startdate">
         <div class="field-lbl">Project Start Date</div>
         <input class="field-input" id="startdate" type="date">
+        <div class="ferr" id="e-startdate">Required</div>
       </div>
     </div>
     <div class="field-row">
@@ -647,7 +649,7 @@ const CATS=[
   {name:'Dining room',hasBed:false,sizes:[{size:'Small',price:300},{size:'Medium',price:350},{size:'Large',price:425},{size:'Extra large',price:450}]},
 ];
 
-let selRooms=new Set(),selAddons=new Map(),bedSel=new Map(),selNewAddons={},customs=[],invNum='',extraBedrooms=[],currentLoadedInvnum=null;
+let selRooms=new Set(),selAddons=new Map(),bedSel=new Map(),selNewAddons={},customs=[],invNum='',extraBedrooms=[],currentLoadedInvnum=null,currentInvNum='',recentExpanded=false;
 
 function pad2(n){return String(n).padStart(2,'0');}
 async function initInvNum(){
@@ -655,7 +657,8 @@ async function initInvNum(){
   try {
     const r = await fetch('/api/counter');
     const d = await r.json();
-    if(d.value) seq = d.value;
+    // Counter API returns the last-used number. Increment by 1 for next invoice.
+    if(d.value) seq = parseInt(d.value) + 1;
   } catch(e) {}
   currentInvNum = String(seq);
   const disp = document.getElementById('invnum-display');
@@ -879,11 +882,18 @@ function resetScope(ci){const e=selAddons.get(`${ci}`);const sn=e?CATS[ci].sizes
 
 function addCustom(){const id=Date.now();customs.push({id,desc:'',scope:'',price:0});renderCustoms();}
 function removeCustom(id){customs=customs.filter(a=>a.id!==id);renderCustoms();}
+function escHtml(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function renderCustoms(){
   const c=document.getElementById('custom-addons');c.innerHTML='';
   customs.forEach(a=>{
-    const w=document.createElement('div');w.className='custom-item';
-    w.innerHTML=`<div class="custom-header"><input type="text" placeholder="Line item title" value="${a.desc}" oninput="updCustom(${a.id},'desc',this.value)"><input type="number" placeholder="$0" value="${a.price||''}" step="25" inputmode="decimal" oninput="updCustom(${a.id},'price',parseFloat(this.value)||0)"><button class="rm-btn" onclick="removeCustom(${a.id})">×</button></div><div class="scope-lbl"><span style="font-size:12px;color:#888">Scope of work</span></div><textarea rows="2" placeholder="What's included..." oninput="updCustom(${a.id},'scope',this.value)">${a.scope||''}</textarea>`;
+    const w=document.createElement('div');w.className='custom-item'+(a._isRestored?' restored':'');
+    const restoredBadge = a._isRestored
+      ? '<span style="font-size:9px;color:#7a8574;font-weight:500;letter-spacing:0.5px;text-transform:uppercase;padding:2px 6px;background:#eef1ea;border-radius:4px;margin-left:6px;">Saved</span>'
+      : '';
+    w.innerHTML=`<div class="custom-header"><input type="text" placeholder="Line item title" value="${escHtml(a.desc)}" oninput="updCustom(${a.id},'desc',this.value)"><input type="number" placeholder="$0" value="${a.price||''}" step="25" inputmode="decimal" oninput="updCustom(${a.id},'price',parseFloat(this.value)||0)"><button class="rm-btn" onclick="removeCustom(${a.id})">×</button></div><div class="scope-lbl"><span style="font-size:12px;color:#888">Scope of work${restoredBadge}</span></div><textarea rows="2" placeholder="What's included...">${escHtml(a.scope||'')}</textarea>`;
+    // Wire scope textarea separately to avoid attribute escaping issues with quotes in content
+    const scopeTa = w.querySelector('textarea');
+    if(scopeTa) scopeTa.addEventListener('input', e => updCustom(a.id,'scope',e.target.value));
     c.appendChild(w);
   });
   recalc();
@@ -908,13 +918,6 @@ function recalc(){
 }
 
 function setSt(state,msg){document.getElementById('sdot').className='sdot '+state;document.getElementById('smsg').textContent=msg;}
-function toggleCover(){document.getElementById('cover-note-wrap').style.display=document.getElementById('cover_page').checked?'block':'none';}
-function togglePaid(){
-  const w=document.getElementById('paid-date-wrap');
-  w.style.display=document.getElementById('paid').checked?'block':'none';
-  if(document.getElementById('paid').checked&&!document.getElementById('paid_date').value)
-    document.getElementById('paid_date').value=new Date().toISOString().split('T')[0];
-}
 
 async function createPaymentLink(grand,client,invnum,address){
   setSt('loading','Creating payment link...');
@@ -1153,6 +1156,7 @@ async function updateLoadedInvoice(){
       startdate: document.getElementById('startdate').value,
       taxrate,
       base_price,
+      extrate: Math.round(newGrand/3*100)/100,
       baserooms: [...selRooms].join(', '),
       addons: allAddons,
       promo1: document.getElementById('promo1').checked,
@@ -1203,7 +1207,8 @@ function loadInvoiceData(d){
     document.getElementById('invdate').value = d.invdate||'';
     document.getElementById('startdate').value = d.startdate||'';
     document.getElementById('invnum-display').value = d.invnum||'';
-    document.getElementById('taxrate').value = d.taxrate||10.25;
+    // Bug 10: preserve saved tax exactly — use ?? not || so 0 doesn't become 10.25
+    document.getElementById('taxrate').value = (d.taxrate !== undefined && d.taxrate !== null) ? d.taxrate : 10.25;
     document.getElementById('base_price').value = d.base_price||2500;
     ['promo1','promo2','promo3','promo4'].forEach(p=>{
       const cb=document.getElementById(p);
@@ -1213,7 +1218,11 @@ function loadInvoiceData(d){
     if(d.paid) togglePaid();
     document.getElementById('paid_date').value = d.paid_date||'';
     window._lastLoadedStage = d.stage || 'proposal';
+    // Bug 9: restore cover_page checkbox + cover_note value + toggle visibility
     document.getElementById('cover_page').checked = d.cover_page||false;
+    const coverNoteEl = document.getElementById('cover_note');
+    if(coverNoteEl) coverNoteEl.value = d.cover_note || '';
+    toggleCover();
 
     // Restore selected rooms
     selRooms.clear();
@@ -1291,7 +1300,6 @@ function loadInvoiceData(d){
       });
 
       renderCustoms();
-      recalc();
     }
 
     recalc();
@@ -1350,11 +1358,13 @@ async function saveDraft(){
     promo1: document.getElementById('promo1').checked,
     promo2: document.getElementById('promo2').checked,
     promo3: document.getElementById('promo3').checked,
+    promo4: document.getElementById('promo4').checked,
     cover_page: document.getElementById('cover_page').checked,
     cover_note: document.getElementById('cover_note')?.value.trim()||'',
     paid: document.getElementById('paid').checked,
     paid_date: document.getElementById('paid_date')?.value||'',
     payment_url: null,
+    stage: window._lastLoadedStage || 'proposal',
     _is_draft: true,
     _draft_saved: new Date().toLocaleDateString()
   };
@@ -1431,7 +1441,7 @@ function openEmailModal(data){
   const firstName=client.toLowerCase().startsWith('estate of')?client.split(' ').slice(2).join(' ').split(' ')[0]:client.split(' ')[0];
   document.getElementById('email-to').value='';
   document.getElementById('email-subject').value=`Your Staging Proposal — ${address}`;
-  const proposalLink = `${window.location.origin}/proposal.html?inv=${encodeURIComponent(invnum)}`;
+  const proposalLink = `${window.location.origin}/proposal.html?inv=${encodeURIComponent(data.invnum)}`;
   document.getElementById('email-body').value=`Hi ${firstName},\n\nThank you for the opportunity to work with you. I'm excited about this property and what we can create together.\n\nAttached you'll find your personalized staging proposal for ${address}. Inside you'll find the full scope of work, investment total, and payment details.\n\nTo approve this proposal and sign electronically, please visit:\n${proposalLink}\n\nThe signed contract and payment link are available on that page. Your proposal PDF is attached to this email for your reference.\n\nA few important notes:\n• Full payment is due 48 hours before installation day\n• Once payment is received I'll lock in your staging date\n\nPlease don't hesitate to reach out with any questions.\n\nLooking forward to transforming your space.\n\nWarmly,\nJasmine Santana\nOwner & Creative Director — Styling With Jas\n206-422-5618\ninfo@stylingwithjas.com`;
   document.getElementById('email-status').textContent='';
   document.getElementById('email-modal').classList.add('show');
@@ -1581,8 +1591,6 @@ function editProfitField(field){
   document.getElementById('pt-note').textContent = '80% of profit · reinvest ' + fmt2(reinvest) + ' · ~60% close rate';
 }
 
-
-let recentExpanded = false;
 
 function toggleRecent(){
   const body = document.getElementById('recent-body');
@@ -1819,106 +1827,34 @@ async function generatePDF(){
 
 
 async function generate(){
-  let valid=true;
-  [['f-client','e-client','client'],['f-address','e-address','address'],['f-invdate','e-invdate','invdate'],['f-startdate','e-startdate','startdate']].forEach(([fid,eid,iid])=>{
-    const inp=document.getElementById(iid);
-    const errEl=document.getElementById(eid);if(!inp.value.trim()){inp.classList.add('err');if(errEl)errEl.classList.add('show');valid=false;}
-    else{inp.classList.remove('err');if(errEl)errEl.classList.remove('show');}
-  });
-  if(selRooms.size===0){document.getElementById('rooms-grid').classList.add('err');document.getElementById('e-rooms').classList.add('show');valid=false;}
-  else{document.getElementById('rooms-grid').classList.remove('err');document.getElementById('e-rooms').classList.remove('show');}
-  if(!valid){document.getElementById('rooms-grid').scrollIntoView({behavior:'smooth'});return;}
+  // Bug 1 fix: generate() is now a thin wrapper around generatePDF().
+  // generatePDF() does ALL the heavy lifting (validation, Stripe, PDF gen, save).
+  // generate() adds the download-to-browser step on top.
+  const btn = document.getElementById('gen-btn');
+  if(btn){ btn.disabled = true; btn.textContent = 'Creating payment link...'; }
 
-  const btn=document.getElementById('gen-btn');btn.disabled=true;btn.textContent='Creating payment link...';
-
-  const allAddons=[];
-  selAddons.forEach(entry=>{
-    const cat=CATS[entry.ci],opt=cat.sizes[entry.oi];
-    const bed=cat.hasBed?bedSel.get(`${entry.ci}`):'';
-    const scope=document.getElementById(`sc-${entry.ci}`)?.value||entry.scope||'';
-    allAddons.push({desc:cat.name + (bed ? " (" + bed + ")" : "") + ": " + (scope||opt.size),price:opt.price});
-  });
-  customs.filter(a=>a.desc).forEach(a=>{allAddons.push({desc:a.desc+(a.scope?': '+a.scope:''),price:parseFloat(a.price)||0});});
-  extraBedrooms.forEach(b=>{allAddons.push({desc:`${b.name} (${b.bed}): ${b.scope||b.size}`,price:b.price});});
-  Object.values(selNewAddons).forEach(a=>{if(a&&typeof a==='object')allAddons.push({desc:`${a.name}${a.bed?' ('+a.bed+')':''} — ${a.sizeName}`,price:a.price});});
-
-  const addonTotal=allAddons.reduce((s,a)=>s+a.price,0);
-  const base=parseFloat(document.getElementById('base_price')?.value)||2500; const sub=base+addonTotal,taxrate=parseFloat(document.getElementById('taxrate').value)||0;
-  const grand=sub+sub*taxrate/100,extrate=Math.round(grand/3*100)/100;
-  const client=document.getElementById('client').value.trim();
-  const addressBase=document.getElementById('address').value.trim();
-  const zipVal=document.getElementById('zipcode')?.value.trim()||'';
-  const address=zipVal&&!addressBase.includes(zipVal)?addressBase+' '+zipVal:addressBase;
-
-  // Read invoice number from editable field
-  const invNumFinal = document.getElementById('invnum-display').value.trim() || '202093';
-  invNum = invNumFinal;
-
-  payment_url=null;
-  try{
-    payment_url=await createPaymentLink(grand,client,invNumFinal,address);
-  }catch(e){
-    setSt('err','Stripe error — generating invoice without payment link');
+  const result = await generatePDF();
+  if(!result){
+    if(btn){ btn.disabled = false; btn.textContent = 'Generate Invoice + Payment Link'; }
+    return;
   }
-  btn.textContent='Generating PDF...';
-  setSt('loading','Generating your invoice PDF...');
 
-  
-
-  const data={client,address,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:document.getElementById('startdate').value,baserooms:[...selRooms].join(', '),extrate,taxrate,base_price:parseFloat(document.getElementById('base_price')?.value)||2500,addons:allAddons,promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
-            promo4:document.getElementById('promo4').checked,payment_url,cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||'',stage:(currentLoadedInvnum?(window._lastLoadedStage||'proposal'):'proposal')};
-
-  // Send to API and download PDF
+  // Download the PDF blob
   try {
-    console.log('PDF: fetching...');
-    const response = await fetch('/api/generate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
-    });
-    console.log('PDF: status=', response.status, 'type=', response.headers.get('content-type'));
-
-    if (!response.ok) {
-      const txt = await response.text();
-      throw new Error('Generate failed: ' + txt.substring(0,200));
-    }
-
-    console.log('PDF: getting blob...');
-    const blob = await response.blob();
-    console.log('PDF: blob size=', blob.size, 'type=', blob.type);
-
-    const url = URL.createObjectURL(blob);
-    const filename = `SWJ_${data.client.replace(/ /g,'_')}_${data.invnum}.pdf`;
-    console.log('PDF: downloading as', filename);
-
+    const url = URL.createObjectURL(result.blob);
     const a = document.createElement('a');
     a.style.display = 'none';
     a.href = url;
-    a.download = filename;
+    a.download = result.filename;
     document.body.appendChild(a);
     a.click();
     setTimeout(()=>{ document.body.removeChild(a); URL.revokeObjectURL(url); }, 3000);
-    console.log('PDF: click done');
-
-    // Save invoice number — always keep the highest number used
-    await fetch('/api/counter', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({value: parseInt(data.invnum)})
-    }).catch(()=>{});
-
     setSt('ok', 'Invoice generated and downloaded! Check your Downloads folder.');
-    setTimeout(()=>saveInvoice(data).catch(()=>{}), 100);
-    btn.textContent = 'Generate Invoice + Payment Link';
-    btn.disabled = false;
-    console.log('PDF: all done!');
-
   } catch(e) {
-    console.log('PDF ERROR:', e.message, e.stack);
-    setSt('err', 'Error: ' + e.message);
-    btn.textContent = 'Generate Invoice + Payment Link';
-    btn.disabled = false;
+    setSt('err', 'Download error: ' + e.message);
   }
+
+  if(btn){ btn.disabled = false; btn.textContent = 'Generate Invoice + Payment Link'; }
 }
 
 
