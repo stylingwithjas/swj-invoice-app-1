@@ -92,7 +92,30 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
 
 /* ── PIPELINE ── */
 .pipeline { display:grid; grid-template-columns:repeat(5,1fr); gap:1px; background:var(--taupe-lt); border-bottom:1px solid var(--taupe-lt); }
-.pipe { background:var(--warm); padding:11px 14px; }
+.pipe { background:var(--warm); padding:11px 8px; }
+@media(min-width:480px){ .pipe { padding:11px 14px; } }
+.pipe { cursor:pointer; transition:background 0.15s; }
+.pipe:hover { background:rgba(162,156,150,0.07); }
+.pipe:active { background:rgba(162,156,150,0.12); }
+
+/* Attention overlay */
+.attn-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:200; display:flex; align-items:flex-end; justify-content:center; backdrop-filter:blur(4px); }
+@media(min-width:600px){ .attn-overlay { align-items:center; } }
+.attn-modal { background:var(--warm); border-radius:18px 18px 0 0; width:100%; max-width:520px; max-height:80vh; overflow-y:auto; box-shadow:0 -12px 40px rgba(0,0,0,0.2); }
+@media(min-width:600px){ .attn-modal { border-radius:18px; max-height:75vh; } }
+.attn-hdr { padding:18px 22px 12px; display:flex; align-items:center; justify-content:space-between; border-bottom:0.5px solid rgba(162,156,150,0.18); position:sticky; top:0; background:var(--warm); z-index:1; }
+.attn-hdr span { font-family:'Cormorant Garamond',serif; font-size:22px; font-weight:300; color:var(--ink); letter-spacing:0.5px; }
+.attn-x { background:none; border:none; color:var(--taupe); font-size:24px; cursor:pointer; padding:0 4px; line-height:1; }
+.attn-body { padding:8px 16px 20px; }
+.attn-empty { padding:30px 12px; text-align:center; color:var(--taupe); font-style:italic; font-size:13px; }
+.attn-card { background:#fff; border:1px solid rgba(162,156,150,0.2); border-radius:11px; padding:13px 14px; margin-top:9px; cursor:pointer; transition:transform 0.1s; }
+.attn-card:active { transform:scale(0.98); }
+.attn-card:hover { border-color:var(--red); }
+.attn-name { font-family:'Cormorant Garamond',serif; font-size:17px; font-weight:400; color:var(--ink); }
+.attn-addr { font-size:11px; color:var(--taupe); margin-top:2px; }
+.attn-tags { display:flex; flex-wrap:wrap; gap:5px; margin-top:8px; }
+.attn-tag { font-size:10px; font-weight:500; padding:3px 9px; border-radius:20px; background:rgba(181,53,53,0.1); color:var(--red); }
+
 .pipe-lbl { font-size:9px; font-weight:500; color:var(--taupe); text-transform:uppercase; letter-spacing:1.2px; margin-bottom:3px; }
 .pipe-val { font-family:'Cormorant Garamond',serif; font-size:22px; font-weight:400; color:var(--ink); }
 .pipe-val.g { color:var(--green); }
@@ -283,9 +306,9 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
     </div>
   </div>
   <div class="tabs">
-    <button class="tab on"  onclick="filter('all',this)">All <span class="tab-n">7</span></button>
+    <button class="tab off" onclick="filter('all',this)">All <span class="tab-n">7</span></button>
     <button class="tab off" onclick="filter('proposal',this)">Proposal Sent <span class="tab-n">2</span></button>
-    <button class="tab off" onclick="filter('confirmed',this)">Confirmed <span class="tab-n">2</span></button>
+    <button class="tab on"  onclick="filter('confirmed',this)">Confirmed <span class="tab-n">2</span></button>
     <button class="tab off" onclick="filter('staged',this)">Staged <span class="tab-n">2</span></button>
     <button class="tab off" onclick="filter('destage',this)">Destage <span class="tab-n">1</span></button>
     <button class="tab off" onclick="filter('done',this)">Completed <span class="tab-n">0</span></button>
@@ -324,29 +347,29 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
 
 <!-- SHOPPING CONSOLIDATOR — moved to bottom, clean card -->
 
-<!-- PIPELINE -->
+<!-- PIPELINE — each cell tappable as a filter -->
 <div class="pipeline">
-  <div class="pipe">
+  <div class="pipe" onclick="filterFromPipe('proposal')">
     <div class="pipe-lbl">Proposals</div>
     <div class="pipe-val">2</div>
     <div class="pipe-note">$5,958 out</div>
   </div>
-  <div class="pipe">
+  <div class="pipe" onclick="filterFromPipe('confirmed')">
     <div class="pipe-lbl">Confirmed</div>
     <div class="pipe-val">2</div>
     <div class="pipe-note">$6,784 locked</div>
   </div>
-  <div class="pipe">
+  <div class="pipe" onclick="filterFromPipe('staged')">
     <div class="pipe-lbl">On Site</div>
     <div class="pipe-val">2</div>
     <div class="pipe-note">$7,938 staged</div>
   </div>
-  <div class="pipe">
+  <div class="pipe" onclick="filterFromPipe('done')">
     <div class="pipe-lbl">MTD Revenue</div>
     <div class="pipe-val g">$8,900</div>
     <div class="pipe-note">3 completed</div>
   </div>
-  <div class="pipe">
+  <div class="pipe" onclick="showAttention()">
     <div class="pipe-lbl">Needs Attention</div>
     <div class="pipe-val r">3</div>
     <div class="pipe-note">action required</div>
@@ -726,6 +749,73 @@ function toggleCompact(){
   document.querySelectorAll('.card').forEach(c => c.classList.toggle('compact', compact));
 }
 
+// Map stage → tab index for tappable pipeline cells
+function filterFromPipe(stage){
+  const tabIdx = {proposal:1, confirmed:2, staged:3, destage:4, done:5}[stage];
+  const tab = document.querySelectorAll('.tab')[tabIdx];
+  if(tab) filter(stage, tab);
+  // Smooth scroll to board so the filtered column is visible
+  document.getElementById('board').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+// "Needs Attention" — surface the cards that need action
+function showAttention(){
+  // Build list of cards across all columns that have urgency tags (.tag.a or .tag.w)
+  const attentionCards = [];
+  document.querySelectorAll('.card').forEach(card => {
+    const hasUrgent = card.querySelector('.tag.a, .tag.w');
+    if(hasUrgent){
+      const nameEl = card.querySelector('.c-name');
+      const addrEl = card.querySelector('.c-addr');
+      const tags = [...card.querySelectorAll('.tag.a, .tag.w')].map(t=>t.textContent.trim());
+      attentionCards.push({
+        name: nameEl?nameEl.textContent:'',
+        addr: addrEl?addrEl.textContent:'',
+        tags: tags,
+        cardEl: card,
+      });
+    }
+  });
+  // Build modal-like overlay
+  let html = '<div class="attn-overlay" onclick="closeAttention(event)"><div class="attn-modal">';
+  html += '<div class="attn-hdr"><span>Needs Attention</span><button class="attn-x" onclick="closeAttention(event,true)">×</button></div>';
+  html += '<div class="attn-body">';
+  if(attentionCards.length === 0){
+    html += '<div class="attn-empty">Nothing urgent right now.</div>';
+  } else {
+    attentionCards.forEach(c => {
+      html += `<div class="attn-card" onclick="closeAttention(event,true); scrollToCard('${c.name.replace(/'/g, "\\'")}')">`;
+      html += `<div class="attn-name">${c.name}</div>`;
+      html += `<div class="attn-addr">${c.addr}</div>`;
+      html += `<div class="attn-tags">${c.tags.map(t=>`<span class="attn-tag">${t}</span>`).join('')}</div>`;
+      html += `</div>`;
+    });
+  }
+  html += '</div></div></div>';
+  const wrap = document.createElement('div');
+  wrap.id = 'attn-wrap';
+  wrap.innerHTML = html;
+  document.body.appendChild(wrap);
+}
+function closeAttention(e, force){
+  if(force || e.target.classList.contains('attn-overlay')){
+    const wrap = document.getElementById('attn-wrap');
+    if(wrap) wrap.remove();
+  }
+}
+function scrollToCard(name){
+  const cards = document.querySelectorAll('.card');
+  for(const c of cards){
+    const n = c.querySelector('.c-name');
+    if(n && n.textContent.trim() === name){
+      c.scrollIntoView({behavior:'smooth', block:'center'});
+      c.style.boxShadow = '0 0 0 2px var(--red)';
+      setTimeout(()=>{ c.style.boxShadow = ''; }, 1800);
+      break;
+    }
+  }
+}
+
 function filter(stage, btn){
   document.querySelectorAll('.tab').forEach(t=>{ t.className='tab off'; });
   if(btn) btn.className='tab on';
@@ -743,9 +833,7 @@ function filter(stage, btn){
   }
 }
 
-function openCard(id){
-  document.getElementById('overlay').classList.add('on');
-}
+function openCard(id){ realOpenCard(id); }
 function closeModal(){
   document.getElementById('overlay').classList.remove('on');
 }
@@ -1038,8 +1126,30 @@ function sendShoppingList(){
 
 // Hook into openCard to load prep items
 const _origOpenCard = window.open_card || openCard;
-function openCard(id){
+// Card data registry — populates modal when each card is tapped
+const CARDS = {
+  chad:    { name:'Chad Lewis',      addr:'24617 SE 25th Way, Sammamish',  amt:'$2,925', stage:'proposal'  },
+  lead:    { name:'New Lead',         addr:'2118 N Yakima Ave, Tacoma',     amt:'$3,033', stage:'proposal'  },
+  brianne: { name:'Brianne Borden',   addr:'19911 138th Ave E, Graham',     amt:'$3,202', stage:'confirmed' },
+  donovan: { name:'Donovan Shelton',  addr:'1025 S 59th St, Tacoma',        amt:'$3,582', stage:'confirmed' },
+  kc:      { name:'KC Sanders',       addr:'2105 Westlake Ave N, Seattle',  amt:'$3,969', stage:'staged'    },
+  leon:    { name:'Estate of Leon Hopkins', addr:'4118 32nd Ave S, Seattle', amt:'$3,969', stage:'staged'    },
+  jane:    { name:'Jane Smith',       addr:'410 NW 47th St, Seattle',       amt:'$2,756', stage:'destage'   },
+};
+
+function realOpenCard(id){
   currentCardId = id;
+  const card = CARDS[id];
+  if(card){
+    const nameEl = document.getElementById('m-name');
+    const addrEl = document.getElementById('m-addr');
+    const amtEl = document.getElementById('m-amt');
+    const barEl = document.getElementById('m-bar');
+    if(nameEl) nameEl.textContent = card.name;
+    if(addrEl) addrEl.textContent = card.addr;
+    if(amtEl) amtEl.textContent = card.amt;
+    if(barEl) barEl.className = 'm-bar ' + card.stage;
+  }
   document.getElementById('overlay').classList.add('on');
   setTimeout(()=>renderPrepList(id), 50);
 }
@@ -1047,6 +1157,9 @@ function openCard(id){
 // Initialize shopping consolidator on load
 document.addEventListener('DOMContentLoaded', ()=>{
   renderShoppingConsolidator();
+  // Default view: Confirmed (where Jasmine spends most of her time)
+  const confirmedTab = document.querySelectorAll('.tab')[2];
+  if(confirmedTab) filter('confirmed', confirmedTab);
 });
 
 
