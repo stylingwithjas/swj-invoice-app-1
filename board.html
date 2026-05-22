@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>SWJ — Project Board</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
@@ -307,12 +308,12 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
     </div>
   </div>
   <div class="tabs">
-    <button class="tab off" onclick="filter('all',this)">All <span class="tab-n">7</span></button>
-    <button class="tab off" onclick="filter('proposal',this)">Proposal Sent <span class="tab-n">2</span></button>
-    <button class="tab on"  onclick="filter('confirmed',this)">Confirmed <span class="tab-n">2</span></button>
-    <button class="tab off" onclick="filter('staged',this)">Staged <span class="tab-n">2</span></button>
-    <button class="tab off" onclick="filter('destage',this)">Destage <span class="tab-n">1</span></button>
-    <button class="tab off" onclick="filter('done',this)">Completed <span class="tab-n">0</span></button>
+    <button class="tab off" onclick="filter('all',this)">All <span class="tab-n" id="tab-n-all">0</span></button>
+    <button class="tab off" onclick="filter('proposal',this)">Proposal Sent <span class="tab-n" id="tab-n-proposal">0</span></button>
+    <button class="tab on"  onclick="filter('confirmed',this)">Confirmed <span class="tab-n" id="tab-n-confirmed">0</span></button>
+    <button class="tab off" onclick="filter('staged',this)">Staged <span class="tab-n" id="tab-n-staged">0</span></button>
+    <button class="tab off" onclick="filter('destage',this)">Destage <span class="tab-n" id="tab-n-destage">0</span></button>
+    <button class="tab off" onclick="filter('done',this)">Completed <span class="tab-n" id="tab-n-done">0</span></button>
   </div>
 </div>
 
@@ -320,241 +321,87 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
 <div class="today-wrap" style="background:var(--ink);padding:0 16px 16px;border-bottom:3px solid var(--gold)">
   <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0 10px">
     <div style="font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:300;color:#fff;letter-spacing:1px">Today</div>
-    <div style="font-size:10px;color:rgba(255,255,255,0.3);letter-spacing:1px;text-transform:uppercase">Friday, May 22</div>
+    <div id="today-date" style="font-size:10px;color:rgba(255,255,255,0.3);letter-spacing:1px;text-transform:uppercase"></div>
   </div>
-  <div class="today-items">
-    <div class="today-item urgent" onclick="filter('confirmed',document.querySelectorAll('.tab')[2])">
-      <div class="ti-label urgent">Payment overdue</div>
-      <div class="ti-value">Donovan Shelton</div>
-    </div>
-    <div class="today-item warn" onclick="filter('staged',document.querySelectorAll('.tab')[3])">
-      <div class="ti-label warn">Plan destage soon</div>
-      <div class="ti-value">Estate of Leon — Day 29</div>
-    </div>
-    <div class="today-item info">
-      <div class="ti-label info">Staging tomorrow</div>
-      <div class="ti-value">Brianne Borden — May 22</div>
-    </div>
-    <div class="today-item info">
-      <div class="ti-label info">Photos due today</div>
-      <div class="ti-value">Deliver to KC Sanders</div>
-    </div>
-    <div class="today-item warn">
-      <div class="ti-label warn">Find mover</div>
-      <div class="ti-value">Donovan — Jun 2 staging</div>
-    </div>
+  <div class="today-items" id="today-items">
+    <div style="color:rgba(255,255,255,0.4);font-size:11px;font-style:italic;padding:6px 4px">Loading...</div>
   </div>
 </div>
 
 <!-- SHOPPING CONSOLIDATOR — moved to bottom, clean card -->
 
-<!-- PIPELINE — each cell tappable as a filter -->
+<!-- PIPELINE — each cell tappable as a filter, counts computed live -->
 <div class="pipeline">
   <div class="pipe" onclick="filterFromPipe('proposal')">
     <div class="pipe-lbl">Proposals</div>
-    <div class="pipe-val">2</div>
-    <div class="pipe-note">$5,958 out</div>
+    <div class="pipe-val" id="stat-proposal-count">0</div>
+    <div class="pipe-note" id="stat-proposal-total">$0 out</div>
   </div>
   <div class="pipe" onclick="filterFromPipe('confirmed')">
     <div class="pipe-lbl">Confirmed</div>
-    <div class="pipe-val">2</div>
-    <div class="pipe-note">$6,784 locked</div>
+    <div class="pipe-val" id="stat-confirmed-count">0</div>
+    <div class="pipe-note" id="stat-confirmed-total">$0 locked</div>
   </div>
   <div class="pipe" onclick="filterFromPipe('staged')">
     <div class="pipe-lbl">On Site</div>
-    <div class="pipe-val">2</div>
-    <div class="pipe-note">$7,938 staged</div>
+    <div class="pipe-val" id="stat-staged-count">0</div>
+    <div class="pipe-note" id="stat-staged-total">$0 staged</div>
   </div>
   <div class="pipe" onclick="filterFromPipe('done')">
     <div class="pipe-lbl">MTD Revenue</div>
-    <div class="pipe-val g">$8,900</div>
-    <div class="pipe-note">3 completed</div>
+    <div class="pipe-val g" id="stat-mtd-total">$0</div>
+    <div class="pipe-note" id="stat-mtd-count">0 completed</div>
   </div>
   <div class="pipe" onclick="showAttention()">
     <div class="pipe-lbl">Needs Attention</div>
-    <div class="pipe-val r">3</div>
+    <div class="pipe-val r" id="stat-attention-count">0</div>
     <div class="pipe-note">action required</div>
   </div>
 </div>
 
-<!-- BOARD -->
+<!-- BOARD — cards rendered from Supabase -->
 <div class="board" id="board">
 
-  <!-- PROPOSAL SENT -->
   <div class="col" data-s="proposal">
     <div class="col-hdr">
       <span class="col-lbl" style="color:var(--taupe-dk)">Proposal Sent</span>
-      <span class="col-n" style="background:var(--taupe)">2</span>
+      <span class="col-n" id="col-n-proposal" style="background:var(--taupe)">0</span>
     </div>
-    <div class="card proposal" onclick="openCard('chad')">
-      <div class="c-row1">
-        <div class="c-name">Chad & Genevieve</div>
-        <div class="c-amt">$3,202</div>
-      </div>
-      <div class="c-addr">Westport · Sent May 14</div>
-      <div class="tags">
-        <span class="tag">Staging May 16</span>
-        <span class="tag">Awaiting approval</span>
-      </div>
-    </div>
-
-    <div class="card proposal" onclick="openCard('lead')">
-      <div class="c-row1">
-        <div class="c-name">New Lead</div>
-        <div class="c-amt">$2,756</div>
-      </div>
-      <div class="c-addr">Seattle, WA · Sent May 15</div>
-      <div class="tags">
-        <span class="tag">Date TBD</span>
-        <span class="tag">Awaiting approval</span>
-      </div>
-    </div>
+    <button class="mtb-btn" onclick="moveToStagePrompt('proposal')">+ Add to Proposal</button>
+    <div id="col-body-proposal"></div>
   </div>
 
-  <!-- CONFIRMED -->
   <div class="col" data-s="confirmed">
     <div class="col-hdr">
       <span class="col-lbl" style="color:var(--green)">Confirmed</span>
-      <span class="col-n" style="background:var(--green)">2</span>
+      <span class="col-n" id="col-n-confirmed" style="background:var(--green)">0</span>
     </div>
-    <button class="mtb-btn">+ Move to Board</button>
-
-    <div class="card confirmed" onclick="openCard('brianne')">
-      <div class="c-row1">
-        <div class="c-name">Brianne Borden</div>
-        <div class="c-amt">$3,202</div>
-      </div>
-      <div class="c-addr">19911 138th Ave E, Graham</div>
-      <div class="tags">
-        <span class="tag">Staging May 30</span>
-        <span class="tag">Mover: Anthony</span>
-        <span class="tag">Photos May 31</span>
-        <span class="tag">Paid</span>
-      </div>
-      <div class="c-note">Truck booked 8am. Shopping: accent pillows needed.</div>
-    </div>
-
-    <div class="card confirmed" onclick="openCard('donovan')">
-      <div class="c-row1">
-        <div class="c-name">Donovan Shelton</div>
-        <div class="c-amt">$3,582</div>
-      </div>
-      <div class="c-addr">1025 S 59th St, Tacoma</div>
-      <div class="tags">
-        <span class="tag">Staging Jun 2</span>
-        <span class="tag w">Mover: TBD</span>
-        <span class="tag a">Payment due Jun 1</span>
-      </div>
-      <div class="c-note">Early morning start requested. Confirm Thursday.</div>
-    </div>
+    <button class="mtb-btn" onclick="moveToStagePrompt('confirmed')">+ Move to Board</button>
+    <div id="col-body-confirmed"></div>
   </div>
 
-  <!-- CURRENTLY STAGED -->
   <div class="col" data-s="staged">
     <div class="col-hdr">
       <span class="col-lbl" style="color:var(--gold-dk)">Currently Staged</span>
-      <span class="col-n" style="background:var(--gold);color:var(--ink)">2</span>
+      <span class="col-n" id="col-n-staged" style="background:var(--gold);color:var(--ink)">0</span>
     </div>
-
-    <div class="card staged" onclick="openCard('kc')">
-      <div class="c-row1">
-        <div class="c-name">KC Sanders</div>
-        <div class="c-amt">$3,969</div>
-      </div>
-      <div class="c-addr">2105 Westlake Ave N, Seattle</div>
-      <div class="tags">
-        <span class="tag">Staged May 9</span>
-        <span class="tag">Paid</span>
-        <span class="tag">Shopping: $180</span>
-      </div>
-      <div class="day-wrap g">
-        <div class="ring-outer">
-          <svg class="ring-svg" width="36" height="36" viewBox="0 0 36 36">
-            <circle cx="18" cy="18" r="14" fill="none" stroke="rgba(74,124,80,0.18)" stroke-width="3"/>
-            <circle cx="18" cy="18" r="14" fill="none" stroke="var(--green)" stroke-width="3"
-              stroke-dasharray="87.96" stroke-dashoffset="64.5" stroke-linecap="round"/>
-          </svg>
-          <div class="ring-num g">12</div>
-        </div>
-        <div class="day-info">
-          <div class="day-main g">Day 12 of 45</div>
-          <div class="day-sub">33 days remaining</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="card staged" onclick="openCard('leon')">
-      <div class="c-row1">
-        <div class="c-name">Estate of Leon Sanders</div>
-        <div class="c-amt">$3,969</div>
-      </div>
-      <div class="c-addr">2105 Westlake Ave N #201</div>
-      <div class="tags">
-        <span class="tag">Staged Apr 22</span>
-        <span class="tag">Paid</span>
-      </div>
-      <div class="day-wrap a">
-        <div class="ring-outer">
-          <svg class="ring-svg" width="36" height="36" viewBox="0 0 36 36">
-            <circle cx="18" cy="18" r="14" fill="none" stroke="rgba(201,124,46,0.18)" stroke-width="3"/>
-            <circle cx="18" cy="18" r="14" fill="none" stroke="var(--amber)" stroke-width="3"
-              stroke-dasharray="87.96" stroke-dashoffset="26.4" stroke-linecap="round"/>
-          </svg>
-          <div class="ring-num a">29</div>
-        </div>
-        <div class="day-info">
-          <div class="day-main a">Day 29 of 45</div>
-          <div class="day-sub">Plan destage soon — 16 left</div>
-        </div>
-      </div>
-    </div>
+    <div id="col-body-staged"></div>
   </div>
 
-  <!-- DESTAGE SCHEDULED -->
   <div class="col" data-s="destage">
     <div class="col-hdr">
       <span class="col-lbl" style="color:var(--slate)">Destage Scheduled</span>
-      <span class="col-n" style="background:var(--slate)">1</span>
+      <span class="col-n" id="col-n-destage" style="background:var(--slate)">0</span>
     </div>
-
-    <div class="card destage" onclick="openCard('jane')">
-      <div class="c-row1">
-        <div class="c-name">Jane Smith</div>
-        <div class="c-amt">$2,764</div>
-      </div>
-      <div class="c-addr">123 Main St, Seattle</div>
-      <div class="tags">
-        <span class="tag">Staged Apr 12</span>
-        <span class="tag">Mover: Gabriel</span>
-        <span class="tag">Paid</span>
-      </div>
-      <div class="destage-chip">Destage: May 22  ·  9am</div>
-      <div class="day-wrap g" style="margin-top:9px">
-        <div class="ring-outer">
-          <svg class="ring-svg" width="36" height="36" viewBox="0 0 36 36">
-            <circle cx="18" cy="18" r="14" fill="none" stroke="rgba(74,124,80,0.18)" stroke-width="3"/>
-            <circle cx="18" cy="18" r="14" fill="none" stroke="var(--green)" stroke-width="3"
-              stroke-dasharray="87.96" stroke-dashoffset="61" stroke-linecap="round"/>
-          </svg>
-          <div class="ring-num g">19</div>
-        </div>
-        <div class="day-info">
-          <div class="day-main g">Destage confirmed</div>
-          <div class="day-sub">Cleared before day 40</div>
-        </div>
-      </div>
-    </div>
+    <div id="col-body-destage"></div>
   </div>
 
-  <!-- COMPLETED -->
   <div class="col" data-s="done">
     <div class="col-hdr">
       <span class="col-lbl" style="color:var(--taupe)">Completed</span>
-      <span class="col-n">0</span>
+      <span class="col-n" id="col-n-done">0</span>
     </div>
-    <div style="padding:24px 12px;text-align:center;font-size:12px;color:var(--taupe);font-style:italic;line-height:1.6">
-      Completed jobs<br>will appear here
-    </div>
+    <div id="col-body-done"></div>
   </div>
 
 </div>
@@ -566,9 +413,9 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
     <div class="m-bar confirmed" id="m-bar"></div>
 
     <div class="m-hdr">
-      <div class="m-name" id="m-name">Brianne Borden</div>
-      <div class="m-addr" id="m-addr">19911 138th Ave E, Graham WA 98338</div>
-      <div class="m-amt" id="m-amt">$3,202</div>
+      <div class="m-name" id="m-name"></div>
+      <div class="m-addr" id="m-addr"></div>
+      <div class="m-amt" id="m-amt"></div>
     </div>
 
     <!-- Profitability strip -->
@@ -588,7 +435,7 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
       <div class="m-sec-ttl">Staging Day</div>
       <div class="m-row">
         <span class="m-lbl">Staging date</span>
-        <input class="m-input" id="m-sdate" type="date" value="2026-05-30">
+        <input class="m-input" id="m-sdate" type="date" >
       </div>
       <div class="m-row">
         <span class="m-lbl">Mover</span>
@@ -598,8 +445,8 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
             <option value="gabriel">Gabriel</option>
             <option value="other">Other...</option>
           </select>
-          <input class="m-tel-input" id="m-mover" type="text" value="Anthony" placeholder="Name" style="width:80px">
-          <input class="m-tel-input" id="m-mover-tel" type="tel" value="+12065025216" placeholder="Phone" style="width:100px">
+          <input class="m-tel-input" id="m-mover" type="text"  placeholder="Name" style="width:80px">
+          <input class="m-tel-input" id="m-mover-tel" type="tel"  placeholder="Phone" style="width:100px">
           <button class="m-text-btn" onclick="textMover('staging')">Text</button>
         </div>
       </div>
@@ -612,7 +459,7 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
       </div>
       <div class="m-row">
         <span class="m-lbl">Truck pickup time</span>
-        <input class="m-input" id="m-truck-time" type="text" value="8:00 AM">
+        <input class="m-input" id="m-truck-time" type="text" >
       </div>
       <div class="m-row">
         <span class="m-lbl">Calendar</span>
@@ -626,13 +473,13 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
       <div class="m-row">
         <span class="m-lbl">Photo date</span>
         <div class="m-tel-row">
-          <input class="m-input" id="m-photo" type="date" value="2026-05-31">
+          <input class="m-input" id="m-photo" type="date" >
           <button class="m-text-btn" onclick="textPhotographer()" style="background:var(--rose,#b5706a)">Text Gabriel</button>
         </div>
       </div>
       <div class="m-row">
         <span class="m-lbl">Photo delivery</span>
-        <input class="m-input" id="m-photo-del" type="text" value="Jun 1 — 24hrs after shoot">
+        <input class="m-input" id="m-photo-del" type="text" >
       </div>
     </div>
 
@@ -649,7 +496,7 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
       </div>
       <div class="m-row">
         <span class="m-lbl">Payment date</span>
-        <input class="m-input" id="m-paid-date" type="date" value="2026-05-28">
+        <input class="m-input" id="m-paid-date" type="date" >
       </div>
       <div class="m-row">
         <span class="m-lbl">Est. bank deposit</span>
@@ -716,7 +563,7 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
     <div class="m-sec">
       <div class="m-sec-ttl">Notes</div>
       <div style="padding:8px 0">
-        <textarea id="m-notes" style="font-family:'Inter',sans-serif;font-size:13px;color:var(--ink);border:1.5px solid var(--taupe-lt);border-radius:10px;background:var(--cream);outline:none;resize:none;width:100%;min-height:64px;padding:10px 12px;line-height:1.5;transition:border-color 0.15s" placeholder="Any notes about this job...">Truck booked 8am. Accent pillows needed for primary.</textarea>
+        <textarea id="m-notes" style="font-family:'Inter',sans-serif;font-size:13px;color:var(--ink);border:1.5px solid var(--taupe-lt);border-radius:10px;background:var(--cream);outline:none;resize:none;width:100%;min-height:64px;padding:10px 12px;line-height:1.5;transition:border-color 0.15s" placeholder="Any notes about this job..."></textarea>
       </div>
     </div>
 
@@ -735,7 +582,7 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
 
     <div class="m-btns">
       <button class="mbtn sec" onclick="closeModal()">Cancel</button>
-      <button class="mbtn pri">Save Changes</button>
+      <button class="mbtn pri" onclick="saveCard()">Save Changes</button>
     </div>
   </div>
 </div>
@@ -928,32 +775,26 @@ function addToCalendar(type){
 }
 
 // ── PREP ITEMS DATA (per job, keyed by card id) ──
-const prepData = {
-  'brianne': [
-    {id:1, desc:'Accent pillows for primary', store:'HomeGoods', price:85, done:false},
-    {id:2, desc:'Art for living room', store:'World Market', price:140, done:false},
-  ],
-  'donovan': [
-    {id:3, desc:'2 twin mattress & frames (master)', store:'Warehouse', price:null, done:false},
-    {id:4, desc:'2 Queen headboards — fix/repair', store:'Warehouse', price:null, done:false},
-    {id:5, desc:'Patio furniture ×2', store:'World Market', price:300, done:false},
-    {id:6, desc:'5 accent chairs', store:'HomeGoods', price:250, done:false},
-    {id:7, desc:'King comforter', store:'Warehouse', price:null, done:true},
-    {id:8, desc:'2-3 curtains', store:'TJ Maxx', price:90, done:false},
-    {id:9, desc:'Coffee table', store:'HomeGoods', price:120, done:false},
-  ],
-  'kc': [],
-  'leon': [],
-  'jane': [],
-  'chad': [],
-  'lead': [],
-};
+// prepData is populated per-card when modal opens (from invoice.data.prep_items)
+const prepData = {};
 
 let currentCardId = null;
 let nextPrepId = 100;
 
 function renderPrepList(cardId){
-  const items = prepData[cardId] || [];
+  // Hydrate from saved data the first time this card is opened
+  if(!prepData[cardId] && CARDS[cardId] && CARDS[cardId].data && Array.isArray(CARDS[cardId].data.prep_items)){
+    prepData[cardId] = CARDS[cardId].data.prep_items.map(p => ({
+      id: nextPrepId++,
+      desc: p.desc,
+      store: p.store,
+      price: p.price,
+      done: !!p.done,
+    }));
+  }
+  if(!prepData[cardId]) prepData[cardId] = [];
+
+  const items = prepData[cardId];
   const el = document.getElementById('m-prep-list');
   if(!el) return;
   if(items.length === 0){
@@ -963,8 +804,8 @@ function renderPrepList(cardId){
   el.innerHTML = items.map(item => `
     <div class="prep-item" id="prep-${item.id}">
       <input type="checkbox" class="prep-check" ${item.done?'checked':''} onchange="togglePrep('${cardId}',${item.id})">
-      <span class="prep-desc${item.done?' done':''}">${item.desc}</span>
-      ${item.store ? `<span class="prep-store">${item.store}</span>` : ''}
+      <span class="prep-desc${item.done?' done':''}">${escapeHtml(item.desc)}</span>
+      ${item.store ? `<span class="prep-store">${escapeHtml(item.store)}</span>` : ''}
       ${item.price ? `<span class="prep-cost">$${item.price}</span>` : ''}
       <button class="prep-del" onclick="delPrep('${cardId}',${item.id})">×</button>
     </div>
@@ -1002,16 +843,19 @@ function renderShoppingConsolidator(){
   let totalCost = 0;
   let totalItems = 0;
 
-  const jobNames = {
-    brianne:'Brianne — Graham', donovan:'Donovan — Tacoma',
-    kc:'KC — Seattle', leon:'Leon — Seattle',
-    jane:'Jane — Seattle', chad:'Chad & Gen — Westport'
-  };
-
   Object.entries(prepData).forEach(([cardId, items])=>{
     items.filter(i=>!i.done && i.store).forEach(item=>{
       if(!byStore[item.store]) byStore[item.store] = [];
-      byStore[item.store].push({...item, job: jobNames[cardId]||cardId});
+      // Derive job label from CARDS (real data), fall back to invnum
+      let jobLabel = cardId;
+      if(CARDS[cardId]){
+        const cl = CARDS[cardId].client || '';
+        const ad = CARDS[cardId].address || '';
+        const firstName = cl.split(' ')[0];
+        const city = (ad.split(',')[1] || '').trim();
+        jobLabel = firstName + (city ? ' — ' + city : '');
+      }
+      byStore[item.store].push({...item, job: jobLabel});
       if(item.price) totalCost += item.price;
       totalItems++;
     });
@@ -1056,12 +900,6 @@ function sendJobShoppingList(){
   const items = (prepData[id]||[]).filter(i=>!i.done && i.store);
   if(items.length === 0){ alert('No shopping items for this job yet.'); return; }
 
-  const jobNames = {
-    brianne:'Brianne — Graham', donovan:'Donovan — Tacoma',
-    kc:'KC — Seattle', leon:'Leon — Seattle',
-    jane:'Jane — Seattle', chad:'Chad & Gen — Westport'
-  };
-
   const byStore = {};
   let totalCost = 0;
   items.forEach(item=>{
@@ -1071,7 +909,15 @@ function sendJobShoppingList(){
   });
 
   const today = new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
-  const jobName = jobNames[id] || id;
+  // Derive job name from real CARDS data
+  let jobName = id;
+  if(CARDS[id]){
+    const cl = CARDS[id].client || '';
+    const ad = CARDS[id].address || '';
+    const firstName = cl.split(' ')[0];
+    const city = (ad.split(',')[1] || '').trim();
+    jobName = firstName + (city ? ' — ' + city : '');
+  }
   let msg = `SWJ Shopping — ${jobName}\n${today}\n\n`;
 
   Object.entries(byStore).forEach(([store, storeItems])=>{
@@ -1091,16 +937,18 @@ function sendShoppingList(){
   const byStore = {};
   let totalCost = 0;
 
-  const jobNames = {
-    brianne:'Brianne/Graham', donovan:'Donovan/Tacoma',
-    kc:'KC/Seattle', leon:'Leon/Seattle',
-    jane:'Jane/Seattle', chad:'Chad/Westport'
-  };
-
   Object.entries(prepData).forEach(([cardId, items])=>{
     items.filter(i=>!i.done && i.store).forEach(item=>{
       if(!byStore[item.store]) byStore[item.store] = [];
-      byStore[item.store].push({...item, job: jobNames[cardId]||cardId});
+      let jobLabel = cardId;
+      if(CARDS[cardId]){
+        const cl = CARDS[cardId].client || '';
+        const ad = CARDS[cardId].address || '';
+        const firstName = cl.split(' ')[0];
+        const city = (ad.split(',')[1] || '').trim();
+        jobLabel = firstName + (city ? '/' + city : '');
+      }
+      byStore[item.store].push({...item, job: jobLabel});
       if(item.price) totalCost += item.price;
     });
   });
@@ -1126,41 +974,419 @@ function sendShoppingList(){
 }
 
 // Hook into openCard to load prep items
-const _origOpenCard = window.open_card || openCard;
-// Card data registry — populates modal when each card is tapped
-const CARDS = {
-  chad:    { name:'Chad Lewis',      addr:'24617 SE 25th Way, Sammamish',  amt:'$2,925', stage:'proposal'  },
-  lead:    { name:'New Lead',         addr:'2118 N Yakima Ave, Tacoma',     amt:'$3,033', stage:'proposal'  },
-  brianne: { name:'Brianne Borden',   addr:'19911 138th Ave E, Graham',     amt:'$3,202', stage:'confirmed' },
-  donovan: { name:'Donovan Shelton',  addr:'1025 S 59th St, Tacoma',        amt:'$3,582', stage:'confirmed' },
-  kc:      { name:'KC Sanders',       addr:'2105 Westlake Ave N, Seattle',  amt:'$3,969', stage:'staged'    },
-  leon:    { name:'Estate of Leon Hopkins', addr:'4118 32nd Ave S, Seattle', amt:'$3,969', stage:'staged'    },
-  jane:    { name:'Jane Smith',       addr:'410 NW 47th St, Seattle',       amt:'$2,756', stage:'destage'   },
-};
+// ─────────────────────────────────────────────────────────────
+// SUPABASE — Board data layer
+// ─────────────────────────────────────────────────────────────
+const _sb = supabase.createClient(
+  'https://cwvdfgrjlrpsdfwduwvn.supabase.co',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN3dmRmZ3JqbHJwc2Rmd2R1d3ZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwMDcyODUsImV4cCI6MjA5MzU4MzI4NX0.zam9AnIwW91TI6eCKUcg05LhvFcRa7op4QsjRpdcrCY'
+);
 
-function realOpenCard(id){
-  currentCardId = id;
-  const card = CARDS[id];
-  if(card){
-    const nameEl = document.getElementById('m-name');
-    const addrEl = document.getElementById('m-addr');
-    const amtEl = document.getElementById('m-amt');
-    const barEl = document.getElementById('m-bar');
-    if(nameEl) nameEl.textContent = card.name;
-    if(addrEl) addrEl.textContent = card.addr;
-    if(amtEl) amtEl.textContent = card.amt;
-    if(barEl) barEl.className = 'm-bar ' + card.stage;
-  }
-  document.getElementById('overlay').classList.add('on');
-  setTimeout(()=>renderPrepList(id), 50);
+// In-memory registry of all loaded invoices, keyed by invnum
+let CARDS = {};
+
+// Compute grand total from saved data blob
+function computeGrand(d){
+  const base = parseFloat(d.base_price) || 2500;
+  const addonsTotal = (d.addons||[]).reduce((s,a)=>s+(parseFloat(a.price)||0),0);
+  const taxrate = parseFloat(d.taxrate) || 0;
+  return (base + addonsTotal) * (1 + taxrate/100);
 }
 
-// Initialize shopping consolidator on load
+function fmtMoney(n){ return '$' + Math.round(n).toLocaleString(); }
+
+function shortAddr(addr){
+  if(!addr) return '';
+  // Drop ZIP & state: keep "street, city"
+  const parts = addr.split(',');
+  if(parts.length <= 2) return addr;
+  return parts.slice(0,2).join(',').trim();
+}
+
+function fmtDateShort(iso){
+  if(!iso) return '';
+  const d = new Date(iso + 'T00:00:00');
+  return d.toLocaleDateString('en-US', {month:'short', day:'numeric'});
+}
+
+// Stage display labels & colors
+const STAGE_META = {
+  proposal:  {label:'Proposal Sent',     color:'taupe-dk'},
+  confirmed: {label:'Confirmed',         color:'green'},
+  staged:    {label:'Currently Staged',  color:'gold-dk'},
+  destage:   {label:'Destage Scheduled', color:'slate'},
+  done:      {label:'Completed',         color:'taupe'},
+  denied:    {label:'Declined',          color:'red'},
+};
+
+// Build a card HTML element from an invoice record
+function buildCardHTML(inv){
+  const d = inv.data || {};
+  const stage = d.stage || 'proposal';
+  const grand = computeGrand(d);
+  const name = inv.client || d.client || 'Unknown';
+  const addr = shortAddr(inv.address || d.address || '');
+  // Tags based on stage + status
+  const tags = [];
+  if(d.startdate) tags.push({text:'Staging ' + fmtDateShort(d.startdate)});
+  if(d.mover_name) tags.push({text:'Mover: ' + d.mover_name});
+  else if(stage==='confirmed' || stage==='staged') tags.push({text:'Mover: TBD', cls:'w'});
+  if(d.paid) tags.push({text:'Paid'});
+  else if(stage==='confirmed') tags.push({text:'Payment pending', cls:'a'});
+  if(d.photo_date && (stage==='confirmed'||stage==='staged')) tags.push({text:'Photos ' + fmtDateShort(d.photo_date)});
+
+  const tagHTML = tags.map(t => `<span class="tag ${t.cls||''}">${t.text}</span>`).join('');
+  const noteHTML = d.notes ? `<div class="c-note">${escapeHtml(d.notes)}</div>` : '';
+
+  return `
+    <div class="card ${stage}" onclick="openCard('${inv.invnum}')">
+      <div class="c-row1">
+        <div class="c-name">${escapeHtml(name)}</div>
+        <div class="c-amt">${fmtMoney(grand)}</div>
+      </div>
+      <div class="c-addr">${escapeHtml(addr)}</div>
+      ${tagHTML ? `<div class="tags">${tagHTML}</div>` : ''}
+      ${noteHTML}
+    </div>
+  `;
+}
+
+function escapeHtml(s){
+  if(s===null||s===undefined) return '';
+  return String(s).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+
+// Load all real (non-DRAFT) invoices and render the board
+async function loadBoard(){
+  try {
+    const { data, error } = await _sb
+      .from('invoices')
+      .select('invnum,client,address,invdate,data,created_at')
+      .order('created_at', { ascending: false })
+      .limit(200);
+    if(error){
+      console.error('Board load error:', error);
+      ['proposal','confirmed','staged','destage','done'].forEach(s => {
+        const body = document.getElementById('col-body-'+s);
+        if(body) body.innerHTML = `<div style="padding:24px 12px;text-align:center;font-size:11px;color:var(--red);font-style:italic">Could not load: ${error.message}</div>`;
+      });
+      return;
+    }
+    // Filter out drafts (DRAFT- prefix)
+    const invoices = (data||[]).filter(inv => !inv.invnum.startsWith('DRAFT-'));
+
+    // Reset registry
+    CARDS = {};
+    invoices.forEach(inv => { CARDS[inv.invnum] = inv; });
+
+    // Group by stage; default missing stage to 'proposal'
+    const grouped = { proposal:[], confirmed:[], staged:[], destage:[], done:[], denied:[] };
+    invoices.forEach(inv => {
+      const stage = (inv.data && inv.data.stage) || 'proposal';
+      if(grouped[stage]) grouped[stage].push(inv);
+      else grouped.proposal.push(inv); // unknown stage falls back to proposal
+    });
+
+    // Render each column
+    ['proposal','confirmed','staged','destage','done'].forEach(stage => {
+      const body = document.getElementById('col-body-'+stage);
+      if(!body) return;
+      const items = grouped[stage] || [];
+      if(items.length === 0){
+        body.innerHTML = `<div style="padding:24px 12px;text-align:center;font-size:11px;color:var(--taupe);font-style:italic;line-height:1.6">No ${STAGE_META[stage].label.toLowerCase()}<br>jobs yet</div>`;
+      } else {
+        body.innerHTML = items.map(buildCardHTML).join('');
+      }
+      // Column count badge
+      const colN = document.getElementById('col-n-'+stage);
+      if(colN) colN.textContent = items.length;
+      // Tab count
+      const tabN = document.getElementById('tab-n-'+stage);
+      if(tabN) tabN.textContent = items.length;
+    });
+
+    // 'All' tab count = sum of active stages
+    const activeTotal = grouped.proposal.length + grouped.confirmed.length + grouped.staged.length + grouped.destage.length + grouped.done.length;
+    const allTab = document.getElementById('tab-n-all');
+    if(allTab) allTab.textContent = activeTotal;
+
+    // Update pipeline stats
+    updatePipelineStats(grouped);
+
+    // Update today strip
+    updateTodayStrip(invoices);
+
+    // Re-apply compact mode if it was on
+    if(compact){
+      document.querySelectorAll('.card').forEach(c => c.classList.add('compact'));
+    }
+  } catch(e){
+    console.error('loadBoard exception:', e);
+  }
+}
+
+function updatePipelineStats(grouped){
+  // Counts and totals per stage
+  const totalFor = arr => arr.reduce((s,inv) => s + computeGrand(inv.data||{}), 0);
+
+  const propCount = grouped.proposal.length;
+  const propTotal = totalFor(grouped.proposal);
+  document.getElementById('stat-proposal-count').textContent = propCount;
+  document.getElementById('stat-proposal-total').textContent = fmtMoney(propTotal) + ' out';
+
+  const confCount = grouped.confirmed.length;
+  const confTotal = totalFor(grouped.confirmed);
+  document.getElementById('stat-confirmed-count').textContent = confCount;
+  document.getElementById('stat-confirmed-total').textContent = fmtMoney(confTotal) + ' locked';
+
+  const stagedCount = grouped.staged.length;
+  const stagedTotal = totalFor(grouped.staged);
+  document.getElementById('stat-staged-count').textContent = stagedCount;
+  document.getElementById('stat-staged-total').textContent = fmtMoney(stagedTotal) + ' staged';
+
+  // MTD Revenue = sum of grand totals for invoices marked paid this month
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  let mtdTotal = 0, mtdCount = 0;
+  Object.values(CARDS).forEach(inv => {
+    const d = inv.data || {};
+    if(d.paid && d.paid_date){
+      const pd = new Date(d.paid_date + 'T00:00:00');
+      if(pd >= monthStart){
+        mtdTotal += computeGrand(d);
+        mtdCount++;
+      }
+    }
+  });
+  document.getElementById('stat-mtd-total').textContent = fmtMoney(mtdTotal);
+  document.getElementById('stat-mtd-count').textContent = mtdCount + ' completed';
+
+  // Needs Attention: count cards that have urgent or warning tags
+  // We use the same logic as buildCardHTML — count cards with .tag.a or .tag.w
+  let attentionCount = 0;
+  document.querySelectorAll('.card .tag.a, .card .tag.w').forEach(() => attentionCount++);
+  document.getElementById('stat-attention-count').textContent = attentionCount;
+}
+
+function updateTodayStrip(invoices){
+  const today = new Date(); today.setHours(0,0,0,0);
+  const stripEl = document.getElementById('today-items');
+  const dateEl = document.getElementById('today-date');
+  if(dateEl) dateEl.textContent = today.toLocaleDateString('en-US', {weekday:'long', month:'short', day:'numeric'});
+  if(!stripEl) return;
+
+  const items = [];
+  invoices.forEach(inv => {
+    const d = inv.data || {};
+    const stage = d.stage || 'proposal';
+    const client = inv.client || d.client || 'Unknown';
+
+    // Payment overdue
+    if(!d.paid && d.startdate){
+      const startDate = new Date(d.startdate + 'T00:00:00');
+      const daysAgo = Math.round((today - startDate)/(1000*60*60*24));
+      if(daysAgo > 0){
+        items.push({type:'urgent', label:'Payment overdue', value:client, invnum:inv.invnum, sortKey:1000+daysAgo});
+        return;
+      }
+    }
+    // Staging tomorrow
+    if(d.startdate){
+      const startDate = new Date(d.startdate + 'T00:00:00');
+      const daysUntil = Math.round((startDate - today)/(1000*60*60*24));
+      if(daysUntil === 1){
+        items.push({type:'info', label:'Staging tomorrow', value:client + ' — ' + fmtDateShort(d.startdate), invnum:inv.invnum, sortKey:600});
+      } else if(daysUntil === 0){
+        items.push({type:'urgent', label:'Staging today', value:client, invnum:inv.invnum, sortKey:900});
+      }
+    }
+    // Plan destage (40-44 days into staging)
+    if(d.paid && d.startdate && stage==='staged'){
+      const startDate = new Date(d.startdate + 'T00:00:00');
+      const daysSince = Math.round((today - startDate)/(1000*60*60*24));
+      if(daysSince >= 38 && daysSince <= 44){
+        items.push({type:'warn', label:'Plan destage soon', value:client + ' — Day ' + daysSince, invnum:inv.invnum, sortKey:700});
+      }
+    }
+    // Find mover (confirmed but no mover set)
+    if(stage==='confirmed' && !d.mover_name && d.startdate){
+      items.push({type:'warn', label:'Find mover', value:client + ' — ' + fmtDateShort(d.startdate) + ' staging', invnum:inv.invnum, sortKey:500});
+    }
+  });
+
+  items.sort((a,b) => b.sortKey - a.sortKey);
+  if(items.length === 0){
+    stripEl.innerHTML = '<div style="color:rgba(255,255,255,0.4);font-size:11px;font-style:italic;padding:6px 4px">Nothing urgent today.</div>';
+    return;
+  }
+  stripEl.innerHTML = items.slice(0,8).map(it => `
+    <div class="today-item ${it.type}" onclick="openCard('${it.invnum}')">
+      <div class="ti-label ${it.type}">${it.label}</div>
+      <div class="ti-value">${escapeHtml(it.value)}</div>
+    </div>
+  `).join('');
+}
+
+function moveToStagePrompt(targetStage){
+  // Placeholder: in future, show a picker of proposals to move into that stage
+  alert('To add to ' + STAGE_META[targetStage].label + ', generate an invoice and it will appear here automatically. Tap an existing card to move it through stages.');
+}
+
+// ─────────────────────────────────────────────────────────────
+// MODAL — hydrate from Supabase + save back
+// ─────────────────────────────────────────────────────────────
+function realOpenCard(invnum){
+  currentCardId = invnum;
+  const inv = CARDS[invnum];
+  if(!inv){
+    console.warn('Card not found:', invnum);
+    return;
+  }
+  const d = inv.data || {};
+  const stage = d.stage || 'proposal';
+
+  // Header
+  document.getElementById('m-name').textContent = inv.client || d.client || '';
+  document.getElementById('m-addr').textContent = inv.address || d.address || '';
+  document.getElementById('m-amt').textContent = fmtMoney(computeGrand(d));
+  document.getElementById('m-bar').className = 'm-bar ' + stage;
+
+  // Staging
+  setVal('m-sdate', d.startdate || '');
+  setVal('m-mover', d.mover_name || '');
+  setVal('m-mover-tel', d.mover_phone || '');
+  // Mover select sync
+  const moverSel = document.getElementById('m-mover-select');
+  if(moverSel){
+    const known = Object.keys(MOVERS).find(k => MOVERS[k].name === d.mover_name);
+    moverSel.value = known || 'other';
+  }
+  const truckSel = document.getElementById('m-truck');
+  if(truckSel){ truckSel.value = d.truck_booked ? 'Booked' : 'Not yet'; }
+  setVal('m-truck-time', d.truck_pickup_time || '');
+
+  // Photography
+  setVal('m-photo', d.photo_date || '');
+  setVal('m-photo-del', d.photo_delivery || '');
+
+  // Payment
+  const paymentSel = document.getElementById('m-payment');
+  if(paymentSel){
+    paymentSel.value = d.paid
+      ? (d.payment_url ? 'Confirmed via Stripe' : 'Paid')
+      : 'Awaiting payment';
+  }
+  setVal('m-paid-date', d.paid_date || '');
+  setVal('m-deposit-date', d.deposit_date || '');
+
+  // Destage
+  setVal('m-ddate', d.destage_date || '');
+  setVal('m-dmover', d.destage_mover || '');
+  setVal('m-dmover-tel', d.destage_mover_phone || '');
+  const dmoverSel = document.getElementById('m-dmover-select');
+  if(dmoverSel){
+    const known = Object.keys(MOVERS).find(k => MOVERS[k].name === d.destage_mover);
+    dmoverSel.value = known || '';
+  }
+  setVal('m-dtime', d.destage_time || '');
+
+  // Notes
+  setVal('m-notes', d.notes || '');
+
+  // Move-to-stage current selection
+  document.querySelectorAll('.move-opt').forEach(o => o.classList.remove('cur'));
+  document.querySelectorAll('.move-opt').forEach(o => {
+    if(o.textContent.trim().toLowerCase().includes(STAGE_META[stage].label.toLowerCase().split(' ')[0])) o.classList.add('cur');
+  });
+
+  document.getElementById('overlay').classList.add('on');
+  setTimeout(()=>renderPrepList(invnum), 50);
+}
+
+function setVal(id, v){ const el = document.getElementById(id); if(el) el.value = v; }
+
+async function saveCard(){
+  if(!currentCardId){ return; }
+  const inv = CARDS[currentCardId];
+  if(!inv){ alert('Card not found'); return; }
+
+  const btn = document.querySelector('.mbtn.pri');
+  if(btn){ btn.disabled = true; btn.textContent = 'Saving...'; }
+
+  // Merge modal fields into the data blob
+  const d = { ...(inv.data || {}) };
+  d.startdate = document.getElementById('m-sdate').value || null;
+  d.mover_name = document.getElementById('m-mover').value || null;
+  d.mover_phone = document.getElementById('m-mover-tel').value || null;
+  d.truck_booked = document.getElementById('m-truck').value === 'Booked';
+  d.truck_pickup_time = document.getElementById('m-truck-time').value || null;
+  d.photo_date = document.getElementById('m-photo').value || null;
+  d.photo_delivery = document.getElementById('m-photo-del').value || null;
+
+  const paymentVal = document.getElementById('m-payment').value;
+  d.paid = (paymentVal === 'Paid' || paymentVal === 'Confirmed via Stripe');
+  d.paid_date = document.getElementById('m-paid-date').value || null;
+  d.deposit_date = document.getElementById('m-deposit-date').value || null;
+
+  d.destage_date = document.getElementById('m-ddate').value || null;
+  d.destage_mover = document.getElementById('m-dmover').value || null;
+  d.destage_mover_phone = document.getElementById('m-dmover-tel').value || null;
+  d.destage_time = document.getElementById('m-dtime').value || null;
+
+  d.notes = document.getElementById('m-notes').value || '';
+
+  // Stage (from currently-selected Move-to-Stage option)
+  const curStageEl = document.querySelector('.move-opt.cur');
+  if(curStageEl){
+    const txt = curStageEl.textContent.trim().toLowerCase();
+    if(txt.includes('proposal')) d.stage = 'proposal';
+    else if(txt.includes('confirm')) d.stage = 'confirmed';
+    else if(txt.includes('currently') || txt.includes('staged')) d.stage = 'staged';
+    else if(txt.includes('destage')) d.stage = 'destage';
+    else if(txt.includes('complet')) d.stage = 'done';
+    else if(txt.includes('declin')) d.stage = 'denied';
+  }
+
+  // Persist prep_items (from in-memory prepData, scoped to this card)
+  d.prep_items = (prepData[currentCardId] || []).map(p => ({
+    desc: p.desc, store: p.store, price: p.price, done: !!p.done
+  }));
+
+  try {
+    const { error } = await _sb.from('invoices').upsert({
+      invnum: inv.invnum,
+      client: inv.client,
+      address: inv.address,
+      invdate: inv.invdate,
+      data: d
+    }, { onConflict: 'invnum' });
+
+    if(error){
+      console.error('Save error:', error);
+      alert('Save failed: ' + (error.message || JSON.stringify(error)));
+      if(btn){ btn.disabled = false; btn.textContent = 'Save Changes'; }
+      return;
+    }
+
+    // Update in-memory cache and re-render
+    CARDS[currentCardId].data = d;
+    closeModal();
+    loadBoard();
+  } catch(e){
+    console.error('Save exception:', e);
+    alert('Save failed: ' + e.message);
+  } finally {
+    if(btn){ btn.disabled = false; btn.textContent = 'Save Changes'; }
+  }
+}
+
+// Initialize board on load
 document.addEventListener('DOMContentLoaded', ()=>{
   renderShoppingConsolidator();
-  // Default view: Confirmed (where Jasmine spends most of her time)
+  // Default view: Confirmed
   const confirmedTab = document.querySelectorAll('.tab')[2];
   if(confirmedTab) filter('confirmed', confirmedTab);
+  loadBoard();
 });
 
 

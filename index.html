@@ -1050,9 +1050,11 @@ function showUpdateBtn(){
 }
 
 async function updateLoadedInvoice(){
-  if(!currentLoadedInvnum){ setSt('err','No invoice loaded to update'); return; }
+  console.log('[UPDATE] clicked. currentLoadedInvnum =', currentLoadedInvnum);
+  if(!currentLoadedInvnum){ setSt('err','No invoice loaded to update'); console.warn('[UPDATE] no invoice loaded'); return; }
   if(currentLoadedInvnum.startsWith('DRAFT-')){
     setSt('err','Use Save as Draft for drafts. Update is for finalized invoices.');
+    console.warn('[UPDATE] is a draft, aborting');
     return;
   }
   const btn = document.getElementById('update-invoice-btn');
@@ -1088,9 +1090,12 @@ async function updateLoadedInvoice(){
       cover_note: document.getElementById('cover_note')?.value.trim()||'',
       paid: document.getElementById('paid').checked,
       paid_date: document.getElementById('paid_date')?.value||'',
+      stage: window._lastLoadedStage || 'proposal',
     };
 
-    const { error } = await _sb.from('invoices').upsert({
+    console.log('[UPDATE] upserting to Supabase:', { invnum: currentLoadedInvnum, paid: data.paid, paid_date: data.paid_date });
+
+    const result = await _sb.from('invoices').upsert({
       invnum: currentLoadedInvnum,
       client: data.client,
       address: data.address,
@@ -1098,13 +1103,19 @@ async function updateLoadedInvoice(){
       data: data
     }, { onConflict: 'invnum' });
 
-    if(error){ setSt('err','Update failed: '+error.message); }
-    else {
-      setSt('ok','Invoice updated');
+    console.log('[UPDATE] Supabase result:', result);
+
+    if(result.error){
+      setSt('err','Update failed: '+(result.error.message||JSON.stringify(result.error)));
+      console.error('[UPDATE] error:', result.error);
+    } else {
+      setSt('ok','Invoice updated ✓');
+      console.log('[UPDATE] success');
       loadRecent();
     }
   } catch(e){
     setSt('err','Update failed: '+e.message);
+    console.error('[UPDATE] exception:', e);
   } finally {
     if(btn){ btn.disabled = false; btn.textContent = 'Update This Invoice'; }
   }
@@ -1128,6 +1139,7 @@ function loadInvoiceData(d){
     document.getElementById('paid').checked = d.paid||false;
     if(d.paid) togglePaid();
     document.getElementById('paid_date').value = d.paid_date||'';
+    window._lastLoadedStage = d.stage || 'proposal';
     document.getElementById('cover_page').checked = d.cover_page||false;
 
     // Restore selected rooms
@@ -1742,7 +1754,7 @@ async function generatePDF(){
 
   setSt('loading','Generating your invoice PDF...');
   const data={client,address,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:document.getElementById('startdate').value,baserooms:[...selRooms].join(', '),extrate,taxrate,base_price:base,addons:allAddons,promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
-            promo4:document.getElementById('promo4').checked,payment_url,cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||''};
+            promo4:document.getElementById('promo4').checked,payment_url,cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||'',stage:(currentLoadedInvnum?(window._lastLoadedStage||'proposal'):'proposal')};
 
   try{
     const response=await fetch('/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
@@ -1810,7 +1822,7 @@ async function generate(){
   
 
   const data={client,address,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:document.getElementById('startdate').value,baserooms:[...selRooms].join(', '),extrate,taxrate,base_price:parseFloat(document.getElementById('base_price')?.value)||2500,addons:allAddons,promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
-            promo4:document.getElementById('promo4').checked,payment_url,cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||''};
+            promo4:document.getElementById('promo4').checked,payment_url,cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||'',stage:(currentLoadedInvnum?(window._lastLoadedStage||'proposal'):'proposal')};
 
   // Send to API and download PDF
   try {
