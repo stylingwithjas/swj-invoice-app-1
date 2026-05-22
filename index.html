@@ -11,20 +11,43 @@
 *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
 
 :root {
-  --bg:         #faf8f5;
-  --bg-soft:    #ffffff;
-  --bg-card:    #ffffff;
-  --bg-input:   #ffffff;
-  --ink:        #1a1814;
-  --ink-soft:   #3d3830;
-  --muted:      #7a6f69;
-  --muted-soft: #a29c96;
-  --line:       #e8e4dd;
-  --gold:       #c9a96e;
-  --gold-soft:  #f5ead8;
-  --green:      #4a7c50;
-  --amber:      #c97c2e;
-  --red:        #b53535;
+  /* ── Foundations ── */
+  --bg:           #fcfaf7;
+  --bg-soft:      #ffffff;
+  --bg-card:      #ffffff;
+  --bg-input:     #ffffff;
+  --bg-hover:     #f7f3ee;
+
+  /* ── Typography ── */
+  --ink:          #2c2926;
+  --ink-soft:     #3d3833;
+  --cta:          #4a443e;
+  --cta-hover:    #5a534b;
+  --muted:        #8c847c;
+  --muted-soft:   #b8ada1;
+
+  /* ── Lines ── */
+  --line:         #e7e1d9;
+  --line-soft:    #ede8e0;
+
+  /* ── Brand Accent (Olive Sage) ── */
+  --olive:        #7a8574;
+  --olive-dark:   #5f685a;
+  --olive-tint:   #eef1ea;
+  --olive-line:   #c9d0c2;
+
+  /* ── Luxury Accent (Champagne) ── */
+  --gold:         #b89a63;
+  --gold-soft:    #f6f1e7;
+  --gold-line:    #eadfcb;
+
+  /* ── Status (muted) ── */
+  --green:        #6f8a72;
+  --green-tint:   #edf4ee;
+  --amber:        #b77b62;
+  --amber-tint:   #faefea;
+  --red:          #9a5a4a;
+  --red-tint:     #f8ece8;
 }
 
 body { font-family:'Inter',-apple-system,sans-serif; background:var(--bg); color:var(--ink); min-height:100vh; font-size:15px; letter-spacing:0.01em; }
@@ -39,17 +62,17 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--bg); color
 .inv-badge { font-family:'Cormorant Garamond',serif; font-size:13px; font-weight:300; color:var(--ink-soft); letter-spacing:0.5px; padding:5px 12px; border:1px solid var(--line); border-radius:20px; cursor:text; background:transparent; outline:none; text-align:center; width:112px; }
 .nav-sw { display:flex; gap:2px; background:var(--bg-soft); border-radius:20px; padding:3px; }
 .nav-btn { padding:5px 13px; border-radius:16px; border:none; font-size:11px; font-weight:500; cursor:pointer; font-family:'Inter',sans-serif; transition:all 0.18s; }
-.nav-btn.on  { background:var(--ink); color:var(--bg); }
+.nav-btn.on  { background:var(--cta); color:var(--bg-soft); }
 .nav-btn.off { background:transparent; color:var(--muted); }
 
 /* ── CONTENT ── */
 .content { padding:8px 24px 64px; max-width:760px; margin:0 auto; }
 
 /* ── CHAPTER SECTIONS ── */
-.chapter { padding:28px 0 24px; border-bottom:0.5px solid var(--line); }
+.chapter { padding:36px 0 28px; border-bottom:0.5px solid var(--line); }
 .chapter:last-child { border-bottom:none; }
 .ch-eye { display:none; }
-.ch-title { font-family:'Cormorant Garamond',serif; font-size:24px; font-weight:300; color:var(--ink); margin-bottom:18px; line-height:1.2; }
+.ch-title { font-family:'Cormorant Garamond',serif; font-size:54px; font-weight:400; color:var(--green); margin-bottom:28px; line-height:1.05; letter-spacing:-0.015em; }
 
 /* ── RECENT/DRAFT CARDS (collapsible at top) ── */
 .rc { background:var(--bg-soft); border-radius:12px; margin:10px 0; border:0.5px solid var(--line); overflow:hidden; }
@@ -85,10 +108,10 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--bg); color
   border:0.5px solid var(--line); border-radius:8px;
   padding:11px 13px; outline:none; transition:border-color 0.18s;
 }
-.field-input:focus { border-color:var(--gold); }
+.field-input:focus { border-color:var(--olive); }
 .field-input::placeholder { color:var(--muted-soft); }
 .client-input { font-family:'Cormorant Garamond',serif !important; font-size:18px !important; font-weight:300 !important; }
-.zip-note { font-size:11px; color:var(--green); margin-top:4px; min-height:14px; }
+.zip-note { font-size:11px; color:var(--olive-dark); margin-top:4px; min-height:14px; }
 .ferr { font-size:11px; color:var(--red); margin-top:5px; display:none; }
 .ferr.show { display:block; }
 .field-input.err { border-color:var(--red); }
@@ -102,7 +125,7 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--bg); color
   outline:none; text-align:right; width:130px; padding:3px 0 5px;
   transition:border-color 0.18s;
 }
-.base-input:focus { border-bottom-color:var(--gold); }
+.base-input:focus { border-bottom-color:var(--olive); }
 .base-note { font-size:11px; color:var(--muted); margin-bottom:14px; line-height:1.5; }
 
 /* ── ROOM CARDS (4-col grid, icon + name) ── */
@@ -114,10 +137,10 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--bg); color
   cursor:pointer; transition:all 0.15s;
   background:var(--bg-card); user-select:none;
 }
-.room-card:hover { border-color:var(--gold-soft); }
-.room-card.sel { border-color:var(--gold); background:var(--gold-soft); }
+.room-card:hover { border-color:var(--olive-line); }
+.room-card.sel { border-color:var(--olive); background:var(--olive-tint); }
 .room-icon { font-size:18px; color:var(--muted); margin-bottom:9px; }
-.room-card.sel .room-icon { color:var(--gold); }
+.room-card.sel .room-icon { color:var(--olive-dark); }
 .room-name { font-size:12px; font-weight:500; color:var(--ink-soft); line-height:1.3; }
 .room-card.sel .room-name { color:var(--ink); }
 .rooms-grid.err .room-card { border-color:var(--red); }
@@ -132,7 +155,7 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--bg); color
 .addon-cat-icon { font-size:16px; color:var(--muted); }
 .addon-cat-title { font-size:14px; font-weight:500; color:var(--ink); }
 .addon-cat-right { display:flex; align-items:center; gap:10px; }
-.addon-cat-total { font-size:12px; color:var(--gold); font-weight:500; }
+.addon-cat-total { font-size:12px; color:var(--olive-dark); font-weight:500; }
 .addon-cat-arr { font-size:10px; color:var(--muted); transition:transform 0.2s; }
 .addon-cat-arr.open { transform:rotate(180deg); }
 .addon-cat-body { padding:6px 16px 16px; display:none; border-top:0.5px solid var(--line); }
@@ -148,10 +171,10 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--bg); color
   background:var(--bg-input); cursor:pointer; transition:all 0.15s;
   font-family:'Inter',sans-serif;
 }
-.size-pill:hover { border-color:var(--gold-soft); }
-.size-pill.sel { background:var(--gold-soft); border-color:var(--gold); color:var(--ink); }
+.size-pill:hover { border-color:var(--olive-line); }
+.size-pill.sel { background:var(--olive-tint); border-color:var(--olive); color:var(--ink); }
 .size-pill .price { font-size:11px; color:var(--muted); font-weight:400; }
-.size-pill.sel .price { color:var(--gold); }
+.size-pill.sel .price { color:var(--olive-dark); }
 
 /* Extra bedroom item (inside Additional Bedrooms accordion) */
 .xb-item { background:var(--bg-input); border:0.5px solid var(--line); border-radius:9px; padding:13px 14px; margin-top:10px; }
@@ -162,15 +185,15 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--bg); color
 .bed-row { display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:9px; }
 .bed-row label { font-size:11px; color:var(--muted); font-weight:500; margin-right:4px; }
 .bed-btn { padding:5px 13px; border:0.5px solid var(--line); border-radius:100px; font-size:12px; cursor:pointer; background:var(--bg-card); font-family:'Inter',sans-serif; color:var(--ink-soft); transition:all 0.15s; }
-.bed-btn.active { background:var(--gold-soft); border-color:var(--gold); color:var(--ink); font-weight:500; }
+.bed-btn.active { background:var(--olive-tint); border-color:var(--olive); color:var(--ink); font-weight:500; }
 
 /* ── CUSTOM LINE ITEMS (standalone card) ── */
 .custom-item { background:var(--bg-card); border:0.5px solid var(--line); border-radius:10px; padding:13px 14px; margin-bottom:9px; }
 .custom-header { display:flex; gap:8px; align-items:center; margin-bottom:10px; }
 .custom-header input[type=text] { flex:1; font-family:'Inter',sans-serif; font-size:13px; padding:9px 11px; border:0.5px solid var(--line); border-radius:8px; outline:none; background:var(--bg-input); color:var(--ink); transition:border-color 0.18s; }
-.custom-header input[type=text]:focus { border-color:var(--gold); }
+.custom-header input[type=text]:focus { border-color:var(--olive); }
 .custom-header input[type=number] { width:96px; font-family:'Cormorant Garamond',serif; font-size:16px; padding:8px 11px; border:0.5px solid var(--line); border-radius:8px; outline:none; background:var(--bg-input); text-align:right; transition:border-color 0.18s; color:var(--ink); }
-.custom-header input[type=number]:focus { border-color:var(--gold); }
+.custom-header input[type=number]:focus { border-color:var(--olive); }
 .custom-header textarea { width:100%; font-family:'Inter',sans-serif; font-size:12px; padding:8px 11px; border:0.5px solid var(--line); border-radius:8px; outline:none; background:var(--bg-input); color:var(--ink); resize:none; min-height:50px; }
 .rm-btn { background:transparent; border:0.5px solid var(--line); color:var(--muted); cursor:pointer; font-size:15px; padding:5px 10px; border-radius:8px; }
 .rm-btn:hover { border-color:var(--red); color:var(--red); }
@@ -184,10 +207,10 @@ textarea.scope-area { width:100%; font-family:'Inter',sans-serif; font-size:12px
   cursor:pointer; display:flex; align-items:flex-start; gap:11px;
   transition:all 0.15s; background:var(--bg-card); user-select:none;
 }
-.promo-card:hover { border-color:var(--gold-soft); }
-.promo-card.on { border-color:var(--gold); background:var(--gold-soft); }
+.promo-card:hover { border-color:var(--olive-line); }
+.promo-card.on { border-color:var(--olive); background:var(--olive-tint); }
 .promo-dot { width:16px; height:16px; border-radius:50%; border:1.5px solid var(--muted-soft); flex-shrink:0; margin-top:1px; transition:all 0.15s; display:flex; align-items:center; justify-content:center; }
-.promo-card.on .promo-dot { background:var(--gold); border-color:var(--gold); }
+.promo-card.on .promo-dot { background:var(--olive); border-color:var(--olive); }
 .promo-dot svg { opacity:0; }
 .promo-card.on .promo-dot svg { opacity:1; }
 .promo-text strong { font-size:12px; font-weight:500; color:var(--ink); display:block; margin-bottom:2px; }
@@ -197,7 +220,7 @@ textarea.scope-area { width:100%; font-family:'Inter',sans-serif; font-size:12px
 /* ── OPTIONS TOGGLES ── */
 .opt-row { display:flex; align-items:center; gap:11px; padding:10px 0; border-bottom:0.5px solid var(--line); }
 .opt-row:last-child { border-bottom:none; }
-.opt-row input[type=checkbox] { width:17px; height:17px; flex-shrink:0; accent-color:var(--gold); cursor:pointer; }
+.opt-row input[type=checkbox] { width:17px; height:17px; flex-shrink:0; accent-color:var(--olive); cursor:pointer; }
 .opt-row label { font-size:13px; color:var(--ink-soft); cursor:pointer; line-height:1.4; }
 #paid-date-wrap { display:none; margin-top:10px; }
 #cover-note-wrap { display:none; margin-top:10px; }
@@ -221,6 +244,7 @@ textarea.scope-area { width:100%; font-family:'Inter',sans-serif; font-size:12px
 .sdot.loading { background:var(--amber); animation:blink 0.7s infinite; }
 .sdot.ok  { background:var(--green); }
 .sdot.err { background:var(--red); }
+.sdot     { background:var(--muted-soft); }
 @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
 #smsg { font-size:12px; color:var(--muted); flex:1; }
 .gen-btn {
@@ -230,9 +254,11 @@ textarea.scope-area { width:100%; font-family:'Inter',sans-serif; font-size:12px
   font-size:15px; font-weight:300; text-transform:uppercase;
   transition:opacity 0.15s;
 }
-#gen-btn         { background:var(--ink); color:var(--bg); }
-#email-btn       { background:var(--bg-card); color:var(--ink-soft); font-family:'Inter',sans-serif; font-size:12px; font-weight:500; letter-spacing:0.5px; text-transform:none; border:0.5px solid var(--line); }
-#profit-preview-btn { background:transparent; color:var(--gold); font-family:'Inter',sans-serif; font-size:12px; font-weight:500; letter-spacing:0.5px; text-transform:none; border:0.5px solid var(--gold-soft); margin-bottom:18px; }
+#gen-btn         { background:var(--bg-card); color:var(--ink-soft); border:0.5px solid var(--line); }
+#gen-btn:hover   { background:var(--bg-hover); }
+#email-btn       { background:var(--cta); color:var(--bg-soft); }
+#email-btn:hover { background:var(--cta-hover); }
+#profit-preview-btn { background:var(--gold-soft); color:var(--gold); font-family:'Inter',sans-serif; font-size:12px; font-weight:500; letter-spacing:0.5px; text-transform:none; border:0.5px solid var(--gold-line); margin-bottom:18px; }
 .gen-btn:disabled { opacity:0.4; cursor:not-allowed; }
 
 /* ── MODALS ── */
@@ -243,10 +269,11 @@ textarea.scope-area { width:100%; font-family:'Inter',sans-serif; font-size:12px
 .modal-field { padding:13px 22px; border-bottom:0.5px solid var(--line); }
 .modal-field label { display:block; font-size:9px; font-weight:500; color:var(--muted); text-transform:uppercase; letter-spacing:1.5px; margin-bottom:6px; }
 .modal-field input, .modal-field textarea { width:100%; font-family:'Inter',sans-serif; font-size:14px; padding:9px 0; border:none; border-bottom:0.5px solid var(--line); background:transparent; outline:none; color:var(--ink); }
-.modal-field input:focus, .modal-field textarea:focus { border-bottom-color:var(--gold); }
+.modal-field input:focus, .modal-field textarea:focus { border-bottom-color:var(--olive); }
 .modal-field textarea { min-height:130px; resize:vertical; padding:9px 0; }
 .modal-btns { display:flex; gap:10px; padding:16px 22px; }
-.modal-send-btn   { flex:1; padding:13px; background:var(--ink); color:var(--bg); border:none; border-radius:10px; font-size:14px; font-weight:500; cursor:pointer; font-family:'Inter',sans-serif; }
+.modal-send-btn   { flex:1; padding:13px; background:var(--cta); color:var(--bg-soft); border:none; border-radius:10px; font-size:14px; font-weight:500; cursor:pointer; font-family:'Inter',sans-serif; }
+.modal-send-btn:hover { background:var(--cta-hover); }
 .modal-cancel-btn { padding:13px 18px; background:var(--bg-card); color:var(--ink-soft); border:0.5px solid var(--line); border-radius:10px; font-size:14px; cursor:pointer; font-family:'Inter',sans-serif; }
 
 /* Profit modal — keep functional, dark themed */
@@ -278,7 +305,8 @@ textarea.scope-area { width:100%; font-family:'Inter',sans-serif; font-size:12px
 .profit-take-label { font-size:10px; color:var(--gold); font-weight:600; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:2px; }
 .profit-take-value { font-family:'Cormorant Garamond',serif; font-size:26px; font-weight:400; color:var(--ink); }
 .profit-take-note  { font-size:10px; color:var(--ink-soft); margin-top:1px; }
-.profit-done-btn { padding:10px 20px; background:var(--ink); color:var(--bg); border:none; border-radius:9px; font-size:13px; font-weight:500; cursor:pointer; font-family:'Inter',sans-serif; }
+.profit-done-btn { padding:10px 20px; background:var(--cta); color:var(--bg-soft); border:none; border-radius:9px; font-size:13px; font-weight:500; cursor:pointer; font-family:'Inter',sans-serif; }
+.profit-done-btn:hover { background:var(--cta-hover); }
 </style>
 </head>
 <body>
@@ -472,8 +500,8 @@ textarea.scope-area { width:100%; font-family:'Inter',sans-serif; font-size:12px
       <span class="sdot" id="sdot"></span>
       <span id="smsg">Stripe payment link will be created automatically.</span>
     </div>
-    <button class="gen-btn" id="gen-btn"         onclick="generate()">Generate Invoice + Payment Link</button>
     <button class="gen-btn" id="email-btn"        onclick="generateAndEmail()">Generate + Email to Client</button>
+    <button class="gen-btn" id="gen-btn"         onclick="generate()">Generate Invoice + Payment Link</button>
     <button class="gen-btn" id="profit-preview-btn" onclick="previewProfitability()">Preview Job Profitability</button>
   </div>
 
@@ -958,9 +986,9 @@ function getWATaxByZip(zip){
   if(WA_TAX[zip]!==undefined){
     document.getElementById('taxrate').value=WA_TAX[zip].toFixed(2);
     recalc();
-    if(note){note.textContent='✓ Tax rate set to '+WA_TAX[zip]+'% for zip '+zip;note.style.color='#22c55e';}
+    if(note){note.textContent='✓ Tax rate set to '+WA_TAX[zip]+'% for zip '+zip;note.style.color='var(--olive-dark)';}
   } else {
-    if(note){note.textContent='⚠ ZIP not found — set tax rate manually';note.style.color='#f59e0b';}
+    if(note){note.textContent='⚠ ZIP not found — set tax rate manually';note.style.color='var(--amber)';}
   }
 }
 
@@ -1271,7 +1299,7 @@ function openEmailModal(data){
   const firstName=client.toLowerCase().startsWith('estate of')?client.split(' ').slice(2).join(' ').split(' ')[0]:client.split(' ')[0];
   document.getElementById('email-to').value='';
   document.getElementById('email-subject').value=`Your Staging Proposal — ${address}`;
-  document.getElementById('email-body').value=`Hi ${firstName},\n\nThank you for the opportunity to work with you! I'm excited about this property and what we can create together.\n\nAttached you'll find your personalized staging proposal for ${address}. Inside you'll find the full scope of work, investment total, and payment details.\n\nA few important notes:\n• Full payment is due 48 hours before installation day\n• Once payment is received I'll lock in your staging date\n• The payment link is included in the proposal for your convenience\n\nPlease don't hesitate to reach out with any questions!\n\nLooking forward to transforming your space.\n\nWarmly,\nJasmine Santana\nOwner & Creative Director — Styling With Jas\n📱 206-422-5618\n📧 info@stylingwithjas.com`;
+  document.getElementById('email-body').value=`Hi ${firstName},\n\nThank you for the opportunity to work with you. I'm excited about this property and what we can create together.\n\nAttached you'll find your personalized staging proposal for ${address}. Inside you'll find the full scope of work, investment total, and payment details.\n\nA few important notes:\n• Full payment is due 48 hours before installation day\n• Once payment is received I'll lock in your staging date\n• The payment link is included in the proposal for your convenience\n\nPlease don't hesitate to reach out with any questions.\n\nLooking forward to transforming your space.\n\nWarmly,\nJasmine Santana\nOwner & Creative Director — Styling With Jas\n206-422-5618\ninfo@stylingwithjas.com`;
   document.getElementById('email-status').textContent='';
   document.getElementById('email-modal').classList.add('show');
   setTimeout(()=>document.getElementById('email-to').focus(),100);
@@ -1574,8 +1602,8 @@ async function sendEmail(){
   const message=document.getElementById('email-body').value.trim();
   const statusEl=document.getElementById('email-status');
   const sendBtn=document.getElementById('email-send-btn');
-  if(!to){statusEl.textContent='Please enter a recipient email.';statusEl.style.color='#e24b4a';return;}
-  if(!_lastPdfBlob){statusEl.textContent='No PDF generated yet.';statusEl.style.color='#e24b4a';return;}
+  if(!to){statusEl.textContent='Please enter a recipient email.';statusEl.style.color='var(--red)';return;}
+  if(!_lastPdfBlob){statusEl.textContent='No PDF generated yet.';statusEl.style.color='var(--red)';return;}
   sendBtn.disabled=true; sendBtn.textContent='Sending...';
   statusEl.textContent='Sending email...'; statusEl.style.color='#888';
   try{
@@ -1591,9 +1619,9 @@ async function sendEmail(){
       throw new Error(`Server returned ${r.status} ${r.statusText}`);
     }
     const d=await r.json();
-    if(d.sent){statusEl.textContent='✓ Email sent!';statusEl.style.color='#22c55e';setTimeout(()=>{closeEmailModal();if(window._lastInvoiceData)showProfitability(window._lastInvoiceData,window._lastGrand||0);},1500);}
-    else{statusEl.textContent='Error: '+(d.error||'Unknown');statusEl.style.color='#e24b4a';}
-  }catch(e){statusEl.textContent='Error: '+e.message;statusEl.style.color='#e24b4a';}
+    if(d.sent){statusEl.textContent='✓ Email sent!';statusEl.style.color='var(--green)';setTimeout(()=>{closeEmailModal();if(window._lastInvoiceData)showProfitability(window._lastInvoiceData,window._lastGrand||0);},1500);}
+    else{statusEl.textContent='Error: '+(d.error||'Unknown');statusEl.style.color='var(--red)';}
+  }catch(e){statusEl.textContent='Error: '+e.message;statusEl.style.color='var(--red)';}
   sendBtn.disabled=false; sendBtn.textContent='Send Email';
 }
 
