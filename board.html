@@ -272,6 +272,8 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
 .mbtn.sec { background:var(--cream); color:var(--taupe-dk); flex:1; }
 .mbtn.del { background:transparent; color:var(--red); font-size:12px; font-weight:500; padding:8px 12px; border:1px solid rgba(181,53,53,0.25); border-radius:9px; }
 .mbtn.del:hover { background:rgba(181,53,53,0.06); border-color:var(--red); }
+.mbtn.hard-del { background:transparent; color:var(--taupe); font-size:11px; font-weight:400; padding:8px 10px; border:none; opacity:0.6; }
+.mbtn.hard-del:hover { color:var(--red); opacity:1; }
 
 /* ── PREP CHECKLIST ── */
 .prep-item { display:flex; align-items:center; gap:8px; padding:8px 0; border-bottom:1px solid rgba(162,156,150,0.06); }
@@ -602,6 +604,7 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
 
     <div class="m-btns">
       <button class="mbtn del" onclick="deleteCard()">Remove from Board</button>
+      <button class="mbtn hard-del" onclick="hardDeleteCard()" title="Permanently delete from database">Delete</button>
       <div style="flex:1"></div>
       <button class="mbtn sec" onclick="closeModal()">Cancel</button>
       <button class="mbtn pri" onclick="saveCard()">Save Changes</button>
@@ -1362,6 +1365,25 @@ async function deleteCard(){
 
   if(error){ alert('Delete failed: ' + error.message); return; }
 
+  closeModal();
+  loadBoard();
+}
+
+async function hardDeleteCard(){
+  if(!currentCardId) return;
+  const inv = CARDS[currentCardId];
+  if(!inv) return;
+  const clientName = inv.client || '(no name)';
+  // Two-step confirm because this is destructive and unrecoverable
+  if(!confirm(`PERMANENTLY DELETE "${clientName}" (Invoice #${inv.invnum})?\n\nThis cannot be undone. The invoice record will be removed from the database entirely.`)) return;
+  if(!confirm(`Are you sure? This is the final confirmation.\n\nTap OK to permanently delete.`)) return;
+
+  const { error } = await _sb.from('invoices').delete().eq('invnum', inv.invnum);
+
+  if(error){ alert('Hard delete failed: ' + error.message); return; }
+
+  // Remove from local registry
+  delete CARDS[currentCardId];
   closeModal();
   loadBoard();
 }
