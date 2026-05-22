@@ -119,21 +119,40 @@ body { font-family:var(--sans); background:var(--cream); color:var(--ink); min-h
 .base-note { font-size:11px; color:var(--taupe); margin-top:8px; line-height:1.5; }
 
 /* ── ROOMS ── */
-.rooms-grid { display:grid; grid-template-columns:1fr 1fr; gap:7px; margin-top:14px; }
-@media(min-width:480px){ .rooms-grid { grid-template-columns:repeat(3,1fr); } }
-@media(min-width:600px){ .rooms-grid { grid-template-columns:repeat(4,1fr); } }
-.chip {
-  display:flex; align-items:center; gap:8px;
-  padding:10px 12px; border-radius:10px;
-  border:1.5px solid var(--taupe-lt); background:var(--cream);
-  cursor:pointer; transition:all 0.15s;
-  font-size:12px; font-weight:500; color:var(--taupe-dk);
-  -webkit-user-select:none;
+.rooms-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(130px,1fr)); gap:10px; margin-top:14px; }
+.room-card {
+  position:relative; padding:14px 12px 12px;
+  border:1px solid rgba(162,156,150,0.2); border-radius:10px;
+  cursor:pointer; transition:all 0.18s;
+  background:var(--warm); -webkit-user-select:none;
 }
-.chip.sel { border-color:var(--gold); background:var(--gold-lt); color:var(--gold-dk); }
-.chip-dot { width:7px; height:7px; border-radius:50%; border:1.5px solid currentColor; flex-shrink:0; transition:all 0.15s; }
-.chip.sel .chip-dot { background:var(--gold-dk); border-color:var(--gold-dk); }
-.rooms-grid.err .chip { border-color:var(--red); }
+.room-card:hover { border-color:var(--gold); }
+.room-card.selected { border-color:var(--gold); background:var(--gold-lt); }
+.room-card.selected .room-check { opacity:1; }
+.room-icon { font-size:20px; margin-bottom:7px; color:var(--taupe); }
+.room-card.selected .room-icon { color:var(--gold-dk); }
+.room-name { font-size:12px; font-weight:500; color:var(--ink); line-height:1.3; }
+.room-check {
+  position:absolute; top:7px; right:8px;
+  width:16px; height:16px; border-radius:50%;
+  background:var(--gold); display:flex; align-items:center;
+  justify-content:center; opacity:0; transition:opacity 0.15s;
+}
+.room-check svg { width:9px; height:9px; }
+.rooms-grid.err .room-card { border-color:var(--red); }
+.rooms-bar {
+  margin-top:12px; padding:10px 14px;
+  background:var(--color-background-secondary);
+  border-radius:8px; font-size:13px;
+  color:var(--color-text-secondary); min-height:42px;
+  display:flex; align-items:center; gap:6px; flex-wrap:wrap;
+}
+.room-pill {
+  display:inline-flex; align-items:center; gap:4px;
+  padding:3px 10px; background:var(--warm);
+  border:0.5px solid var(--color-border-secondary);
+  border-radius:100px; font-size:12px; color:var(--ink);
+}
 
 /* ── ADDON CATEGORIES ── */
 .addon-cat { border:1px solid rgba(162,156,150,0.14); border-radius:12px; margin-bottom:8px; overflow:hidden; background:var(--cream); }
@@ -391,8 +410,9 @@ textarea:focus { border-color:var(--gold); background:var(--warm); }
       <input class="base-input" id="base_price" type="number" value="2500" step="100" inputmode="decimal">
     </div>
     <div class="base-note">Includes delivery, setup, 45-day furniture rental &amp; teardown.</div>
-    <div class="rooms-grid" id="rooms-grid" style="margin-top:16px"></div>
-    <div class="ferr" id="e-rooms" style="margin-top:8px">Please select at least one room</div>
+    <div class="rooms-grid" id="rooms-grid"></div>
+    <div class="rooms-bar" id="rooms-bar"><span style="color:var(--color-text-tertiary);font-size:12px;letter-spacing:.5px">No rooms selected yet</span></div>
+    <div class="ferr" id="e-rooms" style="margin-top:6px">Please select at least one room</div>
   </div>
 
   <!-- ── CHAPTER IV ── -->
@@ -623,8 +643,6 @@ document.addEventListener('DOMContentLoaded',()=>{
 
 let STRIPE_KEY='';
 
-const ROOMS=['Living Room','Primary Bedroom','Bedroom 2','Bedroom 3','Kitchen','Dining Room','Office/Den','Loft','Entryway','Bonus Room','Sunroom','Patio/Outdoor'];
-
 const BED_SCOPES={
   'Primary bedroom':{
     Small:{Twin:'Twin headboard with mattress and base, layered bedding with accent pillows, nightstands with lighting, artwork, and refined accessories.',Full:'Full-size headboard with mattress and base, layered bedding with accent pillows, nightstands with lighting, artwork, and refined accessories.',Queen:'Queen-size headboard with mattress and base, layered bedding with accent pillows, nightstands with lighting, artwork, and refined accessories.',King:'King-size headboard with mattress and base, layered bedding with accent pillows, nightstands with lighting, artwork, and refined accessories.'},
@@ -724,14 +742,41 @@ async function initInvNum(){
 
 function chk(){return`<svg width="11" height="9" viewBox="0 0 10 8" fill="none"><polyline points="1,4 4,7 9,1" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;}
 
+const ROOMS_DATA=[
+  {name:'Living Room',      icon:'ti-sofa'},
+  {name:'Primary Bedroom',  icon:'ti-bed'},
+  {name:'Bedroom 2',        icon:'ti-bed'},
+  {name:'Bedroom 3',        icon:'ti-bed'},
+  {name:'Kitchen',          icon:'ti-tools-kitchen-2'},
+  {name:'Dining Room',      icon:'ti-armchair'},
+  {name:'Office/Den',       icon:'ti-briefcase'},
+  {name:'Loft',             icon:'ti-stairs'},
+  {name:'Entryway',         icon:'ti-door-enter'},
+  {name:'Bonus Room',       icon:'ti-layout-grid'},
+  {name:'Sunroom',          icon:'ti-sun'},
+  {name:'Patio/Outdoor',    icon:'ti-plant'},
+];
+
 function buildRooms(){
   const g=document.getElementById('rooms-grid');
-  ROOMS.forEach(r=>{
-    const c=document.createElement('div');c.className='chip';
-    c.innerHTML=`<span class="chip-dot"></span><span>${r}</span>`;
-    c.onclick=()=>{if(selRooms.has(r)){selRooms.delete(r);c.classList.remove('sel');}else{selRooms.add(r);c.classList.add('sel');}};
-    g.appendChild(c);
+  ROOMS_DATA.forEach((r,i)=>{
+    const d=document.createElement('div');
+    d.className='room-card';
+    d.innerHTML=`<div class="room-icon"><i class="ti ${r.icon}" aria-hidden="true"></i></div><div class="room-name">${r.name}</div><div class="room-check"><svg viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>`;
+    d.onclick=()=>{
+      const name=r.name;
+      if(selRooms.has(name)){selRooms.delete(name);d.classList.remove('selected');}
+      else{selRooms.add(name);d.classList.add('selected');}
+      updateRoomsBar();
+    };
+    g.appendChild(d);
   });
+}
+
+function updateRoomsBar(){
+  const bar=document.getElementById('rooms-bar');
+  if(!selRooms.size){bar.innerHTML='<span style="color:var(--color-text-tertiary);font-size:12px;letter-spacing:.5px">No rooms selected yet</span>';return;}
+  bar.innerHTML=[...selRooms].map(r=>`<span class="room-pill"><svg width="9" height="7" viewBox="0 0 9 7" fill="none" style="flex-shrink:0"><polyline points="1,3.5 3.5,6 8,1" stroke="#9d7a44" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>${r}</span>`).join('');
 }
 
 function getScope(ci,sn){
@@ -898,11 +943,12 @@ function loadInvoiceData(d){
     document.getElementById('cover_page').checked=d.cover_page||false;
     if(d.cover_page)toggleCover();
     selRooms.clear();
-    document.querySelectorAll('#rooms-grid .chip').forEach(chip=>{
-      chip.classList.remove('sel');
-      const roomName=chip.querySelector('span:last-child').textContent;
-      if(d.baserooms&&d.baserooms.split(', ').includes(roomName)){selRooms.add(roomName);chip.classList.add('sel');}
+    document.querySelectorAll('#rooms-grid .room-card').forEach(card=>{
+      card.classList.remove('selected');
+      const roomName=card.querySelector('.room-name').textContent;
+      if(d.baserooms&&d.baserooms.split(', ').includes(roomName)){selRooms.add(roomName);card.classList.add('selected');}
     });
+    updateRoomsBar();
     selAddons.clear();
     document.querySelectorAll('.size-chip').forEach(c=>c.classList.remove('sel'));
     if(d.addons&&d.addons.length>0){
@@ -1118,7 +1164,7 @@ async function generatePDF(){
   [['f-client','e-client','client'],['f-address','e-address','address'],['f-invdate','e-invdate','invdate'],['f-startdate','e-startdate','startdate']].forEach(([fid,eid,iid])=>{const inp=document.getElementById(iid);if(!inp.value.trim()){inp.classList.add('err');document.getElementById(eid).classList.add('show');valid=false;}else{inp.classList.remove('err');document.getElementById(eid).classList.remove('show');}});
   if(selRooms.size===0){document.getElementById('rooms-grid').classList.add('err');document.getElementById('e-rooms').classList.add('show');valid=false;}
   else{document.getElementById('rooms-grid').classList.remove('err');document.getElementById('e-rooms').classList.remove('show');}
-  if(!valid){document.querySelector('.rooms-grid').scrollIntoView({behavior:'smooth'});return null;}
+  if(!valid){document.querySelector('#rooms-grid').scrollIntoView({behavior:'smooth'});return null;}
   const allAddons=[];
   selAddons.forEach(entry=>{const cat=CATS[entry.ci],opt=cat.sizes[entry.oi];const bed=cat.hasBed?bedSel.get(`${entry.ci}`):'';const scope=document.getElementById(`sc-${entry.ci}`)?.value||entry.scope||'';allAddons.push({desc:cat.name+(bed?' ('+bed+')':'')+': '+(scope||opt.size),price:opt.price});});
   customs.filter(a=>a.desc).forEach(a=>{allAddons.push({desc:a.desc+(a.scope?': '+a.scope:''),price:parseFloat(a.price)||0});});
@@ -1156,7 +1202,7 @@ async function generate(){
   [['f-client','e-client','client'],['f-address','e-address','address'],['f-invdate','e-invdate','invdate'],['f-startdate','e-startdate','startdate']].forEach(([fid,eid,iid])=>{const inp=document.getElementById(iid);if(!inp.value.trim()){inp.classList.add('err');document.getElementById(eid).classList.add('show');valid=false;}else{inp.classList.remove('err');document.getElementById(eid).classList.remove('show');}});
   if(selRooms.size===0){document.getElementById('rooms-grid').classList.add('err');document.getElementById('e-rooms').classList.add('show');valid=false;}
   else{document.getElementById('rooms-grid').classList.remove('err');document.getElementById('e-rooms').classList.remove('show');}
-  if(!valid){document.querySelector('.rooms-grid').scrollIntoView({behavior:'smooth'});return;}
+  if(!valid){document.querySelector('#rooms-grid').scrollIntoView({behavior:'smooth'});return;}
   const btn=document.getElementById('gen-btn');btn.disabled=true;btn.textContent='Creating payment link...';
   const allAddons=[];
   selAddons.forEach(entry=>{const cat=CATS[entry.ci],opt=cat.sizes[entry.oi];const bed=cat.hasBed?bedSel.get(`${entry.ci}`):'';const scope=document.getElementById(`sc-${entry.ci}`)?.value||entry.scope||'';allAddons.push({desc:cat.name+(bed?' ('+bed+')':'')+': '+(scope||opt.size),price:opt.price});});
