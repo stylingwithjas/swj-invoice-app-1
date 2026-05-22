@@ -49,7 +49,7 @@ class handler(BaseHTTPRequestHandler):
             msg['To'] = to_email
             msg['Subject'] = subject
             msg['Reply-To'] = FROM_EMAIL
-    msg['Cc'] = FROM_EMAIL  # CC Jasmine so she has a record in her inbox
+            msg['Cc'] = FROM_EMAIL  # CC Jasmine so she has a record in her inbox
 
             # Body
             msg.attach(MIMEText(message, 'plain'))
