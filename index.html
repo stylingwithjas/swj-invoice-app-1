@@ -509,6 +509,7 @@ textarea.scope-area { width:100%; font-family:'Inter',sans-serif; font-size:12px
     <button class="gen-btn" id="email-btn"        onclick="generateAndEmail()">Generate + Email to Client</button>
     <button class="gen-btn" id="gen-btn"         onclick="generate()">Generate Invoice + Payment Link</button>
     <button class="gen-btn" id="update-invoice-btn" onclick="updateLoadedInvoice()" style="display:none">Update This Invoice</button>
+    <button class="gen-btn" id="new-invoice-btn"  onclick="newInvoice()" style="background:var(--bg-soft);color:var(--ink-soft);border:0.5px solid var(--line);">+ New Invoice (Start Fresh)</button>
     <button class="gen-btn" id="profit-preview-btn" onclick="previewProfitability()">Preview Job Profitability</button>
   </div>
 
@@ -1488,6 +1489,72 @@ function loadInvoice2(type, idx){
   setTimeout(showUpdateBtn, 50);
   const d = inv.data || inv;
   loadInvoiceData(d);
+}
+
+async function newInvoice(){
+  // Confirm if user has any work in progress
+  const client = document.getElementById('client').value.trim();
+  const address = document.getElementById('address').value.trim();
+  if((client || address) && !confirm('Start a fresh invoice? Any unsaved changes will be cleared.')) return;
+
+  // Clear all state variables
+  currentLoadedInvnum = null;
+  window._lastLoadedStage = null;
+  selRooms.clear();
+  selAddons.clear();
+  bedSel.clear();
+  selNewAddons = {};
+  customs = [];
+  extraBedrooms = [];
+
+  // Clear all form fields
+  ['client','address','zipcode','startdate','cover_note','paid_date'].forEach(id=>{
+    const el = document.getElementById(id); if(el) el.value = '';
+  });
+  ['promo1','promo2','promo3','promo4','cover_page','paid'].forEach(id=>{
+    const cb = document.getElementById(id);
+    if(cb){
+      cb.checked = false;
+      const card = document.getElementById('pc-'+id);
+      if(card) card.classList.remove('on');
+    }
+  });
+
+  // Reset defaults
+  document.getElementById('invdate').value = new Date().toISOString().split('T')[0];
+  document.getElementById('taxrate').value = 10.25;
+  document.getElementById('base_price').value = 2500;
+
+  // Clear room selections visually
+  document.querySelectorAll('.room-card.on').forEach(c => c.classList.remove('on'));
+  // Clear addon selections visually
+  document.querySelectorAll('.addon-card.on,.addon-opt.on,.bed-btn.on').forEach(c => c.classList.remove('on'));
+
+  // Clear custom items + extra bedrooms display
+  const cae = document.getElementById('custom-addons'); if(cae) cae.innerHTML = '';
+  const xbe = document.getElementById('extra-bedrooms-list'); if(xbe) xbe.innerHTML = '';
+
+  // Hide paid_date and cover_note wrappers
+  const pdw = document.getElementById('paid-date-wrap'); if(pdw) pdw.style.display = 'none';
+  const cnw = document.getElementById('cover-note-wrap'); if(cnw) cnw.style.display = 'none';
+
+  // Rebuild addon cats UI fresh
+  if(typeof buildCats === 'function') buildCats();
+  if(typeof updateNewAddonTotals === 'function') updateNewAddonTotals();
+
+  // Hide update button
+  showUpdateBtn();
+
+  // Get the next sequential invoice number from Supabase
+  await initInvNum();
+
+  // Recalculate totals
+  if(typeof recalc === 'function') recalc();
+
+  // Scroll to top for a fresh feel
+  window.scrollTo({top: 0, behavior: 'smooth'});
+
+  setSt('ok', `New invoice ready — #${currentInvNum}`);
 }
 
 
