@@ -62,14 +62,18 @@ def supabase_update_invoice(invnum, updates):
 
 
 def supabase_upload_pdf(invnum, pdf_bytes):
-    """Upload signed PDF to Supabase Storage bucket 'signed-contracts'."""
+    """Upload signed PDF to Supabase Storage bucket 'signed-contracts'.
+    Returns a signed URL (valid for 30 days) for client download.
+    """
     key = get_supabase_key()
     if not key:
         print('[upload_pdf] SUPABASE_KEY missing')
         return None
     filename = f'{invnum}-signed.pdf'
-    url = f'{SUPABASE_URL}/storage/v1/object/signed-contracts/{filename}'
-    req = urllib.request.Request(url, data=pdf_bytes, method='POST')
+    upload_url = f'{SUPABASE_URL}/storage/v1/object/signed-contracts/{filename}'
+
+    # Step 1: Upload the file
+    req = urllib.request.Request(upload_url, data=pdf_bytes, method='POST')
     req.add_header('apikey', key)
     req.add_header('Authorization', f'Bearer {key}')
     req.add_header('Content-Type', 'application/pdf')
@@ -77,14 +81,41 @@ def supabase_upload_pdf(invnum, pdf_bytes):
     try:
         with urllib.request.urlopen(req, timeout=20) as r:
             json.loads(r.read())
-        return f'{SUPABASE_URL}/storage/v1/object/public/signed-contracts/{filename}'
     except urllib.error.HTTPError as e:
         err_body = e.read().decode('utf-8', errors='ignore')
-        print(f'[upload_pdf] HTTP {e.code}: {err_body[:300]}')
+        print(f'[upload_pdf] upload HTTP {e.code}: {err_body[:300]}')
         return None
     except Exception as e:
-        print(f'[upload_pdf] error: {e}')
+        print(f'[upload_pdf] upload error: {e}')
         return None
+
+    # Step 2: Generate a signed URL valid for 30 days (2,592,000 seconds)
+    sign_url_endpoint = f'{SUPABASE_URL}/storage/v1/object/sign/signed-contracts/{filename}'
+    sign_req = urllib.request.Request(
+        sign_url_endpoint,
+        data=json.dumps({'expiresIn': 2592000}).encode(),
+        method='POST'
+    )
+    sign_req.add_header('apikey', key)
+    sign_req.add_header('Authorization', f'Bearer {key}')
+    sign_req.add_header('Content-Type', 'application/json')
+    try:
+        with urllib.request.urlopen(sign_req, timeout=15) as r:
+            sign_resp = json.loads(r.read())
+        signed_path = sign_resp.get('signedURL', '') or sign_resp.get('signedUrl', '')
+        if signed_path:
+            # signed_path looks like "/object/sign/signed-contracts/202092-signed.pdf?token=..."
+            if signed_path.startswith('/'):
+                return f'{SUPABASE_URL}/storage/v1{signed_path}'
+            return f'{SUPABASE_URL}/storage/v1/{signed_path.lstrip("/")}'
+    except urllib.error.HTTPError as e:
+        err_body = e.read().decode('utf-8', errors='ignore')
+        print(f'[upload_pdf] sign URL HTTP {e.code}: {err_body[:300]}')
+    except Exception as e:
+        print(f'[upload_pdf] sign URL error: {e}')
+
+    # Fallback: return public URL (works only if bucket is public)
+    return f'{SUPABASE_URL}/storage/v1/object/public/signed-contracts/{filename}'
 
 
 def flatten_signature_image(sig_image_b64):
@@ -178,40 +209,77 @@ def build_full_signed_contract(inv, signed_by, signed_date, signed_time, ip_addr
 
         page = doc[target_page_idx]
 
-        # Stamp the client signature image on the signature line
-        # Line is at x=135 to x=332, y=621 (PDF coords, bottom of "Client Signature" label)
-        # We want the sig to sit ABOVE that line — y_top of image ~590, y_bottom ~620
+        # ─── Dynamically locate signature lines via text search ───
+        # Find "Client Signature:" — the signature image goes ABOVE this label
+        # Find "Printed Name:" — name goes on the line next to it
+        # Find "Date:" (last one before "Styling With Jas") — date goes next to it
+        client_sig_hits = page.search_for("Client Signature:")
+        printed_name_hits = page.search_for("Printed Name:")
+        date_hits = page.search_for("Date:")
+
+        if not client_sig_hits:
+            print('[sign] WARNING: Could not find "Client Signature:" on page — falling back to standalone')
+            doc.close()
+            return build_standalone_record(inv, signed_by, signed_date, signed_time, ip_address,
+                                           sig_image_b64, sig_mode)
+
+        client_sig_rect = client_sig_hits[0]
+        # The signature LINE in the original PDF starts ~90pt to the right of "Client Signature:"
+        # We want to overlay the drawn signature ON that line area
+        # The label is at e.g. (45, 614) — line is roughly (135-450, 615-625)
+        line_x_start = client_sig_rect.x1 + 8  # right after the label
+        line_x_end = line_x_start + 280        # signature box width
+        # The drawn sig sits ABOVE the underline. Height ~22pt, baseline aligned to label baseline
+        sig_top = client_sig_rect.y0 - 18      # 18pt above label top
+        sig_bottom = client_sig_rect.y1 - 2    # just above the underline
+
         if sig_image_b64:
             try:
                 sig_bytes = flatten_signature_image(sig_image_b64)
-                sig_rect = fitz.Rect(135, 588, 332, 620)
+                sig_rect = fitz.Rect(line_x_start, sig_top, line_x_end, sig_bottom)
                 page.insert_image(sig_rect, stream=sig_bytes, keep_proportion=True, overlay=True)
             except Exception as e:
                 print(f'[sign] signature image embed error: {e}')
 
-        # Stamp printed name on the "Printed Name:" line (x=120 to x=332, y=633)
-        page.insert_text(
-            fitz.Point(125, 631),
-            signed_by,
-            fontsize=10,
-            fontname='Helvetica',
-            color=(0.067, 0.067, 0.067),
-        )
+        # Printed name goes on the line after "Printed Name:" label
+        if printed_name_hits:
+            name_rect = printed_name_hits[0]
+            name_x = name_rect.x1 + 8
+            name_y = name_rect.y1 - 2  # baseline aligned with label
+            page.insert_text(
+                fitz.Point(name_x, name_y),
+                signed_by,
+                fontsize=10,
+                fontname='Helvetica',
+                color=(0.067, 0.067, 0.067),
+            )
 
-        # Stamp date on the "Date:" line (x=75 to x=332, y=645)
-        # Format date as MM/DD/YY to match other dates in the doc
+        # Format date as MM/DD/YY
         try:
             dt = datetime.datetime.strptime(signed_date, '%Y-%m-%d')
             date_formatted = dt.strftime('%m/%d/%y')
         except Exception:
             date_formatted = signed_date
-        page.insert_text(
-            fitz.Point(80, 643),
-            date_formatted,
-            fontsize=10,
-            fontname='Helvetica',
-            color=(0.067, 0.067, 0.067),
-        )
+
+        # The "Date:" we want is the CLIENT'S date — the one BETWEEN "Printed Name:" and "Styling With Jas"
+        # date_hits returns ALL "Date:" occurrences. Pick the first one BELOW "Printed Name:" and above the Styling With Jas block
+        client_date_rect = None
+        if printed_name_hits:
+            pn_y = printed_name_hits[0].y1
+            for d_rect in date_hits:
+                # Must be below printed name, but in the client signature block
+                if d_rect.y0 > pn_y and d_rect.y0 < pn_y + 40:  # within ~40pt below
+                    client_date_rect = d_rect
+                    break
+
+        if client_date_rect:
+            page.insert_text(
+                fitz.Point(client_date_rect.x1 + 8, client_date_rect.y1 - 2),
+                date_formatted,
+                fontsize=10,
+                fontname='Helvetica',
+                color=(0.067, 0.067, 0.067),
+            )
 
         # Step 4: Append electronic signature record as a NEW page
         # This keeps the existing 3 pages untouched and gives the audit trail its own page

@@ -1328,8 +1328,42 @@ async function saveInvoice(data){
 async function saveDraft(){
   const client = document.getElementById('client').value.trim();
   const address = document.getElementById('address').value.trim();
-  const invnum = document.getElementById('invnum-display').value.trim();
+  let invnum = document.getElementById('invnum-display').value.trim();
   if(!client && !address){ setSt('err','Fill in at least client name or address to save draft'); return; }
+
+  // ─── Auto-version drafts based on loaded invoices ───
+  // If we're saving from a loaded saved (non-draft) invoice, bump the version: 202092 → 202092V1 → 202092V2 ...
+  // If we're saving from a loaded draft that already has a V suffix, increment it
+  if(currentLoadedInvnum){
+    // Strip the DRAFT- prefix if present
+    const baseFromLoaded = currentLoadedInvnum.replace(/^DRAFT-/, '');
+    // Extract base number and current version (e.g. "202092V2" → base="202092", v=2)
+    const m = baseFromLoaded.match(/^(\d+)(V(\d+))?$/);
+    if(m){
+      const base = m[1];
+      // Find the next available version by checking existing drafts/invoices
+      try {
+        const { data: existing } = await _sb
+          .from('invoices')
+          .select('invnum')
+          .like('invnum', `%${base}V%`);
+        let maxV = 0;
+        if(existing){
+          existing.forEach(row => {
+            const vm = String(row.invnum).match(new RegExp(`${base}V(\\d+)`));
+            if(vm){ const v = parseInt(vm[1]); if(v > maxV) maxV = v; }
+          });
+        }
+        invnum = `${base}V${maxV + 1}`;
+        // Update the displayed invoice number so user can see it
+        const disp = document.getElementById('invnum-display');
+        if(disp) disp.value = invnum;
+      } catch(e){
+        console.log('version lookup error:', e);
+        invnum = `${base}V1`;
+      }
+    }
+  }
 
   const allAddons = [];
   selAddons.forEach(entry => {
@@ -1380,7 +1414,9 @@ async function saveDraft(){
       data: draft
     }, { onConflict: 'invnum' });
     if(!error){
-      setSt('ok', 'Draft saved!');
+      const versionMatch = invnum.match(/V(\d+)$/);
+      const msg = versionMatch ? `Draft saved as ${invnum} (version ${versionMatch[1]})` : 'Draft saved!';
+      setSt('ok', msg);
       loadDrafts();
     }
   } catch(e) { setSt('err','Could not save draft'); }
@@ -1818,7 +1854,17 @@ async function generatePDF(){
     const blob=await response.blob();
     const filename=`SWJ_${data.client.replace(/ /g,'_')}_${data.invnum}.pdf`;
     setTimeout(()=>saveInvoice(data).catch(()=>{}),100);
-    await fetch('/api/counter',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({value:parseInt(data.invnum)})}).catch(()=>{});
+    // Save the highest invoice number seen so the next fresh invoice gets a new number.
+    // Skip if this is a versioned invoice (e.g. 202100V1) — versions shouldn't bump the counter.
+    const baseNum = String(data.invnum).match(/^(\d+)/);
+    if(baseNum){
+      const numericInvnum = parseInt(baseNum[1]);
+      await fetch('/api/counter',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({value:numericInvnum})}).catch(()=>{});
+      // Optimistically update the displayed next invoice number in case the user creates another
+      currentInvNum = String(numericInvnum + 1);
+      const disp = document.getElementById('invnum-display');
+      if(disp && !currentLoadedInvnum) disp.value = currentInvNum;
+    }
     setSt('ok','Invoice generated!');
     window._lastInvoiceData = data;
     window._lastGrand = grand;
