@@ -229,15 +229,19 @@ def build_full_signed_contract(inv, signed_by, signed_date, signed_time, ip_addr
         # The label is at e.g. (45, 614) — line is roughly (135-450, 615-625)
         line_x_start = client_sig_rect.x1 + 8  # right after the label
         line_x_end = line_x_start + 280        # signature box width
-        # The drawn sig sits ABOVE the underline. Height ~22pt, baseline aligned to label baseline
-        sig_top = client_sig_rect.y0 - 18      # 18pt above label top
-        sig_bottom = client_sig_rect.y1 - 2    # just above the underline
+        # Position the signature so its bottom sits ON the underline.
+        # The underline is ~5pt below the label baseline (label y1 ≈ line y).
+        # We want the signature box from ~24pt above the line down to right on the line.
+        sig_top = client_sig_rect.y0 - 20      # top of signature box (above label)
+        sig_bottom = client_sig_rect.y1 + 4    # bottom sits just ON the underline
 
         if sig_image_b64:
             try:
                 sig_bytes = flatten_signature_image(sig_image_b64)
                 sig_rect = fitz.Rect(line_x_start, sig_top, line_x_end, sig_bottom)
-                page.insert_image(sig_rect, stream=sig_bytes, keep_proportion=True, overlay=True)
+                # keep_proportion=False so the signature fills the box edge-to-edge,
+                # giving it a proper "sitting on the line" appearance instead of floating in the top-left.
+                page.insert_image(sig_rect, stream=sig_bytes, keep_proportion=False, overlay=True)
             except Exception as e:
                 print(f'[sign] signature image embed error: {e}')
 
