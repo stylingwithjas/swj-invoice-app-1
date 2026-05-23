@@ -5,6 +5,7 @@ import urllib.parse
 import datetime
 import smtplib
 import base64
+import io
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
@@ -17,8 +18,10 @@ FROM_EMAIL = 'info@stylingwithjas.com'
 JASMINE_EMAIL = 'info@stylingwithjas.com'
 SUPABASE_URL = 'https://cwvdfgrjlrpsdfwduwvn.supabase.co'
 
+
 def get_supabase_key():
     return os.environ.get('SUPABASE_KEY', '')
+
 
 def supabase_get_invoice(invnum):
     key = get_supabase_key()
@@ -35,6 +38,7 @@ def supabase_get_invoice(invnum):
         err_body = e.read().decode('utf-8', errors='ignore')
         raise Exception(f'[get_invoice] HTTP {e.code}: {err_body[:200]}')
     return rows[0] if rows else None
+
 
 def supabase_update_invoice(invnum, updates):
     key = get_supabase_key()
@@ -56,6 +60,7 @@ def supabase_update_invoice(invnum, updates):
         err_body = e.read().decode('utf-8', errors='ignore')
         raise Exception(f'[update_invoice] HTTP {e.code}: {err_body[:200]}')
 
+
 def supabase_upload_pdf(invnum, pdf_bytes):
     """Upload signed PDF to Supabase Storage bucket 'signed-contracts'."""
     key = get_supabase_key()
@@ -70,10 +75,9 @@ def supabase_upload_pdf(invnum, pdf_bytes):
     req.add_header('Content-Type', 'application/pdf')
     req.add_header('x-upsert', 'true')
     try:
-        with urllib.request.urlopen(req, timeout=15) as r:
-            result = json.loads(r.read())
-        contract_url = f'{SUPABASE_URL}/storage/v1/object/signed-contracts/{filename}'
-        return contract_url
+        with urllib.request.urlopen(req, timeout=20) as r:
+            json.loads(r.read())
+        return f'{SUPABASE_URL}/storage/v1/object/public/signed-contracts/{filename}'
     except urllib.error.HTTPError as e:
         err_body = e.read().decode('utf-8', errors='ignore')
         print(f'[upload_pdf] HTTP {e.code}: {err_body[:300]}')
@@ -82,311 +86,310 @@ def supabase_upload_pdf(invnum, pdf_bytes):
         print(f'[upload_pdf] error: {e}')
         return None
 
-def generate_signed_pdf(inv, signed_by, signed_date, signed_time, ip_address):
-    """Call the generate endpoint to produce a PDF, then overlay signature block."""
-    # We'll call the Vercel generate endpoint with a flag to include signature
-    try:
-        base_url = os.environ.get('VERCEL_URL', '')
-        if not base_url:
-            # Fallback: build minimal PDF with reportlab
-            return build_signature_pdf(inv, signed_by, signed_date, signed_time, ip_address)
 
-        protocol = 'https'
-        gen_url = f'{protocol}://{base_url}/api/generate'
+def flatten_signature_image(sig_image_b64):
+    """Decode base64 PNG and flatten any transparency onto white background.
+    Returns PNG bytes ready to embed in PDF."""
+    if ',' in sig_image_b64:
+        sig_image_b64 = sig_image_b64.split(',', 1)[1]
+    img_bytes = base64.b64decode(sig_image_b64)
+    try:
+        from PIL import Image
+        pil_img = Image.open(io.BytesIO(img_bytes))
+        if pil_img.mode in ('RGBA', 'LA') or (pil_img.mode == 'P' and 'transparency' in pil_img.info):
+            bg = Image.new('RGB', pil_img.size, (255, 255, 255))
+            if pil_img.mode != 'RGBA':
+                pil_img = pil_img.convert('RGBA')
+            bg.paste(pil_img, mask=pil_img.split()[3])
+            pil_img = bg
+        else:
+            pil_img = pil_img.convert('RGB')
+        out_buf = io.BytesIO()
+        pil_img.save(out_buf, format='PNG')
+        return out_buf.getvalue()
+    except ImportError:
+        return img_bytes
+
+
+def build_full_signed_contract(inv, signed_by, signed_date, signed_time, ip_address,
+                                sig_image_b64=None, sig_mode='drawn'):
+    """Generate the full proposal PDF and stamp the client signature + record onto page 3.
+    
+    Strategy:
+    1. Call generate_invoice_pdf() to build the full 3-page proposal
+    2. Open it with PyMuPDF and stamp the signature line + electronic record on page 3
+    3. Return the modified PDF as bytes
+    """
+    try:
+        import fitz  # PyMuPDF
+    except ImportError:
+        print('[sign] PyMuPDF not available — falling back to standalone PDF')
+        return build_standalone_record(inv, signed_by, signed_date, signed_time, ip_address,
+                                       sig_image_b64, sig_mode)
+
+    # Step 1: Build the full invoice PDF
+    invoice_pdf_path = None
+    try:
+        # Import generate locally to avoid module load issues
+        # generate.py expects data dict matching the format saved in Supabase
+        import sys
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        try:
+            from generate import generate_invoice_pdf
+        except ImportError as e:
+            print(f'[sign] could not import generate: {e}')
+            return build_standalone_record(inv, signed_by, signed_date, signed_time, ip_address,
+                                           sig_image_b64, sig_mode)
+
         d = inv.get('data', {})
-        payload = json.dumps({
+        # Reconstruct the data payload generate.py expects
+        data_payload = {
             **d,
-            'invnum': inv['invnum'],
+            'invnum': inv.get('invnum', ''),
             'client': inv.get('client', ''),
             'address': inv.get('address', ''),
             'invdate': inv.get('invdate', ''),
-            'signed_by': signed_by,
-            'signed_date': signed_date,
-            'signed_time': signed_time,
-            'signed_ip': ip_address,
-            'generate_signed': True,
-        }).encode()
+        }
+        invoice_pdf_path = generate_invoice_pdf(data_payload)
 
-        req = urllib.request.Request(gen_url, data=payload, method='POST')
-        req.add_header('Content-Type', 'application/json')
-        with urllib.request.urlopen(req, timeout=30) as r:
-            return r.read()
+        if not invoice_pdf_path or not os.path.exists(invoice_pdf_path):
+            print('[sign] generate_invoice_pdf did not return a valid path')
+            return build_standalone_record(inv, signed_by, signed_date, signed_time, ip_address,
+                                           sig_image_b64, sig_mode)
+
+        # Step 2: Open the generated PDF
+        doc = fitz.open(invoice_pdf_path)
+
+        # Step 3: Stamp client signature, name, date on page 3 (terms page)
+        # Locate the last page (which has the signature lines)
+        # The terms page is page 3 (index 2) for invoices with cover page, page 2 (index 1) without
+        # Look for "Client Signature:" on each page
+        target_page_idx = None
+        for i in range(len(doc)):
+            if doc[i].search_for("Client Signature:"):
+                target_page_idx = i
+                break
+
+        if target_page_idx is None:
+            print('[sign] could not find Client Signature: in any page')
+            doc.close()
+            return build_standalone_record(inv, signed_by, signed_date, signed_time, ip_address,
+                                           sig_image_b64, sig_mode)
+
+        page = doc[target_page_idx]
+
+        # Stamp the client signature image on the signature line
+        # Line is at x=135 to x=332, y=621 (PDF coords, bottom of "Client Signature" label)
+        # We want the sig to sit ABOVE that line — y_top of image ~590, y_bottom ~620
+        if sig_image_b64:
+            try:
+                sig_bytes = flatten_signature_image(sig_image_b64)
+                sig_rect = fitz.Rect(135, 588, 332, 620)
+                page.insert_image(sig_rect, stream=sig_bytes, keep_proportion=True, overlay=True)
+            except Exception as e:
+                print(f'[sign] signature image embed error: {e}')
+
+        # Stamp printed name on the "Printed Name:" line (x=120 to x=332, y=633)
+        page.insert_text(
+            fitz.Point(125, 631),
+            signed_by,
+            fontsize=10,
+            fontname='Helvetica',
+            color=(0.067, 0.067, 0.067),
+        )
+
+        # Stamp date on the "Date:" line (x=75 to x=332, y=645)
+        # Format date as MM/DD/YY to match other dates in the doc
+        try:
+            dt = datetime.datetime.strptime(signed_date, '%Y-%m-%d')
+            date_formatted = dt.strftime('%m/%d/%y')
+        except Exception:
+            date_formatted = signed_date
+        page.insert_text(
+            fitz.Point(80, 643),
+            date_formatted,
+            fontsize=10,
+            fontname='Helvetica',
+            color=(0.067, 0.067, 0.067),
+        )
+
+        # Step 4: Append electronic signature record as a NEW page
+        # This keeps the existing 3 pages untouched and gives the audit trail its own page
+        new_page = doc.new_page(width=612, height=792)  # letter size
+
+        # Header bar
+        new_page.draw_rect(fitz.Rect(0, 0, 612, 72), color=None, fill=(0.173, 0.161, 0.149))
+        new_page.insert_text(
+            fitz.Point(54, 28),
+            'STYLING WITH JAS',
+            fontsize=7,
+            fontname='Helvetica',
+            color=(0.941, 0.922, 0.890),
+        )
+        new_page.insert_text(
+            fitz.Point(54, 44),
+            'ELECTRONIC SIGNATURE RECORD',
+            fontsize=10,
+            fontname='Helvetica-Bold',
+            color=(0.941, 0.922, 0.890),
+        )
+        new_page.insert_text(
+            fitz.Point(515, 44),
+            f"#{inv.get('invnum','')}",
+            fontsize=9,
+            fontname='Helvetica',
+            color=(0.722, 0.604, 0.388),
+        )
+
+        # Body
+        y = 110
+        ink = (0.173, 0.161, 0.149)
+        muted = (0.549, 0.518, 0.486)
+
+        client = inv.get('client', '')
+        address = inv.get('address', '')
+
+        # Client block
+        new_page.insert_text(fitz.Point(54, y), client, fontsize=14, fontname='Helvetica-Bold', color=ink)
+        y += 18
+        new_page.insert_text(fitz.Point(54, y), address, fontsize=9, fontname='Helvetica', color=muted)
+        y += 30
+
+        # Divider
+        new_page.draw_line(fitz.Point(54, y), fitz.Point(558, y), color=(0.906, 0.882, 0.851), width=0.5)
+        y += 24
+
+        # Section header
+        new_page.insert_text(fitz.Point(54, y), 'Signature Audit Trail', fontsize=11, fontname='Helvetica-Bold', color=ink)
+        y += 22
+
+        # Record rows
+        rows = [
+            ('Signed by', signed_by),
+            ('Date', date_formatted),
+            ('Time', f'{signed_time} PST'),
+            ('IP Address', ip_address),
+            ('Invoice', f"#{inv.get('invnum','')}"),
+            ('Method', f'{"Drawn" if sig_mode=="drawn" else "Typed"} signature via stylingwithjas.com'),
+            ('Legal basis', 'ESIGN Act (15 U.S.C. § 7001)'),
+        ]
+        for lbl, val in rows:
+            new_page.insert_text(fitz.Point(54, y), lbl, fontsize=9, fontname='Helvetica', color=muted)
+            new_page.insert_text(fitz.Point(180, y), str(val), fontsize=9, fontname='Helvetica-Bold', color=ink)
+            y += 16
+
+        y += 10
+        new_page.draw_line(fitz.Point(54, y), fitz.Point(558, y), color=(0.906, 0.882, 0.851), width=0.5)
+        y += 18
+
+        # Legal disclaimer
+        disclaimer = (
+            f'By signing above, {signed_by} agrees to the staging services proposal '
+            f'issued by Styling With Jas (Lux Ventures LLC). This electronic signature '
+            f'is legally binding under the Electronic Signatures in Global and National '
+            f'Commerce Act (ESIGN Act, 15 U.S.C. § 7001 et seq.).'
+        )
+        # Word-wrap manually
+        words = disclaimer.split()
+        line = []
+        max_width = 504  # 612 - 54 - 54
+        for word in words:
+            test_line = ' '.join(line + [word])
+            text_width = fitz.get_text_length(test_line, fontname='Helvetica', fontsize=8)
+            if text_width > max_width:
+                new_page.insert_text(fitz.Point(54, y), ' '.join(line), fontsize=8, fontname='Helvetica', color=muted)
+                y += 12
+                line = [word]
+            else:
+                line.append(word)
+        if line:
+            new_page.insert_text(fitz.Point(54, y), ' '.join(line), fontsize=8, fontname='Helvetica', color=muted)
+            y += 24
+
+        # Approved badge (green pill)
+        badge_rect = fitz.Rect(54, y, 220, y + 26)
+        new_page.draw_rect(badge_rect, color=None, fill=(0.435, 0.541, 0.447), radius=0.3)
+        new_page.insert_text(
+            fitz.Point(70, y + 17),
+            '✓  APPROVED & SIGNED',
+            fontsize=10,
+            fontname='Helvetica-Bold',
+            color=(1, 1, 1),
+        )
+
+        # Step 5: Output PDF as bytes
+        pdf_bytes = doc.tobytes(garbage=4, deflate=True)
+        doc.close()
+
+        # Cleanup temp file
+        try:
+            os.unlink(invoice_pdf_path)
+        except Exception:
+            pass
+
+        return pdf_bytes
+
     except Exception as e:
-        print(f'PDF generation error: {e}')
-        return build_signature_pdf(inv, signed_by, signed_date, signed_time, ip_address)
+        print(f'[sign] full contract build failed: {e}')
+        import traceback
+        traceback.print_exc()
+        return build_standalone_record(inv, signed_by, signed_date, signed_time, ip_address,
+                                       sig_image_b64, sig_mode)
 
-def build_signature_pdf(inv, signed_by, signed_date, signed_time, ip_address, sig_image=None, sig_mode='typed'):
-    """Build a signed-contract PDF using reportlab, with real signature image embedded."""
+
+def build_standalone_record(inv, signed_by, signed_date, signed_time, ip_address,
+                            sig_image_b64=None, sig_mode='drawn'):
+    """Fallback: build standalone signature record PDF (old behavior).
+    Only used if PyMuPDF or generate.py can't be loaded."""
     try:
         from reportlab.lib.pagesizes import letter
         from reportlab.lib.units import inch
-        from reportlab.pdfgen import canvas
+        from reportlab.pdfgen import canvas as rl_canvas
         from reportlab.lib.colors import HexColor
         from reportlab.lib.utils import ImageReader
-        import io, base64
 
         buf = io.BytesIO()
-        c = canvas.Canvas(buf, pagesize=letter)
+        c = rl_canvas.Canvas(buf, pagesize=letter)
         w, h = letter
 
         ink = HexColor('#2c2926')
         muted = HexColor('#8c847c')
         green = HexColor('#6f8a72')
-        line_color = HexColor('#e7e1d9')
-        bg_light = HexColor('#f6f4f1')
 
-        d = inv.get('data', {})
-        client = inv.get('client', '')
-        address = inv.get('address', '')
-        invnum = inv.get('invnum', '')
-
-        # Header bar
         c.setFillColor(HexColor('#2c2926'))
         c.rect(0, h-72, w, 72, fill=1, stroke=0)
         c.setFillColor(HexColor('#f0ebe3'))
         c.setFont('Helvetica', 7)
         c.drawString(0.75*inch, h-20, 'STYLING WITH JAS')
         c.setFont('Helvetica-Bold', 10)
-        c.drawString(0.75*inch, h-36, 'SIGNED STAGING AGREEMENT')
-        c.setFillColor(HexColor('#b89a63'))
-        c.setFont('Helvetica', 9)
-        c.drawRightString(w-0.75*inch, h-36, f'#{invnum}')
+        c.drawString(0.75*inch, h-36, 'SIGNATURE RECORD (fallback)')
 
-        # Client + address
-        y = h - 92
+        y = h - 110
         c.setFillColor(ink)
         c.setFont('Helvetica-Bold', 13)
-        c.drawString(0.75*inch, y, client)
-        y -= 16
-        c.setFillColor(muted)
+        c.drawString(0.75*inch, y, inv.get('client', ''))
+        y -= 30
+
         c.setFont('Helvetica', 9)
-        c.drawString(0.75*inch, y, address)
-        y -= 24
-
-        def draw_rule(ypos, weight=0.4, color=line_color):
-            c.setStrokeColor(color)
-            c.setLineWidth(weight)
-            c.line(0.75*inch, ypos, w-0.75*inch, ypos)
-
-        draw_rule(y); y -= 18
-
-        # Signature block header
-        c.setFillColor(ink)
-        c.setFont('Helvetica-Bold', 10)
-        c.drawString(0.75*inch, y, 'Client Signature')
-        y -= 14
-
-        # Embed signature image if provided
-        sig_img_height = 70
-        if sig_image:
-            try:
-                # Strip data URL prefix
-                if ',' in sig_image:
-                    sig_data = sig_image.split(',', 1)[1]
-                else:
-                    sig_data = sig_image
-                img_bytes = base64.b64decode(sig_data)
-                img_buf = io.BytesIO(img_bytes)
-                img_reader = ImageReader(img_buf)
-                # Draw signature image
-                sig_box_w = 3.5*inch
-                c.drawImage(img_reader, 0.75*inch, y - sig_img_height,
-                           width=sig_box_w, height=sig_img_height,
-                           preserveAspectRatio=True, anchor='sw')
-            except Exception as e:
-                print(f'Sig image embed error: {e}')
-                # Fallback: draw name in italic
-                c.setFillColor(HexColor('#1a1816'))
-                c.setFont('Helvetica-Oblique', 28)
-                c.drawString(0.75*inch, y - 40, signed_by)
-        else:
-            # No image — render name in italic as fallback
-            c.setFillColor(HexColor('#1a1816'))
-            c.setFont('Helvetica-Oblique', 28)
-            c.drawString(0.75*inch, y - 40, signed_by)
-
-        # Signature line under image
-        y -= sig_img_height + 4
-        draw_rule(y)
-        y -= 14
-
-        # Signed by + date side by side
         c.setFillColor(muted)
-        c.setFont('Helvetica', 8)
-        c.drawString(0.75*inch, y, f'Signed by: {signed_by}')
-        c.drawString(3.5*inch, y, f'Date: {signed_date}')
-        y -= 28
-
-        draw_rule(y); y -= 16
-
-        # Electronic record details
-        c.setFillColor(ink)
-        c.setFont('Helvetica-Bold', 9)
-        c.drawString(0.75*inch, y, 'Electronic Signature Record')
-        y -= 14
-
-        record_rows = [
+        for lbl, val in [
             ('Signed by', signed_by),
             ('Date', signed_date),
             ('Time', f'{signed_time} PST'),
-            ('IP Address', ip_address),
-            ('Invoice', f'#{invnum}'),
-            ('Method', f'{"Drawn" if sig_mode=="drawn" else "Typed"} signature via stylingwithjas.com'),
-            ('Legal basis', 'ESIGN Act (15 U.S.C. § 7001)'),
-        ]
-        for lbl, val in record_rows:
-            c.setFillColor(muted)
-            c.setFont('Helvetica', 8)
-            c.drawString(0.75*inch, y, lbl)
-            c.setFillColor(ink)
-            c.setFont('Helvetica', 8)
-            c.drawString(2.5*inch, y, str(val))
+            ('IP', ip_address),
+            ('Invoice', f"#{inv.get('invnum','')}"),
+        ]:
+            c.drawString(0.75*inch, y, f'{lbl}: {val}')
             y -= 14
 
-        y -= 8
-        draw_rule(y); y -= 16
-
-        # Agreement text
-        c.setFillColor(muted)
-        c.setFont('Helvetica', 7.5)
-        agreement = (
-            f'By signing above, {signed_by} agrees to the staging services proposal issued by '
-            f'Styling With Jas (Lux Ventures LLC). This electronic signature is legally binding '
-            f'under the Electronic Signatures in Global and National Commerce Act (ESIGN Act, '
-            f'15 U.S.C. § 7001 et seq.).'
-        )
-        words = agreement.split()
-        line_buf = []
-        for word in words:
-            line_buf.append(word)
-            if c.stringWidth(' '.join(line_buf), 'Helvetica', 7.5) > (w - 1.5*inch):
-                c.drawString(0.75*inch, y, ' '.join(line_buf[:-1]))
-                y -= 12
-                line_buf = [word]
-        if line_buf:
-            c.drawString(0.75*inch, y, ' '.join(line_buf))
-            y -= 20
-
-        # Confirmed badge
-        c.setFillColor(green)
-        c.roundRect(0.75*inch, y-24, 2.4*inch, 22, 6, fill=1, stroke=0)
-        c.setFillColor(HexColor('#ffffff'))
-        c.setFont('Helvetica-Bold', 9)
-        c.drawString(0.75*inch + 12, y-9, '✓  APPROVED & SIGNED')
-
         c.save()
         return buf.getvalue()
     except Exception as e:
-        print(f'reportlab PDF error: {e}')
+        print(f'[sign] standalone fallback also failed: {e}')
         return None
-    """Build a minimal signed-contract PDF using reportlab."""
-    try:
-        from reportlab.lib.pagesizes import letter
-        from reportlab.lib.units import inch
-        from reportlab.pdfgen import canvas
-        from reportlab.lib.colors import HexColor
-        import io
 
-        buf = io.BytesIO()
-        c = canvas.Canvas(buf, pagesize=letter)
-        w, h = letter
-
-        ink = HexColor('#2c2926')
-        muted = HexColor('#8c847c')
-        green = HexColor('#6f8a72')
-        line_color = HexColor('#e7e1d9')
-
-        d = inv.get('data', {})
-        client = inv.get('client', '')
-        address = inv.get('address', '')
-        invnum = inv.get('invnum', '')
-
-        # Header bar
-        c.setFillColor(HexColor('#2c2926'))
-        c.rect(0, h-72, w, 72, fill=1, stroke=0)
-        c.setFillColor(HexColor('#f0ebe3'))
-        c.setFont('Helvetica', 8)
-        c.drawString(0.75*inch, h-22, 'STYLING WITH JAS')
-        c.setFont('Helvetica', 9)
-        c.drawString(0.75*inch, h-38, 'ELECTRONIC SIGNATURE RECORD')
-        c.setFillColor(HexColor('#b89a63'))
-        c.setFont('Helvetica', 9)
-        c.drawRightString(w-0.75*inch, h-38, f'#{invnum}')
-
-        # Body
-        y = h - 100
-        def line_sep(ypos):
-            c.setStrokeColor(line_color)
-            c.line(0.75*inch, ypos, w-0.75*inch, ypos)
-
-        c.setFillColor(ink)
-        c.setFont('Helvetica-Bold', 13)
-        c.drawString(0.75*inch, y, 'Signed Staging Agreement')
-        y -= 18
-
-        c.setFillColor(muted)
-        c.setFont('Helvetica', 9)
-        c.drawString(0.75*inch, y, f'{client}  ·  {address}')
-        y -= 28
-        line_sep(y); y -= 18
-
-        # Signature details
-        rows = [
-            ('Signed by', signed_by),
-            ('Date', signed_date),
-            ('Time', signed_time + ' PST'),
-            ('IP Address', ip_address),
-            ('Invoice', f'#{invnum}'),
-            ('Method', 'Electronic signature via stylingwithjas.com'),
-            ('Legal basis', 'ESIGN Act (15 U.S.C. § 7001)'),
-        ]
-        for lbl, val in rows:
-            c.setFillColor(muted)
-            c.setFont('Helvetica', 9)
-            c.drawString(0.75*inch, y, lbl)
-            c.setFillColor(ink)
-            c.setFont('Helvetica-Bold', 9)
-            c.drawString(2.5*inch, y, str(val))
-            y -= 18
-
-        y -= 10
-        line_sep(y); y -= 20
-
-        # Agreement text
-        c.setFillColor(muted)
-        c.setFont('Helvetica', 8)
-        agreement = (
-            f'By signing above, {signed_by} agrees to the staging services proposal issued by Styling With Jas '
-            f'(Lux Ventures LLC). This electronic signature is legally binding under the ESIGN Act.'
-        )
-        # Word wrap
-        words = agreement.split()
-        line_buf = []
-        for word in words:
-            line_buf.append(word)
-            if c.stringWidth(' '.join(line_buf), 'Helvetica', 8) > (w - 1.5*inch):
-                c.drawString(0.75*inch, y, ' '.join(line_buf[:-1]))
-                y -= 13
-                line_buf = [word]
-        if line_buf:
-            c.drawString(0.75*inch, y, ' '.join(line_buf))
-            y -= 20
-
-        # Green confirmation badge
-        c.setFillColor(green)
-        c.roundRect(0.75*inch, y-24, 2.2*inch, 22, 6, fill=1, stroke=0)
-        c.setFillColor(HexColor('#ffffff'))
-        c.setFont('Helvetica-Bold', 9)
-        c.drawString(0.75*inch + 0.15*inch, y-8, '✓  APPROVED & SIGNED')
-
-        c.save()
-        return buf.getvalue()
-    except Exception as e:
-        print(f'reportlab PDF error: {e}')
-        return None
 
 def send_signed_email(to_email, client_name, invnum, pdf_bytes, contract_url, jasmine=False):
-    """Email the signed contract PDF to client and Jasmine."""
     try:
         password = os.environ.get('EMAIL_PASSWORD', '')
         if not password:
@@ -395,7 +398,10 @@ def send_signed_email(to_email, client_name, invnum, pdf_bytes, contract_url, ja
         msg = MIMEMultipart()
         msg['From'] = FROM_EMAIL
         msg['To'] = to_email
-        msg['Subject'] = f'Signed Staging Agreement — #{invnum}' if jasmine else f'Your Signed Staging Agreement — #{invnum}'
+        msg['Subject'] = (
+            f'Signed Staging Agreement — #{invnum}' if jasmine
+            else f'Your Signed Staging Agreement — #{invnum}'
+        )
 
         if jasmine:
             body = (
@@ -408,12 +414,11 @@ def send_signed_email(to_email, client_name, invnum, pdf_bytes, contract_url, ja
             )
         else:
             body = (
-                f'Hi {client_name.split()[0]},\n\n'
+                f'Hi {client_name.split()[0] if client_name else ""},\n\n'
                 f'Thank you for approving your staging proposal with Styling With Jas.\n\n'
-                f'Your signed contract (#{invnum}) is attached to this email for your records.\n\n'
-                f'Next step: Payment of the invoice total is due 48 hours before your staging date.\n\n'
+                f'Your signed contract (#{invnum}) is attached for your records.\n\n'
+                f'Next step: Full payment is due 48 hours before your staging date.\n\n'
                 f'Questions? Call or text Jasmine at 206-422-5618.\n\n'
-                f'We look forward to staging your home beautifully.\n\n'
                 f'— Jasmine Santana\n'
                 f'Styling With Jas\n'
                 f'206-422-5618 · info@stylingwithjas.com'
@@ -455,10 +460,9 @@ class handler(BaseHTTPRequestHandler):
         signed_by = body.get('signed_by', '').strip()
         signed_date = body.get('signed_date', '').strip()
         agreed = body.get('agreed', False)
-        sig_image = body.get('sig_image', None)   # base64 PNG data URL
-        sig_mode = body.get('sig_mode', 'typed')  # 'drawn' or 'typed'
+        sig_image = body.get('sig_image', None)
+        sig_mode = body.get('sig_mode', 'typed')
 
-        # Validate
         if not invnum:
             self._respond(400, {'error': 'Missing invnum'})
             return
@@ -472,7 +476,6 @@ class handler(BaseHTTPRequestHandler):
             self._respond(400, {'error': 'Agreement not confirmed'})
             return
 
-        # Get IP
         ip_address = (
             self.headers.get('X-Forwarded-For', '').split(',')[0].strip() or
             self.headers.get('X-Real-IP', '') or
@@ -482,7 +485,6 @@ class handler(BaseHTTPRequestHandler):
         signed_at = datetime.datetime.now().isoformat()
 
         try:
-            # 1. Fetch invoice
             inv = supabase_get_invoice(invnum)
             if not inv:
                 self._respond(404, {'error': 'Invoice not found'})
@@ -492,15 +494,18 @@ class handler(BaseHTTPRequestHandler):
             client = inv.get('client', signed_by)
             client_email = d.get('client_email', '')
 
-            # 2. Generate signed PDF
-            pdf_bytes = build_signature_pdf(inv, signed_by, signed_date, signed_time, ip_address, sig_image=sig_image, sig_mode=sig_mode)
+            # Build the full signed contract (full proposal + signature stamped on page 3)
+            pdf_bytes = build_full_signed_contract(
+                inv, signed_by, signed_date, signed_time, ip_address,
+                sig_image_b64=sig_image, sig_mode=sig_mode
+            )
 
-            # 3. Upload to Supabase Storage
+            # Upload to Supabase Storage
             contract_url = None
             if pdf_bytes:
                 contract_url = supabase_upload_pdf(invnum, pdf_bytes)
 
-            # 4. Update invoice in Supabase
+            # Update invoice with signature data + move to confirmed stage
             updated_data = {
                 **d,
                 'signed': True,
@@ -510,7 +515,7 @@ class handler(BaseHTTPRequestHandler):
                 'signed_ip': ip_address,
                 'signed_at': signed_at,
                 'contract_url': contract_url,
-                'stage': 'confirmed',  # Move to confirmed on Board
+                'stage': 'confirmed',
             }
             supabase_update_invoice(invnum, {
                 'data': updated_data,
@@ -519,18 +524,12 @@ class handler(BaseHTTPRequestHandler):
                 'invdate': inv.get('invdate', ''),
             })
 
-            # 5. Email Jasmine
-            send_signed_email(
-                JASMINE_EMAIL, client, invnum,
-                pdf_bytes, contract_url, jasmine=True
-            )
+            # Email Jasmine
+            send_signed_email(JASMINE_EMAIL, client, invnum, pdf_bytes, contract_url, jasmine=True)
 
-            # 6. Email client if we have their email
+            # Email client
             if client_email:
-                send_signed_email(
-                    client_email, client, invnum,
-                    pdf_bytes, contract_url, jasmine=False
-                )
+                send_signed_email(client_email, client, invnum, pdf_bytes, contract_url, jasmine=False)
 
             self._respond(200, {
                 'signed': True,
@@ -541,6 +540,8 @@ class handler(BaseHTTPRequestHandler):
 
         except Exception as e:
             print(f'Sign error: {e}')
+            import traceback
+            traceback.print_exc()
             self._respond(500, {'error': f'Signing failed: {str(e)}'})
 
     def _respond(self, code, data):
