@@ -848,7 +848,11 @@ function openSheet(type, prefill){
   // Job picker (link to invoice)
   if(activeInvoices.length){
     const opts=activeInvoices.map(inv=>`<option value="${inv.invnum}" ${v.invnum===inv.invnum?'selected':''}>${esc(inv.client||inv.invnum)}</option>`).join('');
-    fields+=`<div class="sheet-field"><div class="sheet-lbl">Linked to Job (optional)</div><select class="sheet-select" id="sf-invnum"><option value="">— None —</option>${opts}</select></div>`;
+    fields+=`<div class="sheet-field"><div class="sheet-lbl">Linked to Job (optional)</div><select class="sheet-select" id="sf-invnum" onchange="updateRoomOptions()"><option value="">— None —</option>${opts}</select></div>`;
+    // Room picker — only shown for shopping type, dynamically populated from selected job
+    if(type==='shopping'){
+      fields+=`<div class="sheet-field" id="sf-room-field" style="display:none;"><div class="sheet-lbl">Room</div><select class="sheet-select" id="sf-room"><option value="">— Choose a room —</option></select></div>`;
+    }
   }
 
   // Date (default today)
@@ -859,6 +863,64 @@ function openSheet(type, prefill){
   setTimeout(()=>document.getElementById('sf-title').focus(),100);
   // Store type for save
   overlay.dataset.type=type;
+
+  // If a job was prefilled, populate rooms + preselect if room is in prefill
+  if(type==='shopping' && activeInvoices.length){
+    updateRoomOptions(v.room || '');
+  }
+}
+
+function updateRoomOptions(preselectRoom){
+  const jobSel = document.getElementById('sf-invnum');
+  const roomField = document.getElementById('sf-room-field');
+  const roomSel = document.getElementById('sf-room');
+  if(!jobSel || !roomSel || !roomField) return;
+
+  const invnum = jobSel.value;
+  if(!invnum){
+    roomField.style.display = 'none';
+    roomSel.innerHTML = '<option value="">— Choose a room —</option>';
+    return;
+  }
+  // Find the matching invoice
+  const inv = activeInvoices.find(i => i.invnum === invnum);
+  if(!inv){
+    roomField.style.display = 'none';
+    return;
+  }
+  // Parse rooms from baserooms (comma-separated) + addon room names
+  const d = inv.data || {};
+  const baseRooms = (d.baserooms || '').split(',').map(r => r.trim()).filter(Boolean);
+  const addonRooms = (d.addons || [])
+    .map(a => {
+      // Addon descs look like "Primary Bedroom (Queen): ..." or "Family Room: ..."
+      const desc = a.desc || '';
+      const colonIdx = desc.indexOf(':');
+      const dashIdx = desc.indexOf(' — ');
+      let name = desc;
+      if(colonIdx > 0) name = desc.slice(0, colonIdx).trim();
+      else if(dashIdx > 0) name = desc.slice(0, dashIdx).trim();
+      // Strip "(BedType)" suffix
+      return name.replace(/\s*\([^)]+\)\s*$/, '').trim();
+    })
+    .filter(Boolean);
+
+  // Combine + dedupe (case-insensitive)
+  const all = [];
+  const seen = new Set();
+  [...baseRooms, ...addonRooms].forEach(r => {
+    const key = r.toLowerCase();
+    if(!seen.has(key)){ seen.add(key); all.push(r); }
+  });
+
+  if(!all.length){
+    roomField.style.display = 'none';
+    return;
+  }
+  roomField.style.display = 'block';
+  const preselect = (preselectRoom||'').toLowerCase();
+  roomSel.innerHTML = '<option value="">— Choose a room —</option>' +
+    all.map(r => `<option value="${esc(r)}" ${r.toLowerCase()===preselect?'selected':''}>${esc(r)}</option>`).join('');
 }
 
 function closeSheet(e,force){
@@ -879,8 +941,9 @@ async function saveSheet(){
   const scheduled_time=document.getElementById('sf-time')?.value.trim()||null;
   const price=parseFloat(document.getElementById('sf-price')?.value)||null;
   const store=document.getElementById('sf-store')?.value.trim()||null;
+  const room=document.getElementById('sf-room')?.value.trim()||null;
 
-  const payload={type,title,date,status:'pending',notes:type==='shopping'&&store?store+(notes?' · '+notes:''):notes,invnum:invnum||null,scheduled_time,price};
+  const payload={type,title,date,status:'pending',notes:type==='shopping'&&store?store+(notes?' · '+notes:''):notes,invnum:invnum||null,scheduled_time,price,room};
 
   const btn=document.getElementById('sheet-save-btn');
   btn.disabled=true;

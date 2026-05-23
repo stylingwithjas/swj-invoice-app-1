@@ -709,9 +709,20 @@ Return results as JSON with this structure:
 
     if(!raw_results.length){
       dot.className = 'status-dot done';
-      msg.textContent = 'No listings found right now — try again later';
+      const errs = (searchData.errors||[]);
+      const hasErrors = errs.length > 0;
       count.textContent = '0 deals';
-      list.innerHTML = `<div class="no-deals"><div class="no-deals-icon"><i class="ti ti-search-off"></i></div><div class="no-deals-text">No local listings found for these items right now.<br>Craigslist updates constantly — check back later.</div></div>`;
+      if(hasErrors){
+        msg.textContent = `Craigslist returned no results (${errs.length} error${errs.length>1?'s':''})`;
+        list.innerHTML = `<div class="no-deals">
+          <div class="no-deals-icon"><i class="ti ti-alert-triangle"></i></div>
+          <div class="no-deals-text">Craigslist search hit an issue.<br>
+          <span style="font-size:11px;color:var(--muted);display:block;margin-top:8px;text-align:left;font-family:monospace;">${errs.slice(0,3).map(e=>esc(e)).join('<br>')}</span></div>
+        </div>`;
+      } else {
+        msg.textContent = 'No listings found right now — try again later';
+        list.innerHTML = `<div class="no-deals"><div class="no-deals-icon"><i class="ti ti-search-off"></i></div><div class="no-deals-text">No local listings found for these items right now.<br>Craigslist updates constantly — check back later.</div></div>`;
+      }
       return;
     }
 

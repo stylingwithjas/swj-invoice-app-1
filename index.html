@@ -1443,6 +1443,8 @@ function openEmailModal(data){
   document.getElementById('email-to').value='';
   document.getElementById('email-subject').value=`Your Staging Proposal — ${address}`;
   const proposalLink = `${window.location.origin}/proposal.html?inv=${encodeURIComponent(data.invnum)}`;
+  // Stash these for sendEmail to pass to the HTML email builder
+  window._lastEmailMeta = { proposal_link: proposalLink, client_first_name: firstName };
   document.getElementById('email-body').value=`Hi ${firstName},\n\nThank you for the opportunity to work with you. I'm excited about this property and what we can create together.\n\nAttached you'll find your personalized staging proposal for ${address}. Inside you'll find the full scope of work, investment total, and payment details.\n\nTo approve this proposal and sign electronically, please visit:\n${proposalLink}\n\nThe signed contract and payment link are available on that page. Your proposal PDF is attached to this email for your reference.\n\nA few important notes:\n• Full payment is due 48 hours before installation day\n• Once payment is received I'll lock in your staging date\n\nPlease don't hesitate to reach out with any questions.\n\nLooking forward to transforming your space.\n\nWarmly,\nJasmine Santana\nOwner & Creative Director — Styling With Jas\n206-422-5618\ninfo@stylingwithjas.com`;
   document.getElementById('email-status').textContent='';
   document.getElementById('email-modal').classList.add('show');
@@ -1755,7 +1757,8 @@ async function sendEmail(){
       fr.onerror=()=>rej(new Error('Failed to read PDF'));
       fr.readAsDataURL(_lastPdfBlob);
     });
-    const r=await fetch('/api/email',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({to,subject,message,pdf:base64,filename:_lastPdfFilename})});
+    const emailMeta = window._lastEmailMeta || {};
+    const r=await fetch('/api/email',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({to,subject,message,pdf:base64,filename:_lastPdfFilename,proposal_link:emailMeta.proposal_link||null,client_first_name:emailMeta.client_first_name||''})});
     if(!r.ok){
       if(r.status===404){throw new Error('Email endpoint not found — /api/email is not deployed on your server.');}
       throw new Error(`Server returned ${r.status} ${r.statusText}`);
