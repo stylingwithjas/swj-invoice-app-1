@@ -22,16 +22,24 @@ def get_supabase_key():
 
 def supabase_get_invoice(invnum):
     key = get_supabase_key()
+    if not key:
+        raise Exception('SUPABASE_KEY env var is missing or empty')
     req = urllib.request.Request(
         f'{SUPABASE_URL}/rest/v1/invoices?invnum=eq.{urllib.parse.quote(invnum)}&select=*',
         headers={'apikey': key, 'Authorization': f'Bearer {key}'}
     )
-    with urllib.request.urlopen(req, timeout=10) as r:
-        rows = json.loads(r.read())
+    try:
+        with urllib.request.urlopen(req, timeout=10) as r:
+            rows = json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        err_body = e.read().decode('utf-8', errors='ignore')
+        raise Exception(f'[get_invoice] HTTP {e.code}: {err_body[:200]}')
     return rows[0] if rows else None
 
 def supabase_update_invoice(invnum, updates):
     key = get_supabase_key()
+    if not key:
+        raise Exception('SUPABASE_KEY env var is missing or empty')
     body = json.dumps(updates).encode()
     req = urllib.request.Request(
         f'{SUPABASE_URL}/rest/v1/invoices?invnum=eq.{urllib.parse.quote(invnum)}',
@@ -41,14 +49,20 @@ def supabase_update_invoice(invnum, updates):
     req.add_header('Authorization', f'Bearer {key}')
     req.add_header('Content-Type', 'application/json')
     req.add_header('Prefer', 'return=minimal')
-    with urllib.request.urlopen(req, timeout=10) as r:
-        return True
+    try:
+        with urllib.request.urlopen(req, timeout=10) as r:
+            return True
+    except urllib.error.HTTPError as e:
+        err_body = e.read().decode('utf-8', errors='ignore')
+        raise Exception(f'[update_invoice] HTTP {e.code}: {err_body[:200]}')
 
 def supabase_upload_pdf(invnum, pdf_bytes):
     """Upload signed PDF to Supabase Storage bucket 'signed-contracts'."""
     key = get_supabase_key()
+    if not key:
+        print('[upload_pdf] SUPABASE_KEY missing')
+        return None
     filename = f'{invnum}-signed.pdf'
-    # Try insert first, then upsert if exists
     url = f'{SUPABASE_URL}/storage/v1/object/signed-contracts/{filename}'
     req = urllib.request.Request(url, data=pdf_bytes, method='POST')
     req.add_header('apikey', key)
@@ -58,11 +72,14 @@ def supabase_upload_pdf(invnum, pdf_bytes):
     try:
         with urllib.request.urlopen(req, timeout=15) as r:
             result = json.loads(r.read())
-        # Build public URL for download
         contract_url = f'{SUPABASE_URL}/storage/v1/object/signed-contracts/{filename}'
         return contract_url
+    except urllib.error.HTTPError as e:
+        err_body = e.read().decode('utf-8', errors='ignore')
+        print(f'[upload_pdf] HTTP {e.code}: {err_body[:300]}')
+        return None
     except Exception as e:
-        print(f'Storage upload error: {e}')
+        print(f'[upload_pdf] error: {e}')
         return None
 
 def generate_signed_pdf(inv, signed_by, signed_date, signed_time, ip_address):
