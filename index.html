@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script src="/auth.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -12,322 +11,300 @@
 *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
 
 :root {
-  /* ── Foundations ── */
-  --bg:           #dcd7ce;
-  --bg-soft:      #ffffff;
-  --bg-card:      #ffffff;
-  --bg-input:     #ffffff;
-  --bg-hover:     #f7f3ee;
-
-  /* ── Typography ── */
-  --ink:          #2c2926;
-  --ink-soft:     #3d3833;
-  --cta:          #4a443e;
-  --cta-hover:    #5a534b;
-  --muted:        #8c847c;
-  --muted-soft:   #b8ada1;
-
-  /* ── Lines ── */
-  --line:         #e7e1d9;
-  --line-soft:    #ede8e0;
-
-  /* ── Brand Accent (Olive Sage) ── */
-  --olive:        #7a8574;
-  --olive-dark:   #5f685a;
-  --olive-tint:   #eef1ea;
-  --olive-line:   #c9d0c2;
-
-  /* ── Luxury Accent (Champagne) ── */
-  --gold:         #b89a63;
-  --gold-soft:    #f6f1e7;
-  --gold-line:    #eadfcb;
-
-  /* ── Status (muted) ── */
-  --green:        #6f8a72;
-  --green-tint:   #edf4ee;
-  --amber:        #b77b62;
-  --amber-tint:   #faefea;
-  --red:          #9a5a4a;
-  --red-tint:     #f8ece8;
+  --ink:      #1a1814;
+  --ink-soft: #3d3830;
+  --cream:    #f5f2ed;
+  --warm:     #faf8f5;
+  --taupe:    #a29c96;
+  --taupe-lt: #d4cfc9;
+  --taupe-dk: #7a6f69;
+  --gold:     #c9a96e;
+  --gold-lt:  #f5ead8;
+  --gold-dk:  #9d7a44;
+  --green:    #4a7c50;
+  --green-lt: #edf4ed;
+  --amber:    #c97c2e;
+  --red:      #b53535;
+  --slate:    #4a5e82;
 }
 
-body { font-family:'Inter',-apple-system,sans-serif; background:var(--bg); color:var(--ink); min-height:100vh; font-size:15px; letter-spacing:0.01em; }
+body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); color:var(--ink); min-height:100vh; font-size:16px; }
 
-/* ── HEADER (kept simple, sticky nav only) ── */
-.hdr { background:var(--bg); position:sticky; top:0; z-index:60; border-bottom:0.5px solid var(--line); }
-.hdr-top { display:flex; align-items:center; justify-content:space-between; padding:14px 24px 12px; gap:12px; max-width:760px; margin:0 auto; }
-.brand-stack { display:flex; flex-direction:column; gap:1px; }
-.brand-stack .b1 { font-family:'Cormorant Garamond',serif; font-size:13px; font-weight:400; color:var(--ink); letter-spacing:3px; text-transform:uppercase; }
-.brand-stack .b2 { font-size:9px; color:var(--muted); letter-spacing:2px; text-transform:uppercase; }
+/* ── HEADER ── */
+.hdr { background:var(--ink); position:sticky; top:0; z-index:60; }
+.hdr-top { display:flex; align-items:center; justify-content:space-between; padding:12px 16px 10px; gap:8px; }
+.brand { display:flex; align-items:baseline; gap:10px; }
+.brand-name { font-family:"Cormorant Garamond",serif; font-size:24px; font-weight:300; color:#fff; letter-spacing:4px; }
+.brand-sep { width:1px; height:16px; background:rgba(255,255,255,0.18); }
+.brand-sub { font-size:10px; color:rgba(255,255,255,0.35); letter-spacing:2.5px; text-transform:uppercase; }
 .hdr-right { display:flex; align-items:center; gap:10px; }
-.inv-badge { font-family:'Cormorant Garamond',serif; font-size:13px; font-weight:300; color:var(--ink-soft); letter-spacing:0.5px; padding:5px 12px; border:1px solid var(--line); border-radius:20px; cursor:text; background:transparent; outline:none; text-align:center; width:112px; }
-.nav-sw { display:flex; gap:2px; background:var(--bg-soft); border-radius:20px; padding:3px; }
-.nav-btn { padding:5px 13px; border-radius:16px; border:none; font-size:11px; font-weight:500; cursor:pointer; font-family:'Inter',sans-serif; transition:all 0.18s; }
-.nav-btn.on  { background:var(--cta); color:var(--bg-soft); }
-.nav-btn.off { background:transparent; color:var(--muted); }
+.inv-badge { font-family:"Cormorant Garamond",serif; font-size:13px; font-weight:300; color:rgba(255,255,255,0.45); letter-spacing:0.5px; padding:4px 8px; border:1px solid rgba(255,255,255,0.1); border-radius:20px; cursor:text; background:transparent; outline:none; text-align:center; width:110px; }
+@media(max-width:380px){ .inv-badge { display:none; } }
+.nav-sw { display:flex; gap:2px; background:rgba(255,255,255,0.07); border-radius:20px; padding:3px; }
+.nav-btn { padding:5px 12px; border-radius:16px; border:none; font-size:11px; font-weight:500; cursor:pointer; font-family:"Inter",sans-serif; transition:all 0.18s; white-space:nowrap; }
+.nav-btn.on  { background:#fff; color:var(--ink); }
+.nav-btn.off { background:transparent; color:rgba(255,255,255,0.4); }
 
 /* ── CONTENT ── */
-.content { padding:8px 24px 64px; max-width:760px; margin:0 auto; }
+.content { padding:16px; max-width:640px; margin:0 auto; }
 
-/* ── CHAPTER SECTIONS ── */
-.chapter { padding:36px 0 28px; border-bottom:0.5px solid var(--line); }
-.chapter:last-child { border-bottom:none; }
-.ch-eye { display:none; }
-.ch-title { font-family:'Cormorant Garamond',serif; font-size:54px; font-weight:400; color:var(--green); margin-bottom:28px; line-height:1.05; letter-spacing:-0.015em; }
+/* ── CARDS ── */
+.card { background:var(--warm); border-radius:16px; margin-bottom:12px; border:1px solid rgba(162,156,150,0.18); overflow:hidden; }
+.card-hdr { padding:14px 18px 0; display:flex; align-items:center; justify-content:space-between; }
+.sec-lbl { font-size:9px; font-weight:600; color:var(--taupe); text-transform:uppercase; letter-spacing:1.8px; }
+.sec-accent { width:20px; height:1px; background:var(--gold); opacity:0.6; }
+.card-body { padding:10px 18px 16px; }
 
-/* ── RECENT/DRAFT CARDS (collapsible at top) ── */
-.rc { background:var(--bg-soft); border-radius:12px; margin:10px 0; border:0.5px solid var(--line); overflow:hidden; }
-.rc-hdr { padding:13px 16px; display:flex; align-items:center; justify-content:space-between; cursor:pointer; user-select:none; }
-.rc-lbl { font-size:10px; font-weight:500; color:var(--muted); text-transform:uppercase; letter-spacing:2px; }
-.rc-arr { font-size:10px; color:var(--muted-soft); transition:transform 0.2s; }
-.rc-arr.open { transform:rotate(180deg); }
-.rc-body { display:none; padding:0 16px 13px; border-top:0.5px solid var(--line); }
-.rc-body.open { display:block; }
-.ri { display:flex; justify-content:space-between; align-items:center; padding:11px 0; border-bottom:0.5px solid var(--line); cursor:pointer; }
-.ri:last-child { border-bottom:none; }
-.ri-name { font-family:'Cormorant Garamond',serif; font-size:15px; font-weight:400; color:var(--ink); }
-.ri-addr { font-size:11px; color:var(--muted); margin-top:2px; }
-.ri-num  { font-size:11px; font-weight:500; color:var(--muted); }
-.ri-date { font-size:10px; color:var(--muted-soft); margin-top:2px; text-align:right; }
-.draft-item { display:flex; align-items:center; justify-content:space-between; padding:9px 0; border-bottom:0.5px solid var(--line); cursor:pointer; }
-.draft-item:last-child { border-bottom:none; }
-.draft-name  { font-size:13px; color:var(--ink-soft); }
-.draft-date  { font-size:11px; color:var(--muted); }
-.draft-del   { background:none; border:none; color:var(--muted-soft); font-size:16px; cursor:pointer; padding:2px 6px; }
-.add-ghost { font-size:12px; font-weight:500; color:var(--muted); background:none; border:none; cursor:pointer; padding:8px 0 0; font-family:'Inter',sans-serif; transition:color 0.15s; display:block; }
-.add-ghost:hover { color:var(--ink); }
+/* ── FIELDS ── */
+.field { padding:9px 0; border-bottom:1px solid rgba(162,156,150,0.07); }
+.field:last-child { border-bottom:none; }
+.field-lbl { font-size:10px; font-weight:500; color:var(--taupe); text-transform:uppercase; letter-spacing:1px; margin-bottom:5px; }
+.field-input { width:100%; font-family:"Inter",sans-serif; font-size:15px; font-weight:400; color:var(--ink); background:transparent; border:none; border-bottom:1.5px solid var(--taupe-lt); padding:4px 0 6px; outline:none; transition:border-color 0.18s; }
+.field-input:focus { border-bottom-color:var(--gold); }
+.field-input::placeholder { color:var(--taupe-lt); }
+.field-row { display:flex; gap:14px; }
+.field-row .field { flex:1; }
+.client-input { font-family:"Cormorant Garamond",serif !important; font-size:20px !important; font-weight:400 !important; }
+.zip-note { font-size:11px; color:var(--green); margin-top:4px; min-height:14px; }
 
-/* ── FIELDS (boxed, dark) ── */
-.field-row { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px; }
-.field-row.solo { grid-template-columns:1fr; max-width:300px; }
-.field-row.thirds { grid-template-columns:1fr 1fr 1fr; }
-.field-block { display:flex; flex-direction:column; gap:7px; }
-.field-lbl { font-size:9px; font-weight:500; color:var(--muted); text-transform:uppercase; letter-spacing:1.6px; }
-.field-input {
-  width:100%; font-family:'Inter',sans-serif; font-size:14px; font-weight:400;
-  color:var(--ink); background:var(--bg-input);
-  border:0.5px solid var(--line); border-radius:8px;
-  padding:11px 13px; outline:none; transition:border-color 0.18s;
-}
-.field-input:focus { border-color:var(--olive); }
-.field-input::placeholder { color:var(--muted-soft); }
-.client-input { font-family:'Cormorant Garamond',serif !important; font-size:18px !important; font-weight:300 !important; }
-.zip-note { font-size:11px; color:var(--olive-dark); margin-top:4px; min-height:14px; }
-.ferr { font-size:11px; color:var(--red); margin-top:5px; display:none; }
+/* ── BASE ROW ── */
+.base-row { display:flex; align-items:center; justify-content:space-between; padding:10px 0; border-bottom:1px solid rgba(162,156,150,0.07); }
+.base-lbl { font-size:13px; color:var(--ink-soft); }
+.base-input { font-family:"Cormorant Garamond",serif; font-size:19px; font-weight:400; color:var(--green); background:transparent; border:none; border-bottom:1.5px solid var(--taupe-lt); outline:none; text-align:right; width:120px; padding:2px 0 4px; transition:border-color 0.18s; }
+.base-input:focus { border-bottom-color:var(--gold); }
+
+/* ── ROOMS GRID ── */
+.rooms-grid { display:grid; grid-template-columns:1fr 1fr; gap:7px; margin-top:12px; }
+@media(min-width:480px){ .rooms-grid { grid-template-columns:repeat(3,1fr); } }
+@media(min-width:640px){ .rooms-grid { grid-template-columns:repeat(4,1fr); } }
+.chip { display:flex; align-items:center; gap:8px; padding:10px 11px; border-radius:10px; border:1.5px solid var(--taupe-lt); background:var(--cream); cursor:pointer; transition:all 0.15s; font-size:12px; font-weight:500; color:var(--taupe-dk); -webkit-user-select:none; }
+.chip.sel { border-color:var(--gold); background:var(--gold-lt); color:var(--gold-dk); }
+.chip-dot { width:7px; height:7px; border-radius:50%; border:1.5px solid currentColor; flex-shrink:0; transition:all 0.15s; }
+.chip.sel .chip-dot { background:var(--gold-dk); border-color:var(--gold-dk); }
+.rooms-grid.err .chip { border-color:var(--red); }
+.ferr { font-size:11px; color:var(--red); margin-top:6px; display:none; }
 .ferr.show { display:block; }
-.field-input.err { border-color:var(--red); }
 
-/* ── BASE PRICE ROW ── */
-.base-row { display:flex; align-items:center; justify-content:space-between; padding:0 0 12px; }
-.base-lbl { font-size:13px; color:var(--ink-soft); font-weight:400; }
-.base-input {
-  font-family:'Cormorant Garamond',serif; font-size:22px; font-weight:300; color:var(--green);
-  background:transparent; border:none; border-bottom:1px solid var(--line);
-  outline:none; text-align:right; width:130px; padding:3px 0 5px;
-  transition:border-color 0.18s;
-}
-.base-input:focus { border-bottom-color:var(--olive); }
-.base-note { font-size:11px; color:var(--muted); margin-bottom:14px; line-height:1.5; }
+/* ── ADDON CATEGORIES ── */
+.addon-cat { border:1px solid rgba(162,156,150,0.14); border-radius:12px; margin-bottom:8px; overflow:hidden; background:var(--cream); }
+.addon-cat-hdr { display:flex; align-items:center; justify-content:space-between; padding:12px 14px; cursor:pointer; }
+.addon-cat-title { font-size:13px; font-weight:500; color:var(--ink); }
+.addon-cat-range { font-size:12px; color:var(--taupe); }
+.addon-cat-arr { font-size:10px; color:var(--taupe-lt); transition:transform 0.2s; margin-left:6px; }
+.addon-cat-body { padding:12px 14px; display:none; border-top:1px solid rgba(162,156,150,0.08); background:var(--warm); }
+.size-grid { display:grid; grid-template-columns:1fr 1fr; gap:7px; margin-bottom:12px; }
+@media(min-width:480px){ .size-grid { grid-template-columns:repeat(4,1fr); } }
+.size-chip { display:flex; flex-direction:column; align-items:center; padding:10px 8px; border-radius:10px; border:1.5px solid var(--taupe-lt); background:var(--cream); cursor:pointer; transition:all 0.15s; text-align:center; -webkit-user-select:none; }
+.size-chip.sel { border-color:var(--gold); background:var(--gold-lt); }
+.size-label { font-size:11px; font-weight:500; color:var(--taupe-dk); margin-bottom:3px; }
+.size-chip.sel .size-label { color:var(--gold-dk); }
+.size-price { font-family:"Cormorant Garamond",serif; font-size:15px; color:var(--green); }
+.size-chip.sel .size-price { color:var(--gold-dk); }
+.bed-row { display:flex; align-items:center; gap:7px; margin-bottom:12px; flex-wrap:wrap; }
+.bed-row label { font-size:12px; color:var(--taupe); font-weight:500; }
+.bed-btn { padding:6px 14px; border:1.5px solid var(--taupe-lt); border-radius:20px; font-size:12px; cursor:pointer; background:var(--cream); font-family:"Inter",sans-serif; color:var(--ink-soft); transition:all 0.15s; }
+.bed-btn.active { background:var(--gold-lt); border-color:var(--gold); color:var(--gold-dk); font-weight:600; }
+.scope-lbl { font-size:10px; color:var(--taupe); margin-bottom:5px; display:flex; justify-content:space-between; letter-spacing:0.5px; text-transform:uppercase; }
+.scope-reset { font-size:11px; color:var(--taupe); cursor:pointer; text-decoration:none; font-style:italic; text-transform:none; letter-spacing:0; }
+textarea { width:100%; font-family:"Inter",sans-serif; font-size:13px; border:1.5px solid var(--taupe-lt); border-radius:10px; padding:9px 11px; resize:none; min-height:72px; line-height:1.5; outline:none; background:var(--cream); color:var(--ink); transition:border-color 0.18s; }
+textarea:focus { border-color:var(--gold); background:var(--warm); }
 
-/* ── ROOM CARDS (4-col grid, icon + name) ── */
-.rooms-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:9px; }
-@media(max-width:560px){ .rooms-grid { grid-template-columns:repeat(2,1fr); } }
-.room-card {
-  position:relative; padding:14px 14px 12px;
-  border:0.5px solid var(--line); border-radius:9px;
-  cursor:pointer; transition:all 0.15s;
-  background:var(--bg-card); user-select:none;
-}
-.room-card:hover { border-color:var(--olive-line); }
-.room-card.sel { border-color:var(--olive); background:var(--olive-tint); }
-.room-icon { font-size:18px; color:var(--muted); margin-bottom:9px; }
-.room-card.sel .room-icon { color:var(--olive-dark); }
-.room-name { font-size:12px; font-weight:500; color:var(--ink-soft); line-height:1.3; }
-.room-card.sel .room-name { color:var(--ink); }
-.rooms-grid.err .room-card { border-color:var(--red); }
-.rooms-bar { margin-top:12px; padding:11px 14px; background:var(--bg-soft); border-radius:8px; min-height:42px; display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
-.rooms-bar-empty { font-size:12px; color:var(--muted); }
-.room-pill { display:inline-flex; align-items:center; gap:5px; padding:4px 11px; background:var(--bg-card); border:0.5px solid var(--line); border-radius:100px; font-size:12px; color:var(--ink-soft); }
-
-/* ── ADDON ACCORDION GROUPS ── */
-.addon-cat { background:var(--bg-card); border:0.5px solid var(--line); border-radius:10px; margin-bottom:10px; overflow:hidden; }
-.addon-cat-hdr { display:flex; align-items:center; justify-content:space-between; padding:14px 16px; cursor:pointer; user-select:none; }
-.addon-cat-hdr-left { display:flex; align-items:center; gap:10px; }
-.addon-cat-icon { font-size:16px; color:var(--muted); }
-.addon-cat-title { font-size:14px; font-weight:500; color:var(--ink); }
-.addon-cat-right { display:flex; align-items:center; gap:10px; }
-.addon-cat-total { font-size:12px; color:var(--olive-dark); font-weight:500; }
-.addon-cat-arr { font-size:10px; color:var(--muted); transition:transform 0.2s; }
-.addon-cat-arr.open { transform:rotate(180deg); }
-.addon-cat-body { padding:6px 16px 16px; display:none; border-top:0.5px solid var(--line); }
-.addon-cat-body.open { display:block; }
-
-.item-block { padding-top:14px; }
-.item-name { font-size:10px; font-weight:500; color:var(--muted); text-transform:uppercase; letter-spacing:1.5px; margin-bottom:8px; }
-.size-row { display:flex; flex-wrap:wrap; gap:7px; }
-.size-pill {
-  display:inline-flex; align-items:center; gap:5px;
-  padding:6px 14px; border:0.5px solid var(--line); border-radius:100px;
-  font-size:12px; font-weight:500; color:var(--ink-soft);
-  background:var(--bg-input); cursor:pointer; transition:all 0.15s;
-  font-family:'Inter',sans-serif;
-}
-.size-pill:hover { border-color:var(--olive-line); }
-.size-pill.sel { background:var(--olive-tint); border-color:var(--olive); color:var(--ink); }
-.size-pill .price { font-size:11px; color:var(--muted); font-weight:400; }
-.size-pill.sel .price { color:var(--olive-dark); }
-
-/* Extra bedroom item (inside Additional Bedrooms accordion) */
-.xb-item { background:var(--bg-input); border:0.5px solid var(--line); border-radius:9px; padding:13px 14px; margin-top:10px; }
-.xb-name-row { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
-.xb-name-input { font-size:13px; font-weight:500; border:none; background:transparent; outline:none; color:var(--ink); font-family:'Inter',sans-serif; flex:1; }
-.xb-del { background:none; border:none; color:var(--muted); font-size:18px; cursor:pointer; padding:0 4px; line-height:1; }
-.xb-del:hover { color:var(--red); }
-.bed-row { display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:9px; }
-.bed-row label { font-size:11px; color:var(--muted); font-weight:500; margin-right:4px; }
-.bed-btn { padding:5px 13px; border:0.5px solid var(--line); border-radius:100px; font-size:12px; cursor:pointer; background:var(--bg-card); font-family:'Inter',sans-serif; color:var(--ink-soft); transition:all 0.15s; }
-.bed-btn.active { background:var(--olive-tint); border-color:var(--olive); color:var(--ink); font-weight:500; }
-
-/* ── CUSTOM LINE ITEMS (standalone card) ── */
-.custom-item { background:var(--bg-card); border:0.5px solid var(--line); border-radius:10px; padding:13px 14px; margin-bottom:9px; }
-.custom-header { display:flex; gap:8px; align-items:center; margin-bottom:10px; }
-.custom-header input[type=text] { flex:1; font-family:'Inter',sans-serif; font-size:13px; padding:9px 11px; border:0.5px solid var(--line); border-radius:8px; outline:none; background:var(--bg-input); color:var(--ink); transition:border-color 0.18s; }
-.custom-header input[type=text]:focus { border-color:var(--olive); }
-.custom-header input[type=number] { width:96px; font-family:'Cormorant Garamond',serif; font-size:16px; padding:8px 11px; border:0.5px solid var(--line); border-radius:8px; outline:none; background:var(--bg-input); text-align:right; transition:border-color 0.18s; color:var(--ink); }
-.custom-header input[type=number]:focus { border-color:var(--olive); }
-.custom-header textarea { width:100%; font-family:'Inter',sans-serif; font-size:12px; padding:8px 11px; border:0.5px solid var(--line); border-radius:8px; outline:none; background:var(--bg-input); color:var(--ink); resize:none; min-height:50px; }
-.rm-btn { background:transparent; border:0.5px solid var(--line); color:var(--muted); cursor:pointer; font-size:15px; padding:5px 10px; border-radius:8px; }
+/* Custom line items */
+.custom-item { border:1px solid rgba(162,156,150,0.15); border-radius:10px; padding:11px 13px; margin-bottom:8px; background:var(--cream); }
+.custom-header { display:flex; gap:8px; align-items:center; margin-bottom:8px; }
+.custom-header input[type=text] { flex:1; font-family:"Inter",sans-serif; font-size:14px; padding:8px 10px; border:1.5px solid var(--taupe-lt); border-radius:8px; outline:none; background:var(--warm); transition:border-color 0.18s; }
+.custom-header input[type=text]:focus { border-color:var(--gold); }
+.custom-header input[type=number] { width:88px; font-family:"Cormorant Garamond",serif; font-size:16px; padding:8px 10px; border:1.5px solid var(--taupe-lt); border-radius:8px; outline:none; background:var(--warm); text-align:right; transition:border-color 0.18s; }
+.custom-header input[type=number]:focus { border-color:var(--gold); }
+.rm-btn { background:var(--cream); border:1px solid var(--taupe-lt); color:var(--taupe); cursor:pointer; font-size:16px; padding:6px 10px; border-radius:8px; transition:all 0.15s; }
 .rm-btn:hover { border-color:var(--red); color:var(--red); }
-.scope-lbl { font-size:9px; font-weight:500; color:var(--muted); text-transform:uppercase; letter-spacing:1.4px; margin-bottom:6px; }
-textarea.scope-area { width:100%; font-family:'Inter',sans-serif; font-size:12px; padding:9px 11px; border:0.5px solid var(--line); border-radius:8px; outline:none; background:var(--bg-input); color:var(--ink); resize:none; min-height:54px; }
+.add-btn { font-size:12px; font-weight:500; color:var(--taupe); background:none; border:none; cursor:pointer; padding:7px 0; font-family:"Inter",sans-serif; letter-spacing:0.3px; transition:color 0.15s; display:block; }
+.add-btn:hover { color:var(--ink); }
 
-/* ── PROMO TOGGLES ── */
-.promo-grid { display:grid; grid-template-columns:1fr 1fr; gap:9px; }
-.promo-card {
-  padding:13px 14px; border:0.5px solid var(--line); border-radius:10px;
-  cursor:pointer; display:flex; align-items:flex-start; gap:11px;
-  transition:all 0.15s; background:var(--bg-card); user-select:none;
-}
-.promo-card:hover { border-color:var(--olive-line); }
-.promo-card.on { border-color:var(--olive); background:var(--olive-tint); }
-.promo-dot { width:16px; height:16px; border-radius:50%; border:1.5px solid var(--muted-soft); flex-shrink:0; margin-top:1px; transition:all 0.15s; display:flex; align-items:center; justify-content:center; }
-.promo-card.on .promo-dot { background:var(--olive); border-color:var(--olive); }
-.promo-dot svg { opacity:0; }
-.promo-card.on .promo-dot svg { opacity:1; }
-.promo-text strong { font-size:12px; font-weight:500; color:var(--ink); display:block; margin-bottom:2px; }
-.promo-text span { font-size:11px; color:var(--muted); line-height:1.5; }
-.promo-check { display:none; }
+/* ── PROMO ROWS ── */
+.promo-row { display:flex; align-items:flex-start; gap:13px; padding:11px 0; border-bottom:1px solid rgba(162,156,150,0.07); }
+.promo-row:last-child { border-bottom:none; }
+.promo-row input[type=checkbox] { width:18px; height:18px; flex-shrink:0; accent-color:var(--gold); cursor:pointer; margin-top:1px; }
+.promo-row label { font-size:13px; color:var(--ink-soft); cursor:pointer; line-height:1.45; }
 
-/* ── OPTIONS TOGGLES ── */
-.opt-row { display:flex; align-items:center; gap:11px; padding:10px 0; border-bottom:0.5px solid var(--line); }
-.opt-row:last-child { border-bottom:none; }
-.opt-row input[type=checkbox] { width:17px; height:17px; flex-shrink:0; accent-color:var(--olive); cursor:pointer; }
-.opt-row label { font-size:13px; color:var(--ink-soft); cursor:pointer; line-height:1.4; }
-#paid-date-wrap { display:none; margin-top:10px; }
-#cover-note-wrap { display:none; margin-top:10px; }
+/* ── TOGGLES ── */
+.toggle-row { display:flex; align-items:center; gap:13px; padding:10px 0; }
+.toggle-row input[type=checkbox] { width:18px; height:18px; flex-shrink:0; accent-color:var(--gold); cursor:pointer; }
+.toggle-row label { font-size:13px; color:var(--ink-soft); cursor:pointer; }
+#paid-date-wrap { display:none; margin-top:8px; }
+#cover-note-wrap { display:none; margin-top:8px; }
+
+/* ── FIELD ERRORS ── */
+.field input.err { border-bottom-color:var(--red); }
 
 /* ── SUMMARY CARD ── */
-.summary-card { background:var(--bg-soft); border-radius:14px; margin-top:24px; overflow:hidden; border:0.5px solid var(--line); }
-.summary-hdr { padding:18px 20px 14px; border-bottom:0.5px solid var(--line); }
-.summary-client { font-family:'Cormorant Garamond',serif; font-size:24px; font-weight:300; color:var(--ink); min-height:30px; }
-.summary-addr { font-size:11px; color:var(--muted); margin-top:3px; min-height:16px; }
-.summary-rows { padding:14px 20px 6px; }
+.summary-card { background:var(--ink); border-radius:16px; margin-bottom:12px; overflow:hidden; }
+.summary-hdr { padding:16px 20px 12px; border-bottom:1px solid rgba(255,255,255,0.06); }
+.summary-client { font-family:"Cormorant Garamond",serif; font-size:20px; font-weight:300; color:#fff; min-height:26px; }
+.summary-addr { font-size:11px; color:rgba(255,255,255,0.38); margin-top:3px; min-height:16px; }
+.summary-rows { padding:12px 20px 4px; }
 .t-row { display:flex; justify-content:space-between; padding:5px 0; font-size:13px; }
-.t-row span:first-child { color:var(--muted); }
-.t-row span:last-child  { color:var(--ink-soft); font-weight:500; }
-.t-divider { height:0.5px; background:var(--line); margin:6px 0; }
-.sum-grand { display:flex; justify-content:space-between; align-items:baseline; padding:12px 20px 6px; }
-.sum-grand-lbl { font-size:9px; font-weight:500; color:var(--muted); text-transform:uppercase; letter-spacing:1.8px; }
-.sum-grand-val { font-family:'Cormorant Garamond',serif; font-size:32px; font-weight:300; color:var(--ink); }
-.sum-ext { padding:0 20px 16px; font-size:11px; color:var(--muted-soft); font-style:italic; }
-.stripe-bar { margin:0 16px 14px; background:var(--bg-input); border:0.5px solid var(--line); border-radius:8px; padding:10px 14px; display:flex; align-items:center; gap:10px; }
-.sdot { width:7px; height:7px; border-radius:50%; background:var(--muted-soft); flex-shrink:0; }
+.t-row span:first-child { color:rgba(255,255,255,0.4); }
+.t-row span:last-child { color:rgba(255,255,255,0.65); font-weight:500; }
+.t-divider { height:1px; background:rgba(255,255,255,0.07); margin:6px 0; }
+.sum-grand { display:flex; justify-content:space-between; align-items:baseline; padding:10px 20px 6px; }
+.sum-grand-lbl { font-size:10px; font-weight:500; color:rgba(255,255,255,0.35); text-transform:uppercase; letter-spacing:1.2px; }
+.sum-grand-val { font-family:"Cormorant Garamond",serif; font-size:30px; font-weight:300; color:#fff; }
+.sum-ext { padding:0 20px 14px; font-size:11px; color:rgba(255,255,255,0.2); font-style:italic; }
+
+/* Stripe bar */
+.stripe-bar { margin:0 16px 14px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.07); border-radius:10px; padding:10px 14px; display:flex; align-items:center; gap:10px; }
+.sdot { width:8px; height:8px; border-radius:50%; background:rgba(255,255,255,0.18); flex-shrink:0; }
 .sdot.loading { background:var(--amber); animation:blink 0.7s infinite; }
-.sdot.ok  { background:var(--green); }
+.sdot.ok { background:var(--green); }
 .sdot.err { background:var(--red); }
-.sdot     { background:var(--muted-soft); }
 @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
-#smsg { font-size:12px; color:var(--muted); flex:1; }
-.gen-btn {
-  display:block; width:calc(100% - 32px); margin:0 16px 10px;
-  padding:15px; border:none; border-radius:10px; cursor:pointer;
-  font-family:'Cormorant Garamond',serif; letter-spacing:2.5px;
-  font-size:15px; font-weight:300; text-transform:uppercase;
-  transition:opacity 0.15s;
-}
-#gen-btn         { background:var(--bg-card); color:var(--ink-soft); border:0.5px solid var(--line); }
-#gen-btn:hover   { background:var(--bg-hover); }
-#email-btn       { background:var(--cta); color:var(--bg-soft); }
-#email-btn:hover { background:var(--cta-hover); }
-#update-invoice-btn       { background:var(--olive-tint); color:var(--olive-dark); border:0.5px solid var(--olive); }
-#update-invoice-btn:hover { background:var(--olive); color:var(--bg-soft); }
-#profit-preview-btn { background:var(--gold-soft); color:var(--gold); font-family:'Inter',sans-serif; font-size:12px; font-weight:500; letter-spacing:0.5px; text-transform:none; border:0.5px solid var(--gold-line); margin-bottom:18px; }
-.gen-btn:disabled { opacity:0.4; cursor:not-allowed; }
+#smsg { font-size:12px; color:rgba(255,255,255,0.38); flex:1; }
 
-/* ── MODALS ── */
-.modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:100; align-items:center; justify-content:center; padding:20px; backdrop-filter:blur(4px); }
+/* Generate buttons */
+.gen-btn { display:block; width:calc(100% - 32px); margin:0 16px 10px; padding:14px; border:none; border-radius:11px; font-size:14px; font-weight:600; cursor:pointer; font-family:"Inter",sans-serif; letter-spacing:0.3px; transition:opacity 0.15s; }
+.gen-btn:active { opacity:0.8; }
+.gen-btn:disabled { opacity:0.35; }
+#gen-btn { background:#fff; color:var(--ink); }
+#email-btn { background:rgba(255,255,255,0.08); color:rgba(255,255,255,0.55); font-size:13px; }
+#profit-preview-btn { background:rgba(201,169,110,0.12); color:rgba(201,169,110,0.65); font-size:13px; margin-bottom:16px; }
+
+/* ── RECENT INVOICES ── */
+.recent-wrap { overflow-y:auto; max-height:none; }
+.ri { display:flex; justify-content:space-between; align-items:center; padding:11px 0; border-bottom:1px solid rgba(162,156,150,0.07); cursor:pointer; transition:opacity 0.12s; }
+.ri:active { opacity:0.7; }
+.ri:last-child { border-bottom:none; }
+.ri-name { font-family:"Cormorant Garamond",serif; font-size:15px; font-weight:400; color:var(--ink); }
+.ri-addr { font-size:11px; color:var(--taupe); margin-top:1px; }
+.ri-num { font-size:11px; font-weight:500; color:var(--taupe); }
+.ri-date { font-size:10px; color:var(--taupe-lt); margin-top:2px; text-align:right; }
+
+/* ── DRAFTS (collapsible) ── */
+.drafts-toggle { display:flex; align-items:center; justify-content:space-between; cursor:pointer; width:100%; background:none; border:none; padding:0; font-family:"Inter",sans-serif; }
+.drafts-arr { font-size:11px; color:var(--taupe-lt); transition:transform 0.2s; }
+.drafts-arr.open { transform:rotate(180deg); }
+.drafts-body { display:none; margin-top:10px; padding-top:10px; border-top:1px solid rgba(162,156,150,0.08); }
+.drafts-body.open { display:block; }
+.draft-item { display:flex; align-items:center; justify-content:space-between; padding:9px 0; border-bottom:1px solid rgba(162,156,150,0.07); cursor:pointer; }
+.draft-item:last-child { border-bottom:none; }
+.draft-name { font-size:13px; color:var(--ink-soft); }
+.draft-date { font-size:11px; color:var(--taupe); }
+.draft-del { background:none; border:none; color:var(--taupe-lt); font-size:16px; cursor:pointer; padding:2px 6px; }
+
+/* ── MODAL SHARED ── */
+.modal-overlay { display:none; position:fixed; top:0;left:0;right:0;bottom:0; background:rgba(26,24,20,0.65); z-index:100; align-items:center; justify-content:center; padding:20px; backdrop-filter:blur(3px); }
 .modal-overlay.show { display:flex; }
-.modal { background:var(--bg-soft); border:0.5px solid var(--line); border-radius:14px; width:100%; max-width:520px; max-height:88vh; overflow-y:auto; }
-.modal-title { font-family:'Cormorant Garamond',serif; font-size:22px; font-weight:300; color:var(--ink); padding:20px 22px 14px; border-bottom:0.5px solid var(--line); }
-.modal-field { padding:13px 22px; border-bottom:0.5px solid var(--line); }
-.modal-field label { display:block; font-size:9px; font-weight:500; color:var(--muted); text-transform:uppercase; letter-spacing:1.5px; margin-bottom:6px; }
-.modal-field input, .modal-field textarea { width:100%; font-family:'Inter',sans-serif; font-size:14px; padding:9px 0; border:none; border-bottom:0.5px solid var(--line); background:transparent; outline:none; color:var(--ink); }
-.modal-field input:focus, .modal-field textarea:focus { border-bottom-color:var(--olive); }
-.modal-field textarea { min-height:130px; resize:vertical; padding:9px 0; }
-.modal-btns { display:flex; gap:10px; padding:16px 22px; }
-.modal-send-btn   { flex:1; padding:13px; background:var(--cta); color:var(--bg-soft); border:none; border-radius:10px; font-size:14px; font-weight:500; cursor:pointer; font-family:'Inter',sans-serif; }
-.modal-send-btn:hover { background:var(--cta-hover); }
-.modal-cancel-btn { padding:13px 18px; background:var(--bg-card); color:var(--ink-soft); border:0.5px solid var(--line); border-radius:10px; font-size:14px; cursor:pointer; font-family:'Inter',sans-serif; }
+.modal { background:var(--warm); border-radius:20px; width:100%; max-width:520px; max-height:88vh; overflow-y:auto; }
 
-/* Profit modal — keep functional, dark themed */
-.profit-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:200; align-items:center; justify-content:center; padding:16px; backdrop-filter:blur(4px); }
+/* Email modal */
+.modal-title { font-family:"Cormorant Garamond",serif; font-size:20px; font-weight:300; color:var(--ink); padding:20px 22px 14px; border-bottom:1px solid rgba(162,156,150,0.1); }
+.modal-field { padding:12px 22px; border-bottom:1px solid rgba(162,156,150,0.07); }
+.modal-field label { display:block; font-size:10px; font-weight:500; color:var(--taupe); text-transform:uppercase; letter-spacing:1px; margin-bottom:5px; }
+.modal-field input, .modal-field textarea { width:100%; font-family:"Inter",sans-serif; font-size:14px; padding:8px 0; border:none; border-bottom:1.5px solid var(--taupe-lt); background:transparent; outline:none; color:var(--ink); transition:border-color 0.18s; }
+.modal-field input:focus, .modal-field textarea:focus { border-bottom-color:var(--gold); }
+.modal-field textarea { min-height:130px; resize:vertical; padding:8px 0; border-radius:0; }
+.modal-btns { display:flex; gap:10px; padding:16px 22px; }
+.modal-send-btn { flex:1; padding:13px; background:var(--ink); color:#fff; border:none; border-radius:11px; font-size:14px; font-weight:600; cursor:pointer; font-family:"Inter",sans-serif; }
+.modal-cancel-btn { padding:13px 18px; background:var(--cream); color:var(--taupe-dk); border:none; border-radius:11px; font-size:14px; cursor:pointer; font-family:"Inter",sans-serif; }
+
+/* Profit modal */
+.profit-overlay { display:none; position:fixed; inset:0; background:rgba(26,24,20,0.65); z-index:200; align-items:center; justify-content:center; padding:16px; backdrop-filter:blur(3px); }
 .profit-overlay.show { display:flex; }
-.profit-modal { background:var(--bg-soft); border:0.5px solid var(--line); border-radius:14px; width:100%; max-width:640px; overflow:hidden; }
-.profit-header { background:var(--bg); padding:16px 20px; display:flex; align-items:center; justify-content:space-between; border-bottom:0.5px solid var(--line); }
-.profit-header-title { font-family:'Cormorant Garamond',serif; font-size:18px; font-weight:300; color:var(--ink); letter-spacing:1px; }
-.profit-address { font-size:11px; color:var(--muted); margin-top:2px; }
-.profit-close { background:none; border:none; color:var(--muted); font-size:22px; cursor:pointer; padding:0; line-height:1; }
-.profit-metrics { display:grid; grid-template-columns:repeat(4,1fr); gap:0.5px; background:var(--line); }
-.profit-metric { background:var(--bg-soft); padding:12px 14px; }
-.profit-metric-label { font-size:9px; color:var(--muted); text-transform:uppercase; letter-spacing:1.2px; margin-bottom:3px; }
-.profit-metric-value { font-family:'Cormorant Garamond',serif; font-size:17px; font-weight:400; color:var(--ink); }
+.profit-modal { background:var(--warm); border-radius:20px; width:100%; max-width:640px; overflow:hidden; }
+.profit-header { background:var(--ink); padding:16px 20px; display:flex; align-items:center; justify-content:space-between; }
+.profit-header-left {}
+.profit-header-title { font-family:"Cormorant Garamond",serif; font-size:18px; font-weight:300; color:#fff; letter-spacing:1px; }
+.profit-address { font-size:11px; color:rgba(255,255,255,0.38); margin-top:2px; }
+.profit-close { background:none; border:none; color:rgba(255,255,255,0.4); font-size:22px; cursor:pointer; padding:0; line-height:1; }
+.profit-metrics { display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:rgba(162,156,150,0.2); }
+.profit-metric { background:var(--warm); padding:12px 14px; }
+.profit-metric-label { font-size:9px; color:var(--taupe); text-transform:uppercase; letter-spacing:1px; margin-bottom:3px; }
+.profit-metric-value { font-family:"Cormorant Garamond",serif; font-size:17px; font-weight:400; color:var(--ink); }
 .profit-metric-value.green { color:var(--green); }
-.profit-metric-value.red   { color:var(--red); }
+.profit-metric-value.red { color:var(--red); }
 .profit-metric-value.amber { color:var(--amber); }
 .profit-body { padding:16px 20px; }
 .profit-costs-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:12px; }
-.profit-cost-card { background:var(--bg-card); border:0.5px solid var(--line); border-radius:9px; padding:10px 12px; }
+.profit-cost-card { background:var(--cream); border-radius:10px; padding:10px 12px; }
 .profit-cost-top { display:flex; justify-content:space-between; align-items:center; margin-bottom:3px; }
-.profit-cost-label  { font-size:12px; font-weight:500; color:var(--ink-soft); }
+.profit-cost-label { font-size:12px; font-weight:500; color:var(--ink); }
 .profit-cost-amount { font-size:13px; font-weight:600; color:var(--red); cursor:pointer; text-decoration:underline dotted; }
-.profit-cost-detail { font-size:10px; color:var(--muted); margin-bottom:5px; }
-.profit-cost-bar { height:3px; background:var(--line); border-radius:99px; overflow:hidden; }
+.profit-cost-detail { font-size:10px; color:var(--taupe); margin-bottom:5px; }
+.profit-cost-bar { height:3px; background:var(--taupe-lt); border-radius:99px; overflow:hidden; }
 .profit-cost-bar-fill { height:100%; border-radius:99px; transition:width 0.8s ease; }
-.profit-take { background:var(--gold-soft); border-radius:11px; padding:14px 18px; display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:14px; }
-.profit-take-icon { width:40px; height:40px; background:var(--gold); border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0; }
-.profit-take-label { font-size:10px; color:var(--gold); font-weight:600; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:2px; }
-.profit-take-value { font-family:'Cormorant Garamond',serif; font-size:26px; font-weight:400; color:var(--ink); }
-.profit-take-note  { font-size:10px; color:var(--ink-soft); margin-top:1px; }
-.profit-done-btn { padding:10px 20px; background:var(--cta); color:var(--bg-soft); border:none; border-radius:9px; font-size:13px; font-weight:500; cursor:pointer; font-family:'Inter',sans-serif; }
-.profit-done-btn:hover { background:var(--cta-hover); }
+.profit-take { background:var(--green-lt); border-radius:12px; padding:14px 18px; display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:14px; }
+.profit-take-icon { width:40px; height:40px; background:#c8e6a0; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0; }
+.profit-take-label { font-size:10px; color:var(--green); font-weight:600; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:2px; }
+.profit-take-value { font-family:"Cormorant Garamond",serif; font-size:26px; font-weight:400; color:#2d6a0a; }
+.profit-take-note { font-size:10px; color:var(--green); margin-top:1px; }
+.profit-done-btn { padding:10px 20px; background:var(--ink); color:#fff; border:none; border-radius:10px; font-size:13px; font-weight:600; cursor:pointer; font-family:"Inter",sans-serif; white-space:nowrap; }
+
+@media(min-width:600px){
+  body { padding:2rem; background:#ede9e3; }
+  .content { padding:0; }
+}
+
+/* Editable prices */
+.price-edit-wrap { display:inline-flex; align-items:center; gap:4px; }
+.price-edit-input {
+  font-family:'Cormorant Garamond',serif;
+  font-size:15px;
+  font-weight:400;
+  color:var(--green);
+  background:transparent;
+  border:none;
+  border-bottom:1.5px solid transparent;
+  outline:none;
+  text-align:center;
+  width:60px;
+  padding:1px 2px;
+  cursor:pointer;
+  transition:border-color 0.15s;
+}
+.size-chip.sel .price-edit-input { color:var(--gold-dk); }
+.price-edit-input:focus {
+  border-bottom-color:var(--gold);
+  cursor:text;
+}
+.price-save-check {
+  background:none;
+  border:none;
+  cursor:pointer;
+  color:var(--taupe-lt);
+  font-size:12px;
+  padding:0 2px;
+  line-height:1;
+  transition:color 0.15s;
+  opacity:0;
+}
+.price-save-check.changed {
+  color:var(--gold);
+  opacity:1;
+}
+.price-save-check.saved {
+  color:var(--green);
+  opacity:1;
+}
+.size-chip:hover .price-save-check { opacity:0.5; }
+.size-chip:hover .price-save-check.changed { opacity:1; }
+
 </style>
 </head>
 <body>
 
-
 <!-- HEADER -->
 <div class="hdr">
   <div class="hdr-top">
-    <div class="brand-stack">
-      <div class="b1">Styling With Jas</div>
-      <div class="b2">Staging & Design Services</div>
+    <div class="brand">
+      <div class="brand-name">SWJ</div>
+      <div class="brand-sep"></div>
+      <div class="brand-sub">Invoice Generator</div>
     </div>
     <div class="hdr-right">
       <input class="inv-badge" id="invnum-display" type="text" value="202093">
       <div class="nav-sw">
-        <button class="nav-btn off" id="nav-today" onclick="window.location.href='/today.html'">Today</button>
-        <button class="nav-btn off" id="nav-board" onclick="window.location.href='/board.html'">Board</button>
-        <button class="nav-btn on"  id="nav-invoice">Invoice</button>
+        <button class="nav-btn on" id="nav-invoice">Invoice</button>
+        <button class="nav-btn off" id="nav-board" onclick="window.location.href='board.html'">Board</button>
       </div>
     </div>
   </div>
@@ -336,159 +313,176 @@ textarea.scope-area { width:100%; font-family:'Inter',sans-serif; font-size:12px
 <div class="content">
 
   <!-- RECENT INVOICES -->
-  <div class="rc">
-    <div class="rc-hdr" onclick="toggleRecent()">
-      <span class="rc-lbl">Recent Invoices</span>
-      <span class="rc-arr open" id="recent-arr">▼</span>
+  <div class="card" id="recent-card">
+    <div class="card-hdr" style="padding-bottom:12px">
+      <button class="drafts-toggle" onclick="toggleRecent()">
+        <span class="sec-lbl">Recent Invoices</span>
+        <span class="drafts-arr" id="recent-arr">▼</span>
+      </button>
     </div>
-    <div class="rc-body open" id="recent-body">
-      <div id="recent-list" style="font-size:12px;color:var(--muted);padding-top:10px">Loading...</div>
-      <button class="add-ghost" id="recent-expand-btn" onclick="expandRecent()" style="display:none">+ Show more</button>
-    </div>
-  </div>
-
-  <!-- SAVED DRAFTS -->
-  <div class="rc">
-    <div class="rc-hdr" onclick="toggleDrafts()">
-      <span class="rc-lbl">Saved Drafts</span>
-      <span class="rc-arr" id="drafts-arr">▼</span>
-    </div>
-    <div class="rc-body" id="drafts-body">
-      <div id="drafts-list" style="font-size:12px;color:var(--muted);font-style:italic;padding-top:10px">No drafts saved.</div>
-      <button class="add-ghost" onclick="saveDraft()">+ Save current as draft</button>
+    <div class="drafts-body open" id="recent-body">
+      <div style="padding:0 18px 14px">
+        <div id="recent-list" style="font-size:12px;color:var(--taupe)">Loading...</div>
+        <button class="add-btn" id="recent-expand-btn" onclick="expandRecent()" style="display:none;margin-top:6px">+ Show more</button>
+      </div>
     </div>
   </div>
 
-  <!-- CHAPTER I — CLIENT & PROPERTY -->
-  <div class="chapter">
-    <div class="ch-eye">Chapter I</div>
-    <div class="ch-title">Client & Property</div>
-    <div class="field-row">
-      <div class="field-block" id="f-client">
+  <!-- SAVED DRAFTS (collapsible) -->
+  <div class="card" id="drafts-card">
+    <div class="card-hdr" style="padding-bottom:12px">
+      <button class="drafts-toggle" onclick="toggleDrafts()">
+        <span class="sec-lbl">Saved Drafts</span>
+        <span class="drafts-arr" id="drafts-arr">▼</span>
+      </button>
+    </div>
+    <div class="drafts-body" id="drafts-body">
+      <div style="padding:0 18px 14px">
+        <div id="drafts-list" style="font-size:12px;color:var(--taupe);font-style:italic">No drafts saved.</div>
+        <button class="add-btn" onclick="saveDraft()" style="margin-top:8px">+ Save current as draft</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- INVOICE DETAILS -->
+  <div class="card">
+    <div class="card-hdr"><span class="sec-lbl">Invoice Details</span><div class="sec-accent"></div></div>
+    <div class="card-body">
+      <div class="field-row">
+        <div class="field" id="f-invdate">
+          <div class="field-lbl">Invoice Date</div>
+          <input class="field-input" id="invdate" type="date">
+        </div>
+        <div class="field" id="f-startdate">
+          <div class="field-lbl">Start Date</div>
+          <input class="field-input" id="startdate" type="date">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CLIENT & PROPERTY -->
+  <div class="card">
+    <div class="card-hdr"><span class="sec-lbl">Client & Property</span><div class="sec-accent"></div></div>
+    <div class="card-body">
+      <div class="field" id="f-client">
         <div class="field-lbl">Client Name</div>
-        <input class="field-input client-input" id="client" type="text" placeholder="Full name or entity" autocomplete="name">
+        <input class="field-input client-input" id="client" type="text" placeholder="Jane Smith" autocomplete="name">
         <div class="ferr" id="e-client">Required</div>
       </div>
-      <div class="field-block" id="f-invdate">
-        <div class="field-lbl">Invoice Date</div>
-        <input class="field-input" id="invdate" type="date">
-        <div class="ferr" id="e-invdate">Required</div>
-      </div>
-    </div>
-    <div class="field-row">
-      <div class="field-block" id="f-address">
+      <div class="field" id="f-address">
         <div class="field-lbl">Property Address</div>
-        <input class="field-input" id="address" type="text" placeholder="Street, City, State ZIP" autocomplete="street-address">
+        <input class="field-input" id="address" type="text" placeholder="123 Main St, Seattle WA" autocomplete="street-address">
         <div class="ferr" id="e-address">Required</div>
       </div>
-      <div class="field-block" id="f-startdate">
-        <div class="field-lbl">Project Start Date</div>
-        <input class="field-input" id="startdate" type="date">
-        <div class="ferr" id="e-startdate">Required</div>
-      </div>
-    </div>
-    <div class="field-row">
-      <div class="field-block">
+      <div class="field" style="max-width:180px">
         <div class="field-lbl">ZIP Code</div>
         <input class="field-input" id="zipcode" type="text" inputmode="numeric" maxlength="5" placeholder="98126" oninput="getWATaxByZip(this.value)">
         <div class="zip-note" id="tax-note">&nbsp;</div>
       </div>
-      <div class="field-block">
-        <div class="field-lbl">Tax Rate (%)</div>
+    </div>
+  </div>
+
+  <!-- BASE PACKAGE -->
+  <div class="card">
+    <div class="card-hdr"><span class="sec-lbl">Base Package — Select Rooms</span><div class="sec-accent"></div></div>
+    <div class="card-body">
+      <div class="base-row">
+        <span class="base-lbl">Base package price</span>
+        <div style="display:inline-flex;align-items:center;gap:6px"><input class="base-input" id="base_price" type="number" value="2500" step="100" inputmode="decimal" oninput="onBasePriceEdit(this)"><button class="price-save-check" id="base-save-check" onclick="saveBasePriceClicked(this)" title="Save as new default" style="font-size:14px">✓</button></div>
+      </div>
+      <div style="font-size:11px;color:var(--taupe);margin:10px 0 12px;line-height:1.5">
+        Includes delivery, setup, 45-day furniture rental & teardown.
+      </div>
+      <div class="rooms-grid" id="rooms-grid"></div>
+      <div class="ferr" id="e-rooms" style="margin-top:6px">Please select at least one room</div>
+    </div>
+  </div>
+
+  <!-- ADD-ONS -->
+  <div class="card">
+    <div class="card-hdr"><span class="sec-lbl">Add-ons by Room</span><div class="sec-accent"></div></div>
+    <div class="card-body" style="padding-top:8px">
+      <div id="addon-categories"></div>
+      <div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(162,156,150,0.08)">
+        <div class="sec-lbl" style="margin-bottom:8px">Additional Bedrooms</div>
+        <div id="extra-bedrooms"></div>
+        <button class="add-btn" onclick="addExtraBedroom()">+ Add another bedroom</button>
+      </div>
+      <div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(162,156,150,0.08)">
+        <div class="sec-lbl" style="margin-bottom:8px">Custom Line Items</div>
+        <div id="custom-addons"></div>
+        <button class="add-btn" onclick="addCustom()">+ Add custom line item</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PROMOTIONS -->
+  <div class="card">
+    <div class="card-hdr"><span class="sec-lbl">Promotions</span><div class="sec-accent"></div></div>
+    <div class="card-body">
+      <div class="promo-row">
+        <input type="checkbox" id="promo1">
+        <label for="promo1">Monthly Special — complimentary staging for Kitchen & all Bathrooms</label>
+      </div>
+      <div class="promo-row">
+        <input type="checkbox" id="promo2">
+        <label for="promo2">First-Time Client Bonus — 25 complimentary professional real estate photos by our preferred photographer</label>
+      </div>
+      <div class="promo-row">
+        <input type="checkbox" id="promo3">
+        <label for="promo3">Photography Services (no charge line item)</label>
+      </div>
+      <div class="promo-row">
+        <input type="checkbox" id="promo4">
+        <label for="promo4">Drone Photography — up to 5 aerial photos, complimentary (when permitted)</label>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAX -->
+  <div class="card">
+    <div class="card-hdr"><span class="sec-lbl">Tax Rate</span><div class="sec-accent"></div></div>
+    <div class="card-body">
+      <div class="field" style="max-width:160px">
+        <div class="field-lbl">Rate (%)</div>
         <input class="field-input" id="taxrate" type="number" value="10.25" step="0.01" inputmode="decimal" oninput="recalc()">
       </div>
     </div>
   </div>
 
-  <!-- CHAPTER II — STAGING SCOPE -->
-  <div class="chapter">
-    <div class="ch-eye">Chapter II</div>
-    <div class="ch-title">Staging Scope</div>
-    <div class="base-row">
-      <span class="base-lbl">Base package price</span>
-      <input class="base-input" id="base_price" type="number" value="2500" step="100" inputmode="decimal">
-    </div>
-    <div class="base-note">Includes delivery, setup, 45-day furniture rental & teardown.</div>
-    <div class="rooms-grid" id="rooms-grid"></div>
-    <div class="rooms-bar" id="rooms-bar"><span class="rooms-bar-empty">No rooms selected yet</span></div>
-    <div class="ferr" id="e-rooms" style="margin-top:6px">Please select at least one room</div>
-  </div>
-
-  <!-- CHAPTER III — ADD-ONS -->
-  <div class="chapter">
-    <div class="ch-eye">Chapter III</div>
-    <div class="ch-title">Add-ons</div>
-    <div id="addon-categories"></div>
-  </div>
-
-  <!-- CHAPTER IV — CUSTOM LINE ITEMS (standalone) -->
-  <div class="chapter">
-    <div class="ch-eye">Chapter IV</div>
-    <div class="ch-title">Custom Line Items</div>
-    <div id="custom-addons"></div>
-    <button class="add-ghost" onclick="addCustom()">+ Add custom line item</button>
-  </div>
-
-  <!-- CHAPTER V — PROMOTIONS -->
-  <div class="chapter">
-    <div class="ch-eye">Chapter V</div>
-    <div class="ch-title">Promotions</div>
-    <div class="promo-grid">
-      <div class="promo-card" id="pc-promo1" onclick="togglePromoCard('promo1')">
-        <div class="promo-dot"><svg width="9" height="7" viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="#ffffff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-        <div class="promo-text"><strong>Monthly Special</strong><span>Complimentary staging for Kitchen & all Bathrooms</span></div>
+  <!-- OPTIONS -->
+  <div class="card">
+    <div class="card-hdr"><span class="sec-lbl">Options</span><div class="sec-accent"></div></div>
+    <div class="card-body">
+      <div class="toggle-row">
+        <input type="checkbox" id="cover_page" onchange="toggleCover()">
+        <label for="cover_page">Include cover page</label>
       </div>
-      <div class="promo-card" id="pc-promo2" onclick="togglePromoCard('promo2')">
-        <div class="promo-dot"><svg width="9" height="7" viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="#ffffff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-        <div class="promo-text"><strong>First-Time Client Bonus</strong><span>25 complimentary professional real estate photos</span></div>
+      <div id="cover-note-wrap">
+        <div class="field">
+          <div class="field-lbl">Personal note (optional)</div>
+          <textarea id="cover_note" rows="3" placeholder="Thank you for choosing Styling With Jas..."></textarea>
+        </div>
       </div>
-      <div class="promo-card" id="pc-promo3" onclick="togglePromoCard('promo3')">
-        <div class="promo-dot"><svg width="9" height="7" viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="#ffffff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-        <div class="promo-text"><strong>Photography Package</strong><span>Up to 25 professional real estate photos included</span></div>
+      <div class="toggle-row" style="padding-top:8px;border-top:1px solid rgba(162,156,150,0.07)">
+        <input type="checkbox" id="paid" onchange="togglePaid()">
+        <label for="paid">Mark as Paid</label>
       </div>
-      <div class="promo-card" id="pc-promo4" onclick="togglePromoCard('promo4')">
-        <div class="promo-dot"><svg width="9" height="7" viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="#ffffff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-        <div class="promo-text"><strong>Drone Photography</strong><span>Up to 5 aerial photos, complimentary (when permitted)</span></div>
-      </div>
-    </div>
-    <!-- Hidden checkboxes for existing logic compatibility -->
-    <input type="checkbox" id="promo1" class="promo-check">
-    <input type="checkbox" id="promo2" class="promo-check">
-    <input type="checkbox" id="promo3" class="promo-check">
-    <input type="checkbox" id="promo4" class="promo-check">
-  </div>
-
-  <!-- CHAPTER VI — OPTIONS -->
-  <div class="chapter">
-    <div class="ch-eye">Chapter VI</div>
-    <div class="ch-title">Options</div>
-    <div class="opt-row">
-      <input type="checkbox" id="cover_page" onchange="toggleCover()">
-      <label for="cover_page">Include cover page</label>
-    </div>
-    <div id="cover-note-wrap">
-      <div class="field-block" style="margin-top:6px">
-        <div class="field-lbl">Personal note (optional)</div>
-        <textarea class="scope-area" id="cover_note" rows="3" placeholder="Thank you for choosing Styling With Jas..."></textarea>
-      </div>
-    </div>
-    <div class="opt-row">
-      <input type="checkbox" id="paid" onchange="togglePaid()">
-      <label for="paid">Mark as Paid</label>
-    </div>
-    <div id="paid-date-wrap">
-      <div class="field-block" style="max-width:240px;margin-top:6px">
-        <div class="field-lbl">Payment Date</div>
-        <input class="field-input" id="paid_date" type="date">
+      <div id="paid-date-wrap">
+        <div class="field">
+          <div class="field-lbl">Payment Date</div>
+          <input class="field-input" id="paid_date" type="date">
+        </div>
       </div>
     </div>
   </div>
 
-  <!-- SUMMARY + GENERATE -->
+  <!-- SUMMARY -->
   <div class="summary-card">
     <div class="summary-hdr">
       <div class="summary-client" id="sum-client">&nbsp;</div>
-      <div class="summary-addr"   id="sum-addr">&nbsp;</div>
+      <div class="summary-addr" id="sum-addr">&nbsp;</div>
     </div>
     <div class="summary-rows">
       <div class="t-row"><span>Base package</span><span id="t-base">$2,500.00</span></div>
@@ -502,67 +496,57 @@ textarea.scope-area { width:100%; font-family:'Inter',sans-serif; font-size:12px
       <span class="sum-grand-val" id="t-grand">$2,756.25</span>
     </div>
     <div class="sum-ext"><span id="t-ext">Extension: $918.75 / 30 days</span></div>
-    <div class="stripe-bar">
+    <div class="stripe-bar" style="margin:0 16px 14px">
       <span class="sdot" id="sdot"></span>
       <span id="smsg">Stripe payment link will be created automatically.</span>
     </div>
-    <button class="gen-btn" id="email-btn"        onclick="generateAndEmail()">Generate + Email to Client</button>
-    <button class="gen-btn" id="gen-btn"         onclick="generate()">Generate Invoice + Payment Link</button>
-    <button class="gen-btn" id="update-invoice-btn" onclick="updateLoadedInvoice()" style="display:none">Update This Invoice</button>
-    <button class="gen-btn" id="new-invoice-btn"  onclick="newInvoice()" style="background:var(--bg-soft);color:var(--ink-soft);border:0.5px solid var(--line);">+ New Invoice (Start Fresh)</button>
+    <button class="gen-btn" id="gen-btn" onclick="generate()">Generate Invoice + Payment Link</button>
+    <button class="gen-btn" id="email-btn" onclick="generateAndEmail()">Generate + Email to Client</button>
     <button class="gen-btn" id="profit-preview-btn" onclick="previewProfitability()">Preview Job Profitability</button>
   </div>
 
-</div><!-- /content -->
+</div>
 
-<!-- EMAIL MODAL -->
 <div class="modal-overlay" id="email-modal">
-  <div class="modal">
-    <div class="modal-title">Send Proposal</div>
-    <div class="modal-field"><label>To</label><input id="email-to" type="email" placeholder="client@email.com"></div>
-    <div class="modal-field"><label>Subject</label><input id="email-subject" type="text"></div>
-    <div class="modal-field"><label>Message</label><textarea id="email-body"></textarea></div>
-    <div id="email-status" style="font-size:13px;color:var(--muted);padding:0 22px;min-height:18px"></div>
-    <div class="modal-btns">
-      <button class="modal-cancel-btn" onclick="closeEmailModal()">Cancel</button>
-      <button class="modal-send-btn"   id="email-send-btn" onclick="sendEmail()">Send Email</button>
+        <div class="modal">
+            <div class="modal-title">✉️ Send Proposal</div>
+            <div class="modal-field"><label>To</label><input id="email-to" type="email" placeholder="client@email.com"></div>
+            <div class="modal-field"><label>Subject</label><input id="email-subject" type="text"></div>
+            <div class="modal-field"><label>Message</label><textarea id="email-body"></textarea></div>
+            <div id="email-status" style="font-size:13px;color:#888;margin-top:8px;min-height:18px"></div>
+            <div class="modal-btns">
+                <button class="modal-cancel-btn" onclick="closeEmailModal()">Cancel</button>
+                <button class="modal-send-btn" id="email-send-btn" onclick="sendEmail()">Send Email</button>
+            </div>
+        </div>
     </div>
-  </div>
-</div>
-
-<!-- PROFITABILITY MODAL -->
 <div class="profit-overlay" id="profit-modal">
-  <div class="profit-modal">
-    <div class="profit-header">
-      <div>
-        <div class="profit-header-title">Job Profitability</div>
-        <div class="profit-address" id="profit-address"></div>
-      </div>
-      <button class="profit-close" onclick="closeProfitModal()">×</button>
-    </div>
-    <div class="profit-metrics">
-      <div class="profit-metric"><div class="profit-metric-label">Invoice</div><div class="profit-metric-value" id="pm-invoice">$0</div></div>
-      <div class="profit-metric"><div class="profit-metric-label">Costs</div><div class="profit-metric-value red" id="pm-costs">$0</div></div>
-      <div class="profit-metric"><div class="profit-metric-label">Profit</div><div class="profit-metric-value green" id="pm-profit">$0</div></div>
-      <div class="profit-metric"><div class="profit-metric-label">Margin</div><div class="profit-metric-value amber" id="pm-margin">0%</div></div>
-    </div>
-    <div class="profit-body">
-      <div class="profit-costs-grid">
-        <div class="profit-cost-card"><div class="profit-cost-top"><span class="profit-cost-label">Truck Rental</span><span class="profit-cost-amount" id="pc-truck" onclick="editProfitField('truck')">$0</span></div><div class="profit-cost-detail" id="pd-truck-detail">2 days × $286/day</div><div class="profit-cost-bar"><div class="profit-cost-bar-fill" id="pb-truck" style="width:0%;background:var(--red)"></div></div></div>
-        <div class="profit-cost-card"><div class="profit-cost-top"><span class="profit-cost-label">Fuel</span><span class="profit-cost-amount" id="pc-fuel" onclick="editProfitField('fuel')">$0</span></div><div class="profit-cost-detail" id="pd-fuel-detail">Calculating...</div><div class="profit-cost-bar"><div class="profit-cost-bar-fill" id="pb-fuel" style="width:0%;background:var(--amber)"></div></div></div>
-        <div class="profit-cost-card"><div class="profit-cost-top"><span class="profit-cost-label">Mileage</span><span class="profit-cost-amount" id="pc-miles" onclick="editProfitField('miles')">$0</span></div><div class="profit-cost-detail" id="pd-miles-detail">Calculating...</div><div class="profit-cost-bar"><div class="profit-cost-bar-fill" id="pb-miles" style="width:0%;background:var(--amber)"></div></div></div>
-        <div class="profit-cost-card"><div class="profit-cost-top"><span class="profit-cost-label">Movers — Staging</span><span class="profit-cost-amount" id="pc-stage" onclick="editProfitField('stage')">$0</span></div><div class="profit-cost-detail" id="pd-stage-detail"></div><div class="profit-cost-bar"><div class="profit-cost-bar-fill" id="pb-stage" style="width:0%;background:var(--ink-soft)"></div></div></div>
-        <div class="profit-cost-card"><div class="profit-cost-top"><span class="profit-cost-label">Movers — Destage</span><span class="profit-cost-amount" id="pc-destage" onclick="editProfitField('destage')">$0</span></div><div class="profit-cost-detail" id="pd-destage-detail"></div><div class="profit-cost-bar"><div class="profit-cost-bar-fill" id="pb-destage" style="width:0%;background:var(--ink-soft)"></div></div></div>
-        <div class="profit-cost-card"><div class="profit-cost-top"><span class="profit-cost-label">Warehouse</span><span class="profit-cost-amount" id="pc-wh" onclick="editProfitField('wh')">$0</span></div><div class="profit-cost-detail" id="pd-wh-detail"></div><div class="profit-cost-bar"><div class="profit-cost-bar-fill" id="pb-wh" style="width:0%;background:var(--muted)"></div></div></div>
-      </div>
-      <div class="profit-take">
-        <div class="profit-take-icon">💰</div>
-        <div><div class="profit-take-label">Jasmine's Take</div><div class="profit-take-value" id="pt-value">$0</div><div class="profit-take-note" id="pt-note"></div></div>
-        <button class="profit-done-btn" onclick="closeProfitModal()">Done</button>
-      </div>
-    </div>
-  </div>
-</div>
+      <div class="profit-modal">
+        <div class="profit-header">
+          <div class="profit-header-top">
+            <div class="profit-header-title">💰 Job Profitability</div>
+            <button class="profit-close" onclick="closeProfitModal()">×</button>
+          </div>
+          <div class="profit-address" id="profit-address"></div>
+        </div>
+        <div class="profit-metrics">
+          <div class="profit-metric">
+            <div class="profit-metric-label">Invoice</div>
+            <div class="profit-metric-value" id="pm-invoice">$0</div>
+          </div>
+          <div class="profit-metric">
+            <div class="profit-metric-label">Costs</div>
+            <div class="profit-metric-value red" id="pm-costs">$0</div>
+          </div>
+          <div class="profit-metric">
+            <div class="profit-metric-label">Profit</div>
+            <div class="profit-metric-value green" id="pm-profit">$0</div>
+          </div>
+          <div class="profit-metric">
+            <div class="profit-metric-label">Margin</div>
+            <div class="profit-metric-value amber" id="pm-margin">0%</div>
+          </div>
+        </div>
 
 <script>
 function toggleDrafts(){
@@ -597,20 +581,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 
 let STRIPE_KEY='';
 
-const ROOMS=[
-  {name:'Living Room',     icon:'ti-sofa'},
-  {name:'Primary Bedroom', icon:'ti-bed'},
-  {name:'Bedroom 2',       icon:'ti-bed'},
-  {name:'Bedroom 3',       icon:'ti-bed'},
-  {name:'Kitchen',         icon:'ti-tools-kitchen-2'},
-  {name:'Dining Room',     icon:'ti-armchair'},
-  {name:'Office/Den',      icon:'ti-briefcase'},
-  {name:'Loft',            icon:'ti-stairs'},
-  {name:'Entryway',        icon:'ti-door-enter'},
-  {name:'Bonus Room',      icon:'ti-layout-grid'},
-  {name:'Sunroom',         icon:'ti-sun'},
-  {name:'Patio/Outdoor',   icon:'ti-plant'},
-];
+const ROOMS=['Living Room','Primary Bedroom','Bedroom 2','Bedroom 3','Kitchen','Dining Room','Office/Den','Loft','Entryway','Bonus Room','Sunroom','Patio/Outdoor'];
 
 const BED_SCOPES={
   'Primary bedroom':{
@@ -651,36 +622,102 @@ const CATS=[
   {name:'Dining room',hasBed:false,sizes:[{size:'Small',price:300},{size:'Medium',price:350},{size:'Large',price:425},{size:'Extra large',price:450}]},
 ];
 
-let selRooms=new Set(),selAddons=new Map(),bedSel=new Map(),selNewAddons={},customs=[],invNum='',extraBedrooms=[],currentLoadedInvnum=null,currentInvNum='',recentExpanded=false;
+let selRooms=new Set(),selAddons=new Map(),bedSel=new Map(),customs=[],invNum='',extraBedrooms=[];
+
+function addExtraBedroom(){
+  const n = extraBedrooms.length;
+  const defaultName = n === 0 ? 'Bedroom 2' : n === 1 ? 'Bedroom 3' : n === 2 ? 'Bedroom 4' : `Bedroom ${n+2}`;
+  extraBedrooms.push({id: Date.now(), name: defaultName, size: 'Small', price: 350, scope: DEFAULT_SCOPES['Bedroom']['Small'], bed: 'Twin'});
+  renderExtraBedrooms();
+}
+
+function removeExtraBedroom(id){
+  extraBedrooms = extraBedrooms.filter(b => b.id !== id);
+  renderExtraBedrooms();
+  recalc();
+}
+
+function renderExtraBedrooms(){
+  const cont = document.getElementById('extra-bedrooms');
+  cont.innerHTML = '';
+  extraBedrooms.forEach((bed, idx) => {
+    const cat = CATS[1]; // Bedroom category
+    const wrap = document.createElement('div');
+    wrap.className = 'addon-cat';
+    wrap.style.marginBottom = '10px';
+
+    // Header with editable name
+    const hdr = document.createElement('div');
+    hdr.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:#faf9f7;border-bottom:1px solid #f0ede8';
+    hdr.innerHTML = `
+      <input value="${bed.name}" onchange="extraBedrooms[${idx}].name=this.value" style="font-size:14px;font-weight:500;border:none;background:transparent;outline:none;color:#111;width:140px">
+      <button onclick="removeExtraBedroom(${bed.id})" style="background:none;border:none;color:#e24b4a;font-size:18px;cursor:pointer;padding:0 4px">×</button>
+    `;
+    wrap.appendChild(hdr);
+
+    // Body with bed size + size selection
+    const body = document.createElement('div');
+    body.style.padding = '12px 14px';
+
+    // Bed size row
+    const bedRow = document.createElement('div');
+    bedRow.className = 'bed-row';
+    bedRow.innerHTML = '<label>Bed size:</label>';
+    ['Twin','Full','Queen','King'].forEach(b => {
+      const btn = document.createElement('button');
+      btn.className = 'bed-btn' + (bed.bed === b ? ' active' : '');
+      btn.textContent = b;
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        extraBedrooms[idx].bed = b;
+        extraBedrooms[idx].scope = BED_SCOPES['Bedroom']?.[extraBedrooms[idx].size]?.[b] || DEFAULT_SCOPES['Bedroom'][extraBedrooms[idx].size] || '';
+        renderExtraBedrooms();
+        recalc();
+      };
+      bedRow.appendChild(btn);
+    });
+    body.appendChild(bedRow);
+
+    // Size chips
+    const sg = document.createElement('div');
+    sg.className = 'size-grid';
+    sg.style.marginBottom = '12px';
+    cat.sizes.forEach(opt => {
+      const chip = document.createElement('div');
+      chip.className = 'size-chip' + (bed.size === opt.size ? ' sel' : '');
+      chip.innerHTML = `<span class="chk">${chk()}</span><span class="size-label">${opt.size}</span><span class="size-price">$${opt.price}</span>`;
+      chip.onclick = () => {
+        extraBedrooms[idx].size = opt.size;
+        extraBedrooms[idx].price = opt.price;
+        extraBedrooms[idx].scope = BED_SCOPES['Bedroom']?.[opt.size]?.[bed.bed] || DEFAULT_SCOPES['Bedroom'][opt.size] || '';
+        renderExtraBedrooms();
+        recalc();
+      };
+      sg.appendChild(chip);
+    });
+    body.appendChild(sg);
+
+    // Scope textarea
+    const sw = document.createElement('div');
+    sw.innerHTML = `<div class="scope-lbl"><span>Scope of work</span></div><textarea rows="3" oninput="extraBedrooms[${idx}].scope=this.value">${bed.scope}</textarea>`;
+    body.appendChild(sw);
+    wrap.appendChild(body);
+    cont.appendChild(wrap);
+  });
+  recalc();
+}
+
+
 
 function pad2(n){return String(n).padStart(2,'0');}
 async function initInvNum(){
-  // Read the highest invoice number directly from Supabase — single source of truth.
-  // This works across devices and survives page refreshes.
-  let nextNum = 202093;
+  let seq = 202093;
   try {
-    const { data, error } = await _sb
-      .from('invoices')
-      .select('invnum')
-      .not('invnum', 'like', 'DRAFT-%')   // skip drafts
-      .order('invnum', { ascending: false })
-      .limit(50);                          // grab top 50 to find the real max numeric
-
-    if(!error && data && data.length){
-      let maxNum = 0;
-      data.forEach(row => {
-        // Strip any V suffix and parse the base number
-        const m = String(row.invnum).match(/^(\d+)/);
-        if(m){
-          const n = parseInt(m[1]);
-          if(n > maxNum) maxNum = n;
-        }
-      });
-      if(maxNum > 0) nextNum = maxNum + 1;
-    }
-  } catch(e){ console.log('[initInvNum] supabase query failed:', e); }
-
-  currentInvNum = String(nextNum);
+    const r = await fetch('/api/counter');
+    const d = await r.json();
+    if(d.value) seq = d.value;
+  } catch(e) {}
+  currentInvNum = String(seq);
   const disp = document.getElementById('invnum-display');
   const note = document.getElementById('invnum-note');
   if(disp) disp.value = currentInvNum;
@@ -691,38 +728,15 @@ function chk(){return`<svg width="11" height="9" viewBox="0 0 10 8" fill="none">
 
 function buildRooms(){
   const g=document.getElementById('rooms-grid');
-  // Load Tabler icons via CDN if not already loaded
-  if(!document.getElementById('tabler-icons-css')){
-    const link=document.createElement('link');
-    link.id='tabler-icons-css';
-    link.rel='stylesheet';
-    link.href='https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css';
-    document.head.appendChild(link);
-  }
   ROOMS.forEach(r=>{
-    const d=document.createElement('div');d.className='room-card';
-    d.innerHTML=`<div class="room-icon"><i class="ti ${r.icon}" aria-hidden="true"></i></div><div class="room-name">${r.name}</div>`;
-    d.onclick=()=>{
-      if(selRooms.has(r.name)){selRooms.delete(r.name);d.classList.remove('sel');}
-      else{selRooms.add(r.name);d.classList.add('sel');}
-      updateRoomsBar();
+    const c=document.createElement('div');c.className='chip';
+    c.innerHTML=`<span class="chip-dot"></span><span>${r}</span>`;
+    c.onclick=()=>{
+      if(selRooms.has(r)){selRooms.delete(r);c.classList.remove('sel');}
+      else{selRooms.add(r);c.classList.add('sel');}
     };
-    g.appendChild(d);
+    g.appendChild(c);
   });
-}
-
-function updateRoomsBar(){
-  const bar=document.getElementById('rooms-bar');
-  if(!bar) return;
-  if(!selRooms.size){bar.innerHTML='<span class="rooms-bar-empty">No rooms selected yet</span>';return;}
-  bar.innerHTML=[...selRooms].map(r=>`<span class="room-pill">${r}</span>`).join('');
-}
-
-function togglePromoCard(id){
-  const cb=document.getElementById(id);
-  cb.checked=!cb.checked;
-  const card=document.getElementById('pc-'+id);
-  if(card)card.classList.toggle('on',cb.checked);
 }
 
 function getScope(ci,sn){
@@ -737,164 +751,52 @@ function refreshScope(ci){
 }
 
 function buildCats(){
-  const wrap=document.getElementById('addon-categories');
-  wrap.innerHTML='';
-
-  const ADDON_CATS=[
-    {group:'Bedrooms',icon:'ti-bed',items:[
-      {name:'Primary Bedroom Staging',sizes:[{s:'Small',p:200},{s:'Medium',p:250},{s:'Large',p:300},{s:'Extra Large',p:350}]},
-      {name:'Secondary Bedroom Staging',sizes:[{s:'Small',p:150},{s:'Medium',p:200},{s:'Large',p:250},{s:'Extra Large',p:300}]},
-      {name:'Guest Bedroom Staging',sizes:[{s:'Small',p:150},{s:'Medium',p:200},{s:'Large',p:250}]},
-    ]},
-    {group:'Living Spaces',icon:'ti-sofa',items:[
-      {name:'Living / Great Room',sizes:[{s:'Small',p:250},{s:'Medium',p:350},{s:'Large',p:450},{s:'Extra Large',p:550}]},
-      {name:'Dining Room Staging',sizes:[{s:'Small',p:150},{s:'Medium',p:200},{s:'Large',p:300}]},
-      {name:'Family / Bonus Room',sizes:[{s:'Small',p:200},{s:'Medium',p:275},{s:'Large',p:350}]},
-    ]},
-    {group:'Specialty',icon:'ti-star',items:[
-      {name:'Home Office Staging',sizes:[{s:'Small',p:175},{s:'Medium',p:225},{s:'Large',p:300}]},
-      {name:'Outdoor / Patio Staging',sizes:[{s:'Small',p:250},{s:'Medium',p:350},{s:'Large',p:450}]},
-      {name:'Primary Bathroom Staging',sizes:[{s:'Small',p:150},{s:'Medium',p:200}]},
-      {name:'Secondary Bathroom',sizes:[{s:'Small',p:100},{s:'Medium',p:150}]},
-    ]},
-  ];
-
-  ADDON_CATS.forEach((grp,gi)=>{
-    const div=document.createElement('div');div.className='addon-cat';
+  const cont=document.getElementById('addon-categories');
+  CATS.forEach((cat,ci)=>{
+    if(cat.bedOpts)bedSel.set(`${ci}`,cat.bedOpts[0]);
+    const wrap=document.createElement('div');wrap.className='addon-cat';
+    const prices=cat.sizes.map(s=>s.price);
+    const range=prices.length>1?`$${Math.min(...prices)}–$${Math.max(...prices)}`:`$${prices[0]}`;
     const hdr=document.createElement('div');hdr.className='addon-cat-hdr';
-    hdr.innerHTML=`<div class="addon-cat-hdr-left"><i class="ti ${grp.icon} addon-cat-icon" aria-hidden="true"></i><span class="addon-cat-title">${grp.group}</span></div><div class="addon-cat-right"><span class="addon-cat-total" id="agrp-total-${gi}"></span><span class="addon-cat-arr" id="agrp-arr-${gi}">▼</span></div>`;
-    const body=document.createElement('div');body.className='addon-cat-body';body.id=`agrp-body-${gi}`;
+    hdr.innerHTML=`<span class="addon-cat-title">${cat.name}</span><div style="display:flex;align-items:center;gap:8px"><span class="addon-cat-range">${range}</span><span id="arr-${ci}" style="font-size:11px;color:#aaa;transition:transform 0.2s">▼</span></div>`;
     hdr.onclick=()=>{
-      const open=body.classList.toggle('open');
-      document.getElementById(`agrp-arr-${gi}`).classList.toggle('open',open);
+      const b=document.getElementById(`cb-${ci}`);
+      const open=b.style.display==='block';
+      b.style.display=open?'none':'block';
+      document.getElementById(`arr-${ci}`).style.transform=open?'':'rotate(180deg)';
     };
-    grp.items.forEach((item,ii)=>{
-      const iDiv=document.createElement('div');iDiv.className='item-block';
-      const lbl=document.createElement('div');lbl.className='item-name';lbl.textContent=item.name;
-      iDiv.appendChild(lbl);
-      // Bed size selector for Bedrooms group only
-      if(grp.group==='Bedrooms'){
-        const key=`${gi}-${ii}`;
-        if(!selNewAddons[key+':bed']) selNewAddons[key+':bed']='Twin';
-        const br=document.createElement('div');br.className='bed-row';
-        br.innerHTML='<label>Bed size:</label>';
-        ['Twin','Full','Queen','King'].forEach(b=>{
-          const bbtn=document.createElement('button');
-          bbtn.className='bed-btn'+(selNewAddons[key+':bed']===b?' active':'');
-          bbtn.textContent=b;
-          bbtn.id=`abed-${gi}-${ii}-${b}`;
-          bbtn.onclick=(e)=>{
-            e.stopPropagation();
-            selNewAddons[key+':bed']=b;
-            ['Twin','Full','Queen','King'].forEach(bb=>{
-              const el=document.getElementById(`abed-${gi}-${ii}-${bb}`);
-              if(el)el.classList.toggle('active',bb===b);
-            });
-            if(selNewAddons[key]) selNewAddons[key].bed=b;
-          };
-          br.appendChild(bbtn);
-        });
-        iDiv.appendChild(br);
-      }
-      const sr=document.createElement('div');sr.className='size-row';
-      item.sizes.forEach((sz,si)=>{
-        const btn=document.createElement('button');btn.className='size-pill';btn.id=`asz-${gi}-${ii}-${si}`;
-        btn.innerHTML=`${sz.s} <span class="price">$${sz.p}</span>`;
-        // Restore selected state if previously selected
-        const existingSel=selNewAddons[`${gi}-${ii}`];
-        if(existingSel && existingSel.si===si) btn.classList.add('sel');
-        btn.onclick=()=>{
-          const key=`${gi}-${ii}`;
-          const prev=selNewAddons[key];
-          if(prev){const pb=document.getElementById(`asz-${gi}-${ii}-${prev.si}`);if(pb)pb.classList.remove('sel');}
-          if(prev&&prev.si===si){delete selNewAddons[key];}
-          else{
-            const bed=grp.group==='Bedrooms'?(selNewAddons[key+':bed']||'Twin'):null;
-            selNewAddons[key]={gi,ii,si,price:sz.p,name:item.name,sizeName:sz.s,bed};
-            btn.classList.add('sel');
-          }
-          updateNewAddonTotals();recalc();
-        };
-        sr.appendChild(btn);
-      });
-      iDiv.appendChild(sr);body.appendChild(iDiv);
-    });
-    div.appendChild(hdr);div.appendChild(body);wrap.appendChild(div);
-  });
-
-  // 4th group: Additional Bedrooms (same accordion style)
-  renderExtraBedrooms();
-}
-
-function updateNewAddonTotals(){
-  [0,1,2].forEach(gi=>{
-    const tot=Object.values(selNewAddons).filter(a=>a&&typeof a==='object'&&a.gi===gi).reduce((s,a)=>s+a.price,0);
-    const el=document.getElementById(`agrp-total-${gi}`);
-    if(el)el.textContent=tot>0?`+$${tot.toLocaleString()}`:'';
-  });
-}
-
-function addExtraBedroom(){
-  const n=extraBedrooms.length;
-  const names=['Bedroom 2','Bedroom 3','Bedroom 4','Bedroom 5','Bedroom 6'];
-  extraBedrooms.push({id:Date.now(),name:names[n]||`Bedroom ${n+2}`,size:'Small',price:350,bed:'Twin',scope:DEFAULT_SCOPES?.['Bedroom']?.['Small']||''});
-  renderExtraBedrooms();
-  recalc();
-}
-function removeExtraBedroom(id){
-  extraBedrooms=extraBedrooms.filter(b=>b.id!==id);
-  renderExtraBedrooms();
-  recalc();
-}
-function renderExtraBedrooms(){
-  const wrap=document.getElementById('addon-categories');
-  const existing=document.getElementById('extra-bed-group');
-  if(existing)existing.remove();
-
-  const div=document.createElement('div');div.className='addon-cat';div.id='extra-bed-group';
-  const tot=extraBedrooms.reduce((s,b)=>s+b.price,0);
-  const hdr=document.createElement('div');hdr.className='addon-cat-hdr';
-  hdr.innerHTML=`<div class="addon-cat-hdr-left"><i class="ti ti-bed addon-cat-icon" aria-hidden="true"></i><span class="addon-cat-title">Additional Bedrooms</span></div><div class="addon-cat-right"><span class="addon-cat-total" id="agrp-total-xb">${tot>0?'+$'+tot.toLocaleString():''}</span><span class="addon-cat-arr open" id="agrp-arr-xb">▼</span></div>`;
-  const body=document.createElement('div');body.className='addon-cat-body open';body.id='agrp-body-xb';
-  hdr.onclick=()=>{
-    const open=body.classList.toggle('open');
-    document.getElementById('agrp-arr-xb').classList.toggle('open',open);
-  };
-
-  if(extraBedrooms.length===0){
-    const empty=document.createElement('div');
-    empty.style.cssText='font-size:12px;color:var(--muted);font-style:italic;padding:14px 0 4px';
-    empty.textContent='No additional bedrooms added yet.';
-    body.appendChild(empty);
-  } else {
-    extraBedrooms.forEach((bed,idx)=>{
-      const bd=document.createElement('div');bd.className='xb-item';
-      const nameRow=document.createElement('div');nameRow.className='xb-name-row';
-      nameRow.innerHTML=`<input class="xb-name-input" value="${bed.name}" onchange="extraBedrooms[${idx}].name=this.value"><button class="xb-del" onclick="removeExtraBedroom(${bed.id})">×</button>`;
-      bd.appendChild(nameRow);
+    const body=document.createElement('div');body.id=`cb-${ci}`;body.style.display='none';body.style.padding='14px';
+    if(cat.hasBed&&cat.bedOpts&&cat.bedOpts.length>1){
       const br=document.createElement('div');br.className='bed-row';
-      br.innerHTML='<label>Bed size:</label>';
-      ['Twin','Full','Queen','King'].forEach(b=>{
-        const btn=document.createElement('button');btn.className='bed-btn'+(bed.bed===b?' active':'');btn.textContent=b;
-        btn.onclick=(e)=>{e.stopPropagation();extraBedrooms[idx].bed=b;renderExtraBedrooms();recalc();};
+      br.innerHTML=`<label>Bed size:</label>`;
+      cat.bedOpts.forEach((b,bi)=>{
+        const btn=document.createElement('button');btn.className='bed-btn'+(bi===0?' active':'');btn.textContent=b;btn.id=`bb-${ci}-${bi}`;
+        btn.onclick=(e)=>{e.stopPropagation();cat.bedOpts.forEach((_,bj)=>document.getElementById(`bb-${ci}-${bj}`)?.classList.remove('active'));btn.classList.add('active');bedSel.set(`${ci}`,b);refreshScope(ci);};
         br.appendChild(btn);
       });
-      bd.appendChild(br);
-      const sr=document.createElement('div');sr.className='size-row';
-      [{s:'Small',p:350},{s:'Medium',p:375},{s:'Large',p:400}].forEach(opt=>{
-        const btn=document.createElement('button');btn.className='size-pill'+(bed.size===opt.s?' sel':'');
-        btn.innerHTML=`${opt.s} <span class="price">$${opt.p}</span>`;
-        btn.onclick=()=>{extraBedrooms[idx].size=opt.s;extraBedrooms[idx].price=opt.p;renderExtraBedrooms();recalc();};
-        sr.appendChild(btn);
-      });
-      bd.appendChild(sr);
-      body.appendChild(bd);
+      body.appendChild(br);
+    }
+    const sg=document.createElement('div');sg.className='size-grid';
+    cat.sizes.forEach((opt,oi)=>{
+      const key=`${ci}-${oi}`;
+      const chip=document.createElement('div');chip.className='size-chip';chip.id=`chip-${key}`;
+      chip.innerHTML=`<span class="chk">${chk()}</span><span class="size-label">${opt.size}</span><span class="price-edit-wrap"><span style="font-family:'Cormorant Garamond',serif;font-size:15px;color:var(--green)">$</span><input type="number" class="price-edit-input" value="${opt.price}" onclick="event.stopPropagation()" oninput="onPriceEdit(this,${ci},${oi})"><button class="price-save-check" onclick="event.stopPropagation();savePriceClicked(${ci},${oi},this)" title="Save as new default">✓</button></span>`;
+      chip.onclick=()=>{
+        const prev=selAddons.get(`${ci}`)?.key;
+        if(prev)document.getElementById(`chip-${prev}`)?.classList.remove('sel');
+        if(prev===key){selAddons.delete(`${ci}`);}
+        else{const scope=getScope(ci,opt.size);selAddons.set(`${ci}`,{key,ci,oi,scope});chip.classList.add('sel');const ta=document.getElementById(`sc-${ci}`);if(ta)ta.value=scope;}
+        recalc();
+      };
+      sg.appendChild(chip);
     });
-  }
-  const addBtn=document.createElement('button');addBtn.className='add-ghost';addBtn.style.marginTop='10px';
-  addBtn.textContent='+ Add another bedroom';addBtn.onclick=addExtraBedroom;
-  body.appendChild(addBtn);
-  div.appendChild(hdr);div.appendChild(body);wrap.appendChild(div);
+    body.appendChild(sg);
+    const def=getScope(ci,cat.sizes[0].size);
+    const sw=document.createElement('div');
+    sw.innerHTML=`<div class="scope-lbl"><span>Scope of work</span><span class="scope-reset" onclick="resetScope(${ci})">Reset</span></div><textarea id="sc-${ci}" rows="3" oninput="updScope(${ci},this.value)">${def}</textarea>`;
+    body.appendChild(sw);
+    wrap.appendChild(hdr);wrap.appendChild(body);cont.appendChild(wrap);
+  });
 }
 
 function updScope(ci,val){const e=selAddons.get(`${ci}`);if(e)e.scope=val;}
@@ -902,18 +804,11 @@ function resetScope(ci){const e=selAddons.get(`${ci}`);const sn=e?CATS[ci].sizes
 
 function addCustom(){const id=Date.now();customs.push({id,desc:'',scope:'',price:0});renderCustoms();}
 function removeCustom(id){customs=customs.filter(a=>a.id!==id);renderCustoms();}
-function escHtml(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function renderCustoms(){
   const c=document.getElementById('custom-addons');c.innerHTML='';
   customs.forEach(a=>{
-    const w=document.createElement('div');w.className='custom-item'+(a._isRestored?' restored':'');
-    const restoredBadge = a._isRestored
-      ? '<span style="font-size:9px;color:#7a8574;font-weight:500;letter-spacing:0.5px;text-transform:uppercase;padding:2px 6px;background:#eef1ea;border-radius:4px;margin-left:6px;">Saved</span>'
-      : '';
-    w.innerHTML=`<div class="custom-header"><input type="text" placeholder="Line item title" value="${escHtml(a.desc)}" oninput="updCustom(${a.id},'desc',this.value)"><input type="number" placeholder="$0" value="${a.price||''}" step="25" inputmode="decimal" oninput="updCustom(${a.id},'price',parseFloat(this.value)||0)"><button class="rm-btn" onclick="removeCustom(${a.id})">×</button></div><div class="scope-lbl"><span style="font-size:12px;color:#888">Scope of work${restoredBadge}</span></div><textarea rows="2" placeholder="What's included...">${escHtml(a.scope||'')}</textarea>`;
-    // Wire scope textarea separately to avoid attribute escaping issues with quotes in content
-    const scopeTa = w.querySelector('textarea');
-    if(scopeTa) scopeTa.addEventListener('input', e => updCustom(a.id,'scope',e.target.value));
+    const w=document.createElement('div');w.className='custom-item';
+    w.innerHTML=`<div class="custom-header"><input type="text" placeholder="Line item title" value="${a.desc}" oninput="updCustom(${a.id},'desc',this.value)"><input type="number" placeholder="$0" value="${a.price||''}" step="25" inputmode="decimal" oninput="updCustom(${a.id},'price',parseFloat(this.value)||0)"><button class="rm-btn" onclick="removeCustom(${a.id})">×</button></div><div class="scope-lbl"><span style="font-size:12px;color:#888">Scope of work</span></div><textarea rows="2" placeholder="What's included..." oninput="updCustom(${a.id},'scope',this.value)">${a.scope||''}</textarea>`;
     c.appendChild(w);
   });
   recalc();
@@ -922,7 +817,7 @@ function updCustom(id,k,v){const a=customs.find(x=>x.id===id);if(a){a[k]=v;if(k=
 
 function fmt(n){return'$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
 function recalc(){
-  let t=0;selAddons.forEach(e=>{t+=CATS[e.ci].sizes[e.oi].price;});Object.values(selNewAddons).forEach(a=>{if(a&&typeof a==='object')t+=a.price;});
+  let t=0;selAddons.forEach(e=>{t+=CATS[e.ci].sizes[e.oi].price;});
   t+=customs.reduce((s,a)=>s+(parseFloat(a.price)||0),0);
   t+=extraBedrooms.reduce((s,b)=>s+b.price,0);
   const base=parseFloat(document.getElementById('base_price')?.value)||2500;
@@ -938,6 +833,13 @@ function recalc(){
 }
 
 function setSt(state,msg){document.getElementById('sdot').className='sdot '+state;document.getElementById('smsg').textContent=msg;}
+function toggleCover(){document.getElementById('cover-note-wrap').style.display=document.getElementById('cover_page').checked?'block':'none';}
+function togglePaid(){
+  const w=document.getElementById('paid-date-wrap');
+  w.style.display=document.getElementById('paid').checked?'block':'none';
+  if(document.getElementById('paid').checked&&!document.getElementById('paid_date').value)
+    document.getElementById('paid_date').value=new Date().toISOString().split('T')[0];
+}
 
 async function createPaymentLink(grand,client,invnum,address){
   setSt('loading','Creating payment link...');
@@ -1013,14 +915,134 @@ function getWATaxByZip(zip){
   if(WA_TAX[zip]!==undefined){
     document.getElementById('taxrate').value=WA_TAX[zip].toFixed(2);
     recalc();
-    if(note){note.textContent='✓ Tax rate set to '+WA_TAX[zip]+'% for zip '+zip;note.style.color='var(--olive-dark)';}
+    if(note){note.textContent='✓ Tax rate set to '+WA_TAX[zip]+'% for zip '+zip;note.style.color='#22c55e';}
   } else {
-    if(note){note.textContent='⚠ ZIP not found — set tax rate manually';note.style.color='var(--amber)';}
+    if(note){note.textContent='⚠ ZIP not found — set tax rate manually';note.style.color='#f59e0b';}
   }
 }
 
 
 const _sb = supabase.createClient('https://cwvdfgrjlrpsdfwduwvn.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN3dmRmZ3JqbHJwc2Rmd2R1d3ZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwMDcyODUsImV4cCI6MjA5MzU4MzI4NX0.zam9AnIwW91TI6eCKUcg05LhvFcRa7op4QsjRpdcrCY');
+
+
+
+let _origBasePrice = 2500;
+
+function onBasePriceEdit(input){
+  input.dataset.userEdited = '1';
+  const newPrice = parseFloat(input.value)||0;
+  const btn = document.getElementById('base-save-check');
+  if(btn){
+    if(newPrice !== _origBasePrice){
+      btn.classList.add('changed'); btn.classList.remove('saved');
+    } else {
+      btn.classList.remove('changed','saved');
+    }
+  }
+  recalc();
+}
+
+async function saveBasePriceClicked(btn){
+  if(!btn.classList.contains('changed')) return;
+  const newPrice = parseFloat(document.getElementById('base_price').value)||0;
+  const ok = await saveBasePriceDefault(newPrice);
+  if(ok){
+    _origBasePrice = newPrice;
+    btn.classList.remove('changed');
+    btn.classList.add('saved');
+    setTimeout(()=>btn.classList.remove('saved'), 2000);
+  }
+}
+
+// ── PRICING DEFAULTS ──
+async function loadPricingDefaults(){
+  try {
+    const { data, error } = await _sb
+      .from('invoices')
+      .select('data')
+      .eq('invnum', 'PRICING_DEFAULTS')
+      .single();
+    if(!error && data && data.data && data.data.cats){
+      // Override CATS with saved defaults
+      data.data.cats.forEach((cat, ci) => {
+        if(CATS[ci]) {
+          cat.sizes.forEach((s, si) => {
+            if(CATS[ci].sizes[si]) CATS[ci].sizes[si].price = s.price;
+          });
+        }
+      });
+      if(data.data.base_price){
+        const bpEl = document.getElementById('base_price');
+        if(bpEl && !bpEl.dataset.userEdited) bpEl.value = data.data.base_price;
+      }
+    }
+  } catch(e){ console.log('No saved defaults yet'); }
+}
+
+async function savePriceDefault(ci, si, newPrice){
+  // Update in-memory CATS
+  CATS[ci].sizes[si].price = newPrice;
+  // Save to Supabase
+  try {
+    const catsSnapshot = CATS.map(c => ({
+      name: c.name,
+      sizes: c.sizes.map(s => ({size:s.size, price:s.price}))
+    }));
+    const basePrice = parseFloat(document.getElementById('base_price')?.value)||2500;
+    await _sb.from('invoices').upsert({
+      invnum: 'PRICING_DEFAULTS',
+      client: 'PRICING_DEFAULTS',
+      address: '',
+      invdate: new Date().toISOString().split('T')[0],
+      data: { cats: catsSnapshot, base_price: basePrice }
+    }, { onConflict: 'invnum' });
+    return true;
+  } catch(e){ return false; }
+}
+
+async function saveBasePriceDefault(newPrice){
+  try {
+    const catsSnapshot = CATS.map(c => ({
+      name: c.name,
+      sizes: c.sizes.map(s => ({size:s.size, price:s.price}))
+    }));
+    await _sb.from('invoices').upsert({
+      invnum: 'PRICING_DEFAULTS',
+      client: 'PRICING_DEFAULTS',
+      address: '',
+      invdate: new Date().toISOString().split('T')[0],
+      data: { cats: catsSnapshot, base_price: newPrice }
+    }, { onConflict: 'invnum' });
+    return true;
+  } catch(e){ return false; }
+}
+
+function onPriceEdit(input, ci, si){
+  const newPrice = parseFloat(input.value) || 0;
+  const oldPrice = CATS[ci].sizes[si].price;
+  const checkBtn = input.parentElement.querySelector('.price-save-check');
+  if(newPrice !== oldPrice){
+    checkBtn.classList.add('changed');
+    checkBtn.classList.remove('saved');
+    checkBtn.textContent = '✓';
+  } else {
+    checkBtn.classList.remove('changed','saved');
+  }
+  // Update the in-memory price for this invoice (recalc reads from CATS)
+  CATS[ci].sizes[si].price = newPrice;
+  recalc();
+}
+
+async function savePriceClicked(ci, si, btn){
+  if(!btn.classList.contains('changed')) return;
+  const newPrice = CATS[ci].sizes[si].price;
+  const ok = await savePriceDefault(ci, si, newPrice);
+  if(ok){
+    btn.classList.remove('changed');
+    btn.classList.add('saved');
+    setTimeout(()=>btn.classList.remove('saved'), 2000);
+  }
+}
 
 async function loadRecent(){
   try{
@@ -1038,16 +1060,15 @@ async function loadRecent(){
     const expandBtn = document.getElementById('recent-expand-btn');
     if(expandBtn) expandBtn.style.display = (!recentExpanded && data.length > 3) ? 'block' : 'none';
     el.innerHTML = showData.map((inv,i)=>`
-      <div class="ri" style="position:relative">
-        <div style="flex:1" onclick="loadInvoice(${i})">
+      <div class="ri" onclick="loadInvoice(${i})">
+        <div>
           <div class="ri-name">${inv.client}</div>
           <div class="ri-addr">${inv.address||''}</div>
         </div>
-        <div onclick="loadInvoice(${i})" style="flex-shrink:0;text-align:right;margin-right:8px">
+        <div>
           <div class="ri-num">#${inv.invnum}</div>
           <div class="ri-date">${inv.invdate||''}</div>
         </div>
-        <button onclick="hardDeleteInvoice('${inv.invnum}',event)" title="Permanently delete" style="background:none;border:none;color:var(--muted-soft);font-size:16px;cursor:pointer;padding:4px 6px;border-radius:6px;flex-shrink:0;line-height:1;transition:color 0.15s" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--muted-soft)'">×</button>
       </div>
     `).join('');
   }catch(e){
@@ -1059,163 +1080,8 @@ function loadInvoice(idx){
   try{
     const inv = window._recentInvoices[idx];
     const d = inv.data || inv;
-    currentLoadedInvnum = inv.invnum;
     loadInvoiceData(d);
-    showUpdateBtn();
   }catch(e){console.log('Load error:',e);}
-}
-
-function showUpdateBtn(){
-  const btn = document.getElementById('update-invoice-btn');
-  if(!btn) return;
-  // Only show for real (non-draft) invoices that are loaded
-  const isReal = currentLoadedInvnum && !currentLoadedInvnum.startsWith('DRAFT-');
-  btn.style.display = isReal ? 'block' : 'none';
-}
-
-async function hardDeleteInvoice(invnum, e){
-  e.stopPropagation();
-  if(!confirm('Permanently delete invoice #' + invnum + '?\n\nThis cannot be undone.')) return;
-  try {
-    const { error } = await _sb.from('invoices').delete().eq('invnum', invnum);
-    if(error){ alert('Delete failed: ' + error.message); return; }
-    // If this was the loaded invoice, clear it
-    if(currentLoadedInvnum === invnum){
-      currentLoadedInvnum = null;
-      showUpdateBtn();
-    }
-    loadRecent();
-    setSt('ok', 'Invoice deleted');
-  } catch(e2){ alert('Delete failed: ' + e2.message); }
-}
-
-async function updateLoadedInvoice(){
-  console.log('[UPDATE] clicked. currentLoadedInvnum =', currentLoadedInvnum);
-  if(!currentLoadedInvnum){ setSt('err','No invoice loaded to update'); return; }
-  if(currentLoadedInvnum.startsWith('DRAFT-')){
-    setSt('err','Use Save as Draft for drafts. Update is for finalized invoices.');
-    return;
-  }
-  const btn = document.getElementById('update-invoice-btn');
-  if(btn){ btn.disabled = true; btn.textContent = 'Updating...'; }
-  try {
-    // Step 1: Fetch current invoice to compare grand total + get old payment_url
-    const { data: existing, error: fetchErr } = await _sb
-      .from('invoices').select('data').eq('invnum', currentLoadedInvnum).limit(1);
-    const oldData = (existing && existing[0] && existing[0].data) || {};
-    const oldGrand = (() => {
-      const base = parseFloat(oldData.base_price)||2500;
-      const addons = (oldData.addons||[]).reduce((s,a)=>s+(parseFloat(a.price)||0),0);
-      return (base+addons)*(1+(parseFloat(oldData.taxrate)||0)/100);
-    })();
-    const oldPaymentUrl = oldData.payment_url || null;
-
-    // Step 2: Rebuild data payload from current form state
-    const allAddons = [];
-    selAddons.forEach(entry => {
-      const cat = CATS[entry.ci], opt = cat.sizes[entry.oi];
-      const bed = cat.hasBed ? bedSel.get(`${entry.ci}`) : '';
-      const scope = document.getElementById(`sc-${entry.ci}`)?.value || entry.scope || '';
-      allAddons.push({desc:cat.name + (bed ? ' ('+bed+')' : '') + ': ' + (scope||opt.size),price:opt.price});
-    });
-    customs.filter(a=>a.desc).forEach(a=>{allAddons.push({desc:a.desc+(a.scope?': '+a.scope:''),price:parseFloat(a.price)||0});});
-    extraBedrooms.forEach(b=>{allAddons.push({desc:`${b.name} (${b.bed}): ${b.scope||b.size}`,price:b.price});});
-    Object.values(selNewAddons).forEach(a=>{if(a&&typeof a==='object')allAddons.push({desc:`${a.name}${a.bed?' ('+a.bed+')':''} — ${a.sizeName}`,price:a.price});});
-
-    const client = document.getElementById('client').value.trim();
-    const address = document.getElementById('address').value.trim();
-    const taxrate = parseFloat(document.getElementById('taxrate').value)||0;
-    const base_price = parseFloat(document.getElementById('base_price').value)||2500;
-    const addonsTotal = allAddons.reduce((s,a)=>s+(parseFloat(a.price)||0),0);
-    const newGrand = (base_price + addonsTotal) * (1 + taxrate/100);
-
-    // Step 3: Detect if total changed — if so regenerate Stripe payment link
-    const totalChanged = Math.abs(newGrand - oldGrand) > 0.01;
-    let payment_url = oldPaymentUrl;
-
-    if(totalChanged && !document.getElementById('paid').checked){
-      if(btn) btn.textContent = 'Updating payment link...';
-      setSt('loading', 'Total changed — updating Stripe payment link...');
-
-      // Deactivate old payment link if it exists
-      if(oldPaymentUrl){
-        try {
-          // Extract payment link ID from URL (format: .../pay/plink_xxx#...)
-          const plinkMatch = oldPaymentUrl.match(/plink_[a-zA-Z0-9]+/);
-          if(plinkMatch){
-            await fetch('/api/stripe', {
-              method: 'POST',
-              headers: {'Content-Type':'application/json'},
-              body: JSON.stringify({
-                action: 'deactivate',
-                payment_link_id: plinkMatch[0]
-              })
-            });
-            console.log('[UPDATE] Old payment link deactivated:', plinkMatch[0]);
-          }
-        } catch(e){ console.log('[UPDATE] Deactivate failed (non-fatal):', e.message); }
-      }
-
-      // Create new payment link with updated amount
-      try {
-        const newLink = await createPaymentLink(newGrand, client, currentLoadedInvnum, address);
-        payment_url = newLink;
-        console.log('[UPDATE] New payment link created:', payment_url);
-      } catch(e){
-        console.log('[UPDATE] Payment link creation failed:', e.message);
-        // Non-fatal — save invoice anyway, Jasmine can regenerate manually
-        setSt('loading', 'Saved (payment link update failed — regenerate if needed)');
-      }
-    }
-
-    const data = {
-      invnum: currentLoadedInvnum,
-      client,
-      address,
-      invdate: document.getElementById('invdate').value,
-      startdate: document.getElementById('startdate').value,
-      taxrate,
-      base_price,
-      extrate: Math.round(newGrand/3*100)/100,
-      baserooms: [...selRooms].join(', '),
-      addons: allAddons,
-      promo1: document.getElementById('promo1').checked,
-      promo2: document.getElementById('promo2').checked,
-      promo3: document.getElementById('promo3').checked,
-      promo4: document.getElementById('promo4').checked,
-      cover_page: document.getElementById('cover_page').checked,
-      cover_note: document.getElementById('cover_note')?.value.trim()||'',
-      paid: document.getElementById('paid').checked,
-      paid_date: document.getElementById('paid_date')?.value||'',
-      stage: window._lastLoadedStage || 'proposal',
-      payment_url,
-    };
-
-    if(btn) btn.textContent = 'Saving...';
-    const result = await _sb.from('invoices').upsert({
-      invnum: currentLoadedInvnum,
-      client: data.client,
-      address: data.address,
-      invdate: data.invdate,
-      data: data
-    }, { onConflict: 'invnum' });
-
-    if(result.error){
-      setSt('err','Update failed: '+(result.error.message||JSON.stringify(result.error)));
-    } else {
-      if(totalChanged && !data.paid){
-        setSt('ok', `Invoice updated ✓ — new payment link created ($${Math.round(newGrand).toLocaleString()})`);
-      } else {
-        setSt('ok','Invoice updated ✓');
-      }
-      loadRecent();
-    }
-  } catch(e){
-    setSt('err','Update failed: '+e.message);
-    console.error('[UPDATE] exception:', e);
-  } finally {
-    if(btn){ btn.disabled = false; btn.textContent = 'Update This Invoice'; }
-  }
 }
 
 function loadInvoiceData(d){
@@ -1227,98 +1093,76 @@ function loadInvoiceData(d){
     document.getElementById('invdate').value = d.invdate||'';
     document.getElementById('startdate').value = d.startdate||'';
     document.getElementById('invnum-display').value = d.invnum||'';
-    // Bug 10: preserve saved tax exactly — use ?? not || so 0 doesn't become 10.25
-    document.getElementById('taxrate').value = (d.taxrate !== undefined && d.taxrate !== null) ? d.taxrate : 10.25;
+    document.getElementById('taxrate').value = d.taxrate||10.25;
     document.getElementById('base_price').value = d.base_price||2500;
-    ['promo1','promo2','promo3','promo4'].forEach(p=>{
-      const cb=document.getElementById(p);
-      if(cb){cb.checked=d[p]||false;const card=document.getElementById('pc-'+p);if(card)card.classList.toggle('on',cb.checked);}
-    });
+    document.getElementById('promo1').checked = d.promo1||false;
+    document.getElementById('promo2').checked = d.promo2||false;
+    document.getElementById('promo3').checked = d.promo3||false;
     document.getElementById('paid').checked = d.paid||false;
     if(d.paid) togglePaid();
     document.getElementById('paid_date').value = d.paid_date||'';
-    window._lastLoadedStage = d.stage || 'proposal';
-    // Bug 9: restore cover_page checkbox + cover_note value + toggle visibility
     document.getElementById('cover_page').checked = d.cover_page||false;
-    const coverNoteEl = document.getElementById('cover_note');
-    if(coverNoteEl) coverNoteEl.value = d.cover_note || '';
-    toggleCover();
 
     // Restore selected rooms
     selRooms.clear();
-    document.querySelectorAll('#rooms-grid .room-card').forEach(card => card.classList.remove('sel'));
+    document.querySelectorAll('#rooms-grid .chip').forEach(chip => {
+      chip.classList.remove('sel');
+    });
     if(d.baserooms){
       const rooms = d.baserooms.split(', ');
-      document.querySelectorAll('#rooms-grid .room-card').forEach(card => {
-        const roomName = card.querySelector('.room-name').textContent;
+      document.querySelectorAll('#rooms-grid .chip').forEach(chip => {
+        const roomName = chip.querySelector('span:last-child').textContent;
         if(rooms.includes(roomName)){
           selRooms.add(roomName);
-          card.classList.add('sel');
+          chip.classList.add('sel');
         }
       });
     }
-    updateRoomsBar();
 
-    // Restore addons — trust the saved desc and price exactly
-    // Do NOT try to re-match to UI cards (prices may have changed, formats differ)
+    // Restore addons
     selAddons.clear();
-    selNewAddons = {};
-    extraBedrooms = [];
-    customs = [];
-
+    document.querySelectorAll('.size-chip').forEach(c => c.classList.remove('sel'));
     if(d.addons && d.addons.length > 0){
       d.addons.forEach(addon => {
-        if(!addon.desc) return;
-        const desc = addon.desc;
-        const price = parseFloat(addon.price) || 0;
-
-        // Extra bedroom pattern: "Bedroom N (BedType): Size" or "Downstairs (BedType): Size"
-        const xbMatch = desc.match(/^(Bedroom\s*\d+|Downstairs|Upstairs|Guest\s*Bedroom?)\s*\(([^)]+)\)\s*:\s*(.+)$/i);
-        if(xbMatch){
-          extraBedrooms.push({
-            id: Date.now() + Math.random(),
-            name: xbMatch[1].trim(),
-            bed: xbMatch[2].trim(),
-            size: xbMatch[3].trim(),
-            scope: xbMatch[3].trim(),
-            price,
+        // Match addon desc to category
+        CATS.forEach((cat, ci) => {
+          cat.sizes.forEach((opt, oi) => {
+            const descLower = addon.desc.toLowerCase();
+            const catLower = cat.name.toLowerCase();
+            if(descLower.startsWith(catLower)){
+              const key = `${ci}-${oi}`;
+              selAddons.set(`${ci}`, {key, ci, oi, scope: addon.desc});
+              const chip = document.getElementById(`chip-${key}`);
+              if(chip) chip.classList.add('sel');
+              // Set scope textarea
+              const ta = document.getElementById(`sc-${ci}`);
+              if(ta) ta.value = addon.desc.split(': ').slice(1).join(': ') || addon.desc;
+            }
           });
-          return;
-        }
-
-        // New ADDON_CATS format: "Name (BedType) — SizeName" or "Name — SizeName"
-        if(desc.includes(' — ')){
-          const dashIdx = desc.lastIndexOf(' — ');
-          const nameAndBed = desc.slice(0, dashIdx).trim();
-          const sizeName = desc.slice(dashIdx + 3).trim();
-          const bedMatch = nameAndBed.match(/^(.+?)\s*\(([^)]+)\)\s*$/);
-          const itemName = bedMatch ? bedMatch[1].trim() : nameAndBed;
-          const bed = bedMatch ? bedMatch[2].trim() : null;
-          // Store as a custom addon with exact saved price
-          customs.push({
-            id: Date.now() + Math.random(),
-            desc: itemName + (bed ? ` (${bed})` : '') + ' — ' + sizeName,
-            scope: '',
-            price,
-            _isRestored: true,
-          });
-          return;
-        }
-
-        // Old CATS format: "Name (BedType): Scope" or "Name: Scope"
-        // Store as custom with exact saved price
-        const colonIdx = desc.indexOf(': ');
-        const itemDesc = colonIdx >= 0 ? desc.slice(0, colonIdx).trim() : desc.trim();
-        const itemScope = colonIdx >= 0 ? desc.slice(colonIdx + 2).trim() : '';
-        customs.push({
-          id: Date.now() + Math.random(),
-          desc: itemDesc,
-          scope: itemScope,
-          price,
-          _isRestored: true,
         });
       });
+    }
 
+    // Restore custom line items
+    customs = [];
+    if(d.addons && d.addons.length > 0){
+      d.addons.forEach(addon => {
+        // Check if this addon doesn't match any standard category — it's a custom item
+        let isStandard = false;
+        CATS.forEach(cat => {
+          if(addon.desc.toLowerCase().startsWith(cat.name.toLowerCase())) isStandard = true;
+        });
+        // Also check extra bedroom names
+        ['bedroom 2','bedroom 3','bedroom 4','downstairs','guest','upstairs'].forEach(n => {
+          if(addon.desc.toLowerCase().startsWith(n)) isStandard = true;
+        });
+        if(!isStandard){
+          const parts = addon.desc.split(': ');
+          const desc = parts[0] || addon.desc;
+          const scope = parts.slice(1).join(': ') || '';
+          customs.push({id: Date.now() + Math.random(), desc, scope, price: addon.price || 0});
+        }
+      });
       renderCustoms();
     }
 
@@ -1347,55 +1191,8 @@ async function saveInvoice(data){
 async function saveDraft(){
   const client = document.getElementById('client').value.trim();
   const address = document.getElementById('address').value.trim();
-  let invnum = document.getElementById('invnum-display').value.trim();
+  const invnum = document.getElementById('invnum-display').value.trim();
   if(!client && !address){ setSt('err','Fill in at least client name or address to save draft'); return; }
-
-  // ─── Auto-version drafts ───
-  // Determine the base invoice number we're working with.
-  // Priority: currentLoadedInvnum (most reliable) → form field value.
-  let basisInvnum = currentLoadedInvnum || invnum;
-  // Strip DRAFT- prefix if present
-  basisInvnum = basisInvnum.replace(/^DRAFT-/, '');
-  // Extract the base number (strip any existing V suffix to find the root)
-  const baseMatch = basisInvnum.match(/^(\d+)/);
-
-  if(baseMatch){
-    const base = baseMatch[1];
-
-    // Check Supabase: does this exact invnum already exist (as a real invoice OR draft)?
-    // If yes, we need to version. If no, this is a brand new number and we use it as-is.
-    let needsVersioning = false;
-    try {
-      const { data: existing } = await _sb
-        .from('invoices')
-        .select('invnum')
-        .or(`invnum.eq.${base},invnum.eq.DRAFT-${base},invnum.like.${base}V%,invnum.like.DRAFT-${base}V%`);
-
-      if(existing && existing.length > 0){
-        needsVersioning = true;
-        // Find the highest existing V number for this base
-        let maxV = 0;
-        existing.forEach(row => {
-          const vm = String(row.invnum).match(new RegExp(`^(?:DRAFT-)?${base}V(\\d+)$`));
-          if(vm){
-            const v = parseInt(vm[1]);
-            if(v > maxV) maxV = v;
-          }
-        });
-        invnum = `${base}V${maxV + 1}`;
-        // Update displayed number so user can see the new version
-        const disp = document.getElementById('invnum-display');
-        if(disp) disp.value = invnum;
-      } else {
-        // Brand new number — use as-is
-        invnum = base;
-      }
-    } catch(e){
-      console.log('[saveDraft] version lookup failed:', e);
-      // Safe fallback: append V1 if we couldn't check
-      if(currentLoadedInvnum) invnum = `${base}V1`;
-    }
-  }
 
   const allAddons = [];
   selAddons.forEach(entry => {
@@ -1406,7 +1203,6 @@ async function saveDraft(){
   });
   customs.filter(a=>a.desc).forEach(a=>{allAddons.push({desc:a.desc+(a.scope?': '+a.scope:''),price:parseFloat(a.price)||0});});
   extraBedrooms.forEach(b=>{allAddons.push({desc:`${b.name} (${b.bed}): ${b.scope||b.size}`,price:b.price});});
-  Object.values(selNewAddons).forEach(a=>{if(a&&typeof a==='object')allAddons.push({desc:`${a.name}${a.bed?' ('+a.bed+')':''} — ${a.sizeName}`,price:a.price});});
 
   const sub = parseFloat(document.getElementById('base_price')?.value)||2500;
   const taxrate = parseFloat(document.getElementById('taxrate').value)||0;
@@ -1425,13 +1221,11 @@ async function saveDraft(){
     promo1: document.getElementById('promo1').checked,
     promo2: document.getElementById('promo2').checked,
     promo3: document.getElementById('promo3').checked,
-    promo4: document.getElementById('promo4').checked,
     cover_page: document.getElementById('cover_page').checked,
     cover_note: document.getElementById('cover_note')?.value.trim()||'',
     paid: document.getElementById('paid').checked,
     paid_date: document.getElementById('paid_date')?.value||'',
     payment_url: null,
-    stage: window._lastLoadedStage || 'proposal',
     _is_draft: true,
     _draft_saved: new Date().toLocaleDateString()
   };
@@ -1446,9 +1240,7 @@ async function saveDraft(){
       data: draft
     }, { onConflict: 'invnum' });
     if(!error){
-      const versionMatch = invnum.match(/V(\d+)$/);
-      const msg = versionMatch ? `Draft saved as ${invnum} (version ${versionMatch[1]})` : 'Draft saved!';
-      setSt('ok', msg);
+      setSt('ok', 'Draft saved!');
       loadDrafts();
     }
   } catch(e) { setSt('err','Could not save draft'); }
@@ -1483,78 +1275,10 @@ async function deleteDraft(invnum){
 }
 
 function loadInvoice2(type, idx){
-  const inv = type==='draft' ? window._drafts[idx] : window._recentInvoices[idx];
+  const inv = type==='draft' ? window._draftInvoices[idx] : window._recentInvoices[idx];
   if(!inv) return;
-  currentLoadedInvnum = inv.invnum;
-  setTimeout(showUpdateBtn, 50);
   const d = inv.data || inv;
   loadInvoiceData(d);
-}
-
-async function newInvoice(){
-  // Confirm if user has any work in progress
-  const client = document.getElementById('client').value.trim();
-  const address = document.getElementById('address').value.trim();
-  if((client || address) && !confirm('Start a fresh invoice? Any unsaved changes will be cleared.')) return;
-
-  // Clear all state variables
-  currentLoadedInvnum = null;
-  window._lastLoadedStage = null;
-  selRooms.clear();
-  selAddons.clear();
-  bedSel.clear();
-  selNewAddons = {};
-  customs = [];
-  extraBedrooms = [];
-
-  // Clear all form fields
-  ['client','address','zipcode','startdate','cover_note','paid_date'].forEach(id=>{
-    const el = document.getElementById(id); if(el) el.value = '';
-  });
-  ['promo1','promo2','promo3','promo4','cover_page','paid'].forEach(id=>{
-    const cb = document.getElementById(id);
-    if(cb){
-      cb.checked = false;
-      const card = document.getElementById('pc-'+id);
-      if(card) card.classList.remove('on');
-    }
-  });
-
-  // Reset defaults
-  document.getElementById('invdate').value = new Date().toISOString().split('T')[0];
-  document.getElementById('taxrate').value = 10.25;
-  document.getElementById('base_price').value = 2500;
-
-  // Clear room selections visually
-  document.querySelectorAll('.room-card.on').forEach(c => c.classList.remove('on'));
-  // Clear addon selections visually
-  document.querySelectorAll('.addon-card.on,.addon-opt.on,.bed-btn.on').forEach(c => c.classList.remove('on'));
-
-  // Clear custom items + extra bedrooms display
-  const cae = document.getElementById('custom-addons'); if(cae) cae.innerHTML = '';
-  const xbe = document.getElementById('extra-bedrooms-list'); if(xbe) xbe.innerHTML = '';
-
-  // Hide paid_date and cover_note wrappers
-  const pdw = document.getElementById('paid-date-wrap'); if(pdw) pdw.style.display = 'none';
-  const cnw = document.getElementById('cover-note-wrap'); if(cnw) cnw.style.display = 'none';
-
-  // Rebuild addon cats UI fresh
-  if(typeof buildCats === 'function') buildCats();
-  if(typeof updateNewAddonTotals === 'function') updateNewAddonTotals();
-
-  // Hide update button
-  showUpdateBtn();
-
-  // Get the next sequential invoice number from Supabase
-  await initInvNum();
-
-  // Recalculate totals
-  if(typeof recalc === 'function') recalc();
-
-  // Scroll to top for a fresh feel
-  window.scrollTo({top: 0, behavior: 'smooth'});
-
-  setSt('ok', `New invoice ready — #${currentInvNum}`);
 }
 
 
@@ -1576,10 +1300,7 @@ function openEmailModal(data){
   const firstName=client.toLowerCase().startsWith('estate of')?client.split(' ').slice(2).join(' ').split(' ')[0]:client.split(' ')[0];
   document.getElementById('email-to').value='';
   document.getElementById('email-subject').value=`Your Staging Proposal — ${address}`;
-  const proposalLink = `${window.location.origin}/proposal.html?inv=${encodeURIComponent(data.invnum)}`;
-  // Stash these for sendEmail to pass to the HTML email builder
-  window._lastEmailMeta = { proposal_link: proposalLink, client_first_name: firstName };
-  document.getElementById('email-body').value=`Hi ${firstName},\n\nThank you for the opportunity to work with you. I'm excited about this property and what we can create together.\n\nAttached you'll find your personalized staging proposal for ${address}. Inside you'll find the full scope of work, investment total, and payment details.\n\nTo approve this proposal and sign electronically, please visit:\n${proposalLink}\n\nThe signed contract and payment link are available on that page. Your proposal PDF is attached to this email for your reference.\n\nA few important notes:\n• Full payment is due 48 hours before installation day\n• Once payment is received I'll lock in your staging date\n\nPlease don't hesitate to reach out with any questions.\n\nLooking forward to transforming your space.\n\nWarmly,\nJasmine Santana\nOwner & Creative Director — Styling With Jas\n206-422-5618\ninfo@stylingwithjas.com`;
+  document.getElementById('email-body').value=`Hi ${firstName},\n\nThank you for the opportunity to work with you! I'm excited about this property and what we can create together.\n\nAttached you'll find your personalized staging proposal for ${address}. Inside you'll find the full scope of work, investment total, and payment details.\n\nA few important notes:\n• Full payment is due 48 hours before installation day\n• Once payment is received I'll lock in your staging date\n• The payment link is included in the proposal for your convenience\n\nPlease don't hesitate to reach out with any questions!\n\nLooking forward to transforming your space.\n\nWarmly,\nJasmine Santana\nOwner & Creative Director — Styling With Jas\n📱 206-422-5618\n📧 info@stylingwithjas.com`;
   document.getElementById('email-status').textContent='';
   document.getElementById('email-modal').classList.add('show');
   setTimeout(()=>document.getElementById('email-to').focus(),100);
@@ -1593,7 +1314,6 @@ async function previewProfitability(){
   const base = parseFloat(document.getElementById('base_price')?.value)||2500;
   let addonTotal = 0;
   selAddons.forEach(e=>{ addonTotal += CATS[e.ci].sizes[e.oi].price; });
-  Object.values(selNewAddons).forEach(a=>{ if(a&&typeof a==='object') addonTotal += a.price; });
   addonTotal += customs.reduce((s,a)=>s+(parseFloat(a.price)||0),0);
   addonTotal += extraBedrooms.reduce((s,b)=>s+b.price,0);
   const taxrate = parseFloat(document.getElementById('taxrate').value)||0;
@@ -1728,6 +1448,8 @@ function editProfitField(field){
   document.getElementById('pt-note').textContent = '80% of profit · reinvest ' + fmt2(reinvest) + ' · ~60% close rate';
 }
 
+
+let recentExpanded = false;
 
 function toggleRecent(){
   const body = document.getElementById('recent-body');
@@ -1880,27 +1602,18 @@ async function sendEmail(){
   const message=document.getElementById('email-body').value.trim();
   const statusEl=document.getElementById('email-status');
   const sendBtn=document.getElementById('email-send-btn');
-  if(!to){statusEl.textContent='Please enter a recipient email.';statusEl.style.color='var(--red)';return;}
-  if(!_lastPdfBlob){statusEl.textContent='No PDF generated yet.';statusEl.style.color='var(--red)';return;}
+  if(!to){statusEl.textContent='Please enter a recipient email.';statusEl.style.color='#e24b4a';return;}
+  if(!_lastPdfBlob){statusEl.textContent='No PDF generated yet.';statusEl.style.color='#e24b4a';return;}
   sendBtn.disabled=true; sendBtn.textContent='Sending...';
   statusEl.textContent='Sending email...'; statusEl.style.color='#888';
   try{
-    const base64=await new Promise((res,rej)=>{
-      const fr=new FileReader();
-      fr.onload=()=>res(fr.result.split(',')[1]);
-      fr.onerror=()=>rej(new Error('Failed to read PDF'));
-      fr.readAsDataURL(_lastPdfBlob);
-    });
-    const emailMeta = window._lastEmailMeta || {};
-    const r=await fetch('/api/email',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({to,subject,message,pdf:base64,filename:_lastPdfFilename,proposal_link:emailMeta.proposal_link||null,client_first_name:emailMeta.client_first_name||''})});
-    if(!r.ok){
-      if(r.status===404){throw new Error('Email endpoint not found — /api/email is not deployed on your server.');}
-      throw new Error(`Server returned ${r.status} ${r.statusText}`);
-    }
+    const ab=await _lastPdfBlob.arrayBuffer();
+    const base64=btoa(String.fromCharCode(...new Uint8Array(ab)));
+    const r=await fetch('/api/email',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({to,subject,message,pdf:base64,filename:_lastPdfFilename})});
     const d=await r.json();
-    if(d.sent){statusEl.textContent='✓ Email sent!';statusEl.style.color='var(--green)';setTimeout(()=>{closeEmailModal();if(window._lastInvoiceData)showProfitability(window._lastInvoiceData,window._lastGrand||0);},1500);}
-    else{statusEl.textContent='Error: '+(d.error||'Unknown');statusEl.style.color='var(--red)';}
-  }catch(e){statusEl.textContent='Error: '+e.message;statusEl.style.color='var(--red)';}
+    if(d.sent){statusEl.textContent='✓ Email sent!';statusEl.style.color='#22c55e';setTimeout(()=>{closeEmailModal();if(window._lastInvoiceData)showProfitability(window._lastInvoiceData,window._lastGrand||0);},1500);}
+    else{statusEl.textContent='Error: '+(d.error||'Unknown');statusEl.style.color='#e24b4a';}
+  }catch(e){statusEl.textContent='Error: '+e.message;statusEl.style.color='#e24b4a';}
   sendBtn.disabled=false; sendBtn.textContent='Send Email';
 }
 
@@ -1908,12 +1621,12 @@ async function generatePDF(){
   let valid=true;
   [['f-client','e-client','client'],['f-address','e-address','address'],['f-invdate','e-invdate','invdate'],['f-startdate','e-startdate','startdate']].forEach(([fid,eid,iid])=>{
     const inp=document.getElementById(iid);
-    const errEl=document.getElementById(eid);if(!inp.value.trim()){inp.classList.add('err');if(errEl)errEl.classList.add('show');valid=false;}
-    else{inp.classList.remove('err');if(errEl)errEl.classList.remove('show');}
+    if(!inp.value.trim()){inp.classList.add('err');document.getElementById(eid).classList.add('show');valid=false;}
+    else{inp.classList.remove('err');document.getElementById(eid).classList.remove('show');}
   });
   if(selRooms.size===0){document.getElementById('rooms-grid').classList.add('err');document.getElementById('e-rooms').classList.add('show');valid=false;}
   else{document.getElementById('rooms-grid').classList.remove('err');document.getElementById('e-rooms').classList.remove('show');}
-  if(!valid){document.getElementById('rooms-grid').scrollIntoView({behavior:'smooth'});return null;}
+  if(!valid){document.querySelector('.rooms-grid').scrollIntoView({behavior:'smooth'});return null;}
 
   const allAddons=[];
   selAddons.forEach(entry=>{
@@ -1924,7 +1637,6 @@ async function generatePDF(){
   });
   customs.filter(a=>a.desc).forEach(a=>{allAddons.push({desc:a.desc+(a.scope?': '+a.scope:''),price:parseFloat(a.price)||0});});
   extraBedrooms.forEach(b=>{allAddons.push({desc:`${b.name} (${b.bed}): ${b.scope||b.size}`,price:b.price});});
-  Object.values(selNewAddons).forEach(a=>{if(a&&typeof a==='object')allAddons.push({desc:`${a.name}${a.bed?' ('+a.bed+')':''} — ${a.sizeName}`,price:a.price});});
 
   const addonTotal=allAddons.reduce((s,a)=>s+a.price,0);
   const base=parseFloat(document.getElementById('base_price')?.value)||2500;
@@ -1944,7 +1656,7 @@ async function generatePDF(){
 
   setSt('loading','Generating your invoice PDF...');
   const data={client,address,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:document.getElementById('startdate').value,baserooms:[...selRooms].join(', '),extrate,taxrate,base_price:base,addons:allAddons,promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
-            promo4:document.getElementById('promo4').checked,payment_url,cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||'',stage:(currentLoadedInvnum?(window._lastLoadedStage||'proposal'):'proposal')};
+            promo4:document.getElementById('promo4').checked,payment_url,cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||''};
 
   try{
     const response=await fetch('/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
@@ -1952,12 +1664,7 @@ async function generatePDF(){
     const blob=await response.blob();
     const filename=`SWJ_${data.client.replace(/ /g,'_')}_${data.invnum}.pdf`;
     setTimeout(()=>saveInvoice(data).catch(()=>{}),100);
-    // After saving, refresh the next-invoice-number from Supabase (single source of truth).
-    // This ensures the displayed number stays accurate even after multiple generations.
-    // Only update display if we weren't loaded from an existing invoice (don't override loaded state).
-    if(!currentLoadedInvnum){
-      setTimeout(()=>initInvNum().catch(()=>{}), 500);
-    }
+    await fetch('/api/counter',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({value:parseInt(data.invnum)})}).catch(()=>{});
     setSt('ok','Invoice generated!');
     window._lastInvoiceData = data;
     window._lastGrand = grand;
@@ -1970,34 +1677,105 @@ async function generatePDF(){
 
 
 async function generate(){
-  // Bug 1 fix: generate() is now a thin wrapper around generatePDF().
-  // generatePDF() does ALL the heavy lifting (validation, Stripe, PDF gen, save).
-  // generate() adds the download-to-browser step on top.
-  const btn = document.getElementById('gen-btn');
-  if(btn){ btn.disabled = true; btn.textContent = 'Creating payment link...'; }
+  let valid=true;
+  [['f-client','e-client','client'],['f-address','e-address','address'],['f-invdate','e-invdate','invdate'],['f-startdate','e-startdate','startdate']].forEach(([fid,eid,iid])=>{
+    const inp=document.getElementById(iid);
+    if(!inp.value.trim()){inp.classList.add('err');document.getElementById(eid).classList.add('show');valid=false;}
+    else{inp.classList.remove('err');document.getElementById(eid).classList.remove('show');}
+  });
+  if(selRooms.size===0){document.getElementById('rooms-grid').classList.add('err');document.getElementById('e-rooms').classList.add('show');valid=false;}
+  else{document.getElementById('rooms-grid').classList.remove('err');document.getElementById('e-rooms').classList.remove('show');}
+  if(!valid){document.querySelector('.rooms-grid').scrollIntoView({behavior:'smooth'});return;}
 
-  const result = await generatePDF();
-  if(!result){
-    if(btn){ btn.disabled = false; btn.textContent = 'Generate Invoice + Payment Link'; }
-    return;
+  const btn=document.getElementById('gen-btn');btn.disabled=true;btn.textContent='Creating payment link...';
+
+  const allAddons=[];
+  selAddons.forEach(entry=>{
+    const cat=CATS[entry.ci],opt=cat.sizes[entry.oi];
+    const bed=cat.hasBed?bedSel.get(`${entry.ci}`):'';
+    const scope=document.getElementById(`sc-${entry.ci}`)?.value||entry.scope||'';
+    allAddons.push({desc:cat.name + (bed ? " (" + bed + ")" : "") + ": " + (scope||opt.size),price:opt.price});
+  });
+  customs.filter(a=>a.desc).forEach(a=>{allAddons.push({desc:a.desc+(a.scope?': '+a.scope:''),price:parseFloat(a.price)||0});});
+  extraBedrooms.forEach(b=>{allAddons.push({desc:`${b.name} (${b.bed}): ${b.scope||b.size}`,price:b.price});});
+
+  const addonTotal=allAddons.reduce((s,a)=>s+a.price,0);
+  const base=parseFloat(document.getElementById('base_price')?.value)||2500; const sub=base+addonTotal,taxrate=parseFloat(document.getElementById('taxrate').value)||0;
+  const grand=sub+sub*taxrate/100,extrate=Math.round(grand/3*100)/100;
+  const client=document.getElementById('client').value.trim();
+  const addressBase=document.getElementById('address').value.trim();
+  const zipVal=document.getElementById('zipcode')?.value.trim()||'';
+  const address=zipVal&&!addressBase.includes(zipVal)?addressBase+' '+zipVal:addressBase;
+
+  // Read invoice number from editable field
+  const invNumFinal = document.getElementById('invnum-display').value.trim() || '202093';
+  invNum = invNumFinal;
+
+  payment_url=null;
+  try{
+    payment_url=await createPaymentLink(grand,client,invNumFinal,address);
+  }catch(e){
+    setSt('err','Stripe error — generating invoice without payment link');
   }
+  btn.textContent='Generating PDF...';
+  setSt('loading','Generating your invoice PDF...');
 
-  // Download the PDF blob
+  
+
+  const data={client,address,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:document.getElementById('startdate').value,baserooms:[...selRooms].join(', '),extrate,taxrate,base_price:parseFloat(document.getElementById('base_price')?.value)||2500,addons:allAddons,promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
+            promo4:document.getElementById('promo4').checked,payment_url,cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||''};
+
+  // Send to API and download PDF
   try {
-    const url = URL.createObjectURL(result.blob);
+    console.log('PDF: fetching...');
+    const response = await fetch('/api/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    console.log('PDF: status=', response.status, 'type=', response.headers.get('content-type'));
+
+    if (!response.ok) {
+      const txt = await response.text();
+      throw new Error('Generate failed: ' + txt.substring(0,200));
+    }
+
+    console.log('PDF: getting blob...');
+    const blob = await response.blob();
+    console.log('PDF: blob size=', blob.size, 'type=', blob.type);
+
+    const url = URL.createObjectURL(blob);
+    const filename = `SWJ_${data.client.replace(/ /g,'_')}_${data.invnum}.pdf`;
+    console.log('PDF: downloading as', filename);
+
     const a = document.createElement('a');
     a.style.display = 'none';
     a.href = url;
-    a.download = result.filename;
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     setTimeout(()=>{ document.body.removeChild(a); URL.revokeObjectURL(url); }, 3000);
-    setSt('ok', 'Invoice generated and downloaded! Check your Downloads folder.');
-  } catch(e) {
-    setSt('err', 'Download error: ' + e.message);
-  }
+    console.log('PDF: click done');
 
-  if(btn){ btn.disabled = false; btn.textContent = 'Generate Invoice + Payment Link'; }
+    // Save invoice number — always keep the highest number used
+    await fetch('/api/counter', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({value: parseInt(data.invnum)})
+    }).catch(()=>{});
+
+    setSt('ok', 'Invoice generated and downloaded! Check your Downloads folder.');
+    setTimeout(()=>saveInvoice(data).catch(()=>{}), 100);
+    btn.textContent = 'Generate Invoice + Payment Link';
+    btn.disabled = false;
+    console.log('PDF: all done!');
+
+  } catch(e) {
+    console.log('PDF ERROR:', e.message, e.stack);
+    setSt('err', 'Error: ' + e.message);
+    btn.textContent = 'Generate Invoice + Payment Link';
+    btn.disabled = false;
+  }
 }
 
 
@@ -2008,31 +1786,30 @@ document.addEventListener('DOMContentLoaded', function(){
   if(bp){bp.addEventListener('input',recalc);bp.addEventListener('change',recalc);}
   buildRooms();
   buildCats();
+  loadPricingDefaults().then(()=>{ buildCats(); recalc(); _origBasePrice = parseFloat(document.getElementById('base_price').value)||2500; });
   recalc();
   initInvNum();
   loadRecent();
   loadDrafts();
   fetch('/api/config').then(r=>r.json()).then(d=>{if(d&&d.stripe_key)STRIPE_KEY=d.stripe_key;}).catch(()=>{});
-
-  // Auto-load specific invoice if ?inv=XXX is in URL (e.g. from Today page)
-  const urlInvnum = new URLSearchParams(window.location.search).get('inv');
-  if(urlInvnum){
-    setTimeout(async () => {
-      try {
-        const { data } = await _sb.from('invoices').select('*').eq('invnum', urlInvnum).limit(1);
-        if(data && data[0]){
-          currentLoadedInvnum = data[0].invnum;
-          loadInvoiceData(data[0].data || data[0]);
-          showUpdateBtn();
-          setSt('ok', 'Invoice ' + urlInvnum + ' loaded');
-        }
-      } catch(e){ console.log('Auto-load failed:', e); }
-    }, 400);
-  }
 });
 
 
-/* duplicate DOMContentLoaded removed */
+document.addEventListener('DOMContentLoaded', function(){
+  try {
+    document.getElementById('invdate').value = new Date().toISOString().split('T')[0];
+    const bp = document.getElementById('base_price');
+    if(bp){ bp.addEventListener('input', recalc); bp.addEventListener('change', recalc); }
+    buildRooms();
+    buildCats();
+    recalc();
+    initInvNum();
+    loadRecent();
+    fetch('/api/config').then(r=>r.json()).then(d=>{if(d&&d.stripe_key)STRIPE_KEY=d.stripe_key;}).catch(()=>{});
+  } catch(e) {
+    console.error('Init error:', e.message, e.stack);
+  }
+});
 </script>
 </body>
 </html>
