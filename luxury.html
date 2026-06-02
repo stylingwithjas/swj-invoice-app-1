@@ -476,10 +476,10 @@ body { background:#eceff3; color:var(--ink); }
         </div>
         <div class="tier-suggest-note" id="tier-suggest-note"></div>
         <div class="tier-rate-edit">
-          <span>Base $ —</span>
-          <span>Std</span><input class="tier-rate-input" id="base-Standard" type="number" step="100" inputmode="decimal" oninput="onBaseEdit('Standard',this.value)">
-          <span>Prem</span><input class="tier-rate-input" id="base-Premium" type="number" step="100" inputmode="decimal" oninput="onBaseEdit('Premium',this.value)">
-          <span>Lux</span><input class="tier-rate-input" id="base-Luxury" type="number" step="100" inputmode="decimal" oninput="onBaseEdit('Luxury',this.value)">
+          <span>Base % of target —</span>
+          <span>Std</span><input class="tier-rate-input" id="base-Standard" type="number" step="1" inputmode="decimal" oninput="onBasePctEdit('Standard',this.value)">
+          <span>Prem</span><input class="tier-rate-input" id="base-Premium" type="number" step="1" inputmode="decimal" oninput="onBasePctEdit('Premium',this.value)">
+          <span>Lux</span><input class="tier-rate-input" id="base-Luxury" type="number" step="1" inputmode="decimal" oninput="onBasePctEdit('Luxury',this.value)">
         </div>
         <div class="tier-rate-edit">
           <span>Rate $/sq ft —</span>
@@ -1102,7 +1102,7 @@ let _origBasePrice = 2500;
 // Kirkland partial $1.02 ≈ 0.38 of full). All values editable + saved to Supabase 'TIER_PRICING'.
 const TIER_RATES = { Standard: 2.50, Premium: 2.70, Luxury: 3.00 }; // $/sq ft for full staging
 const SCOPE_FRAC = { Vignette: 0.20, Partial: 0.40, Full: 1.00 };   // share of sq ft staged
-const BASE_PKG = { Standard: 2500, Premium: 3000, Luxury: 4500 };   // set base package per tier (editable)
+const BASE_PCT = { Standard: 64, Premium: 64, Luxury: 64 };   // base package = this % of the sq-ft target (editable)
 const TIER_SCOPES = { Standard:['Vignette','Partial','Full'], Premium:['Vignette','Partial','Full'], Luxury:['Vignette','Partial','Full'] };
 const SCOPE_DESC = { Vignette:'Key vignettes', Partial:'Signature spaces', Full:'Complete residence' };
 const TIER_MATRIX = { // flat cross-check ranges (handoff)
@@ -1151,13 +1151,16 @@ function renderScopePills(){
   });
 }
 function selectScope(sc){
-  selScope = sc;            // scope sets the TARGET; base package stays the tier's set number
+  selScope = sc;            // scope changes the target → base (a % of target) tracks it
   renderScopePills();
+  setBaseForTier();
   updateTierUI();
 }
 function setBaseForTier(){
-  if(!selTier || BASE_PKG[selTier]==null) return;
-  const base = BASE_PKG[selTier];
+  if(!selTier || BASE_PCT[selTier]==null) return;
+  const target = estimatePrice();
+  if(!target) return;
+  const base = Math.round((target * BASE_PCT[selTier]/100)/50)*50;   // base = % of the sq-ft target
   const bp=document.getElementById('base_price');
   if(bp){ bp.value=base; _origBasePrice=base; const chk=document.getElementById('base-save-check'); if(chk) chk.classList.remove('changed','saved'); }
   recalc();
@@ -1181,19 +1184,19 @@ function updateTierUI(){
     const el=document.getElementById('rate-'+t);
     if(el && document.activeElement!==el) el.value=TIER_RATES[t];
     const be=document.getElementById('base-'+t);
-    if(be && document.activeElement!==be) be.value=BASE_PKG[t];
+    if(be && document.activeElement!==be) be.value=BASE_PCT[t];
   });
   if(!selTier || !selScope){ box.style.display='none'; return; }
   box.style.display='block';
   const target = estimatePrice();
-  const base = BASE_PKG[selTier]||0;
+  const base = Math.round((target * (BASE_PCT[selTier]||0)/100)/50)*50;
   document.getElementById('tier-suggest-val').textContent = target ? '$'+tierCommas(target) : '—';
   let note;
   if(!homeSqft){
     note = 'Enter square footage to calculate the target.';
   } else {
     const roomRoom = Math.max(0, target - base);
-    note = 'Base package $'+tierCommas(base)+' ('+selTier+') is set below. '
+    note = 'Base package $'+tierCommas(base)+' ('+(BASE_PCT[selTier]||0)+'% of target) is set below. '
          + tierCommas(homeSqft)+' sq ft × $'+Number(TIER_RATES[selTier]).toFixed(2)+'/sq ft × '+Math.round(SCOPE_FRAC[selScope]*100)+'% ('+selScope+'). '
          + 'Add ~$'+tierCommas(roomRoom)+' in rooms & enhancements to reach the target.';
   }
@@ -1203,11 +1206,12 @@ function onRateEdit(tier, val){
   const r = parseFloat(val);
   if(!isNaN(r)) TIER_RATES[tier] = r;
   const chk=document.getElementById('tier-rate-save'); if(chk) chk.classList.add('changed');
+  if(tier===selTier) setBaseForTier();
   updateTierUI();
 }
-function onBaseEdit(tier, val){
-  const n = parseInt(String(val).replace(/[^0-9]/g,''),10);
-  if(!isNaN(n)) BASE_PKG[tier] = n;
+function onBasePctEdit(tier, val){
+  const n = parseFloat(val);
+  if(!isNaN(n)) BASE_PCT[tier] = n;
   const chk=document.getElementById('tier-rate-save'); if(chk) chk.classList.add('changed');
   if(tier===selTier) setBaseForTier();
   updateTierUI();
@@ -1244,14 +1248,14 @@ async function loadTierSettings(){
     if(d){
       if(d.rates) Object.assign(TIER_RATES, d.rates);
       if(d.frac) Object.assign(SCOPE_FRAC, d.frac);
-      if(d.base) Object.assign(BASE_PKG, d.base);
+      if(d.basePct) Object.assign(BASE_PCT, d.basePct);
     }
   }catch(e){}
   updateTierUI();
 }
 async function saveTierSettingsClicked(btn){
   try{
-    await _sb.from('invoices').upsert({ invnum:'TIER_PRICING', client:'TIER_PRICING', address:'', invdate:new Date().toISOString().split('T')[0], data:{ rates:TIER_RATES, frac:SCOPE_FRAC, base:BASE_PKG } }, { onConflict:'invnum' });
+    await _sb.from('invoices').upsert({ invnum:'TIER_PRICING', client:'TIER_PRICING', address:'', invdate:new Date().toISOString().split('T')[0], data:{ rates:TIER_RATES, frac:SCOPE_FRAC, basePct:BASE_PCT } }, { onConflict:'invnum' });
     btn.classList.remove('changed'); btn.classList.add('saved');
     setTimeout(function(){ btn.classList.remove('saved'); }, 2000);
   }catch(e){}
