@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="512x512" href="/assets/icon-512.png">
 <script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js').catch(function(){});});}</script>
-<title>SWJ — Invoice Generator</title>
+<title>SWJ — Luxury Collection</title>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
@@ -80,6 +80,26 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
 .base-lbl { font-size:13px; color:var(--ink-soft); }
 .base-input { font-family:"Cormorant Garamond",serif; font-size:19px; font-weight:400; color:var(--green); background:transparent; border:none; border-bottom:1.5px solid var(--taupe-lt); outline:none; text-align:right; width:120px; padding:2px 0 4px; transition:border-color 0.18s; }
 .base-input:focus { border-bottom-color:var(--gold); }
+/* ── Property tier & pricing ── */
+.tier-field-row { display:flex; flex-wrap:wrap; gap:14px; align-items:flex-end; margin-bottom:10px; }
+.tier-field-row .field { margin:0; }
+.tier-fetch-btn { font-family:"Inter",sans-serif; font-size:11px; font-weight:500; letter-spacing:0.5px; text-transform:uppercase; color:var(--gold-dk); background:var(--gold-lt); border:1px solid var(--gold); border-radius:8px; padding:9px 13px; cursor:pointer; white-space:nowrap; transition:all 0.15s; }
+.tier-fetch-btn:hover { background:var(--gold); color:#fff; }
+.tier-fetch-btn:disabled { opacity:0.5; cursor:default; }
+.tier-block { margin-top:12px; }
+.tier-pills { display:flex; flex-wrap:wrap; gap:8px; margin-top:6px; }
+.pill { display:flex; flex-direction:column; align-items:flex-start; gap:2px; padding:9px 14px; border-radius:10px; border:1.5px solid var(--taupe-lt); background:var(--cream); cursor:pointer; font-family:"Inter",sans-serif; font-size:13px; font-weight:500; color:var(--taupe-dk); transition:all 0.15s; -webkit-user-select:none; }
+.pill .pill-sub { font-size:10px; font-weight:400; color:var(--taupe); letter-spacing:0.3px; }
+.pill.sel { border-color:var(--gold); background:var(--gold-lt); color:var(--gold-dk); }
+.pill.sel .pill-sub { color:var(--gold-dk); }
+.tier-suggest { margin-top:12px; padding:12px 14px; border-radius:10px; background:var(--ink); }
+.tier-suggest-row { display:flex; justify-content:space-between; align-items:baseline; }
+.tier-suggest-lbl { font-size:10px; text-transform:uppercase; letter-spacing:1.2px; color:var(--taupe-lt); }
+.tier-suggest-val { font-family:"Cormorant Garamond",serif; font-size:24px; color:var(--gold); }
+.tier-suggest-note { font-size:11px; color:var(--taupe-lt); margin-top:5px; line-height:1.55; }
+.tier-rate-edit { display:flex; align-items:center; gap:6px; flex-wrap:wrap; font-size:11px; color:var(--taupe-lt); margin-top:9px; padding-top:9px; border-top:1px solid rgba(212,207,201,0.15); }
+.tier-rate-input { width:50px; font-family:"Inter",sans-serif; font-size:12px; color:#f0ebe3; background:transparent; border:none; border-bottom:1px solid rgba(212,207,201,0.3); text-align:center; outline:none; padding:2px 0; }
+.tier-rate-input:focus { border-bottom-color:var(--gold); }
 
 /* ── ROOMS GRID ── */
 .rooms-grid { display:grid; grid-template-columns:1fr 1fr; gap:7px; margin-top:12px; }
@@ -296,6 +316,59 @@ textarea:focus { border-color:var(--gold); background:var(--warm); }
 .size-chip:hover .price-save-check { opacity:0.5; }
 .size-chip:hover .price-save-check.changed { opacity:1; }
 
+/* ════════════ LUXURY COLLECTION — dark luxe theme ════════════ */
+:root {
+  --ink:      #f3ecdd;
+  --ink-soft: #d6ccba;
+  --cream:    #241f17;
+  --warm:     #2c2619;
+  --taupe:    #ab9f8b;
+  --taupe-lt: #5d5446;
+  --taupe-dk: #c9bca7;
+  --gold:     #e0bd7a;
+  --gold-lt:  #3d3120;
+  --gold-dk:  #efd193;
+  --green:    #93c397;
+  --green-lt: #1f261d;
+  --amber:    #e2a24e;
+  --red:      #e58282;
+}
+body {
+  background:
+    radial-gradient(1100px 520px at 50% -8%, #322716 0%, rgba(50,39,22,0) 62%),
+    linear-gradient(180deg, #181309 0%, #100d07 100%);
+  background-attachment:fixed; color:var(--ink);
+}
+@media(min-width:600px){ body { padding:2rem;
+  background:
+    radial-gradient(1100px 520px at 50% -8%, #322716 0%, rgba(50,39,22,0) 62%),
+    linear-gradient(180deg, #181309 0%, #100d07 100%);
+  background-attachment:fixed; } }
+/* surfaces that intentionally stay dark (were var(--ink) backgrounds) */
+.hdr { background:#100d07; border-bottom:1px solid rgba(224,189,122,0.18); }
+.tier-suggest { background:#0c0a05; border:1px solid rgba(224,189,122,0.22); }
+.summary-card { background:linear-gradient(160deg,#201a10 0%,#13100a 100%); border:1px solid rgba(224,189,122,0.22); }
+.profit-header { background:#100d07; }
+.modal-send-btn, .profit-done-btn { background:#221b10; color:#f3ecdd; border:1px solid rgba(224,189,122,0.30); }
+.profit-take-value { color:#a9d6ac; }
+/* card edges + depth */
+.card { border:1px solid rgba(224,189,122,0.13); box-shadow:0 10px 34px rgba(0,0,0,0.28); }
+.addon-cat, .custom-item, .profit-cost-card { border-color:rgba(224,189,122,0.12); }
+/* brand + accents */
+.brand-name { color:#f0dcab; letter-spacing:5px; }
+.brand-sub { color:rgba(240,220,171,0.55); }
+.sec-lbl { color:var(--gold); opacity:0.75; }
+.sec-accent { opacity:0.85; }
+/* white buttons -> gold */
+.nav-btn.on { background:var(--gold); color:#161009; }
+#gen-btn { background:linear-gradient(135deg,#efd193 0%,#cf9f48 100%); color:#161009; }
+#email-btn { background:rgba(224,189,122,0.10); color:rgba(240,220,171,0.72); }
+#profit-preview-btn { background:rgba(224,189,122,0.10); color:rgba(240,220,171,0.60); }
+.tier-fetch-btn { background:rgba(224,189,122,0.12); color:var(--gold-dk); border-color:rgba(224,189,122,0.40); }
+.tier-fetch-btn:hover { background:var(--gold); color:#161009; }
+/* selection glow */
+.pill.sel, .chip.sel, .size-chip.sel, .bed-btn.active { box-shadow:0 0 0 1px rgba(224,189,122,0.25), 0 4px 16px rgba(224,189,122,0.12); }
+
 </style>
 </head>
 <body>
@@ -306,13 +379,13 @@ textarea:focus { border-color:var(--gold); background:var(--warm); }
     <div class="brand">
       <div class="brand-name">SWJ</div>
       <div class="brand-sep"></div>
-      <div class="brand-sub">Invoice Generator</div>
+      <div class="brand-sub">Luxury Collection</div>
     </div>
     <div class="hdr-right">
       <input class="inv-badge" id="invnum-display" type="text" value="202093">
       <div class="nav-sw">
-        <button class="nav-btn on" id="nav-invoice">Invoice</button>
-        <button class="nav-btn off" id="nav-luxury" onclick="window.location.href='luxury.html'">Luxury</button>
+        <button class="nav-btn off" id="nav-invoice" onclick="window.location.href='index.html'">Invoice</button>
+        <button class="nav-btn on" id="nav-luxury">Luxury</button>
         <button class="nav-btn off" id="nav-board" onclick="window.location.href='board.html'">Board</button>
       </div>
     </div>
@@ -372,7 +445,7 @@ textarea:focus { border-color:var(--gold); background:var(--warm); }
 
   <!-- CLIENT & PROPERTY -->
   <div class="card">
-    <div class="card-hdr"><span class="sec-lbl">Client & Property</span><div class="sec-accent"></div></div>
+    <div class="card-hdr"><span class="sec-lbl">Client & Residence</span><div class="sec-accent"></div></div>
     <div class="card-body">
       <div class="field" id="f-client">
         <div class="field-lbl">Client Name</div>
@@ -380,7 +453,7 @@ textarea:focus { border-color:var(--gold); background:var(--warm); }
         <div class="ferr" id="e-client">Required</div>
       </div>
       <div class="field" id="f-address">
-        <div class="field-lbl">Property Address</div>
+        <div class="field-lbl">Residence Address</div>
         <input class="field-input" id="address" type="text" placeholder="123 Main St, Seattle WA" autocomplete="street-address">
         <div class="ferr" id="e-address">Required</div>
       </div>
@@ -392,16 +465,61 @@ textarea:focus { border-color:var(--gold); background:var(--warm); }
     </div>
   </div>
 
+  <!-- PROPERTY TIER & PRICING -->
+  <div class="card">
+    <div class="card-hdr"><span class="sec-lbl">Residence Tier & Investment</span><div class="sec-accent"></div></div>
+    <div class="card-body">
+      <div class="tier-field-row">
+        <div class="field" style="max-width:160px">
+          <div class="field-lbl">Est. Home Value</div>
+          <input class="field-input" id="home_value" type="text" inputmode="numeric" placeholder="$1,500,000" oninput="onHomeValueInput(this)">
+        </div>
+        <div class="field" style="max-width:120px">
+          <div class="field-lbl">Square Footage</div>
+          <input class="field-input" id="home_sqft" type="text" inputmode="numeric" placeholder="2,500" oninput="onSqftInput(this)">
+        </div>
+        <button type="button" class="tier-fetch-btn" id="tier-fetch-btn" onclick="fetchHomeValue()" title="Estimate value and size from the property address">Estimate from address</button>
+      </div>
+      <div class="zip-note" id="tier-note">&nbsp;</div>
+      <div class="tier-block">
+        <div class="field-lbl">Tier <span style="text-transform:none;letter-spacing:0;font-weight:400;color:var(--taupe)">— auto from value, tap to override</span></div>
+        <div class="tier-pills" id="tier-pills">
+          <button type="button" class="pill" data-tier="Standard" onclick="selectTier('Standard',true)">Standard<span class="pill-sub">&le; $1M</span></button>
+          <button type="button" class="pill" data-tier="Premium" onclick="selectTier('Premium',true)">Premium<span class="pill-sub">$1M&ndash;$2M</span></button>
+          <button type="button" class="pill" data-tier="Luxury" onclick="selectTier('Luxury',true)">Luxury<span class="pill-sub">$2M+</span></button>
+        </div>
+      </div>
+      <div class="tier-block">
+        <div class="field-lbl">Scope</div>
+        <div class="tier-pills" id="scope-pills"></div>
+      </div>
+      <div class="tier-suggest" id="tier-suggest" style="display:none">
+        <div class="tier-suggest-row">
+          <span class="tier-suggest-lbl">Suggested investment</span>
+          <span class="tier-suggest-val" id="tier-suggest-val">$0</span>
+        </div>
+        <div class="tier-suggest-note" id="tier-suggest-note"></div>
+        <div class="tier-rate-edit">
+          <span>Rate $/sq ft —</span>
+          <span>Std</span><input class="tier-rate-input" id="rate-Standard" type="number" step="0.05" inputmode="decimal" oninput="onRateEdit('Standard',this.value)">
+          <span>Prem</span><input class="tier-rate-input" id="rate-Premium" type="number" step="0.05" inputmode="decimal" oninput="onRateEdit('Premium',this.value)">
+          <span>Lux</span><input class="tier-rate-input" id="rate-Luxury" type="number" step="0.05" inputmode="decimal" oninput="onRateEdit('Luxury',this.value)">
+          <button class="price-save-check" id="tier-rate-save" onclick="saveTierSettingsClicked(this)" title="Save these rates as new defaults">✓</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- BASE PACKAGE -->
   <div class="card">
-    <div class="card-hdr"><span class="sec-lbl">Base Package — Select Rooms</span><div class="sec-accent"></div></div>
+    <div class="card-hdr"><span class="sec-lbl">Signature Package — Select Spaces</span><div class="sec-accent"></div></div>
     <div class="card-body">
       <div class="base-row">
-        <span class="base-lbl">Base package price</span>
+        <span class="base-lbl">Signature package investment</span>
         <div style="display:inline-flex;align-items:center;gap:6px"><input class="base-input" id="base_price" type="number" value="2500" step="100" inputmode="decimal" oninput="onBasePriceEdit(this)"><button class="price-save-check" id="base-save-check" onclick="saveBasePriceClicked(this)" title="Save as new default" style="font-size:14px">✓</button></div>
       </div>
       <div style="font-size:11px;color:var(--taupe);margin:10px 0 12px;line-height:1.5">
-        Includes delivery, setup, 45-day furniture rental & teardown.
+        Includes white-glove delivery, bespoke styling, 45-day curated furnishings & seamless teardown.
       </div>
       <div class="rooms-grid" id="rooms-grid"></div>
       <div class="ferr" id="e-rooms" style="margin-top:6px">Please select at least one room</div>
@@ -410,7 +528,7 @@ textarea:focus { border-color:var(--gold); background:var(--warm); }
 
   <!-- ADD-ONS -->
   <div class="card">
-    <div class="card-hdr"><span class="sec-lbl">Add-ons by Room</span><div class="sec-accent"></div></div>
+    <div class="card-hdr"><span class="sec-lbl">Curated Enhancements</span><div class="sec-accent"></div></div>
     <div class="card-body" style="padding-top:8px">
       <div id="addon-categories"></div>
       <div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(162,156,150,0.08)">
@@ -494,7 +612,7 @@ textarea:focus { border-color:var(--gold); background:var(--warm); }
       <div class="summary-addr" id="sum-addr">&nbsp;</div>
     </div>
     <div class="summary-rows">
-      <div class="t-row"><span>Base package</span><span id="t-base">$2,500.00</span></div>
+      <div class="t-row"><span>Signature package</span><span id="t-base">$2,500.00</span></div>
       <div class="t-row"><span>Add-ons</span><span id="t-addons">$0.00</span></div>
       <div class="t-divider"></div>
       <div class="t-row"><span>Subtotal</span><span id="t-sub">$2,500.00</span></div>
@@ -507,11 +625,11 @@ textarea:focus { border-color:var(--gold); background:var(--warm); }
     <div class="sum-ext"><span id="t-ext">Extension: $918.75 / 30 days</span></div>
     <div class="stripe-bar" style="margin:0 16px 14px">
       <span class="sdot" id="sdot"></span>
-      <span id="smsg">Stripe payment link will be created automatically.</span>
+      <span id="smsg">A secure payment link will be prepared automatically.</span>
     </div>
-    <button class="gen-btn" id="gen-btn" onclick="generate()">Generate Invoice + Payment Link</button>
-    <button class="gen-btn" id="email-btn" onclick="generateAndEmail()">Generate + Email to Client</button>
-    <button class="gen-btn" id="profit-preview-btn" onclick="previewProfitability()">Preview Job Profitability</button>
+    <button class="gen-btn" id="gen-btn" onclick="generate()">Prepare Proposal + Payment Link</button>
+    <button class="gen-btn" id="email-btn" onclick="generateAndEmail()">Prepare & Email Proposal</button>
+    <button class="gen-btn" id="profit-preview-btn" onclick="previewProfitability()">Preview Engagement Profitability</button>
   </div>
 
 </div>
@@ -861,7 +979,8 @@ function captureState(){
     extraBedrooms:extraBedrooms.map(b=>({...b})),
     customs:customs.map(c=>({...c})),
     cats:CATS.map(c=>({name:c.name,sizes:c.sizes.map(s=>({size:s.size,price:s.price}))})),
-    base_price:parseFloat(document.getElementById('base_price')?.value)||2500
+    base_price:parseFloat(document.getElementById('base_price')?.value)||2500,
+    home_value:homeValue, home_sqft:homeSqft, tier:selTier, scope:selScope, tier_manual:tierManual
   };
 }
 
@@ -890,6 +1009,12 @@ function restoreState(state){
   buildCats();
   renderExtraBedrooms();
   renderCustoms();
+  homeValue=state.home_value||0; homeSqft=state.home_sqft||0; tierManual=!!state.tier_manual;
+  const _hv=document.getElementById('home_value'); if(_hv) _hv.value=homeValue?('$'+tierCommas(homeValue)):'';
+  const _hs=document.getElementById('home_sqft'); if(_hs) _hs.value=homeSqft?tierCommas(homeSqft):'';
+  selTier=state.tier||''; selScope=state.scope||'';
+  document.querySelectorAll('#tier-pills .pill').forEach(function(p){ p.classList.toggle('sel', p.dataset.tier===selTier); });
+  renderScopePills(); updateTierUI();
   recalc();
   return true;
 }
@@ -989,6 +1114,147 @@ const _sb = supabase.createClient('https://cwvdfgrjlrpsdfwduwvn.supabase.co', 'e
 
 
 let _origBasePrice = 2500;
+
+// ───────── PROPERTY TIER & PRICING (square-footage driven) ─────────
+// Rates derived from real SWJ jobs: ~$2.70/sq ft full-equivalent (Othello $2.71, Newcastle $2.70,
+// Kirkland partial $1.02 ≈ 0.38 of full). All values editable + saved to Supabase 'TIER_PRICING'.
+const TIER_RATES = { Standard: 2.50, Premium: 2.70, Luxury: 3.00 }; // $/sq ft for full staging
+const SCOPE_FRAC = { Vignette: 0.20, Partial: 0.40, Full: 1.00 };   // share of sq ft staged
+const TIER_SCOPES = { Standard:['Vignette','Partial','Full'], Premium:['Vignette','Partial','Full'], Luxury:['Vignette','Partial','Full'] };
+const SCOPE_DESC = { Vignette:'Key vignettes', Partial:'Signature spaces', Full:'Complete residence' };
+const TIER_MATRIX = { // flat cross-check ranges (handoff)
+  Standard:{ Vignette:[1200,1800], Partial:[2500,3500], Full:[4000,5500] },
+  Premium:{ Partial:[4500,6500], Full:[7000,9500] },
+  Luxury:{ Partial:[7500,10000], Full:[11000,15000] }
+};
+let selTier='', selScope='', homeValue=0, homeSqft=0, tierManual=false;
+
+function tierForValue(v){ if(v<=1000000) return 'Standard'; if(v<=2000000) return 'Premium'; return 'Luxury'; }
+function tierNum(s){ return parseInt(String(s||'').replace(/[^0-9]/g,''),10)||0; }
+function tierCommas(n){ return Number(n||0).toLocaleString('en-US'); }
+
+function onHomeValueInput(input){
+  homeValue = tierNum(input.value);
+  input.value = homeValue ? '$'+tierCommas(homeValue) : '';
+  if(!tierManual && homeValue) selectTier(tierForValue(homeValue), false);
+  updateTierUI();
+}
+function onSqftInput(input){
+  homeSqft = tierNum(input.value);
+  input.value = homeSqft ? tierCommas(homeSqft) : '';
+  updateTierUI();
+}
+function selectTier(tier, manual){
+  selTier = tier;
+  if(manual) tierManual = true;
+  document.querySelectorAll('#tier-pills .pill').forEach(function(p){ p.classList.toggle('sel', p.dataset.tier===tier); });
+  if(selScope && TIER_SCOPES[tier].indexOf(selScope) < 0) selScope='';
+  renderScopePills();
+  updateTierUI();
+}
+function renderScopePills(){
+  const cont = document.getElementById('scope-pills');
+  if(!cont) return;
+  cont.innerHTML='';
+  if(!selTier) return;
+  TIER_SCOPES[selTier].forEach(function(sc){
+    const b=document.createElement('button');
+    b.type='button';
+    b.className='pill'+(sc===selScope?' sel':'');
+    const _pr = scopePrice(sc);
+    const _sub = _pr ? ('$'+tierCommas(_pr)+' · '+SCOPE_DESC[sc]) : SCOPE_DESC[sc];
+    b.innerHTML = sc + '<span class="pill-sub">'+_sub+'</span>';
+    b.onclick=function(){ selectScope(sc); };
+    cont.appendChild(b);
+  });
+}
+function selectScope(sc){
+  selScope = sc;
+  renderScopePills();
+  const p = estimatePrice();
+  if(p){
+    const bp=document.getElementById('base_price');
+    if(bp){ bp.value=p; _origBasePrice=p; const chk=document.getElementById('base-save-check'); if(chk) chk.classList.remove('changed','saved'); }
+  }
+  updateTierUI();
+  recalc();
+}
+function scopePrice(sc){
+  if(!homeSqft || !selTier || !sc) return 0;
+  return Math.round((homeSqft * (TIER_RATES[selTier]||0) * (SCOPE_FRAC[sc]||0))/50)*50;
+}
+function estimatePrice(){ return scopePrice(selScope); }
+function updateTierUI(){
+  const box = document.getElementById('tier-suggest');
+  if(!box) return;
+  ['Standard','Premium','Luxury'].forEach(function(t){
+    const el=document.getElementById('rate-'+t);
+    if(el && document.activeElement!==el) el.value=TIER_RATES[t];
+  });
+  if(!selTier || !selScope){ box.style.display='none'; return; }
+  box.style.display='block';
+  const p = estimatePrice();
+  document.getElementById('tier-suggest-val').textContent = p ? '$'+tierCommas(p) : '—';
+  let note;
+  if(!homeSqft){
+    note = 'Enter square footage to calculate the suggested price.';
+  } else {
+    note = tierCommas(homeSqft)+' sq ft × $'+Number(TIER_RATES[selTier]).toFixed(2)+'/sq ft × '+Math.round(SCOPE_FRAC[selScope]*100)+'% ('+selScope+')';
+    const rng = TIER_MATRIX[selTier] && TIER_MATRIX[selTier][selScope];
+    if(rng) note += '  ·  typical '+selTier+' '+selScope+' range $'+tierCommas(rng[0])+'–$'+tierCommas(rng[1]);
+  }
+  document.getElementById('tier-suggest-note').textContent = note;
+}
+function onRateEdit(tier, val){
+  const r = parseFloat(val);
+  if(!isNaN(r)) TIER_RATES[tier] = r;
+  const chk=document.getElementById('tier-rate-save'); if(chk) chk.classList.add('changed');
+  updateTierUI();
+}
+function fetchHomeValue(){
+  const addr = (document.getElementById('address').value||'').trim();
+  const zipEl = document.getElementById('zipcode');
+  const zip = (zipEl ? zipEl.value : '').trim();
+  const full = (zip && addr.indexOf(zip)<0) ? addr+' '+zip : addr;
+  const note = document.getElementById('tier-note');
+  if(!full){ if(note){ note.textContent='Enter the property address first.'; note.style.color='#c97c2e'; } return; }
+  const btn = document.getElementById('tier-fetch-btn');
+  if(btn){ btn.disabled=true; btn.textContent='Estimating…'; }
+  if(note){ note.textContent='Looking up '+full+'…'; note.style.color='#a29c96'; }
+  fetch('/api/zestimate?address='+encodeURIComponent(full))
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if(d && (d.value || d.sqft)){
+        if(d.value){ homeValue=Math.round(d.value); const v=document.getElementById('home_value'); if(v) v.value='$'+tierCommas(homeValue); if(!tierManual) selectTier(tierForValue(homeValue), false); }
+        if(d.sqft){ homeSqft=Math.round(d.sqft); const s=document.getElementById('home_sqft'); if(s) s.value=tierCommas(homeSqft); }
+        updateTierUI();
+        if(note){ note.textContent='Found '+(d.value?'$'+tierCommas(Math.round(d.value)):'value n/a')+(d.sqft?' · '+tierCommas(Math.round(d.sqft))+' sq ft':'')+(d.source?' ('+d.source+')':''); note.style.color='#4a7c50'; }
+      } else {
+        if(note){ note.textContent = (d&&d.error) ? ('Auto-lookup unavailable — enter manually. ('+d.error+')') : 'No match — enter value & sq ft manually.'; note.style.color='#c97c2e'; }
+      }
+    })
+    .catch(function(){ if(note){ note.textContent='Auto-lookup unavailable — enter value & sq ft manually.'; note.style.color='#c97c2e'; } })
+    .finally(function(){ if(btn){ btn.disabled=false; btn.textContent='Estimate from address'; } });
+}
+async function loadTierSettings(){
+  try{
+    const res = await _sb.from('invoices').select('data').eq('invnum','TIER_PRICING').single();
+    const d = (res && res.data) ? res.data.data : null;
+    if(d){
+      if(d.rates) Object.assign(TIER_RATES, d.rates);
+      if(d.frac) Object.assign(SCOPE_FRAC, d.frac);
+    }
+  }catch(e){}
+  updateTierUI();
+}
+async function saveTierSettingsClicked(btn){
+  try{
+    await _sb.from('invoices').upsert({ invnum:'TIER_PRICING', client:'TIER_PRICING', address:'', invdate:new Date().toISOString().split('T')[0], data:{ rates:TIER_RATES, frac:SCOPE_FRAC } }, { onConflict:'invnum' });
+    btn.classList.remove('changed'); btn.classList.add('saved');
+    setTimeout(function(){ btn.classList.remove('saved'); }, 2000);
+  }catch(e){}
+}
+// ───────── end property tier ─────────
 
 function onBasePriceEdit(input){
   input.dataset.userEdited = '1';
@@ -1729,7 +1995,7 @@ async function generatePDF(){
   catch(e){setSt('err','Stripe error — continuing without payment link');}
 
   setSt('loading','Generating your invoice PDF...');
-  const data={client,address,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:document.getElementById('startdate').value,baserooms:[...selRooms].join(', '),extrate,taxrate,base_price:base,addons:allAddons,state:captureState(),promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
+  const data={client,address,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:document.getElementById('startdate').value,baserooms:[...selRooms].join(', '),extrate,taxrate,base_price:base,addons:allAddons,state:captureState(),home_value:homeValue,home_sqft:homeSqft,tier:selTier,scope:selScope,promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
             promo4:document.getElementById('promo4').checked,payment_url,cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||''};
 
   try{
@@ -1796,7 +2062,7 @@ async function generate(){
 
   
 
-  const data={client,address,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:document.getElementById('startdate').value,baserooms:[...selRooms].join(', '),extrate,taxrate,base_price:parseFloat(document.getElementById('base_price')?.value)||2500,addons:allAddons,state:captureState(),promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
+  const data={client,address,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:document.getElementById('startdate').value,baserooms:[...selRooms].join(', '),extrate,taxrate,base_price:parseFloat(document.getElementById('base_price')?.value)||2500,addons:allAddons,state:captureState(),home_value:homeValue,home_sqft:homeSqft,tier:selTier,scope:selScope,promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
             promo4:document.getElementById('promo4').checked,payment_url,cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||''};
 
   // Send to API and download PDF
@@ -1866,6 +2132,7 @@ document.addEventListener('DOMContentLoaded', function(){
     initInvNum();
     loadRecent();
     loadDrafts();
+    loadTierSettings();
     fetch('/api/config').then(r=>r.json()).then(d=>{if(d&&d.stripe_key)STRIPE_KEY=d.stripe_key;}).catch(()=>{});
   } catch(e) {
     console.error('Init error:', e.message, e.stack);
