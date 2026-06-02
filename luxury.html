@@ -525,6 +525,11 @@ body { background:#eceff3; color:var(--ink); }
         <button class="add-btn" onclick="addExtraBedroom()">+ Add another bedroom</button>
       </div>
       <div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(162,156,150,0.08)">
+        <div class="sec-lbl" style="margin-bottom:8px">Additional Areas</div>
+        <div id="extra-areas"></div>
+        <button class="add-btn" onclick="addExtraArea()">+ Add another area</button>
+      </div>
+      <div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(162,156,150,0.08)">
         <div class="sec-lbl" style="margin-bottom:8px">Custom Line Items</div>
         <div id="custom-addons"></div>
         <button class="add-btn" onclick="addCustom()">+ Add custom line item</button>
@@ -747,7 +752,7 @@ const CATS=[
   {name:'Primary suite sitting area',hasBed:false,sizes:[{size:'Small',price:200},{size:'Large',price:275}]},
 ];
 
-let selRooms=new Set(),selAddons=new Map(),bedSel=new Map(),customs=[],invNum='',extraBedrooms=[];
+let selRooms=new Set(),selAddons=new Map(),bedSel=new Map(),customs=[],invNum='',extraBedrooms=[],extraAreas=[];
 
 function addExtraBedroom(){
   const n = extraBedrooms.length;
@@ -834,6 +839,61 @@ function renderExtraBedrooms(){
 
 
 
+function catByName(name){ for(var i=0;i<CATS.length;i++){ if(CATS[i].name===name) return CATS[i]; } return null; }
+function areaTypeList(){ return CATS.filter(function(c){ return !c.hasBed; }).map(function(c){ return c.name; }); }
+function addExtraArea(){
+  const type='Living room'; const cat=catByName(type); const sz=cat.sizes[0];
+  extraAreas.push({id:Date.now(), name:type, type:type, size:sz.size, price:sz.price, scope:(DEFAULT_SCOPES[type]&&DEFAULT_SCOPES[type][sz.size])||''});
+  renderExtraAreas();
+}
+function removeExtraArea(id){ extraAreas=extraAreas.filter(function(a){return a.id!==id;}); renderExtraAreas(); recalc(); }
+function onAreaTypeChange(idx,type){
+  const cat=catByName(type); if(!cat) return;
+  const oldType=extraAreas[idx].type;
+  extraAreas[idx].type=type;
+  if(extraAreas[idx].name===oldType) extraAreas[idx].name=type;   // keep default name in sync; custom names stick
+  if(!cat.sizes.some(function(x){return x.size===extraAreas[idx].size;})) extraAreas[idx].size=cat.sizes[0].size;
+  const sz=cat.sizes.find(function(x){return x.size===extraAreas[idx].size;})||cat.sizes[0];
+  extraAreas[idx].price=sz.price;
+  extraAreas[idx].scope=(DEFAULT_SCOPES[type]&&DEFAULT_SCOPES[type][sz.size])||extraAreas[idx].scope||'';
+  renderExtraAreas(); recalc();
+}
+function renderExtraAreas(){
+  const cont=document.getElementById('extra-areas'); if(!cont) return;
+  cont.innerHTML='';
+  const types=areaTypeList();
+  extraAreas.forEach(function(area,idx){
+    const cat=catByName(area.type)||CATS.filter(function(c){return !c.hasBed;})[0];
+    const wrap=document.createElement('div'); wrap.className='addon-cat'; wrap.style.marginBottom='10px';
+    const hdr=document.createElement('div');
+    hdr.style.cssText='display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:#faf9f7;border-bottom:1px solid #f0ede8';
+    hdr.innerHTML='<input value="'+String(area.name||'').replace(/"/g,'&quot;')+'" onchange="extraAreas['+idx+'].name=this.value" placeholder="Area name (e.g. Basement dining area)" style="font-size:14px;font-weight:500;border:none;background:transparent;outline:none;color:#111;width:190px">'
+      +'<button onclick="removeExtraArea('+area.id+')" style="background:none;border:none;color:#e24b4a;font-size:18px;cursor:pointer;padding:0 4px">&times;</button>';
+    wrap.appendChild(hdr);
+    const body=document.createElement('div'); body.style.padding='12px 14px';
+    const typeRow=document.createElement('div'); typeRow.className='bed-row';
+    const opts=types.map(function(t){ return '<option value="'+t+'"'+(t===area.type?' selected':'')+'>'+t+'</option>'; }).join('');
+    typeRow.innerHTML='<label>Area type:</label><select onchange="onAreaTypeChange('+idx+',this.value)" style="font-family:Inter,sans-serif;font-size:13px;padding:6px 10px;border:1.5px solid var(--taupe-lt);border-radius:8px;background:var(--cream);color:var(--ink);outline:none">'+opts+'</select>';
+    body.appendChild(typeRow);
+    const sg=document.createElement('div'); sg.className='size-grid'; sg.style.marginBottom='12px';
+    cat.sizes.forEach(function(opt){
+      const chip=document.createElement('div'); chip.className='size-chip'+(area.size===opt.size?' sel':'');
+      chip.innerHTML='<span class="chk">'+chk()+'</span><span class="size-label">'+opt.size+'</span><span class="size-price">$'+opt.price+'</span>';
+      chip.onclick=function(){
+        extraAreas[idx].size=opt.size; extraAreas[idx].price=opt.price;
+        extraAreas[idx].scope=(DEFAULT_SCOPES[area.type]&&DEFAULT_SCOPES[area.type][opt.size])||extraAreas[idx].scope||'';
+        renderExtraAreas(); recalc();
+      };
+      sg.appendChild(chip);
+    });
+    body.appendChild(sg);
+    const sw=document.createElement('div');
+    sw.innerHTML='<div class="scope-lbl"><span>Scope of work</span></div><textarea rows="3" oninput="extraAreas['+idx+'].scope=this.value">'+String(area.scope||'')+'</textarea>';
+    body.appendChild(sw);
+    wrap.appendChild(body); cont.appendChild(wrap);
+  });
+  recalc();
+}
 function pad2(n){return String(n).padStart(2,'0');}
 async function initInvNum(){
   let seq = 202093;
@@ -956,6 +1016,12 @@ function recalc(){
     if(sz) b.price=sz.price;            // keep extra-bedroom price live with the Bedroom default
     return s+(parseFloat(b.price)||0);
   },0);
+  t+=extraAreas.reduce((s,a)=>{
+    const cat=catByName(a.type);
+    const sz=cat?cat.sizes.find(x=>x.size===a.size):null;
+    if(sz) a.price=sz.price;            // keep area price live with the scaled default
+    return s+(parseFloat(a.price)||0);
+  },0);
   const base=parseFloat(document.getElementById('base_price')?.value)||2500;
   const sub=base+t,rate=parseFloat(document.getElementById('taxrate').value)||0;
   const tax=sub*rate/100,grand=sub+tax;
@@ -975,6 +1041,7 @@ function captureState(){
     selAddons:[...selAddons.values()].map(e=>({ci:e.ci,oi:e.oi,scope:document.getElementById(`sc-${e.ci}`)?.value||e.scope||''})),
     bedSel:[...bedSel.entries()],
     extraBedrooms:extraBedrooms.map(b=>({...b})),
+    extraAreas:extraAreas.map(a=>({...a})),
     customs:customs.map(c=>({...c})),
     cats:CATS.map(c=>({name:c.name,sizes:c.sizes.map(s=>({size:s.size,price:s.price}))})),
     base_price:parseFloat(document.getElementById('base_price')?.value)||2500,
@@ -1002,10 +1069,12 @@ function restoreState(state){
   selAddons=new Map();
   (state.selAddons||[]).forEach(e=>{selAddons.set(`${e.ci}`,{key:`${e.ci}-${e.oi}`,ci:e.ci,oi:e.oi,scope:e.scope||''});});
   extraBedrooms=(state.extraBedrooms||[]).map(b=>({...b}));
+  extraAreas=(state.extraAreas||[]).map(a=>({...a}));
   customs=(state.customs||[]).map(c=>({...c}));
   buildRooms();
   buildCats();
   renderExtraBedrooms();
+  renderExtraAreas();
   renderCustoms();
   homeValue=state.home_value||0; homeSqft=state.home_sqft||0; tierManual=!!state.tier_manual;
   const _hv=document.getElementById('home_value'); if(_hv) _hv.value=homeValue?('$'+tierCommas(homeValue)):'';
@@ -1132,6 +1201,7 @@ function applyRoomMult(){
   }); });
   if(typeof buildCats==='function') buildCats();
   if(typeof renderExtraBedrooms==='function') renderExtraBedrooms();
+  if(typeof renderExtraAreas==='function') renderExtraAreas();
   recalc();
 }
 function onRoomMultEdit(tier,val){
@@ -1553,8 +1623,10 @@ function loadInvoiceData(d){
         }
       }
     });
+    extraAreas=[];
     buildCats();            // re-render so restored prices, selections and bed buttons all show
     renderExtraBedrooms();
+    renderExtraAreas();
     renderCustoms();
     recalc();
     window.scrollTo({top:0,behavior:'smooth'});
