@@ -682,13 +682,13 @@ function renderExtraBedrooms(){
     const sg = document.createElement('div');
     sg.className = 'size-grid';
     sg.style.marginBottom = '12px';
-    cat.sizes.forEach(opt => {
+    cat.sizes.forEach((opt, oi) => {
       const chip = document.createElement('div');
       chip.className = 'size-chip' + (bed.size === opt.size ? ' sel' : '');
-      chip.innerHTML = `<span class="chk">${chk()}</span><span class="size-label">${opt.size}</span><span class="size-price">$${opt.price}</span>`;
+      chip.innerHTML = `<span class="chk">${chk()}</span><span class="size-label">${opt.size}</span><span class="price-edit-wrap"><span style="font-family:'Cormorant Garamond',serif;font-size:15px;color:var(--green)">$</span><input type="number" class="price-edit-input" value="${opt.price}" onclick="event.stopPropagation()" oninput="onPriceEdit(this,1,${oi})"><button class="price-save-check" onclick="event.stopPropagation();savePriceClicked(1,${oi},this)" title="Save as new default">✓</button></span>`;
       chip.onclick = () => {
         extraBedrooms[idx].size = opt.size;
-        extraBedrooms[idx].price = opt.price;
+        extraBedrooms[idx].price = CATS[1].sizes[oi].price;
         extraBedrooms[idx].scope = BED_SCOPES['Bedroom']?.[opt.size]?.[bed.bed] || DEFAULT_SCOPES['Bedroom'][opt.size] || '';
         renderExtraBedrooms();
         recalc();
@@ -824,9 +824,13 @@ function updCustom(id,k,v){const a=customs.find(x=>x.id===id);if(a){a[k]=v;if(k=
 
 function fmt(n){return'$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
 function recalc(){
-  let t=0;selAddons.forEach(e=>{t+=CATS[e.ci].sizes[e.oi].price;});
+  let t=0;selAddons.forEach(e=>{t+=parseFloat(CATS[e.ci].sizes[e.oi].price)||0;});
   t+=customs.reduce((s,a)=>s+(parseFloat(a.price)||0),0);
-  t+=extraBedrooms.reduce((s,b)=>s+b.price,0);
+  t+=extraBedrooms.reduce((s,b)=>{
+    const sz=CATS[1].sizes.find(x=>x.size===b.size);
+    if(sz) b.price=sz.price;            // keep extra-bedroom price live with the Bedroom default
+    return s+(parseFloat(b.price)||0);
+  },0);
   const base=parseFloat(document.getElementById('base_price')?.value)||2500;
   const sub=base+t,rate=parseFloat(document.getElementById('taxrate').value)||0;
   const tax=sub*rate/100,grand=sub+tax;
@@ -837,6 +841,48 @@ function recalc(){
   document.getElementById('t-tax').textContent=fmt(tax);
   document.getElementById('t-grand').textContent=fmt(grand);
   document.getElementById('t-ext').textContent=fmt(grand/3)+' / 30 days';
+}
+
+// Capture the full structured form state so drafts/invoices round-trip exactly.
+function captureState(){
+  return {
+    selRooms:[...selRooms],
+    selAddons:[...selAddons.values()].map(e=>({ci:e.ci,oi:e.oi,scope:document.getElementById(`sc-${e.ci}`)?.value||e.scope||''})),
+    bedSel:[...bedSel.entries()],
+    extraBedrooms:extraBedrooms.map(b=>({...b})),
+    customs:customs.map(c=>({...c})),
+    cats:CATS.map(c=>({name:c.name,sizes:c.sizes.map(s=>({size:s.size,price:s.price}))})),
+    base_price:parseFloat(document.getElementById('base_price')?.value)||2500
+  };
+}
+
+// Restore a structured state captured by captureState(). Returns true if applied.
+function restoreState(state){
+  if(!state) return false;
+  // Restore any edited prices into CATS (match by size name so it's order-safe).
+  if(Array.isArray(state.cats)){
+    state.cats.forEach((sc,ci)=>{
+      if(!CATS[ci]) return;
+      sc.sizes.forEach(s=>{const tgt=CATS[ci].sizes.find(x=>x.size===s.size);if(tgt)tgt.price=s.price;});
+    });
+  }
+  if(state.base_price!=null){
+    const bp=document.getElementById('base_price');
+    if(bp) bp.value=state.base_price;
+    _origBasePrice=parseFloat(state.base_price)||2500;
+  }
+  selRooms=new Set(state.selRooms||[]);
+  bedSel=new Map((state.bedSel||[]).map(([k,v])=>[String(k),v]));
+  selAddons=new Map();
+  (state.selAddons||[]).forEach(e=>{selAddons.set(`${e.ci}`,{key:`${e.ci}-${e.oi}`,ci:e.ci,oi:e.oi,scope:e.scope||''});});
+  extraBedrooms=(state.extraBedrooms||[]).map(b=>({...b}));
+  customs=(state.customs||[]).map(c=>({...c}));
+  buildRooms();
+  buildCats();
+  renderExtraBedrooms();
+  renderCustoms();
+  recalc();
+  return true;
 }
 
 function setSt(state,msg){document.getElementById('sdot').className='sdot '+state;document.getElementById('smsg').textContent=msg;}
@@ -1105,11 +1151,23 @@ function loadInvoiceData(d){
     document.getElementById('promo1').checked = d.promo1||false;
     document.getElementById('promo2').checked = d.promo2||false;
     document.getElementById('promo3').checked = d.promo3||false;
+    if(document.getElementById('promo4')) document.getElementById('promo4').checked = d.promo4||false;
     document.getElementById('paid').checked = d.paid||false;
     if(d.paid) togglePaid();
     document.getElementById('paid_date').value = d.paid_date||'';
     document.getElementById('cover_page').checked = d.cover_page||false;
+    if(document.getElementById('cover_note')) document.getElementById('cover_note').value = d.cover_note||'';
+    if(d.cover_page) toggleCover();
 
+    // Prefer exact structured restore for records saved with full state.
+    if(d.state){
+      restoreState(d.state);
+      window.scrollTo({top:0,behavior:'smooth'});
+      setSt('ok','Invoice loaded — edit and regenerate!');
+      return;
+    }
+
+    // ── Legacy fallback for older records (flattened addons only) ──
     // Restore selected rooms
     selRooms.clear();
     document.querySelectorAll('#rooms-grid .chip').forEach(chip => {
@@ -1195,11 +1253,11 @@ async function saveInvoice(data){
 }
 
 
-async function saveDraft(){
+async function saveDraft(silent){
   const client = document.getElementById('client').value.trim();
   const address = document.getElementById('address').value.trim();
   const invnum = document.getElementById('invnum-display').value.trim();
-  if(!client && !address){ setSt('err','Fill in at least client name or address to save draft'); return; }
+  if(!client && !address){ if(!silent) setSt('err','Fill in at least client name or address to save draft'); return; }
 
   const allAddons = [];
   selAddons.forEach(entry => {
@@ -1225,9 +1283,11 @@ async function saveDraft(){
     taxrate,
     base_price: parseFloat(document.getElementById('base_price')?.value)||2500,
     addons: allAddons,
+    state: captureState(),
     promo1: document.getElementById('promo1').checked,
     promo2: document.getElementById('promo2').checked,
     promo3: document.getElementById('promo3').checked,
+    promo4: document.getElementById('promo4').checked,
     cover_page: document.getElementById('cover_page').checked,
     cover_note: document.getElementById('cover_note')?.value.trim()||'',
     paid: document.getElementById('paid').checked,
@@ -1247,10 +1307,10 @@ async function saveDraft(){
       data: draft
     }, { onConflict: 'invnum' });
     if(!error){
-      setSt('ok', 'Draft saved!');
+      if(!silent) setSt('ok', 'Draft saved!');
       loadDrafts();
     }
-  } catch(e) { setSt('err','Could not save draft'); }
+  } catch(e) { if(!silent) setSt('err','Could not save draft'); }
 }
 
 async function loadDrafts(){
@@ -1662,7 +1722,7 @@ async function generatePDF(){
   catch(e){setSt('err','Stripe error — continuing without payment link');}
 
   setSt('loading','Generating your invoice PDF...');
-  const data={client,address,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:document.getElementById('startdate').value,baserooms:[...selRooms].join(', '),extrate,taxrate,base_price:base,addons:allAddons,promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
+  const data={client,address,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:document.getElementById('startdate').value,baserooms:[...selRooms].join(', '),extrate,taxrate,base_price:base,addons:allAddons,state:captureState(),promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
             promo4:document.getElementById('promo4').checked,payment_url,cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||''};
 
   try{
@@ -1671,6 +1731,7 @@ async function generatePDF(){
     const blob=await response.blob();
     const filename=`SWJ_${data.client.replace(/ /g,'_')}_${data.invnum}.pdf`;
     setTimeout(()=>saveInvoice(data).catch(()=>{}),100);
+    setTimeout(()=>{try{saveDraft(true);}catch(e){}},150);
     await fetch('/api/counter',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({value:parseInt(data.invnum)})}).catch(()=>{});
     setSt('ok','Invoice generated!');
     window._lastInvoiceData = data;
@@ -1729,7 +1790,7 @@ async function generate(){
 
   
 
-  const data={client,address,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:document.getElementById('startdate').value,baserooms:[...selRooms].join(', '),extrate,taxrate,base_price:parseFloat(document.getElementById('base_price')?.value)||2500,addons:allAddons,promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
+  const data={client,address,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:document.getElementById('startdate').value,baserooms:[...selRooms].join(', '),extrate,taxrate,base_price:parseFloat(document.getElementById('base_price')?.value)||2500,addons:allAddons,state:captureState(),promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
             promo4:document.getElementById('promo4').checked,payment_url,cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||''};
 
   // Send to API and download PDF
@@ -1773,6 +1834,7 @@ async function generate(){
 
     setSt('ok', 'Invoice generated and downloaded! Check your Downloads folder.');
     setTimeout(()=>saveInvoice(data).catch(()=>{}), 100);
+    setTimeout(()=>{try{saveDraft(true);}catch(e){}}, 150);
     btn.textContent = 'Generate Invoice + Payment Link';
     btn.disabled = false;
     console.log('PDF: all done!');
