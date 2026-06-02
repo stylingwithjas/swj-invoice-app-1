@@ -9,6 +9,7 @@
     { "source": "/api/:path*", "destination": "/api/:path*" },
     { "source": "/index.html", "destination": "/index.html" },
     { "source": "/luxury.html", "destination": "/luxury.html" },
+    { "source": "/pricelist.html", "destination": "/pricelist.html" },
     { "source": "/board.html", "destination": "/board.html" },
     { "source": "/today.html", "destination": "/today.html" },
     { "source": "/shopping.html", "destination": "/shopping.html" },
