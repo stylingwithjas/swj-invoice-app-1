@@ -488,6 +488,12 @@ body { background:#eceff3; color:var(--ink); }
           <span>Lux</span><input class="tier-rate-input" id="rate-Luxury" type="number" step="0.05" inputmode="decimal" oninput="onRateEdit('Luxury',this.value)">
           <button class="price-save-check" id="tier-rate-save" onclick="saveTierSettingsClicked(this)" title="Save these rates as new defaults">✓</button>
         </div>
+        <div class="tier-rate-edit">
+          <span>Room × —</span>
+          <span>Std</span><input class="tier-rate-input" id="mult-Standard" type="number" step="0.05" inputmode="decimal" oninput="onRoomMultEdit('Standard',this.value)">
+          <span>Prem</span><input class="tier-rate-input" id="mult-Premium" type="number" step="0.05" inputmode="decimal" oninput="onRoomMultEdit('Premium',this.value)">
+          <span>Lux</span><input class="tier-rate-input" id="mult-Luxury" type="number" step="0.05" inputmode="decimal" oninput="onRoomMultEdit('Luxury',this.value)">
+        </div>
       </div>
     </div>
   </div>
@@ -1103,6 +1109,27 @@ let _origBasePrice = 2500;
 const TIER_RATES = { Standard: 2.50, Premium: 2.70, Luxury: 3.00 }; // $/sq ft for full staging
 const SCOPE_FRAC = { Vignette: 0.20, Partial: 0.40, Full: 1.00 };   // share of sq ft staged
 const BASE_PCT = { Standard: 64, Premium: 64, Luxury: 64 };   // base package = this % of the sq-ft target (editable)
+const ROOM_MULT = { Standard: 1.0, Premium: 1.3, Luxury: 1.6 };   // room/add-on prices scale up by tier (editable)
+let CATS_BASE = null;   // unscaled (standard) room prices; scaled copies live in CATS
+function snapshotCatPrices(){ return CATS.map(function(c){ return c.sizes.map(function(s){ return s.price; }); }); }
+function roomMult(){ return (selTier && ROOM_MULT[selTier]) ? ROOM_MULT[selTier] : 1; }
+function applyRoomMult(){
+  if(!CATS_BASE) CATS_BASE = snapshotCatPrices();
+  const m = roomMult();
+  CATS.forEach(function(c,ci){ c.sizes.forEach(function(sz,si){
+    const base = (CATS_BASE[ci] && CATS_BASE[ci][si]!=null) ? CATS_BASE[ci][si] : sz.price;
+    sz.price = Math.round((base*m)/5)*5;
+  }); });
+  if(typeof buildCats==='function') buildCats();
+  if(typeof renderExtraBedrooms==='function') renderExtraBedrooms();
+  recalc();
+}
+function onRoomMultEdit(tier,val){
+  const r=parseFloat(val); if(!isNaN(r)) ROOM_MULT[tier]=r;
+  const chk=document.getElementById('tier-rate-save'); if(chk) chk.classList.add('changed');
+  if(tier===selTier) applyRoomMult();
+  updateTierUI();
+}
 const TIER_SCOPES = { Standard:['Vignette','Partial','Full'], Premium:['Vignette','Partial','Full'], Luxury:['Vignette','Partial','Full'] };
 const SCOPE_DESC = { Vignette:'Key vignettes', Partial:'Signature spaces', Full:'Complete residence' };
 const TIER_MATRIX = { // flat cross-check ranges (handoff)
@@ -1132,6 +1159,7 @@ function selectTier(tier, manual){
   if(manual) tierManual = true;
   document.querySelectorAll('#tier-pills .pill').forEach(function(p){ p.classList.toggle('sel', p.dataset.tier===tier); });
   if(selScope && TIER_SCOPES[tier].indexOf(selScope) < 0) selScope='';
+  applyRoomMult();
   refreshEstimate();
 }
 function renderScopePills(){
@@ -1185,6 +1213,8 @@ function updateTierUI(){
     if(el && document.activeElement!==el) el.value=TIER_RATES[t];
     const be=document.getElementById('base-'+t);
     if(be && document.activeElement!==be) be.value=BASE_PCT[t];
+    const me=document.getElementById('mult-'+t);
+    if(me && document.activeElement!==me) me.value=ROOM_MULT[t];
   });
   if(!selTier || !selScope){ box.style.display='none'; return; }
   box.style.display='block';
@@ -1249,13 +1279,14 @@ async function loadTierSettings(){
       if(d.rates) Object.assign(TIER_RATES, d.rates);
       if(d.frac) Object.assign(SCOPE_FRAC, d.frac);
       if(d.basePct) Object.assign(BASE_PCT, d.basePct);
+      if(d.roomMult) Object.assign(ROOM_MULT, d.roomMult);
     }
   }catch(e){}
   updateTierUI();
 }
 async function saveTierSettingsClicked(btn){
   try{
-    await _sb.from('invoices').upsert({ invnum:'TIER_PRICING', client:'TIER_PRICING', address:'', invdate:new Date().toISOString().split('T')[0], data:{ rates:TIER_RATES, frac:SCOPE_FRAC, basePct:BASE_PCT } }, { onConflict:'invnum' });
+    await _sb.from('invoices').upsert({ invnum:'TIER_PRICING', client:'TIER_PRICING', address:'', invdate:new Date().toISOString().split('T')[0], data:{ rates:TIER_RATES, frac:SCOPE_FRAC, basePct:BASE_PCT, roomMult:ROOM_MULT } }, { onConflict:'invnum' });
     btn.classList.remove('changed'); btn.classList.add('saved');
     setTimeout(function(){ btn.classList.remove('saved'); }, 2000);
   }catch(e){}
@@ -1309,18 +1340,22 @@ async function loadPricingDefaults(){
         const bpEl = document.getElementById('base_price');
         if(bpEl && !bpEl.dataset.userEdited) bpEl.value = data.data.base_price;
       }
+      CATS_BASE = snapshotCatPrices();
+      if(selTier) applyRoomMult();
     }
   } catch(e){ console.log('No saved defaults yet'); }
 }
 
 async function savePriceDefault(ci, si, newPrice){
-  // Update in-memory CATS
+  // Update in-memory CATS (scaled) and remember the unscaled base for this size
   CATS[ci].sizes[si].price = newPrice;
-  // Save to Supabase
+  const _m = roomMult();
+  if(CATS_BASE && CATS_BASE[ci]) CATS_BASE[ci][si] = Math.round(newPrice/_m);
+  // Save to Supabase — store UNSCALED base prices so the standard form's defaults stay intact
   try {
-    const catsSnapshot = CATS.map(c => ({
+    const catsSnapshot = CATS.map((c,_ci) => ({
       name: c.name,
-      sizes: c.sizes.map(s => ({size:s.size, price:s.price}))
+      sizes: c.sizes.map((s,_si) => ({size:s.size, price:(CATS_BASE&&CATS_BASE[_ci]&&CATS_BASE[_ci][_si]!=null)?CATS_BASE[_ci][_si]:Math.round(s.price/_m)}))
     }));
     const basePrice = parseFloat(document.getElementById('base_price')?.value)||2500;
     await _sb.from('invoices').upsert({
@@ -1336,9 +1371,10 @@ async function savePriceDefault(ci, si, newPrice){
 
 async function saveBasePriceDefault(newPrice){
   try {
-    const catsSnapshot = CATS.map(c => ({
+    const _m = roomMult();
+    const catsSnapshot = CATS.map((c,_ci) => ({
       name: c.name,
-      sizes: c.sizes.map(s => ({size:s.size, price:s.price}))
+      sizes: c.sizes.map((s,_si) => ({size:s.size, price:(CATS_BASE&&CATS_BASE[_ci]&&CATS_BASE[_ci][_si]!=null)?CATS_BASE[_ci][_si]:Math.round(s.price/_m)}))
     }));
     await _sb.from('invoices').upsert({
       invnum: 'PRICING_DEFAULTS',
