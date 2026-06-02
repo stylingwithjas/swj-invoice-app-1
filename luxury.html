@@ -40,12 +40,12 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
 
 /* ── HEADER ── */
 .hdr { background:var(--ink); position:sticky; top:0; z-index:60; }
-.hdr-top { display:flex; align-items:center; justify-content:space-between; padding:12px 16px 10px; gap:8px; }
+.hdr-top { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; padding:12px 16px 10px; gap:8px; }
 .brand { display:flex; align-items:baseline; gap:10px; }
 .brand-name { font-family:"Cormorant Garamond",serif; font-size:24px; font-weight:300; color:#fff; letter-spacing:4px; }
 .brand-sep { width:1px; height:16px; background:rgba(255,255,255,0.18); }
 .brand-sub { font-size:10px; color:rgba(255,255,255,0.35); letter-spacing:2.5px; text-transform:uppercase; }
-.hdr-right { display:flex; align-items:center; gap:10px; }
+.hdr-right { display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-end; gap:10px; }
 .inv-badge { font-family:"Cormorant Garamond",serif; font-size:13px; font-weight:300; color:rgba(255,255,255,0.45); letter-spacing:0.5px; padding:4px 8px; border:1px solid rgba(255,255,255,0.1); border-radius:20px; cursor:text; background:transparent; outline:none; text-align:center; width:110px; }
 @media(max-width:380px){ .inv-badge { display:none; } }
 .nav-sw { display:flex; gap:2px; background:rgba(255,255,255,0.07); border-radius:20px; padding:3px; }
@@ -896,17 +896,29 @@ function renderExtraAreas(){
 }
 function pad2(n){return String(n).padStart(2,'0');}
 async function initInvNum(){
-  let seq = 202093;
+  // Derive the next number from Supabase (persistent) — the old /tmp counter reset on every cold serverless instance.
+  let next = 202093;
   try {
-    const r = await fetch('/api/counter');
-    const d = await r.json();
-    if(d.value) seq = d.value;
+    const { data } = await _sb.from('invoices').select('invnum');
+    if(data && data.length){
+      let max = 0;
+      data.forEach(function(r){
+        const m = String(r.invnum||'').match(/\d+/);   // leading digits; ignores any vN revision suffix
+        if(m){ const v = parseInt(m[0],10); if(v>max) max=v; }
+      });
+      if(max>0) next = max + 1;
+    }
   } catch(e) {}
-  currentInvNum = String(seq);
+  currentInvNum = String(next);
   const disp = document.getElementById('invnum-display');
   const note = document.getElementById('invnum-note');
   if(disp) disp.value = currentInvNum;
   if(note) note.textContent = 'Tap to edit if needed';
+}
+function nextRevision(inv){
+  inv = String(inv||'').trim();
+  const m = inv.match(/^(.*?)[vV](\d+)$/);
+  return m ? (m[1]+'v'+(parseInt(m[2],10)+1)) : (inv+'v1');
 }
 
 function chk(){return`<svg width="11" height="9" viewBox="0 0 10 8" fill="none"><polyline points="1,4 4,7 9,1" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;}
@@ -1542,7 +1554,7 @@ function loadInvoiceData(d){
     document.getElementById('zipcode').value = '';
     document.getElementById('invdate').value = d.invdate||'';
     document.getElementById('startdate').value = d.startdate||'';
-    document.getElementById('invnum-display').value = d.invnum||'';
+    document.getElementById('invnum-display').value = nextRevision(d.invnum||'');
     document.getElementById('taxrate').value = d.taxrate||10.25;
     document.getElementById('base_price').value = d.base_price||2500;
     document.getElementById('promo1').checked = d.promo1||false;
