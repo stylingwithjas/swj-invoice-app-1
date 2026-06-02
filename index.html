@@ -728,8 +728,9 @@ function chk(){return`<svg width="11" height="9" viewBox="0 0 10 8" fill="none">
 
 function buildRooms(){
   const g=document.getElementById('rooms-grid');
+  g.innerHTML='';
   ROOMS.forEach(r=>{
-    const c=document.createElement('div');c.className='chip';
+    const c=document.createElement('div');c.className='chip'+(selRooms.has(r)?' sel':'');
     c.innerHTML=`<span class="chip-dot"></span><span>${r}</span>`;
     c.onclick=()=>{
       if(selRooms.has(r)){selRooms.delete(r);c.classList.remove('sel');}
@@ -752,8 +753,9 @@ function refreshScope(ci){
 
 function buildCats(){
   const cont=document.getElementById('addon-categories');
+  cont.innerHTML='';
   CATS.forEach((cat,ci)=>{
-    if(cat.bedOpts)bedSel.set(`${ci}`,cat.bedOpts[0]);
+    if(cat.bedOpts&&!bedSel.has(`${ci}`))bedSel.set(`${ci}`,cat.bedOpts[0]);
     const wrap=document.createElement('div');wrap.className='addon-cat';
     const prices=cat.sizes.map(s=>s.price);
     const range=prices.length>1?`$${Math.min(...prices)}–$${Math.max(...prices)}`:`$${prices[0]}`;
@@ -770,7 +772,7 @@ function buildCats(){
       const br=document.createElement('div');br.className='bed-row';
       br.innerHTML=`<label>Bed size:</label>`;
       cat.bedOpts.forEach((b,bi)=>{
-        const btn=document.createElement('button');btn.className='bed-btn'+(bi===0?' active':'');btn.textContent=b;btn.id=`bb-${ci}-${bi}`;
+        const btn=document.createElement('button');btn.className='bed-btn'+(bedSel.get(`${ci}`)===b?' active':'');btn.textContent=b;btn.id=`bb-${ci}-${bi}`;
         btn.onclick=(e)=>{e.stopPropagation();cat.bedOpts.forEach((_,bj)=>document.getElementById(`bb-${ci}-${bj}`)?.classList.remove('active'));btn.classList.add('active');bedSel.set(`${ci}`,b);refreshScope(ci);};
         br.appendChild(btn);
       });
@@ -796,6 +798,11 @@ function buildCats(){
     sw.innerHTML=`<div class="scope-lbl"><span>Scope of work</span><span class="scope-reset" onclick="resetScope(${ci})">Reset</span></div><textarea id="sc-${ci}" rows="3" oninput="updScope(${ci},this.value)">${def}</textarea>`;
     body.appendChild(sw);
     wrap.appendChild(hdr);wrap.appendChild(body);cont.appendChild(wrap);
+  });
+  // re-apply any existing selections in case of a rebuild (e.g. after pricing defaults load)
+  selAddons.forEach((e,ci)=>{
+    document.getElementById(`chip-${e.key}`)?.classList.add('sel');
+    const ta=document.getElementById(`sc-${ci}`);if(ta)ta.value=e.scope;
   });
 }
 
@@ -1781,30 +1788,17 @@ async function generate(){
 
 
 document.addEventListener('DOMContentLoaded', function(){
-  document.getElementById('invdate').value=new Date().toISOString().split('T')[0];
-  const bp=document.getElementById('base_price');
-  if(bp){bp.addEventListener('input',recalc);bp.addEventListener('change',recalc);}
-  buildRooms();
-  buildCats();
-  loadPricingDefaults().then(()=>{ buildCats(); recalc(); _origBasePrice = parseFloat(document.getElementById('base_price').value)||2500; });
-  recalc();
-  initInvNum();
-  loadRecent();
-  loadDrafts();
-  fetch('/api/config').then(r=>r.json()).then(d=>{if(d&&d.stripe_key)STRIPE_KEY=d.stripe_key;}).catch(()=>{});
-});
-
-
-document.addEventListener('DOMContentLoaded', function(){
   try {
-    document.getElementById('invdate').value = new Date().toISOString().split('T')[0];
-    const bp = document.getElementById('base_price');
-    if(bp){ bp.addEventListener('input', recalc); bp.addEventListener('change', recalc); }
+    document.getElementById('invdate').value=new Date().toISOString().split('T')[0];
+    const bp=document.getElementById('base_price');
+    if(bp){bp.addEventListener('input',recalc);bp.addEventListener('change',recalc);}
     buildRooms();
     buildCats();
+    loadPricingDefaults().then(()=>{ buildCats(); recalc(); _origBasePrice = parseFloat(document.getElementById('base_price').value)||2500; }).catch(()=>{});
     recalc();
     initInvNum();
     loadRecent();
+    loadDrafts();
     fetch('/api/config').then(r=>r.json()).then(d=>{if(d&&d.stripe_key)STRIPE_KEY=d.stripe_key;}).catch(()=>{});
   } catch(e) {
     console.error('Init error:', e.message, e.stack);
