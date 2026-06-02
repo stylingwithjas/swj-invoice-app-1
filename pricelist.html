@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#ffffff">
+<title>SWJ — Staging Investment Guide</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+  :root{
+    --ink:#21252b; --ink-soft:#4a515b; --muted:#7f8893;
+    --line:#e7eaef; --bg:#eef1f4; --card:#ffffff;
+    --gold:#bfa15c; --gold-dk:#97793c; --gold-lt:#f6f1e4;
+  }
+  body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var(--ink);
+       -webkit-font-smoothing:antialiased;padding:24px 16px 60px;}
+  .sheet{max-width:740px;margin:0 auto;background:var(--card);border:1px solid #e6e9ee;
+         border-radius:18px;box-shadow:0 10px 40px rgba(31,40,56,0.07);overflow:hidden;}
+  .hero{padding:40px 40px 28px;text-align:center;border-bottom:1px solid var(--line);}
+  .brand{font-family:'Cormorant Garamond',serif;font-size:42px;font-weight:300;letter-spacing:8px;color:var(--ink);}
+  .tagline{font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--muted);margin-top:8px;font-style:italic;}
+  .doc-title{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:400;color:var(--ink);margin-top:22px;}
+  .doc-sub{font-size:13px;color:var(--ink-soft);max-width:480px;margin:10px auto 0;line-height:1.6;}
+  .body{padding:30px 40px 8px;}
+  .pkg{margin-bottom:30px;}
+  .pkg-hd{display:flex;align-items:baseline;justify-content:space-between;border-bottom:2px solid var(--gold);
+          padding-bottom:8px;margin-bottom:4px;}
+  .pkg-name{font-family:'Cormorant Garamond',serif;font-size:24px;font-weight:500;color:var(--ink);letter-spacing:1px;}
+  .pkg-tier{font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--gold-dk);font-weight:600;}
+  .scope{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;padding:16px 0;border-bottom:1px solid var(--line);}
+  .scope:last-child{border-bottom:none;}
+  .scope-l{flex:1;}
+  .scope-name{font-size:15px;font-weight:600;color:var(--ink);margin-bottom:4px;}
+  .scope-name .lbl{font-family:'Cormorant Garamond',serif;}
+  .scope-desc{font-size:12.5px;color:var(--ink-soft);line-height:1.55;}
+  .scope-r{text-align:right;white-space:nowrap;}
+  .price{font-family:'Cormorant Garamond',serif;font-size:22px;color:var(--gold-dk);font-weight:500;}
+  .price-note{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-top:2px;}
+  .incl{background:var(--gold-lt);border-radius:12px;padding:16px 20px;margin:8px 40px 0;}
+  .incl-t{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--gold-dk);font-weight:600;margin-bottom:6px;}
+  .incl-d{font-size:12px;color:var(--ink-soft);line-height:1.6;}
+  .foot{padding:24px 40px 36px;text-align:center;}
+  .foot-note{font-size:11px;color:var(--muted);line-height:1.6;max-width:520px;margin:0 auto 18px;}
+  .contact{font-family:'Cormorant Garamond',serif;font-size:16px;color:var(--ink);}
+  .contact-line{font-size:12px;color:var(--ink-soft);margin-top:3px;}
+  .print-btn{display:inline-flex;align-items:center;gap:8px;margin:26px auto 0;padding:12px 22px;
+             background:var(--ink);color:#fff;border:none;border-radius:30px;font-family:'Inter',sans-serif;
+             font-size:12px;font-weight:500;letter-spacing:0.5px;cursor:pointer;}
+  .print-btn:hover{background:#000;}
+  .print-wrap{text-align:center;}
+  @media print{
+    body{background:#fff;padding:0;}
+    .sheet{box-shadow:none;border:none;border-radius:0;max-width:100%;}
+    .print-wrap{display:none;}
+  }
+  @media(max-width:560px){
+    .hero,.body,.foot{padding-left:22px;padding-right:22px;}
+    .incl{margin-left:22px;margin-right:22px;}
+    .brand{font-size:34px;letter-spacing:6px;}
+    .scope{flex-direction:column;gap:6px;}
+    .scope-r{text-align:left;}
+  }
+</style>
+</head>
+<body>
+  <div class="sheet">
+    <div class="hero">
+      <div class="brand">SWJ</div>
+      <div class="tagline">Design with Intention · Stage with Impact</div>
+      <div class="doc-title">Staging Investment Guide</div>
+      <div class="doc-sub">Every residence is staged to its square footage and the spaces selected. The ranges below reflect a typical home in each collection; your tailored quote is confirmed after a walkthrough.</div>
+    </div>
+
+    <div class="body">
+      <!-- PREMIUM -->
+      <div class="pkg">
+        <div class="pkg-hd">
+          <span class="pkg-name">Premium Collection</span>
+          <span class="pkg-tier">Homes $1M – $2M</span>
+        </div>
+        <div class="scope">
+          <div class="scope-l">
+            <div class="scope-name"><span class="lbl">Partial</span> — Signature Spaces</div>
+            <div class="scope-desc">Your home's key first-impression areas — typically the living room, primary suite, and main gathering spaces — curated to showcase flow, scale, and lifestyle.</div>
+          </div>
+          <div class="scope-r"><div class="price" id="prem-partial">—</div><div class="price-note">typical investment</div></div>
+        </div>
+        <div class="scope">
+          <div class="scope-l">
+            <div class="scope-name"><span class="lbl">Full</span> — Complete Residence</div>
+            <div class="scope-desc">A complete, cohesive staging of the entire home — every primary living space, bedroom, and feature area — for maximum buyer impact.</div>
+          </div>
+          <div class="scope-r"><div class="price" id="prem-full">—</div><div class="price-note">typical investment</div></div>
+        </div>
+      </div>
+
+      <!-- LUXURY -->
+      <div class="pkg">
+        <div class="pkg-hd">
+          <span class="pkg-name">Luxury Collection</span>
+          <span class="pkg-tier">Homes $2M+</span>
+        </div>
+        <div class="scope">
+          <div class="scope-l">
+            <div class="scope-name"><span class="lbl">Partial</span> — Signature Spaces</div>
+            <div class="scope-desc">A refined, gallery-level styling of the residence's marquee spaces, designed to make an unforgettable first impression with elevated furnishings and accessories.</div>
+          </div>
+          <div class="scope-r"><div class="price" id="lux-partial">—</div><div class="price-note">typical investment</div></div>
+        </div>
+        <div class="scope">
+          <div class="scope-l">
+            <div class="scope-name"><span class="lbl">Full</span> — Complete Residence</div>
+            <div class="scope-desc">A fully curated staging of the entire estate — formal and casual living areas, the primary suite, additional bedrooms, and lifestyle spaces — with our finest collection.</div>
+          </div>
+          <div class="scope-r"><div class="price" id="lux-full">—</div><div class="price-note">typical investment</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="incl">
+      <div class="incl-t">Every package includes</div>
+      <div class="incl-d">White-glove delivery &amp; installation · bespoke styling by our design team · a 45-day furnishing rental · and seamless teardown &amp; pickup.</div>
+    </div>
+
+    <div class="foot">
+      <div class="foot-note">Investment is based on the home's square footage and the spaces staged. Additional rooms and areas, custom requests, and applicable Washington sales tax are quoted individually. Rental beyond 45 days may be extended at a monthly rate.</div>
+      <div class="contact">Jasmine Santana</div>
+      <div class="contact-line">206-422-5618 · info@stylingwithjas.com</div>
+      <div style="margin-top:16px"><a href="pricelist-full.html" style="font-size:12px;color:var(--gold-dk);font-weight:600;text-decoration:none">View full room-by-room pricing &#8594;</a></div>
+    </div>
+  </div>
+
+  <div class="print-wrap">
+    <button class="print-btn" onclick="window.print()">Print / Save as PDF</button>
+  </div>
+
+<script>
+  // Rates mirror the staging engine; load saved overrides so the list never drifts.
+  var RATES = { Premium: 2.70, Luxury: 3.00 };   // $/sq ft, Full
+  var PARTIAL = 0.40;                             // Partial = share of Full
+  var SIZES  = { Premium: [2400, 4000], Luxury: [3500, 6000] };  // typical sq ft per tier
+
+  function r100(x){ return Math.round(x/100)*100; }
+  function money(x){ return '$' + r100(x).toLocaleString('en-US'); }
+  function range(tier, frac){
+    var lo = SIZES[tier][0]*RATES[tier]*frac, hi = SIZES[tier][1]*RATES[tier]*frac;
+    return money(lo) + ' – ' + money(hi);
+  }
+  function render(){
+    document.getElementById('prem-partial').textContent = range('Premium', PARTIAL);
+    document.getElementById('prem-full').textContent    = range('Premium', 1);
+    document.getElementById('lux-partial').textContent  = range('Luxury', PARTIAL);
+    document.getElementById('lux-full').textContent     = range('Luxury', 1);
+  }
+  render();
+
+  // Best-effort: pull the live saved rates so the client list matches the tool.
+  try {
+    var _sb = supabase.createClient('https://cwvdfgrjlrpsdfwduwvn.supabase.co','eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN3dmRmZ3JqbHJwc2Rmd2R1d3ZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwMDcyODUsImV4cCI6MjA5MzU4MzI4NX0.zam9AnIwW91TI6eCKUcg05LhvFcRa7op4QsjRpdcrCY');
+    _sb.from('invoices').select('data').eq('invnum','TIER_PRICING').single().then(function(res){
+      var d = res && res.data ? res.data.data : null;
+      if(d){
+        if(d.rates){ if(d.rates.Premium) RATES.Premium=d.rates.Premium; if(d.rates.Luxury) RATES.Luxury=d.rates.Luxury; }
+        if(d.frac && d.frac.Partial) PARTIAL=d.frac.Partial;
+        render();
+      }
+    }).catch(function(){});
+  } catch(e){}
+</script>
+</body>
+</html>

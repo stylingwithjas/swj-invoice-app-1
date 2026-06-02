@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#ffffff">
+<title>SWJ — Room &amp; Area Pricing</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+  :root{--ink:#21252b;--ink-soft:#4a515b;--muted:#7f8893;--line:#e7eaef;--bg:#eef1f4;--card:#fff;--gold:#bfa15c;--gold-dk:#97793c;--gold-lt:#f6f1e4;}
+  body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased;padding:24px 16px 60px;}
+  .sheet{max-width:760px;margin:0 auto;background:var(--card);border:1px solid #e6e9ee;border-radius:18px;box-shadow:0 10px 40px rgba(31,40,56,0.07);overflow:hidden;}
+  .hero{padding:38px 40px 24px;text-align:center;border-bottom:1px solid var(--line);}
+  .brand{font-family:'Cormorant Garamond',serif;font-size:40px;font-weight:300;letter-spacing:8px;}
+  .tagline{font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--muted);margin-top:8px;font-style:italic;}
+  .doc-title{font-family:'Cormorant Garamond',serif;font-size:25px;margin-top:20px;}
+  .doc-sub{font-size:12.5px;color:var(--ink-soft);max-width:520px;margin:9px auto 0;line-height:1.6;}
+  .body{padding:24px 40px 8px;}
+  .grp{margin-bottom:24px;}
+  .grp-t{font-size:11px;letter-spacing:1.6px;text-transform:uppercase;color:var(--gold-dk);font-weight:600;border-bottom:2px solid var(--gold);padding-bottom:7px;margin-bottom:4px;}
+  .row{display:grid;grid-template-columns:1fr 110px 110px;gap:10px;align-items:center;padding:11px 0;border-bottom:1px solid var(--line);}
+  .row:last-child{border-bottom:none;}
+  .row.head{border-bottom:1px solid var(--line);padding:8px 0;}
+  .row.head span{font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);font-weight:600;text-align:right;}
+  .row.head .nm{text-align:left;}
+  .nm{font-size:14px;color:var(--ink);font-weight:500;}
+  .pr{font-family:'Cormorant Garamond',serif;font-size:16px;color:var(--gold-dk);text-align:right;}
+  .pr.prem{color:var(--ink-soft);}
+  .incl{background:var(--gold-lt);border-radius:12px;padding:16px 20px;margin:6px 40px 0;}
+  .incl-t{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--gold-dk);font-weight:600;margin-bottom:6px;}
+  .incl-d{font-size:12px;color:var(--ink-soft);line-height:1.6;}
+  .foot{padding:22px 40px 34px;text-align:center;}
+  .foot-note{font-size:11px;color:var(--muted);line-height:1.6;max-width:540px;margin:0 auto 16px;}
+  .contact{font-family:'Cormorant Garamond',serif;font-size:16px;}
+  .contact-line{font-size:12px;color:var(--ink-soft);margin-top:3px;}
+  .print-wrap{text-align:center;}
+  .print-btn{display:inline-flex;align-items:center;gap:8px;margin:24px auto 0;padding:12px 22px;background:var(--ink);color:#fff;border:none;border-radius:30px;font-size:12px;font-weight:500;letter-spacing:0.5px;cursor:pointer;}
+  @media print{body{background:#fff;padding:0;}.sheet{box-shadow:none;border:none;border-radius:0;max-width:100%;}.print-wrap{display:none;}}
+  @media(max-width:560px){.hero,.body,.foot{padding-left:20px;padding-right:20px;}.incl{margin-left:20px;margin-right:20px;}.brand{font-size:32px;letter-spacing:6px;}.row{grid-template-columns:1fr 84px 84px;gap:6px;}.pr{font-size:14px;}}
+</style>
+</head>
+<body>
+  <div class="sheet">
+    <div class="hero">
+      <div class="brand">SWJ</div>
+      <div class="tagline">Design with Intention · Stage with Impact</div>
+      <div class="doc-title">Room &amp; Area Pricing</div>
+      <div class="doc-sub">Every package covers delivery, styling, a 45-day furnishing rental &amp; teardown, plus your home's first staged areas. Additional spaces are added at the per-space rates below.</div>
+    </div>
+    <div class="body" id="body"></div>
+    <div class="incl">
+      <div class="incl-t">Good to know</div>
+      <div class="incl-d">Pricing reflects the size and styling of each space. Your tailored quote — based on your home's square footage and the rooms selected — is confirmed after a walkthrough. Washington sales tax applies.</div>
+    </div>
+    <div class="foot">
+      <div class="foot-note">Premium applies to homes valued $1M–$2M; Luxury to homes $2M+. Ranges span the smallest to largest version of each space.</div>
+      <div class="contact">Jasmine Santana</div>
+      <div class="contact-line">206-422-5618 · info@stylingwithjas.com</div>
+    </div>
+  </div>
+  <div class="print-wrap"><button class="print-btn" onclick="window.print()">Print / Save as PDF</button></div>
+
+<script>
+  // Base (standard) per-space prices; Premium/Luxury scale by the multipliers below.
+  var MULT = { Premium: 1.3, Luxury: 1.6 };
+  var GROUPS = [
+    ['Living &amp; Gathering Spaces', [
+      ['Living Room',[425,475]], ['Family Room',[425,475]], ['Great Room',[500,575]],
+      ['Lower Level / Basement',[425,475]], ['Media / Bonus Room',[350,450]],
+    ]],
+    ['Bedrooms &amp; Suites', [
+      ['Primary Bedroom',[400,475]], ['Primary Suite Sitting Area',[200,275]],
+      ['Bedroom',[350,400]], ['Kids Room',[275,350]],
+    ]],
+    ['Dining, Work &amp; Outdoor', [
+      ['Dining Room',[300,450]], ['Office / Den',[125,150]], ['Outdoor / Patio',[75,350]],
+    ]],
+  ];
+
+  function r5(x){ return Math.round(x/5)*5; }
+  function rng(base, mult){
+    var lo=r5(base[0]*mult), hi=r5(base[1]*mult);
+    return lo===hi ? ('$'+lo.toLocaleString()) : ('$'+lo.toLocaleString()+' – $'+hi.toLocaleString());
+  }
+  function render(){
+    var html='';
+    GROUPS.forEach(function(g){
+      html+='<div class="grp"><div class="grp-t">'+g[0]+'</div>';
+      html+='<div class="row head"><span class="nm">Space</span><span>Premium</span><span>Luxury</span></div>';
+      g[1].forEach(function(r){
+        html+='<div class="row"><span class="nm">'+r[0]+'</span>'
+            +'<span class="pr prem">'+rng(r[1],MULT.Premium)+'</span>'
+            +'<span class="pr">'+rng(r[1],MULT.Luxury)+'</span></div>';
+      });
+      html+='</div>';
+    });
+    document.getElementById('body').innerHTML=html;
+  }
+  render();
+
+  // Keep multipliers in sync with the tool's saved settings.
+  try {
+    var _sb = supabase.createClient('https://cwvdfgrjlrpsdfwduwvn.supabase.co','eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN3dmRmZ3JqbHJwc2Rmd2R1d3ZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwMDcyODUsImV4cCI6MjA5MzU4MzI4NX0.zam9AnIwW91TI6eCKUcg05LhvFcRa7op4QsjRpdcrCY');
+    _sb.from('invoices').select('data').eq('invnum','TIER_PRICING').single().then(function(res){
+      var d=res&&res.data?res.data.data:null;
+      if(d&&d.roomMult){ if(d.roomMult.Premium)MULT.Premium=d.roomMult.Premium; if(d.roomMult.Luxury)MULT.Luxury=d.roomMult.Luxury; render(); }
+    }).catch(function(){});
+  } catch(e){}
+</script>
+</body>
+</html>
