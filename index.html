@@ -1184,53 +1184,51 @@ function loadInvoiceData(d){
       });
     }
 
-    // Restore addons
+    // Restore addons / extra bedrooms / custom items from the flattened list (best effort).
     selAddons.clear();
-    document.querySelectorAll('.size-chip').forEach(c => c.classList.remove('sel'));
-    if(d.addons && d.addons.length > 0){
-      d.addons.forEach(addon => {
-        // Match addon desc to category
-        CATS.forEach((cat, ci) => {
-          cat.sizes.forEach((opt, oi) => {
-            const descLower = addon.desc.toLowerCase();
-            const catLower = cat.name.toLowerCase();
-            if(descLower.startsWith(catLower)){
-              const key = `${ci}-${oi}`;
-              selAddons.set(`${ci}`, {key, ci, oi, scope: addon.desc});
-              const chip = document.getElementById(`chip-${key}`);
-              if(chip) chip.classList.add('sel');
-              // Set scope textarea
-              const ta = document.getElementById(`sc-${ci}`);
-              if(ta) ta.value = addon.desc.split(': ').slice(1).join(': ') || addon.desc;
-            }
-          });
-        });
-      });
-    }
-
-    // Restore custom line items
+    bedSel.clear();
     customs = [];
-    if(d.addons && d.addons.length > 0){
-      d.addons.forEach(addon => {
-        // Check if this addon doesn't match any standard category — it's a custom item
-        let isStandard = false;
-        CATS.forEach(cat => {
-          if(addon.desc.toLowerCase().startsWith(cat.name.toLowerCase())) isStandard = true;
-        });
-        // Also check extra bedroom names
-        ['bedroom 2','bedroom 3','bedroom 4','downstairs','guest','upstairs'].forEach(n => {
-          if(addon.desc.toLowerCase().startsWith(n)) isStandard = true;
-        });
-        if(!isStandard){
+    extraBedrooms = [];
+    const bedRe = /^(.*) \((Twin|Full|Queen|King)\):\s*([\s\S]*)$/;
+    // A description belongs to a room category only when the category name is
+    // immediately followed by " (" or ":" — so "Bedroom 2 (...)" is NOT a match.
+    const matchCat = (desc) => {
+      const dl = desc.toLowerCase();
+      for(let ci=0; ci<CATS.length; ci++){
+        const n = CATS[ci].name.toLowerCase();
+        if(dl.startsWith(n+' (') || dl.startsWith(n+':')) return ci;
+      }
+      return -1;
+    };
+    (d.addons||[]).forEach(addon => {
+      const price = parseFloat(addon.price)||0;
+      const ci = matchCat(addon.desc);
+      if(ci >= 0){
+        // Regular room add-on: recover the size from the saved price, restore that price.
+        const cat = CATS[ci];
+        let oi = cat.sizes.findIndex(s => Math.abs((parseFloat(s.price)||0) - price) < 0.001);
+        if(oi < 0) oi = 0;
+        cat.sizes[oi].price = price;
+        const bedMatch = addon.desc.match(/\((Twin|Full|Queen|King)\)/);
+        if(cat.hasBed && bedMatch) bedSel.set(`${ci}`, bedMatch[1]);
+        const scope = addon.desc.split(': ').slice(1).join(': ') || '';
+        selAddons.set(`${ci}`, {key:`${ci}-${oi}`, ci, oi, scope});
+      } else {
+        const bm = addon.desc.match(bedRe);
+        if(bm){
+          // Extra bedroom
+          const sz = CATS[1].sizes.find(s => Math.abs((parseFloat(s.price)||0) - price) < 0.001);
+          extraBedrooms.push({id: Date.now()+Math.random(), name: bm[1], bed: bm[2], size: sz?sz.size:'Small', price, scope: bm[3]||''});
+        } else {
+          // Custom line item
           const parts = addon.desc.split(': ');
-          const desc = parts[0] || addon.desc;
-          const scope = parts.slice(1).join(': ') || '';
-          customs.push({id: Date.now() + Math.random(), desc, scope, price: addon.price || 0});
+          customs.push({id: Date.now()+Math.random(), desc: parts[0]||addon.desc, scope: parts.slice(1).join(': ')||'', price});
         }
-      });
-      renderCustoms();
-    }
-
+      }
+    });
+    buildCats();            // re-render so restored prices, selections and bed buttons all show
+    renderExtraBedrooms();
+    renderCustoms();
     recalc();
     window.scrollTo({top:0,behavior:'smooth'});
     setSt('ok','Invoice loaded — edit and regenerate!');
@@ -1731,7 +1729,6 @@ async function generatePDF(){
     const blob=await response.blob();
     const filename=`SWJ_${data.client.replace(/ /g,'_')}_${data.invnum}.pdf`;
     setTimeout(()=>saveInvoice(data).catch(()=>{}),100);
-    setTimeout(()=>{try{saveDraft(true);}catch(e){}},150);
     await fetch('/api/counter',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({value:parseInt(data.invnum)})}).catch(()=>{});
     setSt('ok','Invoice generated!');
     window._lastInvoiceData = data;
@@ -1834,7 +1831,6 @@ async function generate(){
 
     setSt('ok', 'Invoice generated and downloaded! Check your Downloads folder.');
     setTimeout(()=>saveInvoice(data).catch(()=>{}), 100);
-    setTimeout(()=>{try{saveDraft(true);}catch(e){}}, 150);
     btn.textContent = 'Generate Invoice + Payment Link';
     btn.disabled = false;
     console.log('PDF: all done!');
