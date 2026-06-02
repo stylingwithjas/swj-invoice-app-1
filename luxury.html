@@ -471,10 +471,16 @@ body { background:#eceff3; color:var(--ink); }
       </div>
       <div class="tier-suggest" id="tier-suggest" style="display:none">
         <div class="tier-suggest-row">
-          <span class="tier-suggest-lbl">Auto-calculated base package</span>
+          <span class="tier-suggest-lbl">Target total</span>
           <span class="tier-suggest-val" id="tier-suggest-val">$0</span>
         </div>
         <div class="tier-suggest-note" id="tier-suggest-note"></div>
+        <div class="tier-rate-edit">
+          <span>Base $ —</span>
+          <span>Std</span><input class="tier-rate-input" id="base-Standard" type="number" step="100" inputmode="decimal" oninput="onBaseEdit('Standard',this.value)">
+          <span>Prem</span><input class="tier-rate-input" id="base-Premium" type="number" step="100" inputmode="decimal" oninput="onBaseEdit('Premium',this.value)">
+          <span>Lux</span><input class="tier-rate-input" id="base-Luxury" type="number" step="100" inputmode="decimal" oninput="onBaseEdit('Luxury',this.value)">
+        </div>
         <div class="tier-rate-edit">
           <span>Rate $/sq ft —</span>
           <span>Std</span><input class="tier-rate-input" id="rate-Standard" type="number" step="0.05" inputmode="decimal" oninput="onRateEdit('Standard',this.value)">
@@ -1096,6 +1102,7 @@ let _origBasePrice = 2500;
 // Kirkland partial $1.02 ≈ 0.38 of full). All values editable + saved to Supabase 'TIER_PRICING'.
 const TIER_RATES = { Standard: 2.50, Premium: 2.70, Luxury: 3.00 }; // $/sq ft for full staging
 const SCOPE_FRAC = { Vignette: 0.20, Partial: 0.40, Full: 1.00 };   // share of sq ft staged
+const BASE_PKG = { Standard: 2500, Premium: 3000, Luxury: 4500 };   // set base package per tier (editable)
 const TIER_SCOPES = { Standard:['Vignette','Partial','Full'], Premium:['Vignette','Partial','Full'], Luxury:['Vignette','Partial','Full'] };
 const SCOPE_DESC = { Vignette:'Key vignettes', Partial:'Signature spaces', Full:'Complete residence' };
 const TIER_MATRIX = { // flat cross-check ranges (handoff)
@@ -1144,23 +1151,22 @@ function renderScopePills(){
   });
 }
 function selectScope(sc){
-  selScope = sc;
+  selScope = sc;            // scope sets the TARGET; base package stays the tier's set number
   renderScopePills();
-  applyBaseFromEstimate();
   updateTierUI();
 }
-function applyBaseFromEstimate(){
-  const p = estimatePrice();
-  if(!p) return;
+function setBaseForTier(){
+  if(!selTier || BASE_PKG[selTier]==null) return;
+  const base = BASE_PKG[selTier];
   const bp=document.getElementById('base_price');
-  if(bp){ bp.value=p; _origBasePrice=p; const chk=document.getElementById('base-save-check'); if(chk) chk.classList.remove('changed','saved'); }
+  if(bp){ bp.value=base; _origBasePrice=base; const chk=document.getElementById('base-save-check'); if(chk) chk.classList.remove('changed','saved'); }
   recalc();
 }
 function refreshEstimate(){
-  // Auto-pick a default scope so the base package fills itself with no math.
+  // Pick a default scope so a target shows; the base package = the tier's set number.
   if(selTier && homeSqft && !selScope) selScope = 'Full';
   renderScopePills();
-  if(selScope) applyBaseFromEstimate();
+  setBaseForTier();
   updateTierUI();
 }
 function scopePrice(sc){
@@ -1174,19 +1180,22 @@ function updateTierUI(){
   ['Standard','Premium','Luxury'].forEach(function(t){
     const el=document.getElementById('rate-'+t);
     if(el && document.activeElement!==el) el.value=TIER_RATES[t];
+    const be=document.getElementById('base-'+t);
+    if(be && document.activeElement!==be) be.value=BASE_PKG[t];
   });
   if(!selTier || !selScope){ box.style.display='none'; return; }
   box.style.display='block';
-  const p = estimatePrice();
-  document.getElementById('tier-suggest-val').textContent = p ? '$'+tierCommas(p) : '—';
+  const target = estimatePrice();
+  const base = BASE_PKG[selTier]||0;
+  document.getElementById('tier-suggest-val').textContent = target ? '$'+tierCommas(target) : '—';
   let note;
   if(!homeSqft){
-    note = 'Enter square footage to calculate the suggested price.';
+    note = 'Enter square footage to calculate the target.';
   } else {
-    note = tierCommas(homeSqft)+' sq ft × $'+Number(TIER_RATES[selTier]).toFixed(2)+'/sq ft × '+Math.round(SCOPE_FRAC[selScope]*100)+'% ('+selScope+')';
-    const rng = TIER_MATRIX[selTier] && TIER_MATRIX[selTier][selScope];
-    if(rng) note += '  ·  typical '+selTier+' '+selScope+' range $'+tierCommas(rng[0])+'–$'+tierCommas(rng[1]);
-    note += '  →  set as your Signature package below; add rooms & enhancements on top.';
+    const roomRoom = Math.max(0, target - base);
+    note = 'Base package $'+tierCommas(base)+' ('+selTier+') is set below. '
+         + tierCommas(homeSqft)+' sq ft × $'+Number(TIER_RATES[selTier]).toFixed(2)+'/sq ft × '+Math.round(SCOPE_FRAC[selScope]*100)+'% ('+selScope+'). '
+         + 'Add ~$'+tierCommas(roomRoom)+' in rooms & enhancements to reach the target.';
   }
   document.getElementById('tier-suggest-note').textContent = note;
 }
@@ -1194,7 +1203,13 @@ function onRateEdit(tier, val){
   const r = parseFloat(val);
   if(!isNaN(r)) TIER_RATES[tier] = r;
   const chk=document.getElementById('tier-rate-save'); if(chk) chk.classList.add('changed');
-  if(selScope) applyBaseFromEstimate();
+  updateTierUI();
+}
+function onBaseEdit(tier, val){
+  const n = parseInt(String(val).replace(/[^0-9]/g,''),10);
+  if(!isNaN(n)) BASE_PKG[tier] = n;
+  const chk=document.getElementById('tier-rate-save'); if(chk) chk.classList.add('changed');
+  if(tier===selTier) setBaseForTier();
   updateTierUI();
 }
 function fetchHomeValue(){
@@ -1229,13 +1244,14 @@ async function loadTierSettings(){
     if(d){
       if(d.rates) Object.assign(TIER_RATES, d.rates);
       if(d.frac) Object.assign(SCOPE_FRAC, d.frac);
+      if(d.base) Object.assign(BASE_PKG, d.base);
     }
   }catch(e){}
   updateTierUI();
 }
 async function saveTierSettingsClicked(btn){
   try{
-    await _sb.from('invoices').upsert({ invnum:'TIER_PRICING', client:'TIER_PRICING', address:'', invdate:new Date().toISOString().split('T')[0], data:{ rates:TIER_RATES, frac:SCOPE_FRAC } }, { onConflict:'invnum' });
+    await _sb.from('invoices').upsert({ invnum:'TIER_PRICING', client:'TIER_PRICING', address:'', invdate:new Date().toISOString().split('T')[0], data:{ rates:TIER_RATES, frac:SCOPE_FRAC, base:BASE_PKG } }, { onConflict:'invnum' });
     btn.classList.remove('changed'); btn.classList.add('saved');
     setTimeout(function(){ btn.classList.remove('saved'); }, 2000);
   }catch(e){}
