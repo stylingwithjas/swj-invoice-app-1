@@ -316,58 +316,34 @@ textarea:focus { border-color:var(--gold); background:var(--warm); }
 .size-chip:hover .price-save-check { opacity:0.5; }
 .size-chip:hover .price-save-check.changed { opacity:1; }
 
-/* ════════════ LUXURY COLLECTION — dark luxe theme ════════════ */
+/* ════════════ LUXURY COLLECTION — fresh modern premium ════════════ */
 :root {
-  --ink:      #f3ecdd;
-  --ink-soft: #d6ccba;
-  --cream:    #241f17;
-  --warm:     #2c2619;
-  --taupe:    #ab9f8b;
-  --taupe-lt: #5d5446;
-  --taupe-dk: #c9bca7;
-  --gold:     #e0bd7a;
-  --gold-lt:  #3d3120;
-  --gold-dk:  #efd193;
-  --green:    #93c397;
-  --green-lt: #1f261d;
-  --amber:    #e2a24e;
-  --red:      #e58282;
+  --ink:      #21252b;
+  --ink-soft: #474e58;
+  --cream:    #f3f5f8;
+  --warm:     #ffffff;
+  --taupe:    #7f8893;
+  --taupe-lt: #e4e8ed;
+  --taupe-dk: #3a414b;
+  --gold:     #bfa15c;
+  --gold-lt:  #f6f1e4;
+  --gold-dk:  #97793c;
+  --green:    #2f7d5b;
+  --green-lt: #eef6f1;
+  --amber:    #c97c2e;
+  --red:      #c0453f;
 }
-body {
-  background:
-    radial-gradient(1100px 520px at 50% -8%, #322716 0%, rgba(50,39,22,0) 62%),
-    linear-gradient(180deg, #181309 0%, #100d07 100%);
-  background-attachment:fixed; color:var(--ink);
-}
-@media(min-width:600px){ body { padding:2rem;
-  background:
-    radial-gradient(1100px 520px at 50% -8%, #322716 0%, rgba(50,39,22,0) 62%),
-    linear-gradient(180deg, #181309 0%, #100d07 100%);
-  background-attachment:fixed; } }
-/* surfaces that intentionally stay dark (were var(--ink) backgrounds) */
-.hdr { background:#100d07; border-bottom:1px solid rgba(224,189,122,0.18); }
-.tier-suggest { background:#0c0a05; border:1px solid rgba(224,189,122,0.22); }
-.summary-card { background:linear-gradient(160deg,#201a10 0%,#13100a 100%); border:1px solid rgba(224,189,122,0.22); }
-.profit-header { background:#100d07; }
-.modal-send-btn, .profit-done-btn { background:#221b10; color:#f3ecdd; border:1px solid rgba(224,189,122,0.30); }
-.profit-take-value { color:#a9d6ac; }
-/* card edges + depth */
-.card { border:1px solid rgba(224,189,122,0.13); box-shadow:0 10px 34px rgba(0,0,0,0.28); }
-.addon-cat, .custom-item, .profit-cost-card { border-color:rgba(224,189,122,0.12); }
-/* brand + accents */
-.brand-name { color:#f0dcab; letter-spacing:5px; }
-.brand-sub { color:rgba(240,220,171,0.55); }
-.sec-lbl { color:var(--gold); opacity:0.75; }
+body { background:#eceff3; color:var(--ink); }
+@media(min-width:600px){ body { padding:2rem; background:#e7ebf0; } }
+.card { border:1px solid #e6e9ee; box-shadow:0 6px 22px rgba(31,40,56,0.06); }
 .sec-accent { opacity:0.85; }
-/* white buttons -> gold */
-.nav-btn.on { background:var(--gold); color:#161009; }
-#gen-btn { background:linear-gradient(135deg,#efd193 0%,#cf9f48 100%); color:#161009; }
-#email-btn { background:rgba(224,189,122,0.10); color:rgba(240,220,171,0.72); }
-#profit-preview-btn { background:rgba(224,189,122,0.10); color:rgba(240,220,171,0.60); }
-.tier-fetch-btn { background:rgba(224,189,122,0.12); color:var(--gold-dk); border-color:rgba(224,189,122,0.40); }
-.tier-fetch-btn:hover { background:var(--gold); color:#161009; }
-/* selection glow */
-.pill.sel, .chip.sel, .size-chip.sel, .bed-btn.active { box-shadow:0 0 0 1px rgba(224,189,122,0.25), 0 4px 16px rgba(224,189,122,0.12); }
+/* fresh gold callout instead of a dark box */
+.tier-suggest { background:var(--gold-lt); border:1px solid #ecdfc0; }
+.tier-suggest-lbl { color:var(--gold-dk); }
+.tier-suggest-val { color:var(--gold-dk); }
+.tier-suggest-note { color:var(--taupe-dk); }
+.tier-rate-edit { color:var(--taupe-dk); border-top-color:#ecdfc0; }
+.tier-rate-input { color:var(--ink); border-bottom-color:#d9c79c; }
 
 </style>
 </head>
@@ -495,7 +471,7 @@ body {
       </div>
       <div class="tier-suggest" id="tier-suggest" style="display:none">
         <div class="tier-suggest-row">
-          <span class="tier-suggest-lbl">Suggested investment</span>
+          <span class="tier-suggest-lbl">Auto-calculated base package</span>
           <span class="tier-suggest-val" id="tier-suggest-val">$0</span>
         </div>
         <div class="tier-suggest-note" id="tier-suggest-note"></div>
@@ -1142,15 +1118,14 @@ function onHomeValueInput(input){
 function onSqftInput(input){
   homeSqft = tierNum(input.value);
   input.value = homeSqft ? tierCommas(homeSqft) : '';
-  updateTierUI();
+  refreshEstimate();
 }
 function selectTier(tier, manual){
   selTier = tier;
   if(manual) tierManual = true;
   document.querySelectorAll('#tier-pills .pill').forEach(function(p){ p.classList.toggle('sel', p.dataset.tier===tier); });
   if(selScope && TIER_SCOPES[tier].indexOf(selScope) < 0) selScope='';
-  renderScopePills();
-  updateTierUI();
+  refreshEstimate();
 }
 function renderScopePills(){
   const cont = document.getElementById('scope-pills');
@@ -1171,13 +1146,22 @@ function renderScopePills(){
 function selectScope(sc){
   selScope = sc;
   renderScopePills();
-  const p = estimatePrice();
-  if(p){
-    const bp=document.getElementById('base_price');
-    if(bp){ bp.value=p; _origBasePrice=p; const chk=document.getElementById('base-save-check'); if(chk) chk.classList.remove('changed','saved'); }
-  }
+  applyBaseFromEstimate();
   updateTierUI();
+}
+function applyBaseFromEstimate(){
+  const p = estimatePrice();
+  if(!p) return;
+  const bp=document.getElementById('base_price');
+  if(bp){ bp.value=p; _origBasePrice=p; const chk=document.getElementById('base-save-check'); if(chk) chk.classList.remove('changed','saved'); }
   recalc();
+}
+function refreshEstimate(){
+  // Auto-pick a default scope so the base package fills itself with no math.
+  if(selTier && homeSqft && !selScope) selScope = 'Full';
+  renderScopePills();
+  if(selScope) applyBaseFromEstimate();
+  updateTierUI();
 }
 function scopePrice(sc){
   if(!homeSqft || !selTier || !sc) return 0;
@@ -1202,6 +1186,7 @@ function updateTierUI(){
     note = tierCommas(homeSqft)+' sq ft × $'+Number(TIER_RATES[selTier]).toFixed(2)+'/sq ft × '+Math.round(SCOPE_FRAC[selScope]*100)+'% ('+selScope+')';
     const rng = TIER_MATRIX[selTier] && TIER_MATRIX[selTier][selScope];
     if(rng) note += '  ·  typical '+selTier+' '+selScope+' range $'+tierCommas(rng[0])+'–$'+tierCommas(rng[1]);
+    note += '  →  set as your Signature package below; add rooms & enhancements on top.';
   }
   document.getElementById('tier-suggest-note').textContent = note;
 }
@@ -1209,6 +1194,7 @@ function onRateEdit(tier, val){
   const r = parseFloat(val);
   if(!isNaN(r)) TIER_RATES[tier] = r;
   const chk=document.getElementById('tier-rate-save'); if(chk) chk.classList.add('changed');
+  if(selScope) applyBaseFromEstimate();
   updateTierUI();
 }
 function fetchHomeValue(){
@@ -1227,7 +1213,7 @@ function fetchHomeValue(){
       if(d && (d.value || d.sqft)){
         if(d.value){ homeValue=Math.round(d.value); const v=document.getElementById('home_value'); if(v) v.value='$'+tierCommas(homeValue); if(!tierManual) selectTier(tierForValue(homeValue), false); }
         if(d.sqft){ homeSqft=Math.round(d.sqft); const s=document.getElementById('home_sqft'); if(s) s.value=tierCommas(homeSqft); }
-        updateTierUI();
+        refreshEstimate();
         if(note){ note.textContent='Found '+(d.value?'$'+tierCommas(Math.round(d.value)):'value n/a')+(d.sqft?' · '+tierCommas(Math.round(d.sqft))+' sq ft':'')+(d.source?' ('+d.source+')':''); note.style.color='#4a7c50'; }
       } else {
         if(note){ note.textContent = (d&&d.error) ? ('Auto-lookup unavailable — enter manually. ('+d.error+')') : 'No match — enter value & sq ft manually.'; note.style.color='#c97c2e'; }
