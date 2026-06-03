@@ -588,7 +588,6 @@ document.addEventListener('DOMContentLoaded',()=>{
 });
 
 
-let STRIPE_KEY='';
 
 const ROOMS=['Living Room','Primary Bedroom','Bedroom 2','Bedroom 3','Kitchen','Dining Room','Office/Den','Loft','Entryway','Bonus Room','Sunroom','Patio/Outdoor'];
 
@@ -1885,7 +1884,6 @@ document.addEventListener('DOMContentLoaded', function(){
     initInvNum();
     loadRecent();
     loadDrafts();
-    fetch('/api/config').then(r=>r.json()).then(d=>{if(d&&d.stripe_key)STRIPE_KEY=d.stripe_key;}).catch(()=>{});
   } catch(e) {
     console.error('Init error:', e.message, e.stack);
   }

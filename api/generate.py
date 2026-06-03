@@ -128,11 +128,15 @@ def generate_invoice_pdf(data):
         cv.drawRightString(PW-MR, y,      f'Invoice No {invnum}')
         cv.drawRightString(PW-MR, y - 12, invdate)
     
-        # Real logo image — top left
+        # Real logo image — top left (never let a missing asset 500 the invoice)
         logo_y = y - LOGO_H
-        cv.drawImage(LOGO_PATH, ML - 20, logo_y,
-                     width=LOGO_W, height=LOGO_H,
-                     mask='auto', preserveAspectRatio=True)
+        try:
+            cv.drawImage(LOGO_PATH, ML - 20, logo_y,
+                         width=LOGO_W, height=LOGO_H,
+                         mask='auto', preserveAspectRatio=True)
+        except Exception:
+            cv.setFont('Helvetica-Bold', 28); cv.setFillColor(BLACK)
+            cv.drawString(ML - 20, logo_y + 28, 'SWJ')
     
         # STAGING PROPOSAL — letter-spaced, color #a29c96, centered between logo and invoice block
         logo_right = ML + LOGO_W + 24
@@ -413,14 +417,26 @@ def generate_invoice_pdf(data):
     
     qW    = 30
     descW = CW - qW - 90
-    
+
+    def draw_table_header():
+        nonlocal y
+        cv.setFont('Helvetica-Bold', 11); cv.setFillColor(BLACK)
+        cv.drawString(ML,           y, 'Quantity')
+        cv.drawString(ML + qW + 15, y, 'Description')
+        cv.drawRightString(PW-MR,   y, 'Cost')
+        y -= 18
+
+    def ensure_space(min_y):
+        """Start a new page (with header + table header) if not enough room left."""
+        nonlocal y
+        if y < min_y:
+            cv.showPage()
+            y = draw_header(775)
+            draw_table_header()
+
     # Table header — no underline rule
-    cv.setFont('Helvetica-Bold', 11); cv.setFillColor(BLACK)
-    cv.drawString(ML,           y, 'Quantity')
-    cv.drawString(ML + qW + 15, y, 'Description')
-    cv.drawRightString(PW-MR,   y, 'Cost')
-    y -= 18
-    
+    draw_table_header()
+
     def draw_base_row(qty, intro_lines, bold_lines, promo_lines, cost_str):
         nonlocal y
         cv.setFillColor(GRAY); cv.setFont('Helvetica', 8.5)
@@ -584,9 +600,11 @@ def generate_invoice_pdf(data):
         cv.line(ML, y+4, PW-MR, y+4); y -= 4
     
     for a in addons:
+        ensure_space(140)
         draw_addon_structured(a['desc'], fmt(a['price']))
-    
+
     if promo3:
+        ensure_space(140)
         photo = ("Photography Services (Included at No Additional Charge): Up to 25 professional real estate "
                  "photos are included as a complimentary service. Photography will be done with Jasmine's preferred "
                  "photographer. Drone photography may be provided upon client request, when permitted, and if the "
@@ -596,7 +614,10 @@ def generate_invoice_pdf(data):
         draw_row(1, wrap(cv, photo, 'Helvetica', 8.5, descW), '-------')
     
     y -= 8
-    
+
+    # Keep totals + payment + footer together on one page
+    ensure_space(240)
+
     # Totals
     cv.setFont('Helvetica', 9); cv.setFillColor(GRAY)
     cv.drawString(PW-MR-120, y, 'Subtotal:');                cv.drawRightString(PW-MR, y, fmt(subtotal)); y -= 13
@@ -797,10 +818,14 @@ def generate_invoice_pdf(data):
     # Signature image — sits right on the signature line
     sig_img_w = 70
     sig_img_h = int(649 * sig_img_w / 1154)   # proportional to new signature
-    # Draw image aligned to the text baseline
-    cv.drawImage(SIG_PATH, ML + 55, y - 4,
-                 width=sig_img_w, height=sig_img_h,
-                 mask='auto', preserveAspectRatio=True)
+    # Draw image aligned to the text baseline (missing asset must not 500 the invoice)
+    try:
+        cv.drawImage(SIG_PATH, ML + 55, y - 4,
+                     width=sig_img_w, height=sig_img_h,
+                     mask='auto', preserveAspectRatio=True)
+    except Exception:
+        cv.setFont('Helvetica-Oblique', 11); cv.setFillColor(BLACK)
+        cv.drawString(ML + 55, y, 'Jasmine Santana')
     y -= 18   # move down past the signature
     
     # Date — one clean line below signature
