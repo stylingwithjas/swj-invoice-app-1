@@ -1783,6 +1783,8 @@ async function downloadPdfNow(){
   const btn=document.getElementById('download-btn');
   btn.disabled=true; btn.textContent='Generating PDF…';
   setSt('loading','Generating your invoice PDF…');
+  // Open the tab NOW, inside the tap, so iOS Safari doesn't block it after the await.
+  let pdfWin=null; try{ pdfWin=window.open('','_blank'); }catch(e){}
 
   const allAddons=[];
   selAddons.forEach(entry=>{
@@ -1818,13 +1820,19 @@ async function downloadPdfNow(){
     if(!blob||blob.size<1000) throw new Error('Empty file returned from server');
     const url=URL.createObjectURL(blob);
     const filename=`SWJ_${client.replace(/ /g,'_')}_${invNumFinal}.pdf`;
-    const a=document.createElement('a');a.style.display='none';a.href=url;a.download=filename;
-    document.body.appendChild(a);a.click();
-    setTimeout(()=>{document.body.removeChild(a);URL.revokeObjectURL(url);},4000);
-    setSt('ok','PDF downloaded! Check your Files / Downloads.');
+    // iOS-reliable: show the PDF in the tab we opened (tap Share → Save to Files).
+    if(pdfWin){ try{ pdfWin.location.href=url; }catch(e){ pdfWin=null; } }
+    if(!pdfWin){
+      const a=document.createElement('a');a.style.display='none';a.href=url;a.download=filename;a.target='_blank';
+      document.body.appendChild(a);a.click();
+      setTimeout(()=>{document.body.removeChild(a);},4000);
+    }
+    setTimeout(()=>URL.revokeObjectURL(url),120000);
+    setSt('ok','PDF ready! In the new tab, tap the Share icon → Save to Files.');
     setTimeout(()=>saveInvoice(data).catch(()=>{}),100);
   }catch(e){
     clearTimeout(to);
+    if(pdfWin){ try{ pdfWin.close(); }catch(_){ } }
     const msg = e.name==='AbortError' ? 'Took longer than 90s — the server is slow or down. Try again.' : e.message;
     setSt('err','Download failed — '+msg);
     alert('PDF download failed:\n\n'+msg);
