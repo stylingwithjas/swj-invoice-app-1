@@ -1,8 +1,16 @@
 {
   "version": 2,
   "functions": {
+    "api/generate.py": {
+      "includeFiles": "assets/**",
+      "maxDuration": 60
+    },
     "api/sign.py": {
-      "includeFiles": "{api/generate.py,assets/**}"
+      "includeFiles": "{api/generate.py,assets/**}",
+      "maxDuration": 60
+    },
+    "api/stripe.py": {
+      "maxDuration": 30
     }
   },
   "rewrites": [

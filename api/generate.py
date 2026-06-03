@@ -128,11 +128,15 @@ def generate_invoice_pdf(data):
         cv.drawRightString(PW-MR, y,      f'Invoice No {invnum}')
         cv.drawRightString(PW-MR, y - 12, invdate)
     
-        # Real logo image — top left
+        # Real logo image — top left (never let a missing asset 500 the invoice)
         logo_y = y - LOGO_H
-        cv.drawImage(LOGO_PATH, ML - 20, logo_y,
-                     width=LOGO_W, height=LOGO_H,
-                     mask='auto', preserveAspectRatio=True)
+        try:
+            cv.drawImage(LOGO_PATH, ML - 20, logo_y,
+                         width=LOGO_W, height=LOGO_H,
+                         mask='auto', preserveAspectRatio=True)
+        except Exception:
+            cv.setFont('Helvetica-Bold', 28); cv.setFillColor(BLACK)
+            cv.drawString(ML - 20, logo_y + 28, 'SWJ')
     
         # STAGING PROPOSAL — letter-spaced, color #a29c96, centered between logo and invoice block
         logo_right = ML + LOGO_W + 24
@@ -814,10 +818,14 @@ def generate_invoice_pdf(data):
     # Signature image — sits right on the signature line
     sig_img_w = 70
     sig_img_h = int(649 * sig_img_w / 1154)   # proportional to new signature
-    # Draw image aligned to the text baseline
-    cv.drawImage(SIG_PATH, ML + 55, y - 4,
-                 width=sig_img_w, height=sig_img_h,
-                 mask='auto', preserveAspectRatio=True)
+    # Draw image aligned to the text baseline (missing asset must not 500 the invoice)
+    try:
+        cv.drawImage(SIG_PATH, ML + 55, y - 4,
+                     width=sig_img_w, height=sig_img_h,
+                     mask='auto', preserveAspectRatio=True)
+    except Exception:
+        cv.setFont('Helvetica-Oblique', 11); cv.setFillColor(BLACK)
+        cv.drawString(ML + 55, y, 'Jasmine Santana')
     y -= 18   # move down past the signature
     
     # Date — one clean line below signature

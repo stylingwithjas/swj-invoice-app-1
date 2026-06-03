@@ -1,5 +1,5 @@
 /* SWJ service worker — bump CACHE_VERSION on any release to retire old caches. */
-const CACHE_VERSION = 'swj-v1';
+const CACHE_VERSION = 'swj-v2';
 const PRECACHE = [
   '/', '/index.html', '/today.html', '/board.html', '/shopping.html', '/proposal.html',
   '/auth.js', '/manifest.webmanifest',
