@@ -413,14 +413,26 @@ def generate_invoice_pdf(data):
     
     qW    = 30
     descW = CW - qW - 90
-    
+
+    def draw_table_header():
+        nonlocal y
+        cv.setFont('Helvetica-Bold', 11); cv.setFillColor(BLACK)
+        cv.drawString(ML,           y, 'Quantity')
+        cv.drawString(ML + qW + 15, y, 'Description')
+        cv.drawRightString(PW-MR,   y, 'Cost')
+        y -= 18
+
+    def ensure_space(min_y):
+        """Start a new page (with header + table header) if not enough room left."""
+        nonlocal y
+        if y < min_y:
+            cv.showPage()
+            y = draw_header(775)
+            draw_table_header()
+
     # Table header — no underline rule
-    cv.setFont('Helvetica-Bold', 11); cv.setFillColor(BLACK)
-    cv.drawString(ML,           y, 'Quantity')
-    cv.drawString(ML + qW + 15, y, 'Description')
-    cv.drawRightString(PW-MR,   y, 'Cost')
-    y -= 18
-    
+    draw_table_header()
+
     def draw_base_row(qty, intro_lines, bold_lines, promo_lines, cost_str):
         nonlocal y
         cv.setFillColor(GRAY); cv.setFont('Helvetica', 8.5)
@@ -584,9 +596,11 @@ def generate_invoice_pdf(data):
         cv.line(ML, y+4, PW-MR, y+4); y -= 4
     
     for a in addons:
+        ensure_space(140)
         draw_addon_structured(a['desc'], fmt(a['price']))
-    
+
     if promo3:
+        ensure_space(140)
         photo = ("Photography Services (Included at No Additional Charge): Up to 25 professional real estate "
                  "photos are included as a complimentary service. Photography will be done with Jasmine's preferred "
                  "photographer. Drone photography may be provided upon client request, when permitted, and if the "
@@ -596,7 +610,10 @@ def generate_invoice_pdf(data):
         draw_row(1, wrap(cv, photo, 'Helvetica', 8.5, descW), '-------')
     
     y -= 8
-    
+
+    # Keep totals + payment + footer together on one page
+    ensure_space(240)
+
     # Totals
     cv.setFont('Helvetica', 9); cv.setFillColor(GRAY)
     cv.drawString(PW-MR-120, y, 'Subtotal:');                cv.drawRightString(PW-MR, y, fmt(subtotal)); y -= 13
