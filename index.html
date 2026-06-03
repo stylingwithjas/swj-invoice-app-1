@@ -917,11 +917,17 @@ function togglePaid(){
 
 async function createPaymentLink(grand,client,invnum,address){
   setSt('loading','Creating payment link...');
-  const r=await fetch('/api/stripe',{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({grand,client,invnum,address})
-  });
+  const ctrl=new AbortController();
+  const _to=setTimeout(()=>ctrl.abort(),15000);   // don't let a hung Stripe call freeze generation
+  let r;
+  try{
+    r=await fetch('/api/stripe',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({grand,client,invnum,address}),
+      signal:ctrl.signal
+    });
+  } finally { clearTimeout(_to); }
   const d=await r.json();
   if(d.error) throw new Error(d.error);
   setSt('ok','Payment link ready ✓');
