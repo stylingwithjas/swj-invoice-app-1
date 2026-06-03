@@ -1772,36 +1772,30 @@ async function generateAndEmail(){
 }
 
 function openEmailModal(data){
-  const client=data.client||'';
-  const address=data.address||'';
-  const firstName=client.toLowerCase().startsWith('estate of')?client.split(' ').slice(2).join(' ').split(' ')[0]:client.split(' ')[0];
-  document.getElementById('email-to').value='';
-  document.getElementById('email-subject').value=`Your Staging Proposal — ${address}`;
-  document.getElementById('email-body').value=`Hi ${firstName},\n\nThank you for the opportunity to work with you! I'm excited about this property and what we can create together.\n\nAttached you'll find your personalized staging proposal for ${address}. Inside you'll find the full scope of work, investment total, and payment details.\n\nA few important notes:\n• Full payment is due 48 hours before installation day\n• Once payment is received I'll lock in your staging date\n• The payment link is included in the proposal for your convenience\n\nPlease don't hesitate to reach out with any questions!\n\nLooking forward to transforming your space.\n\nWarmly,\nJasmine Santana\nOwner & Creative Director — Styling With Jas\n📱 206-422-5618\n📧 info@stylingwithjas.com`;
-  // --- friction-free email: total, spaces & pay link inline; elevated tone for upper tiers ---
-  (function(){
-    const isLux=(data.tier==='Luxury'||data.tier==='Premium');
-    const base=parseFloat(data.base_price)||0;
-    const arr=data.addons||[];
-    const grand=(base+arr.reduce((s,a)=>s+(parseFloat(a.price)||0),0))*(1+(parseFloat(data.taxrate)||0)/100);
-    const grandStr='$'+grand.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
-    const spaces=(data.baserooms||'').split(', ').filter(Boolean).length + arr.length;
-    const scopeWord=data.scope?(data.scope+' staging'):'staging';
-    const payUrl=data.payment_url||'';
-    const payLine=payUrl?('\n\nReserve your installation date \u2014 pay securely here:\n'+payUrl):'';
-    if(isLux){
-      document.getElementById('email-subject').value='Your Curated Staging Proposal \u2014 '+address;
-      document.getElementById('email-body').value=
-'Dear '+firstName+',\n\nIt would be our privilege to prepare '+address+' for market. Your curated staging proposal is attached for your review.\n\nYour investment: '+grandStr+'\nScope: '+scopeWord+(spaces?(' \u00b7 '+spaces+' curated spaces'):'')+'\n\nIncluded throughout: white-glove delivery & installation, bespoke styling by our design team, a 45-day furnishing rental, and seamless teardown.'+payLine+'\n\nFull payment is due 48 hours prior to installation; your date is confirmed the moment payment is received. It would be a pleasure to bring this home to life \u2014 please reach out with any questions at all.\n\nWith warm regards,\nJasmine Santana\nFounder & Creative Director \u00b7 Styling With Jas\n206-422-5618 \u00b7 info@stylingwithjas.com';
-    } else {
-      document.getElementById('email-subject').value='Your Staging Proposal \u2014 '+address;
-      document.getElementById('email-body').value=
-'Hi '+firstName+',\n\nThank you for the opportunity to work with you! Attached is your personalized staging proposal for '+address+'.\n\nInvestment total: '+grandStr+'\n\nA few important notes:\n\u2022 Full payment is due 48 hours before installation day\n\u2022 Once payment is received I will lock in your staging date'+payLine+'\n\nPlease do not hesitate to reach out with any questions!\n\nWarmly,\nJasmine Santana\nOwner & Creative Director \u2014 Styling With Jas\n206-422-5618 \u00b7 info@stylingwithjas.com';
-    }
-  })();
-  document.getElementById('email-status').textContent='';
-  document.getElementById('email-modal').classList.add('show');
-  setTimeout(()=>document.getElementById('email-to').focus(),100);
+  const client=data.client||"";
+  const address=data.address||"";
+  const firstName=client.toLowerCase().startsWith("estate of")?client.split(" ").slice(2).join(" ").split(" ")[0]:client.split(" ")[0];
+  const isLux=(data.tier==="Luxury"||data.tier==="Premium");
+  const base=parseFloat(data.base_price)||0;
+  const arr=data.addons||[];
+  const grand=(base+arr.reduce((s,a)=>s+(parseFloat(a.price)||0),0))*(1+(parseFloat(data.taxrate)||0)/100);
+  const grandStr="$"+grand.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+  const spaceCount=(data.baserooms||"").split(", ").filter(Boolean).length + arr.length;
+  const scopeWord=data.scope?(data.scope+" staging"):"staging";
+  const spacesBit=spaceCount?(" · "+spaceCount+" curated spaces"):"";
+  const proposalUrl=location.origin+"/proposal.html?inv="+(data.invnum||"");
+  const approveLine="\n\nTo approve this proposal, review & sign here:\n"+proposalUrl;
+  document.getElementById("email-to").value="";
+  if(isLux){
+    document.getElementById("email-subject").value="Your Curated Staging Proposal — "+address;
+    document.getElementById("email-body").value="Dear "+firstName+",\n\nIt would be our privilege to prepare "+address+" for market. Your curated staging proposal is attached for your review.\n\nYour investment: "+grandStr+"\nScope: "+scopeWord+spacesBit+"\n\nIncluded throughout: white-glove delivery & installation, bespoke styling by our design team, a 45-day furnishing rental, and seamless teardown.\n\nApprove and sign below to secure your installation date — the moment your contract is signed, we begin preparing your residence."+approveLine+"\n\nWith warm regards,\nJasmine Santana\nFounder & Creative Director · Styling With Jas\n206-422-5618 · info@stylingwithjas.com";
+  } else {
+    document.getElementById("email-subject").value="Your Staging Proposal — "+address;
+    document.getElementById("email-body").value="Hi "+firstName+",\n\nThank you for the opportunity to work with you! I'm excited about this property and what we can create together.\n\nAttached you'll find your personalized staging proposal for "+address+". Inside you'll find the full scope of work, investment total, and payment details.\n\nA few important notes:\n• Full payment is due 48 hours before installation day\n• Once payment is received I'll lock in your staging date\n• The payment link is included in the proposal for your convenience\n\nPlease don't hesitate to reach out with any questions!\n\nLooking forward to transforming your space."+approveLine+"\n\nWarmly,\nJasmine Santana\nOwner & Creative Director — Styling With Jas\n📱 206-422-5618\n📧 info@stylingwithjas.com";
+  }
+  document.getElementById("email-status").textContent="";
+  document.getElementById("email-modal").classList.add("show");
+  setTimeout(()=>document.getElementById("email-to").focus(),100);
 }
 
 
