@@ -87,8 +87,6 @@ def generate_invoice_pdf(data):
     paid       = data.get('paid', False)
     paid_date  = data.get('paid_date', '')
     cover_note = data.get('cover_note', '')
-    tier       = data.get('tier', '')
-    is_lux     = tier in ('Luxury', 'Premium')
     
     base_price = float(data.get('base_price', 2500))
     addon_total = sum(a['price'] for a in addons)
@@ -146,7 +144,7 @@ def generate_invoice_pdf(data):
         title_w = cv.stringWidth(title, 'Helvetica', font_sz) + char_gap * (len(title) - 1)
         title_x = logo_right + (available_w - title_w) / 2
         title_y = y - LOGO_H + 16
-        cv.setFillColor(colors.HexColor('#b8924f' if is_lux else '#a29c96'))
+        cv.setFillColor(colors.HexColor('#a29c96'))
         tx = title_x
         for ch in title:
             cv.drawString(tx, title_y, ch)
@@ -274,7 +272,7 @@ def generate_invoice_pdf(data):
     
         # "STYLING WITH JAS": 10px letter-spacing 3px taupe (email-logo-sub)
         cv.setFillColor(TAUPE); cv.setFont('Helvetica', 8)
-        sub = 'LUXURY COLLECTION' if is_lux else 'STYLING WITH JAS'
+        sub = 'STYLING WITH JAS'
         sw = sum(cv.stringWidth(ch,'Helvetica',8)+2.4 for ch in sub)
         sx = PW/2 - sw/2
         for ch in sub:
@@ -302,13 +300,13 @@ def generate_invoice_pdf(data):
     
         # email-headline: CG 32px weight 300 color #111 line-height 1.25
         cv.setFillColor(DARK); cv.setFont(CG, 32)
-        cv.drawCentredString(PW/2, hero_top - 72, 'Your Curated Proposal' if is_lux else 'Your Staging Proposal')
+        cv.drawCentredString(PW/2, hero_top - 72, 'Your Staging Proposal')
         cv.drawCentredString(PW/2, hero_top - 112, f'is Ready, {first_name}')
     
         # email-tagline: 13px italic color #888888
         cv.setFillColor(LIGHT); cv.setFont(CGI, 13)
-        cv.drawCentredString(PW/2, hero_top - 140, 'A bespoke presentation, curated to showcase' if is_lux else 'Turning every space into a home buyers instantly')
-        cv.drawCentredString(PW/2, hero_top - 155, 'your home at its very finest.' if is_lux else 'connect with.')
+        cv.drawCentredString(PW/2, hero_top - 140, 'Turning every space into a home buyers instantly')
+        cv.drawCentredString(PW/2, hero_top - 155, 'connect with.')
     
         # ── BODY — email-body: padding 40px 48px, white background ──
         body_y = hero_top - hero_h - 32
@@ -408,7 +406,7 @@ def generate_invoice_pdf(data):
     
     # ── PAGE 1: INVOICE ──
     # Draw cover page only if requested
-    if data.get('cover_page', False) or is_lux:
+    if data.get('cover_page', False):
         draw_cover_page()
     
     y = draw_header(775)
