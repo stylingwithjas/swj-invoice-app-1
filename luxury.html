@@ -618,11 +618,9 @@ body { background:#eceff3; color:var(--ink); }
     <div class="sum-ext"><span id="t-ext">Extension: $918.75 / 30 days</span></div>
     <div class="stripe-bar" style="margin:0 16px 14px">
       <span class="sdot" id="sdot"></span>
-      <span id="smsg">A secure payment link will be prepared automatically.</span>
+      <span id="smsg">Ready to generate your luxury proposal.</span>
     </div>
     <button class="gen-btn" id="download-btn" onclick="downloadPdfNow()" style="background:#fff;color:var(--ink)">⬇ Download PDF</button>
-    <button class="gen-btn" id="gen-btn" onclick="generate()" style="background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.7)">Prepare Proposal + Payment Link</button>
-    <button class="gen-btn" id="email-btn" onclick="generateAndEmail()">Prepare &amp; Email Proposal</button>
     <button class="gen-btn" id="profit-preview-btn" onclick="previewProfitability()">Preview Engagement Profitability</button>
   </div>
 
@@ -1772,14 +1770,15 @@ let _lastPdfBlob=null,_lastPdfFilename='';
 // and any failure shows a visible message instead of spinning forever.
 async function downloadPdfNow(){
   let valid=true;
-  [['f-client','e-client','client'],['f-address','e-address','address'],['f-invdate','e-invdate','invdate'],['f-startdate','e-startdate','startdate']].forEach(([fid,eid,iid])=>{
+  ['client','address','invdate','startdate'].forEach(iid=>{
     const inp=document.getElementById(iid);
-    if(!inp.value.trim()){inp.classList.add('err');document.getElementById(eid).classList.add('show');valid=false;}
-    else{inp.classList.remove('err');document.getElementById(eid).classList.remove('show');}
+    const eid='e-'+iid;
+    if(!inp || !inp.value.trim()){if(inp)inp.classList.add('err');document.getElementById(eid)?.classList.add('show');valid=false;}
+    else{inp.classList.remove('err');document.getElementById(eid)?.classList.remove('show');}
   });
-  if(selRooms.size===0){document.getElementById('rooms-grid').classList.add('err');document.getElementById('e-rooms').classList.add('show');valid=false;}
-  else{document.getElementById('rooms-grid').classList.remove('err');document.getElementById('e-rooms').classList.remove('show');}
-  if(!valid){document.querySelector('.rooms-grid').scrollIntoView({behavior:'smooth'});return;}
+  if(selRooms.size===0){document.getElementById('rooms-grid')?.classList.add('err');document.getElementById('e-rooms')?.classList.add('show');valid=false;}
+  else{document.getElementById('rooms-grid')?.classList.remove('err');document.getElementById('e-rooms')?.classList.remove('show');}
+  if(!valid){document.querySelector('.rooms-grid')?.scrollIntoView({behavior:'smooth'});return;}
 
   const btn=document.getElementById('download-btn');
   btn.disabled=true; btn.textContent='Generating PDF…';
@@ -1790,13 +1789,13 @@ async function downloadPdfNow(){
   const allAddons=[];
   selAddons.forEach(entry=>{
     const cat=CATS[entry.ci],opt=cat.sizes[entry.oi];
-    const bed=cat.hasBed?bedSel.get(`${entry.ci}`):'';
-    const scope=document.getElementById(`sc-${entry.ci}`)?.value||entry.scope||'';
+    const bed=cat.hasBed?bedSel.get(''+entry.ci):'';
+    const scope=document.getElementById('sc-'+entry.ci)?.value||entry.scope||(DEFAULT_SCOPES[cat.name]&&DEFAULT_SCOPES[cat.name][opt.size])||'';
     allAddons.push({desc:cat.name + (bed ? " (" + bed + ")" : "") + ": " + (scope||opt.size),price:opt.price});
   });
   customs.filter(a=>a.desc).forEach(a=>{allAddons.push({desc:a.desc+(a.scope?': '+a.scope:''),price:parseFloat(a.price)||0});});
-  extraBedrooms.forEach(b=>{allAddons.push({desc:`${b.name} (${b.bed}): ${b.scope||b.size}`,price:b.price});});
-  extraAreas.forEach(a=>{allAddons.push({desc:`${a.name}: ${a.scope||a.size}`,price:parseFloat(a.price)||0});});
+  extraBedrooms.forEach(b=>{allAddons.push({desc:b.name+' ('+b.bed+'): '+(b.scope||b.size),price:b.price});});
+  extraAreas.forEach(a=>{allAddons.push({desc:a.name+': '+(a.scope||a.size),price:parseFloat(a.price)||0});});
 
   const base=parseFloat(document.getElementById('base_price')?.value)||2500;
   const addonTotal=allAddons.reduce((s,a)=>s+a.price,0);
@@ -1807,9 +1806,8 @@ async function downloadPdfNow(){
   const zipVal=document.getElementById('zipcode')?.value.trim()||'';
   const address=zipVal&&!addressBase.includes(zipVal)?addressBase+' '+zipVal:addressBase;
   const invNumFinal=document.getElementById('invnum-display').value.trim()||'202093';
-  invNum=invNumFinal;
 
-  const data={client,address,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:document.getElementById('startdate').value,baserooms:[...selRooms].join(', '),extrate,taxrate,base_price:base,addons:allAddons,state:captureState(),home_value:homeValue,home_sqft:homeSqft,tier:selTier,scope:selScope,promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,promo4:document.getElementById('promo4').checked,payment_url:null,cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||''};
+  const data={client,address,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:document.getElementById('startdate').value,baserooms:[...selRooms].join(', '),extrate,taxrate,base_price:base,addons:allAddons,home_value:homeValue,home_sqft:homeSqft,tier:selTier,scope:selScope,promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,promo4:document.getElementById('promo4')?.checked||false,payment_url:null,cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||''};
 
   const ctrl=new AbortController();
   const to=setTimeout(()=>ctrl.abort(),90000);
