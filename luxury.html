@@ -620,8 +620,9 @@ body { background:#eceff3; color:var(--ink); }
       <span class="sdot" id="sdot"></span>
       <span id="smsg">A secure payment link will be prepared automatically.</span>
     </div>
-    <button class="gen-btn" id="gen-btn" onclick="generate()">Prepare Proposal + Payment Link</button>
-    <button class="gen-btn" id="email-btn" onclick="generateAndEmail()">Prepare & Email Proposal</button>
+    <button class="gen-btn" id="download-btn" onclick="downloadPdfNow()" style="background:#fff;color:var(--ink)">⬇ Download PDF</button>
+    <button class="gen-btn" id="gen-btn" onclick="generate()" style="background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.7)">Prepare Proposal + Payment Link</button>
+    <button class="gen-btn" id="email-btn" onclick="generateAndEmail()">Prepare &amp; Email Proposal</button>
     <button class="gen-btn" id="profit-preview-btn" onclick="previewProfitability()">Preview Engagement Profitability</button>
   </div>
 
@@ -1766,6 +1767,72 @@ function loadInvoice2(type, idx){
 
 let _lastPdfBlob=null,_lastPdfFilename='';
 
+// Plain PDF download — no payment link, no email. Cannot hang: hard 90s timeout
+// and any failure shows a visible message instead of spinning forever.
+async function downloadPdfNow(){
+  let valid=true;
+  [['f-client','e-client','client'],['f-address','e-address','address'],['f-invdate','e-invdate','invdate'],['f-startdate','e-startdate','startdate']].forEach(([fid,eid,iid])=>{
+    const inp=document.getElementById(iid);
+    if(!inp.value.trim()){inp.classList.add('err');document.getElementById(eid).classList.add('show');valid=false;}
+    else{inp.classList.remove('err');document.getElementById(eid).classList.remove('show');}
+  });
+  if(selRooms.size===0){document.getElementById('rooms-grid').classList.add('err');document.getElementById('e-rooms').classList.add('show');valid=false;}
+  else{document.getElementById('rooms-grid').classList.remove('err');document.getElementById('e-rooms').classList.remove('show');}
+  if(!valid){document.querySelector('.rooms-grid').scrollIntoView({behavior:'smooth'});return;}
+
+  const btn=document.getElementById('download-btn');
+  btn.disabled=true; btn.textContent='Generating PDF…';
+  setSt('loading','Generating your invoice PDF…');
+
+  const allAddons=[];
+  selAddons.forEach(entry=>{
+    const cat=CATS[entry.ci],opt=cat.sizes[entry.oi];
+    const bed=cat.hasBed?bedSel.get(`${entry.ci}`):'';
+    const scope=document.getElementById(`sc-${entry.ci}`)?.value||entry.scope||'';
+    allAddons.push({desc:cat.name + (bed ? " (" + bed + ")" : "") + ": " + (scope||opt.size),price:opt.price});
+  });
+  customs.filter(a=>a.desc).forEach(a=>{allAddons.push({desc:a.desc+(a.scope?': '+a.scope:''),price:parseFloat(a.price)||0});});
+  extraBedrooms.forEach(b=>{allAddons.push({desc:`${b.name} (${b.bed}): ${b.scope||b.size}`,price:b.price});});
+  extraAreas.forEach(a=>{allAddons.push({desc:`${a.name}: ${a.scope||a.size}`,price:parseFloat(a.price)||0});});
+
+  const base=parseFloat(document.getElementById('base_price')?.value)||2500;
+  const addonTotal=allAddons.reduce((s,a)=>s+a.price,0);
+  const sub=base+addonTotal, taxrate=parseFloat(document.getElementById('taxrate').value)||0;
+  const grand=sub+sub*taxrate/100, extrate=Math.round(grand/3*100)/100;
+  const client=document.getElementById('client').value.trim();
+  const addressBase=document.getElementById('address').value.trim();
+  const zipVal=document.getElementById('zipcode')?.value.trim()||'';
+  const address=zipVal&&!addressBase.includes(zipVal)?addressBase+' '+zipVal:addressBase;
+  const invNumFinal=document.getElementById('invnum-display').value.trim()||'202093';
+  invNum=invNumFinal;
+
+  const data={client,address,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:document.getElementById('startdate').value,baserooms:[...selRooms].join(', '),extrate,taxrate,base_price:base,addons:allAddons,state:captureState(),home_value:homeValue,home_sqft:homeSqft,tier:selTier,scope:selScope,promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,promo4:document.getElementById('promo4').checked,payment_url:null,cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||''};
+
+  const ctrl=new AbortController();
+  const to=setTimeout(()=>ctrl.abort(),90000);
+  try{
+    const response=await fetch('/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data),signal:ctrl.signal});
+    clearTimeout(to);
+    if(!response.ok){const txt=await response.text();throw new Error('Server '+response.status+' — '+txt.substring(0,160));}
+    const blob=await response.blob();
+    if(!blob||blob.size<1000) throw new Error('Empty file returned from server');
+    const url=URL.createObjectURL(blob);
+    const filename=`SWJ_${client.replace(/ /g,'_')}_${invNumFinal}.pdf`;
+    const a=document.createElement('a');a.style.display='none';a.href=url;a.download=filename;
+    document.body.appendChild(a);a.click();
+    setTimeout(()=>{document.body.removeChild(a);URL.revokeObjectURL(url);},4000);
+    setSt('ok','PDF downloaded! Check your Files / Downloads.');
+    setTimeout(()=>saveInvoice(data).catch(()=>{}),100);
+  }catch(e){
+    clearTimeout(to);
+    const msg = e.name==='AbortError' ? 'Took longer than 90s — the server is slow or down. Try again.' : e.message;
+    setSt('err','Download failed — '+msg);
+    alert('PDF download failed:\n\n'+msg);
+  }finally{
+    btn.disabled=false; btn.textContent='⬇ Download PDF';
+  }
+}
+
 async function generateAndEmail(){
   const emailBtn=document.getElementById('email-btn');
   emailBtn.disabled=true; emailBtn.textContent='Generating...';
@@ -2156,9 +2223,12 @@ async function generatePDF(){
   const data={client,address,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:document.getElementById('startdate').value,baserooms:[...selRooms].join(', '),extrate,taxrate,base_price:base,addons:allAddons,state:captureState(),home_value:homeValue,home_sqft:homeSqft,tier:selTier,scope:selScope,promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
             promo4:document.getElementById('promo4').checked,payment_url,cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||''};
 
+  const _ctrl=new AbortController();
+  const _to=setTimeout(()=>_ctrl.abort(),90000);   // never spin forever
   try{
-    const response=await fetch('/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
-    if(!response.ok){const err=await response.json();throw new Error(err.error||'Server error');}
+    const response=await fetch('/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data),signal:_ctrl.signal});
+    clearTimeout(_to);
+    if(!response.ok){const txt=await response.text();throw new Error('Server '+response.status+' — '+txt.substring(0,160));}
     const blob=await response.blob();
     const filename=`SWJ_${data.client.replace(/ /g,'_')}_${data.invnum}.pdf`;
     setTimeout(()=>saveInvoice(data).catch(()=>{}),100);
@@ -2168,7 +2238,9 @@ async function generatePDF(){
     window._lastGrand = grand;
     return {blob,filename,data};
   }catch(e){
-    setSt('err','Error: '+e.message);
+    clearTimeout(_to);
+    const msg = e.name==='AbortError' ? 'Took longer than 90s — server slow or down. Try the ⬇ Download PDF button.' : e.message;
+    setSt('err','Error: '+msg);
     return null;
   }
 }
