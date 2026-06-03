@@ -621,6 +621,7 @@ body { background:#eceff3; color:var(--ink); }
       <span id="smsg">Ready to generate your luxury proposal.</span>
     </div>
     <button class="gen-btn" id="download-btn" onclick="downloadPdfNow()" style="background:#fff;color:var(--ink)">⬇ Download PDF</button>
+    <button class="gen-btn" id="email-btn" onclick="generateAndEmail()">Prepare &amp; Email Proposal</button>
     <button class="gen-btn" id="profit-preview-btn" onclick="previewProfitability()">Preview Engagement Profitability</button>
   </div>
 
@@ -1844,7 +1845,7 @@ async function generateAndEmail(){
   const emailBtn=document.getElementById('email-btn');
   emailBtn.disabled=true; emailBtn.textContent='Generating...';
   const result=await generatePDF();
-  emailBtn.disabled=false; emailBtn.textContent='Generate + Email to Client';
+  emailBtn.disabled=false; emailBtn.textContent='Prepare & Email Proposal';
   if(!result) return;
   _lastPdfBlob=result.blob; _lastPdfFilename=result.filename;
   openEmailModal(result.data);
@@ -2202,14 +2203,15 @@ async function sendEmail(){
 
 async function generatePDF(){
   let valid=true;
-  [['f-client','e-client','client'],['f-address','e-address','address'],['f-invdate','e-invdate','invdate'],['f-startdate','e-startdate','startdate']].forEach(([fid,eid,iid])=>{
+  ['client','address','invdate','startdate'].forEach(iid=>{
     const inp=document.getElementById(iid);
-    if(!inp.value.trim()){inp.classList.add('err');document.getElementById(eid).classList.add('show');valid=false;}
-    else{inp.classList.remove('err');document.getElementById(eid).classList.remove('show');}
+    const eid='e-'+iid;
+    if(!inp || !inp.value.trim()){if(inp)inp.classList.add('err');document.getElementById(eid)?.classList.add('show');valid=false;}
+    else{inp.classList.remove('err');document.getElementById(eid)?.classList.remove('show');}
   });
-  if(selRooms.size===0){document.getElementById('rooms-grid').classList.add('err');document.getElementById('e-rooms').classList.add('show');valid=false;}
-  else{document.getElementById('rooms-grid').classList.remove('err');document.getElementById('e-rooms').classList.remove('show');}
-  if(!valid){document.querySelector('.rooms-grid').scrollIntoView({behavior:'smooth'});return null;}
+  if(selRooms.size===0){document.getElementById('rooms-grid')?.classList.add('err');document.getElementById('e-rooms')?.classList.add('show');valid=false;}
+  else{document.getElementById('rooms-grid')?.classList.remove('err');document.getElementById('e-rooms')?.classList.remove('show');}
+  if(!valid){document.querySelector('.rooms-grid')?.scrollIntoView({behavior:'smooth'});return null;}
 
   const allAddons=[];
   selAddons.forEach(entry=>{
@@ -2233,10 +2235,8 @@ async function generatePDF(){
   const invNumFinal=document.getElementById('invnum-display').value.trim()||'202093';
   invNum=invNumFinal;
 
-  setSt('loading','Creating payment link...');
+  // No Stripe payment link — the proposal goes out with the approve & sign flow only.
   let payment_url=null;
-  try{payment_url=await createPaymentLink(grand,client,invNumFinal,address);}
-  catch(e){setSt('err','Stripe error — continuing without payment link');}
 
   setSt('loading','Generating your invoice PDF...');
   const data={client,address,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:document.getElementById('startdate').value,baserooms:[...selRooms].join(', '),extrate,taxrate,base_price:base,addons:allAddons,state:captureState(),home_value:homeValue,home_sqft:homeSqft,tier:selTier,scope:selScope,promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
