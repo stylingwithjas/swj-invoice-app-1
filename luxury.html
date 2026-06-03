@@ -11,7 +11,7 @@
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="512x512" href="/assets/icon-512.png">
-<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js').catch(function(){});});}</script>
+<script>if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(function(rs){rs.forEach(function(r){r.unregister();});}).catch(function(){});if('caches' in window){caches.keys().then(function(ks){ks.forEach(function(k){caches.delete(k);});}).catch(function(){});}}</script>
 <title>SWJ — Luxury Collection</title>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -635,6 +635,7 @@ body { background:#eceff3; color:var(--ink); }
             <div class="modal-field"><label>Subject</label><input id="email-subject" type="text"></div>
             <div class="modal-field"><label>Message</label><textarea id="email-body"></textarea></div>
             <div id="email-status" style="font-size:13px;color:#888;margin-top:8px;min-height:18px"></div>
+            <button class="modal-send-btn" onclick="openLastPdf()" style="width:100%;margin-bottom:8px;background:#111">⬇ Download / Open PDF</button>
             <div class="modal-btns">
                 <button class="modal-cancel-btn" onclick="closeEmailModal()">Cancel</button>
                 <button class="modal-send-btn" id="email-send-btn" onclick="sendEmail()">Send Email</button>
@@ -2167,6 +2168,18 @@ async function showProfitability(invoiceData, grand){
 
 
 function closeEmailModal(){ document.getElementById('email-modal').classList.remove('show'); }
+
+// Open the just-generated PDF in a new tab (pure click = iOS-safe). Tap Share → Save to Files.
+function openLastPdf(){
+  if(!_lastPdfBlob){ alert('Tap "Prepare & Email Proposal" first to build the PDF, then download.'); return; }
+  const url=URL.createObjectURL(_lastPdfBlob);
+  const w=window.open(url,'_blank');
+  if(!w){
+    const a=document.createElement('a');a.href=url;a.download=_lastPdfFilename||'invoice.pdf';a.target='_blank';
+    document.body.appendChild(a);a.click();setTimeout(()=>document.body.removeChild(a),3000);
+  }
+  setTimeout(()=>URL.revokeObjectURL(url),120000);
+}
 
 async function sendEmail(){
   const to=document.getElementById('email-to').value.trim();
