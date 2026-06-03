@@ -766,15 +766,82 @@ async function deleteDraft(invnum){await _sb.from('invoices').delete().eq('invnu
 function loadInvoice(idx){const inv=window._recentInvoices[idx];if(inv)loadInvoiceData(inv.data||inv);}
 function loadInvoice2(type,idx){const inv=type==='draft'?window._draftInvoices[idx]:window._recentInvoices[idx];if(inv)loadInvoiceData(inv.data||inv);}
 function loadInvoiceData(d){
+  // Basic fields
   document.getElementById('client').value=d.client||'';
   document.getElementById('address').value=d.address||'';
   document.getElementById('invdate').value=d.invdate||'';
   document.getElementById('startdate').value=d.startdate||'';
   if(d.base_price)document.getElementById('base_price').value=d.base_price;
   if(d.taxrate)document.getElementById('taxrate').value=d.taxrate;
+  if(d.zipcode)document.getElementById('zipcode').value=d.zipcode;
+  document.getElementById('promo1').checked=!!d.promo1;
+  document.getElementById('promo2').checked=!!d.promo2;
+  document.getElementById('promo3').checked=!!d.promo3;
+  if(document.getElementById('promo4'))document.getElementById('promo4').checked=!!d.promo4;
+  document.getElementById('paid').checked=!!d.paid;
+  if(d.paid)togglePaid();
+  if(d.paid_date)document.getElementById('paid_date').value=d.paid_date;
+  document.getElementById('cover_page').checked=!!d.cover_page;
+  if(document.getElementById('cover_note'))document.getElementById('cover_note').value=d.cover_note||'';
+  if(d.cover_page)toggleCover();
+
+  // Restore rooms (from comma-separated baserooms string)
+  selRooms.clear();
+  if(d.baserooms){
+    const rooms=d.baserooms.split(',').map(r=>r.trim()).filter(Boolean);
+    rooms.forEach(r=>selRooms.add(r));
+  }
+  buildRooms();
+
+  // Restore addons, extra bedrooms, customs from the saved addons list
+  selAddons.clear();
+  bedSel.clear();
+  customs=[];
+  extraBedrooms=[];
+
+  const bedRe=/^(.*) \((Twin|Full|Queen|King)\):\s*([\s\S]*)$/;
+  const matchCat=(desc)=>{
+    const dl=desc.toLowerCase();
+    for(let ci=0;ci<CATS.length;ci++){
+      const n=CATS[ci].name.toLowerCase();
+      if(dl.startsWith(n+' (')||dl.startsWith(n+':'))return ci;
+    }
+    return -1;
+  };
+
+  (d.addons||[]).forEach(addon=>{
+    const price=parseFloat(addon.price)||0;
+    const ci=matchCat(addon.desc);
+    if(ci>=0){
+      // Regular addon — find size by matching price
+      const cat=CATS[ci];
+      let oi=cat.sizes.findIndex(s=>Math.abs((parseFloat(s.price)||0)-price)<0.001);
+      if(oi<0)oi=0;
+      cat.sizes[oi].price=price;
+      const bedMatch=addon.desc.match(/\((Twin|Full|Queen|King)\)/);
+      if(cat.hasBed&&bedMatch)bedSel.set(''+ci,bedMatch[1]);
+      const scope=addon.desc.split(': ').slice(1).join(': ')||'';
+      selAddons.set(''+ci,{key:ci+'-'+oi,ci:ci,oi:oi,scope:scope});
+    } else {
+      const bm=addon.desc.match(bedRe);
+      if(bm){
+        // Extra bedroom
+        const sz=CATS[1].sizes.find(s=>Math.abs((parseFloat(s.price)||0)-price)<0.001);
+        extraBedrooms.push({id:Date.now()+Math.random(),name:bm[1],bed:bm[2],size:sz?sz.size:'Small',price,scope:bm[3]||''});
+      } else {
+        // Custom line item
+        const parts=addon.desc.split(': ');
+        customs.push({id:Date.now()+Math.random(),desc:parts[0]||addon.desc,scope:parts.slice(1).join(': ')||'',price});
+      }
+    }
+  });
+
+  buildCats();
+  renderExtraBedrooms();
+  renderCustoms();
   updateSummaryHeader();
   recalc();
-  setSt('ok','Invoice loaded');
+  setSt('ok','Invoice loaded — edit and regenerate');
   window.scrollTo({top:0,behavior:'smooth'});
 }
 
