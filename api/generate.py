@@ -785,6 +785,12 @@ def generate_invoice_pdf(data):
             cv.line(ML + 80, y + 2, ML + 180, y + 2)
             y -= 16
     
+    # Keep the whole signature block together — if it won't fit, start a fresh page
+    # so the acceptance lines, Jasmine's signature, and date never get cut off.
+    if y < 235:
+        cv.showPage()
+        y = draw_header(775)
+
     # Signatures
     cv.setStrokeColor(LGRAY); cv.setLineWidth(0.4)
     cv.line(ML, y, PW-MR, y); y -= 14
