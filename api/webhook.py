@@ -1,3 +1,21 @@
+"""
+SWJ Stripe Webhook
+==================
+Fires on Stripe events. When a client pays:
+  1. Generates a beautiful "Payment Receipt" PDF
+  2. Emails the client a thank-you with the receipt PDF attached
+  3. Emails Jasmine a notification (CC'd on the client email too)
+  4. Updates Supabase to mark the invoice as paid
+
+When Stripe creates a payout:
+  - Emails Jasmine the bank deposit notification
+
+Required env vars (all already set in Vercel):
+  STRIPE_WEBHOOK_SECRET — from Stripe dashboard
+  EMAIL_PASSWORD        — Hostinger SMTP password
+  SUPABASE_KEY          — service role key
+"""
+
 import json
 import os
 import hashlib
@@ -8,60 +26,122 @@ import urllib.parse
 import datetime
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.mime.application import MIMEApplication
 from http.server import BaseHTTPRequestHandler
+
+# Import the receipt builder from the sibling module
+try:
+    from generate_receipt import build_receipt_pdf
+except ImportError:
+    # Vercel serverless sometimes can't cross-import — inline fallback
+    build_receipt_pdf = None
 
 SMTP_HOST = 'smtp.hostinger.com'
 SMTP_PORT = 465
 FROM_EMAIL = 'info@stylingwithjas.com'
-
-# Send notifications to Jasmine's email (works today, no verification, no SMS gateway)
 JASMINE_EMAIL = 'info@stylingwithjas.com'
 
 SUPABASE_URL = 'https://cwvdfgrjlrpsdfwduwvn.supabase.co'
 
 
-def send_notification_email(subject, body_text):
-    """Email Jasmine a payment notification via Hostinger SMTP."""
+# ════════════════════════════════════════════════════════════════
+# EMAIL SENDING
+# ════════════════════════════════════════════════════════════════
+
+def send_email(to_email, subject, body_text, html_body=None, pdf_attachment=None, pdf_filename=None, cc=None):
+    """Send email via Hostinger SMTP with optional PDF attachment."""
     try:
         password = os.environ.get('EMAIL_PASSWORD', '')
         if not password:
             print('EMAIL_PASSWORD not set')
             return False
 
-        msg = MIMEMultipart('alternative')
+        msg = MIMEMultipart('mixed')
         msg['From'] = FROM_EMAIL
-        msg['To'] = JASMINE_EMAIL
+        msg['To'] = to_email
+        if cc:
+            msg['Cc'] = cc
         msg['Subject'] = subject
 
-        # Plain text version (works on any email client / phone notification)
-        msg.attach(MIMEText(body_text, 'plain'))
+        # Plain + HTML body
+        body = MIMEMultipart('alternative')
+        body.attach(MIMEText(body_text, 'plain'))
+        if html_body:
+            body.attach(MIMEText(html_body, 'html'))
+        msg.attach(body)
 
-        # HTML version — pretty preview on phone lock screen and inbox
-        html = f"""
-        <html><body style="font-family:-apple-system,Helvetica,Arial,sans-serif;background:#f5f2ed;padding:24px;color:#1a1814">
-          <div style="max-width:480px;margin:0 auto;background:#fff;border-radius:14px;padding:24px;border:1px solid #e5e0d8">
-            <div style="font-family:'Cormorant Garamond',Georgia,serif;font-size:22px;letter-spacing:3px;color:#1a1814;margin-bottom:4px">SWJ</div>
-            <div style="font-size:10px;letter-spacing:2px;color:#a29c96;text-transform:uppercase;margin-bottom:18px">Styling With Jas</div>
-            <div style="font-size:15px;line-height:1.55;color:#3d3830;white-space:pre-line">{body_text}</div>
-            <div style="margin-top:22px;padding-top:14px;border-top:1px solid #ede8e0;font-size:11px;color:#a29c96">
-              Sent automatically when a Stripe payment event fires.
-            </div>
-          </div>
-        </body></html>
-        """
-        msg.attach(MIMEText(html, 'html'))
+        # Optional PDF attachment
+        if pdf_attachment and pdf_filename:
+            att = MIMEApplication(pdf_attachment, _subtype='pdf')
+            att.add_header('Content-Disposition', 'attachment', filename=pdf_filename)
+            msg.attach(att)
 
-        with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=15) as server:
+        recipients = [to_email]
+        if cc:
+            recipients.append(cc)
+
+        with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=20) as server:
             server.login(FROM_EMAIL, password)
-            server.sendmail(FROM_EMAIL, [JASMINE_EMAIL], msg.as_string())
+            server.sendmail(FROM_EMAIL, recipients, msg.as_string())
         return True
     except Exception as e:
         print(f'Email error: {e}')
         return False
 
 
+def notification_html(body_text):
+    """SWJ-branded notification email HTML."""
+    return f"""
+    <html><body style="font-family:-apple-system,Helvetica,Arial,sans-serif;background:#f5f2ed;padding:24px;color:#1a1814;margin:0">
+      <div style="max-width:480px;margin:0 auto;background:#fff;border-radius:14px;padding:24px;border:1px solid #e5e0d8">
+        <div style="font-family:'Cormorant Garamond',Georgia,serif;font-size:22px;letter-spacing:3px;color:#1a1814;margin-bottom:4px">SWJ</div>
+        <div style="font-size:10px;letter-spacing:2px;color:#a29c96;text-transform:uppercase;margin-bottom:18px">Styling With Jas</div>
+        <div style="font-size:15px;line-height:1.55;color:#3d3830;white-space:pre-line">{body_text}</div>
+        <div style="margin-top:22px;padding-top:14px;border-top:1px solid #ede8e0;font-size:11px;color:#a29c96">
+          Sent automatically when a Stripe event fires.
+        </div>
+      </div>
+    </body></html>
+    """
+
+
+def client_thankyou_html(first_name, amount_str, installation_date, address):
+    """Warm, luxury-feel thank-you HTML for the client."""
+    inst_line = f'<p style="margin:0 0 16px 0;color:#3d3830">Your staging is confirmed for <strong style="color:#1a1814">{installation_date}</strong>. I\'ll be in touch as we get closer to coordinate final details.</p>' if installation_date else ''
+    addr_line = f'<p style="margin:0 0 16px 0;color:#a29c96;font-size:13px">{address}</p>' if address else ''
+    return f"""
+    <html><body style="font-family:-apple-system,Helvetica,Arial,sans-serif;background:#f5f2ed;padding:32px 16px;color:#1a1814;margin:0">
+      <div style="max-width:520px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;border:1px solid #e5e0d8">
+        <div style="background:#1a1814;padding:28px 24px;text-align:center">
+          <div style="font-family:'Cormorant Garamond',Georgia,serif;font-size:26px;letter-spacing:5px;color:#fff">SWJ</div>
+          <div style="font-size:10px;letter-spacing:2.5px;color:#a29c96;text-transform:uppercase;margin-top:4px">Styling With Jas</div>
+        </div>
+        <div style="padding:32px 28px">
+          <div style="font-family:Georgia,serif;font-size:28px;color:#1a1814;margin-bottom:6px">Thank you, {first_name}.</div>
+          <div style="font-family:Georgia,serif;font-style:italic;font-size:14px;color:#7a6f69;margin-bottom:20px">Your payment of {amount_str} has been received.</div>
+          {addr_line}
+          {inst_line}
+          <p style="margin:0 0 16px 0;color:#3d3830">Your detailed receipt is attached for your records.</p>
+          <p style="margin:0;color:#3d3830;font-style:italic">It is our privilege to prepare your home for market.</p>
+          <div style="margin-top:24px;padding-top:18px;border-top:1px solid #ede8e0;font-size:13px;color:#3d3830;font-style:italic">
+            Jasmine Santana<br>
+            <span style="font-size:10px;font-style:normal;letter-spacing:1.5px;color:#a29c96;text-transform:uppercase">Owner &amp; Creative Director</span>
+          </div>
+        </div>
+        <div style="background:#1a1814;padding:14px;text-align:center;color:#7a6f69;font-size:11px">
+          206-422-5618  ·  info@stylingwithjas.com<br>
+          Lux Ventures LLC  ·  © 2026 Styling With Jas
+        </div>
+      </div>
+    </body></html>
+    """
+
+
+# ════════════════════════════════════════════════════════════════
+# STRIPE SIGNATURE VERIFY
+# ════════════════════════════════════════════════════════════════
+
 def verify_signature(raw_body, sig_header, secret):
-    """Verify Stripe webhook signature to ensure request is genuine."""
     try:
         parts = {}
         sigs = []
@@ -84,20 +164,44 @@ def verify_signature(raw_body, sig_header, secret):
         return False
 
 
+# ════════════════════════════════════════════════════════════════
+# FORMATTERS
+# ════════════════════════════════════════════════════════════════
+
 def fmt_amount(cents):
     return f'${cents / 100:,.2f}'
 
-
 def fmt_date(ts):
-    return datetime.datetime.fromtimestamp(ts).strftime('%b %d, %Y at %I:%M %p')
+    return datetime.datetime.fromtimestamp(ts).strftime('%B %d, %Y')
 
+def fmt_time(ts):
+    return datetime.datetime.fromtimestamp(ts).strftime('%I:%M %p').lstrip('0')
 
 def fmt_arrival(ts):
-    return datetime.datetime.fromtimestamp(ts).strftime('%b %d, %Y')
+    return datetime.datetime.fromtimestamp(ts).strftime('%B %d, %Y')
+
+
+# ════════════════════════════════════════════════════════════════
+# SUPABASE
+# ════════════════════════════════════════════════════════════════
+
+def supabase_get_invoice(invnum):
+    """Get a single invoice by invnum."""
+    try:
+        key = os.environ.get('SUPABASE_KEY', '')
+        req = urllib.request.Request(
+            f'{SUPABASE_URL}/rest/v1/invoices?invnum=eq.{urllib.parse.quote(invnum)}&select=*',
+            headers={'apikey': key, 'Authorization': f'Bearer {key}'}
+        )
+        with urllib.request.urlopen(req, timeout=10) as r:
+            rows = json.loads(r.read())
+        return rows[0] if rows else None
+    except Exception:
+        return None
 
 
 def supabase_get_by_amount(amount_cents):
-    """Find invoice by amount as fallback when no invoice number in metadata."""
+    """Fallback lookup by grand total when metadata is missing."""
     try:
         key = os.environ.get('SUPABASE_KEY', '')
         req = urllib.request.Request(
@@ -118,7 +222,6 @@ def supabase_get_by_amount(amount_cents):
 
 
 def supabase_update_payment(invnum, payment_info):
-    """Update invoice record with payment details."""
     try:
         key = os.environ.get('SUPABASE_KEY', '')
         req = urllib.request.Request(
@@ -153,6 +256,204 @@ def supabase_update_payment(invnum, payment_info):
         return False
 
 
+# ════════════════════════════════════════════════════════════════
+# RECEIPT PDF (inline fallback if cross-import fails on Vercel)
+# ════════════════════════════════════════════════════════════════
+
+def _inline_build_receipt(data):
+    """Inline copy of build_receipt_pdf — keeps webhook self-contained."""
+    import io as _io
+    from reportlab.lib.pagesizes import letter
+    from reportlab.pdfgen import canvas
+    from reportlab.lib import colors
+
+    client = data.get('client', 'Client')
+    address = data.get('address', '')
+    invnum = data.get('invnum', '')
+    amount = float(data.get('amount', 0))
+    payment_date = data.get('payment_date', '')
+    payment_time = data.get('payment_time', '')
+    payment_method = data.get('payment_method', 'Credit Card')
+    stripe_ref = data.get('stripe_ref', '')
+    installation_date = data.get('installation_date', '')
+
+    buf = _io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=letter)
+    PW, PH = letter
+    ML, MR = 50, 50
+    CW = PW - ML - MR
+
+    INK = colors.HexColor('#1a1814')
+    WARM = colors.HexColor('#faf8f5')
+    TAUPE = colors.HexColor('#a29c96')
+    TAUPE_DK = colors.HexColor('#7a6f69')
+    GOLD = colors.HexColor('#c9a96e')
+    GOLD_DK = colors.HexColor('#9d7a44')
+    GREEN = colors.HexColor('#4a7c50')
+    GREEN_LT = colors.HexColor('#edf4ed')
+    GREEN_DK = colors.HexColor('#2d6a0a')
+    INK_SOFT = colors.HexColor('#3d3830')
+
+    c.setFillColor(INK)
+    c.rect(0, PH - 110, PW, 110, stroke=0, fill=1)
+    c.setFillColor(colors.white)
+    c.setFont('Times-Roman', 32)
+    c.drawCentredString(PW/2, PH - 60, 'SWJ')
+    c.setFont('Helvetica', 7.5)
+    c.setFillColor(TAUPE)
+    sub = 'STYLING WITH JAS'
+    sx = PW/2 - (c.stringWidth(sub, 'Helvetica', 7.5) + 2.4*(len(sub)-1))/2
+    for ch in sub:
+        c.drawString(sx, PH - 78, ch)
+        sx += c.stringWidth(ch, 'Helvetica', 7.5) + 2.4
+
+    y = PH - 175
+    c.setFillColor(TAUPE); c.setFont('Helvetica', 9)
+    tt = 'PAYMENT RECEIPT'; sp = 3.5
+    tw = c.stringWidth(tt, 'Helvetica', 9) + sp*(len(tt)-1)
+    sx = PW/2 - tw/2
+    for ch in tt:
+        c.drawString(sx, y, ch); sx += c.stringWidth(ch, 'Helvetica', 9) + sp
+    y -= 14
+    c.setStrokeColor(GOLD); c.setLineWidth(0.8)
+    c.line(PW/2 - 28, y, PW/2 + 28, y)
+
+    y -= 46
+    first_name = client.split()[0] if client else 'there'
+    if first_name.lower() == 'estate':
+        parts = client.split()
+        if len(parts) > 2: first_name = parts[2]
+    c.setFillColor(INK); c.setFont('Times-Roman', 30)
+    c.drawCentredString(PW/2, y, f'Thank you, {first_name}.')
+    y -= 22
+    c.setFont('Times-Italic', 14); c.setFillColor(TAUPE_DK)
+    c.drawCentredString(PW/2, y, 'Your payment has been received.')
+
+    y -= 54
+    card_h = 100
+    c.setFillColor(GREEN_LT)
+    c.roundRect(ML+40, y-card_h, CW-80, card_h, 14, stroke=0, fill=1)
+    c.setFillColor(GREEN); c.setFont('Helvetica', 9)
+    al = 'AMOUNT PAID'; sp = 2.5
+    tw = c.stringWidth(al, 'Helvetica', 9) + sp*(len(al)-1)
+    sx = PW/2 - tw/2
+    for ch in al:
+        c.drawString(sx, y-28, ch); sx += c.stringWidth(ch, 'Helvetica', 9) + sp
+    c.setFillColor(GREEN_DK); c.setFont('Times-Roman', 46)
+    c.drawCentredString(PW/2, y-68, f'${amount:,.2f}')
+    rl = ''
+    if payment_date and payment_time: rl = f'Received {payment_date} at {payment_time}'
+    elif payment_date: rl = f'Received {payment_date}'
+    if rl:
+        c.setFillColor(GREEN); c.setFont('Helvetica', 9)
+        c.drawCentredString(PW/2, y-86, rl)
+    y -= card_h + 32
+
+    def row(label, value, y_pos):
+        if not value: return False
+        c.setFillColor(TAUPE); c.setFont('Helvetica', 8)
+        sp = 1.5; sxl = ML+6
+        for ch in label.upper():
+            c.drawString(sxl, y_pos, ch); sxl += c.stringWidth(ch, 'Helvetica', 8) + sp
+        c.setFillColor(INK); c.setFont('Helvetica', 11)
+        c.drawRightString(PW-MR-6, y_pos, str(value))
+        c.setStrokeColor(colors.HexColor('#e5e0d8')); c.setLineWidth(0.4)
+        c.line(ML, y_pos-9, PW-MR, y_pos-9)
+        return True
+
+    for lbl, val in [('Client', client), ('Property', address), ('Invoice', f'#{invnum}' if invnum else ''), ('Payment Method', payment_method), ('Reference', stripe_ref)]:
+        if row(lbl, val, y): y -= 20
+    y -= 6
+
+    if installation_date:
+        bh = 82
+        c.setFillColor(WARM)
+        c.setStrokeColor(colors.HexColor('#e5e0d8')); c.setLineWidth(0.8)
+        c.roundRect(ML, y-bh, CW, bh, 12, stroke=1, fill=1)
+        c.setFillColor(GOLD_DK); c.setFont('Helvetica-Bold', 9)
+        nxt = 'WHAT HAPPENS NEXT'; sp = 2.2; sxl = ML+18
+        for ch in nxt:
+            c.drawString(sxl, y-20, ch); sxl += c.stringWidth(ch, 'Helvetica-Bold', 9) + sp
+        c.setFillColor(INK_SOFT); c.setFont('Times-Roman', 11.5)
+        c.drawString(ML+18, y-40, f'Your staging is confirmed for {installation_date}.')
+        c.setFont('Times-Italic', 10.5); c.setFillColor(TAUPE_DK)
+        c.drawString(ML+18, y-55, 'I\'ll be in touch as we get closer to coordinate final details,')
+        c.drawString(ML+18, y-68, 'access, and any last-minute design preferences.')
+        y -= bh + 26
+    else:
+        y -= 6
+
+    c.setFillColor(INK); c.setFont('Times-Italic', 12)
+    c.drawCentredString(PW/2, y, 'With gratitude,')
+    y -= 30
+    # Use Parisienne if available, else fallback
+    _sig_font = 'Times-BoldItalic'
+    _sig_size = 22
+    try:
+        from reportlab.pdfbase import pdfmetrics
+        from reportlab.pdfbase.ttfonts import TTFont
+        import os as _os
+        _fp = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), 'Parisienne-Regular.ttf')
+        if _os.path.exists(_fp):
+            if 'Parisienne' not in pdfmetrics.getRegisteredFontNames():
+                pdfmetrics.registerFont(TTFont('Parisienne', _fp))
+            _sig_font = 'Parisienne'
+            _sig_size = 22
+    except Exception:
+        pass
+    c.setFont(_sig_font, _sig_size); c.setFillColor(INK)
+    c.drawCentredString(PW/2, y, 'Jasmine Santana')
+    y -= 18
+    c.setFont('Helvetica', 8); c.setFillColor(TAUPE)
+    role = 'OWNER & CREATIVE DIRECTOR'; sp = 2
+    sxl = PW/2 - (c.stringWidth(role, 'Helvetica', 8) + sp*(len(role)-1))/2
+    for ch in role:
+        c.drawString(sxl, y, ch); sxl += c.stringWidth(ch, 'Helvetica', 8) + sp
+
+    c.setFillColor(INK); c.rect(0, 0, PW, 58, stroke=0, fill=1)
+    c.setFillColor(colors.white); c.setFont('Times-Roman', 14)
+    c.drawCentredString(PW/2, 36, 'SWJ')
+    c.setFillColor(TAUPE_DK); c.setFont('Helvetica', 8)
+    c.drawCentredString(PW/2, 21, 'Jasmine Santana  \u00b7  206-422-5618  \u00b7  info@stylingwithjas.com')
+    c.drawCentredString(PW/2, 10, 'Lux Ventures LLC  \u00b7  \u00a9 2026 Styling With Jas')
+
+    c.save()
+    buf.seek(0)
+    return buf.read()
+
+
+# ════════════════════════════════════════════════════════════════
+# CLIENT EMAIL LOOKUP (Stripe charge has the customer email)
+# ════════════════════════════════════════════════════════════════
+
+def get_client_email_from_stripe(payment_intent_id):
+    """Fetch the receipt_email or customer email from the Stripe charge."""
+    try:
+        key = os.environ.get('STRIPE_SECRET_KEY', '')
+        if not key or not payment_intent_id:
+            return ''
+        req = urllib.request.Request(
+            f'https://api.stripe.com/v1/payment_intents/{payment_intent_id}?expand[]=latest_charge',
+            headers={'Authorization': f'Bearer {key}'}
+        )
+        with urllib.request.urlopen(req, timeout=10) as r:
+            pi = json.loads(r.read())
+        # Try multiple places where the email could live
+        charge = pi.get('latest_charge') or {}
+        if isinstance(charge, dict):
+            email = charge.get('billing_details', {}).get('email') or charge.get('receipt_email')
+            if email:
+                return email
+        return pi.get('receipt_email', '') or ''
+    except Exception as e:
+        print(f'Stripe lookup error: {e}')
+        return ''
+
+
+# ════════════════════════════════════════════════════════════════
+# WEBHOOK HANDLER
+# ════════════════════════════════════════════════════════════════
+
 class handler(BaseHTTPRequestHandler):
     def do_OPTIONS(self):
         self.send_response(200)
@@ -163,7 +464,6 @@ class handler(BaseHTTPRequestHandler):
         length = int(self.headers.get('Content-Length', 0))
         raw_body = self.rfile.read(length)
 
-        # Verify Stripe signature
         sig_header = self.headers.get('Stripe-Signature', '')
         webhook_secret = os.environ.get('STRIPE_WEBHOOK_SECRET', '')
 
@@ -186,15 +486,44 @@ class handler(BaseHTTPRequestHandler):
             amount = obj.get('amount', 0)
             amount_str = fmt_amount(amount)
             created = obj.get('created', 0)
-            date_str = fmt_date(created)
-            paid_date = datetime.datetime.fromtimestamp(created).strftime('%Y-%m-%d')
+            payment_date = fmt_date(created)
+            payment_time = fmt_time(created)
+            paid_date_iso = datetime.datetime.fromtimestamp(created).strftime('%Y-%m-%d')
+
             metadata = obj.get('metadata', {})
             invnum = metadata.get('invoice', '').strip()
             client = metadata.get('client', '').strip()
             address = metadata.get('address', '').strip()
             payment_id = obj.get('id', '')
 
-            # Fallback: find by amount if no invoice number in metadata
+            # Payment method (last 4 digits)
+            payment_method = 'Credit Card'
+            charges = obj.get('charges', {}).get('data', [])
+            if charges:
+                card = charges[0].get('payment_method_details', {}).get('card', {})
+                brand = (card.get('brand') or 'Card').title()
+                last4 = card.get('last4', '')
+                if last4:
+                    payment_method = f'{brand} ending in {last4}'
+
+            # Pull more data from Supabase if we have the invoice number
+            installation_date = ''
+            inv_record = None
+            if invnum:
+                inv_record = supabase_get_invoice(invnum)
+                if inv_record:
+                    if not client: client = inv_record.get('client', '')
+                    if not address: address = inv_record.get('address', '')
+                    inv_data = inv_record.get('data', {}) or {}
+                    startdate = inv_data.get('startdate', '')
+                    if startdate:
+                        try:
+                            dt = datetime.datetime.strptime(startdate, '%Y-%m-%d')
+                            installation_date = dt.strftime('%B %d, %Y')
+                        except Exception:
+                            installation_date = startdate
+
+            # Fallback: amount-based lookup
             if not invnum or not client:
                 matched = supabase_get_by_amount(amount)
                 if matched:
@@ -204,23 +533,87 @@ class handler(BaseHTTPRequestHandler):
 
             client_display = client or 'Client'
 
-            subject = f'💰 Payment Received — {client_display} ({amount_str})'
-            body = (
+            # Generate receipt PDF
+            receipt_data = {
+                'client': client_display,
+                'address': address,
+                'invnum': invnum,
+                'amount': amount / 100,
+                'payment_date': payment_date,
+                'payment_time': payment_time,
+                'payment_method': payment_method,
+                'stripe_ref': payment_id,
+                'installation_date': installation_date,
+            }
+
+            try:
+                pdf_bytes = build_receipt_pdf(receipt_data) if build_receipt_pdf else _inline_build_receipt(receipt_data)
+            except Exception as e:
+                print(f'Receipt PDF error: {e}')
+                pdf_bytes = None
+
+            # Look up client email from Stripe
+            client_email = get_client_email_from_stripe(payment_id)
+
+            # Build client thank-you email (only if we have their email)
+            first_name = client_display.split()[0] if client_display else 'there'
+            if first_name.lower() == 'estate':
+                parts = client_display.split()
+                if len(parts) > 2: first_name = parts[2]
+
+            pdf_filename = f'SWJ_Receipt_{invnum or "payment"}.pdf'
+
+            if client_email and pdf_bytes:
+                send_email(
+                    to_email=client_email,
+                    subject=f'Thank you, {first_name} — your payment has been received',
+                    body_text=(
+                        f'Dear {first_name},\n\n'
+                        f'Thank you. Your payment of {amount_str} has been received and your staging is confirmed'
+                        + (f' for {installation_date}' if installation_date else '')
+                        + '.\n\n'
+                        f'Your detailed receipt is attached for your records. I\'ll be in touch as we get closer '
+                        f'to coordinate final details, access, and any last-minute design preferences.\n\n'
+                        f'It is our privilege to prepare your home for market.\n\n'
+                        f'Jasmine Santana\n'
+                        f'Owner & Creative Director · Styling With Jas\n'
+                        f'206-422-5618 · info@stylingwithjas.com'
+                    ),
+                    html_body=client_thankyou_html(first_name, amount_str, installation_date, address),
+                    pdf_attachment=pdf_bytes,
+                    pdf_filename=pdf_filename,
+                    cc=JASMINE_EMAIL,   # Jasmine gets a copy of the client email
+                )
+
+            # Always send Jasmine a notification (whether or not we had the client email)
+            jasmine_subject = f'💰 Payment Received — {client_display} ({amount_str})'
+            jasmine_body = (
                 f'Payment Received\n\n'
                 f'Client: {client_display}\n'
                 f'Amount: {amount_str}\n'
-                f'Date: {date_str}\n'
+                f'Date: {payment_date} at {payment_time}\n'
                 f'Invoice: #{invnum or "(not matched)"}\n'
             )
-            if address:
-                body += f'Property: {address}\n'
-            body += '\nThe invoice has been marked as paid. Bank deposit estimate will arrive in a separate notification.'
+            if address: jasmine_body += f'Property: {address}\n'
+            if installation_date: jasmine_body += f'Staging date: {installation_date}\n'
+            if client_email: jasmine_body += f'\nReceipt sent to: {client_email}'
+            else: jasmine_body += '\n(No client email on file — receipt PDF not auto-sent. Send manually if needed.)'
 
-            send_notification_email(subject, body)
+            # If we already CC'd Jasmine on the client email, skip this — otherwise send standalone
+            if not client_email:
+                send_email(
+                    to_email=JASMINE_EMAIL,
+                    subject=jasmine_subject,
+                    body_text=jasmine_body,
+                    html_body=notification_html(jasmine_body),
+                    pdf_attachment=pdf_bytes,
+                    pdf_filename=pdf_filename,
+                )
 
+            # Update Supabase
             if invnum:
                 supabase_update_payment(invnum, {
-                    'paid_date': paid_date,
+                    'paid_date': paid_date_iso,
                     'payment_id': payment_id,
                     'amount': amount / 100,
                     'arrival_date': ''
@@ -228,7 +621,7 @@ class handler(BaseHTTPRequestHandler):
 
             self._respond(200, {'received': True, 'type': event_type})
 
-        # ── PAYOUT CREATED (money transferring to bank) ──
+        # ── PAYOUT CREATED ──
         elif event_type == 'payout.created':
             amount = obj.get('amount', 0)
             amount_str = fmt_amount(amount)
@@ -244,11 +637,15 @@ class handler(BaseHTTPRequestHandler):
                 f'Stripe reference: {payout_id}\n\n'
                 f'Funds are on the way to your bank account.'
             )
-            send_notification_email(subject, body)
+            send_email(
+                to_email=JASMINE_EMAIL,
+                subject=subject,
+                body_text=body,
+                html_body=notification_html(body),
+            )
             self._respond(200, {'received': True, 'type': event_type})
 
         else:
-            # Acknowledge any other event without action
             self._respond(200, {'received': True, 'type': event_type})
 
     def _respond(self, code, data):
