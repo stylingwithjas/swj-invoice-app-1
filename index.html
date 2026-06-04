@@ -917,23 +917,31 @@ function togglePaid(){
     document.getElementById('paid_date').value=new Date().toISOString().split('T')[0];
 }
 
-async function createPaymentLink(grand,client,invnum,address){
-  setSt('loading','Creating payment link...');
-  const ctrl=new AbortController();
-  const _to=setTimeout(()=>ctrl.abort(),15000);   // don't let a hung Stripe call freeze generation
-  let r;
-  try{
-    r=await fetch('/api/stripe',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({grand,client,invnum,address}),
-      signal:ctrl.signal
+async function createPaymentLink(grand, client, invnum, address) {
+  setSt('loading', 'Creating payment link...');
+
+  const ctrl = new AbortController();
+  const timeout = setTimeout(() => ctrl.abort(), 15000);  // 15 sec hard cap
+
+  try {
+    const r = await fetch('/api/stripe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ grand, client, invnum, address }),
+      signal: ctrl.signal,
     });
-  } finally { clearTimeout(_to); }
-  const d=await r.json();
-  if(d.error) throw new Error(d.error);
-  setSt('ok','Payment link ready ✓');
-  return d.url;
+    clearTimeout(timeout);
+
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+
+    setSt('ok', 'Payment link ready');
+    return d.url;
+  } catch (e) {
+    clearTimeout(timeout);
+    setSt('err', 'Stripe error: ' + e.message);
+    return null;   // graceful failure — PDF still generates without link
+  }
 }
 
 

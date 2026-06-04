@@ -1,81 +1,11 @@
 import json
 import os
-import urllib.request
 import urllib.parse
+import urllib.request
 from http.server import BaseHTTPRequestHandler
-
-STRIPE_API = 'https://api.stripe.com/v1'
-
-
-def stripe_request(method, path, params=None):
-    """Make a Stripe API request using urllib (no extra dependencies)."""
-    key = os.environ.get('STRIPE_SECRET_KEY', '')
-    if not key:
-        raise Exception('STRIPE_SECRET_KEY not configured')
-
-    url = f'{STRIPE_API}/{path}'
-    data = urllib.parse.urlencode(params).encode() if params else None
-
-    req = urllib.request.Request(url, data=data, method=method)
-    req.add_header('Authorization', f'Bearer {key}')
-    req.add_header('Content-Type', 'application/x-www-form-urlencoded')
-    req.add_header('Stripe-Version', '2023-10-16')
-
-    try:
-        with urllib.request.urlopen(req, timeout=15) as r:
-            return json.loads(r.read())
-    except urllib.error.HTTPError as e:
-        error_body = json.loads(e.read())
-        raise Exception(error_body.get('error', {}).get('message', f'Stripe error {e.code}'))
-
-
-def create_payment_link(grand, client, invnum, address):
-    """
-    Create a Stripe Payment Link for a SWJ invoice.
-    Returns the payment link URL.
-    """
-    amount_cents = round(float(grand) * 100)
-
-    # Step 1: Create a product for this invoice
-    product = stripe_request('POST', 'products', {
-        'name': f'Home Staging — {client}',
-        'description': f'Staging services for {address}. Invoice #{invnum}.',
-    })
-
-    # Step 2: Create a price for the product
-    price = stripe_request('POST', 'prices', {
-        'product': product['id'],
-        'unit_amount': amount_cents,
-        'currency': 'usd',
-    })
-
-    # Step 3: Create the payment link
-    payment_link = stripe_request('POST', 'payment_links', {
-        'line_items[0][price]': price['id'],
-        'line_items[0][quantity]': '1',
-        'metadata[invoice]': invnum,
-        'metadata[client]': client,
-        'metadata[address]': address[:200],  # Stripe metadata has char limits
-        'after_completion[type]': 'hosted_confirmation',
-        'after_completion[hosted_confirmation][custom_message]': (
-            f'Thank you, {client.split()[0]}! Your payment has been received. '
-            f'Jasmine will be in touch to confirm your staging date.'
-        ),
-    })
-
-    return payment_link['url'], payment_link['id']
-
-
-def deactivate_payment_link(payment_link_id):
-    """Deactivate an existing Stripe Payment Link so it can no longer be used."""
-    result = stripe_request('POST', f'payment_links/{payment_link_id}', {
-        'active': 'false'
-    })
-    return result.get('active', True) is False
 
 
 class handler(BaseHTTPRequestHandler):
-
     def do_OPTIONS(self):
         self.send_response(200)
         self._cors()
@@ -85,57 +15,66 @@ class handler(BaseHTTPRequestHandler):
         try:
             length = int(self.headers.get('Content-Length', 0))
             body = json.loads(self.rfile.read(length))
-        except Exception as e:
-            self._respond(400, {'error': f'Invalid request: {e}'})
-            return
 
-        # ── DEACTIVATE action ──────────────────────────────────────
-        # Called when invoice total changes and old link needs to be killed
-        if body.get('action') == 'deactivate':
-            payment_link_id = body.get('payment_link_id', '').strip()
-            if not payment_link_id:
-                self._respond(400, {'error': 'No payment_link_id provided'})
+            grand   = float(body.get('grand', 0))
+            client  = str(body.get('client', 'Client'))
+            invnum  = str(body.get('invnum', ''))
+            address = str(body.get('address', ''))
+
+            if grand < 1:
+                self._respond(400, {'error': 'Invalid amount'})
                 return
+
+            secret_key = os.environ.get('STRIPE_SECRET_KEY', '')
+            if not secret_key:
+                self._respond(500, {'error': 'Stripe key not configured'})
+                return
+
+            # Stripe wants amounts in cents
+            amount_cents = int(round(grand * 100))
+
+            # Build the form-encoded body for Stripe's REST API
+            # Note: this uses the Payment Links API, NOT checkout sessions
+            data = {
+                'line_items[0][price_data][currency]': 'usd',
+                'line_items[0][price_data][product_data][name]': f'Staging Proposal {invnum}',
+                'line_items[0][price_data][product_data][metadata][invoice]': invnum,
+                'line_items[0][price_data][unit_amount]': str(amount_cents),
+                'line_items[0][quantity]': '1',
+                'metadata[invoice]': invnum,
+                'metadata[client]': client[:40],
+                'metadata[address]': address[:100],
+            }
+
+            encoded = urllib.parse.urlencode(data).encode('utf-8')
+
+            req = urllib.request.Request(
+                'https://api.stripe.com/v1/payment_links',
+                data=encoded,
+                method='POST',
+            )
+            req.add_header('Authorization', f'Bearer {secret_key}')
+            req.add_header('Content-Type', 'application/x-www-form-urlencoded')
+
+            with urllib.request.urlopen(req, timeout=15) as r:
+                resp = json.loads(r.read())
+
+            url = resp.get('url', '')
+            if not url:
+                self._respond(500, {'error': 'No URL returned from Stripe'})
+                return
+
+            self._respond(200, {'url': url})
+
+        except urllib.error.HTTPError as e:
             try:
-                deactivated = deactivate_payment_link(payment_link_id)
-                self._respond(200, {
-                    'deactivated': deactivated,
-                    'id': payment_link_id
-                })
-            except Exception as e:
-                # Non-fatal — log but return 200 so invoice save isn't blocked
-                print(f'[stripe] Deactivate error (non-fatal): {e}')
-                self._respond(200, {
-                    'deactivated': False,
-                    'error': str(e)
-                })
-            return
+                err_body = json.loads(e.read())
+                msg = err_body.get('error', {}).get('message', str(e))
+            except Exception:
+                msg = str(e)
+            self._respond(500, {'error': f'Stripe API error: {msg}'})
 
-        # ── CREATE payment link ────────────────────────────────────
-        grand = body.get('grand')
-        client = body.get('client', '').strip()
-        invnum = body.get('invnum', '').strip()
-        address = body.get('address', '').strip()
-
-        if not grand:
-            self._respond(400, {'error': 'Missing grand total'})
-            return
-        if not client:
-            self._respond(400, {'error': 'Missing client name'})
-            return
-        if not invnum:
-            self._respond(400, {'error': 'Missing invoice number'})
-            return
-
-        try:
-            url, link_id = create_payment_link(grand, client, invnum, address)
-            self._respond(200, {
-                'url': url,
-                'payment_link_id': link_id,
-                'amount': grand,
-            })
         except Exception as e:
-            print(f'[stripe] Create error: {e}')
             self._respond(500, {'error': str(e)})
 
     def _respond(self, code, data):
