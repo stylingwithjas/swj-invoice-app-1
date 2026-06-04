@@ -623,9 +623,7 @@ body { background:#eceff3; color:var(--ink); }
     </div>
     <button class="gen-btn" id="download-btn" onclick="downloadPdfNow()" style="background:#fff;color:var(--ink)">⬇ Download PDF</button>
     <button class="gen-btn" id="gen-btn" onclick="generate()" style="background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.85)">Generate Invoice + Payment Link</button>
-    <button class="gen-btn" id="email-btn" onclick="generateAndEmail()">Prepare &amp; Email Proposal</button>
-    <button class="gen-btn" id="profit-preview-btn" onclick="previewProfitability()">Preview Engagement Profitability</button>
-  </div>
+    <button class="gen-btn" id="email-btn" onclick="generateAndEmail()">Prepare &amp; Email Proposal</button>  </div>
 
 </div>
 
@@ -2205,7 +2203,7 @@ async function sendEmail(){
     const base64=btoa(String.fromCharCode(...new Uint8Array(ab)));
     const r=await fetch('/api/email',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({to,subject,message,pdf:base64,filename:_lastPdfFilename})});
     const d=await r.json();
-    if(d.sent){statusEl.textContent='✓ Email sent!';statusEl.style.color='#22c55e';setTimeout(()=>{closeEmailModal();if(window._lastInvoiceData)showProfitability(window._lastInvoiceData,window._lastGrand||0);},1500);}
+    if(d.sent){statusEl.textContent='✓ Email sent!';statusEl.style.color='#22c55e';setTimeout(()=>{closeEmailModal();},1500);}
     else{statusEl.textContent='Error: '+(d.error||'Unknown');statusEl.style.color='#e24b4a';}
   }catch(e){statusEl.textContent='Error: '+e.message;statusEl.style.color='#e24b4a';}
   sendBtn.disabled=false; sendBtn.textContent='Send Email';
