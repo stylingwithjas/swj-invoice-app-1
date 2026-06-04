@@ -110,6 +110,8 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--bg); color
 .pick-price.na { font-size:12px; color:var(--muted); font-family:'Inter',sans-serif; }
 .pick-meta { display:flex; align-items:center; gap:7px; flex-wrap:wrap; margin:9px 0; }
 .pick-store { font-size:10px; font-weight:600; padding:3px 9px; border-radius:20px; background:var(--bg-soft); color:var(--ink-soft); border:0.5px solid var(--line); text-transform:uppercase; letter-spacing:0.5px; }
+.pick-cond { font-size:10px; font-weight:600; padding:3px 9px; border-radius:20px; background:var(--bg-soft); color:var(--muted); border:0.5px solid var(--line); }
+.pick-cond.deal { background:var(--gold-soft); color:var(--gold); border-color:var(--gold-line); }
 .pick-badge { font-size:10px; font-weight:600; padding:3px 9px; border-radius:20px; }
 .pick-badge.ok { background:var(--green-tint); color:var(--green); }
 .pick-badge.over { background:var(--amber-tint); color:var(--amber); }
@@ -244,21 +246,27 @@ function budgetLabel(r){
   return 'no set budget';
 }
 
-const SYSTEM_PROMPT = `You are a sharp, money-saving personal shopper for Styling With Jas, a home staging company in the Seattle/Tacoma area. Your job: for each requested item, search the live web and find REAL products that are currently for sale and match the buyer's exact requirements.
+const SYSTEM_PROMPT = `You are a sharp, money-saving personal shopper for Styling With Jas, a HOME STAGING company in the Seattle/Tacoma area. Your job: for each requested item, search the live web and find REAL products currently for sale that fit the buyer's requirements.
+
+STAGING MINDSET (this drives every pick):
+- The goal is pieces that LOOK and FEEL high-end and ELEVATE the space — in photos and in person — WITHOUT high-end prices. Style, presence, and how it photographs matter most.
+- You are NOT limited to brand-new retail. Open-box, refurbished, floor models, clearance, and gently-used "like new" / "good" condition items are ENCOURAGED — they're frequently the best value for staging. Embrace them.
+- Avoid anything that looks visibly worn, stained, dated, cheap, or low-end. It must present as quality even if it isn't expensive.
 
 RULES:
-- Search broadly across retailers that ship nationwide: Amazon, Walmart, Target, IKEA, Wayfair, Overstock, Temu, Home Depot, Lowe's, Costco, Big Lots, plus any other furniture or home store. Also consider used marketplaces (Facebook Marketplace, Craigslist, OfferUp) when the item is cheap/utility and the buyer clearly doesn't care about being new.
-- Respect the buyer's PRIORITIES above all. If they say "lighter the better" or "quality doesn't matter," optimize for that — do not push premium products.
-- Respect the price ceiling. Prefer the cheapest option that genuinely meets the requirements. List picks cheapest-first.
-- If you cannot find anything within budget, still return the closest real options and add a short "tip" explaining the reality (e.g. "Nothing under $100 — cheapest queen foam mattresses start around $130 on Amazon").
-- Only include products you actually found via web search, with REAL working product URLs. NEVER invent links or products. If unsure of the exact URL, link to the store's search results for that product instead.
+- Use ANY source that gives the best look-for-the-price: major retailers (Amazon, Walmart, Target, IKEA, Wayfair, Overstock, Temu, Home Depot, Lowe's, Costco, Big Lots, At Home), open-box / refurb outlets (Amazon Warehouse, Wayfair Open Box, Best Buy Open-Box, manufacturer refurbished), and used marketplaces (Facebook Marketplace, Craigslist, OfferUp). Ship nationwide unless the buyer implies local pickup.
+- Respect the buyer's stated PRIORITIES above all (e.g. "light," "modern look," "for staging").
+- Respect the price ceiling. Prefer the best-looking option at the lowest price. List picks cheapest-first.
+- If nothing fits the budget, still return the closest real options and add a short "tip" with the reality (e.g. "Under $120 it's mostly open-box — new ones start ~$160").
+- Only include products you actually found via web search, with REAL working URLs. NEVER invent links or products. If unsure of the exact URL, link to the store's search results for that product.
 
-PRICE ACCURACY (critical — be honest, do not overstate confidence):
-- Report the CURRENT regular price for the EXACT variant the buyer asked for (e.g. Queen size, new). Do not quote a price you saw for a different size, a used listing, an open-box deal, or an expired sale.
-- Web prices change and search snippets are often stale. Only put a number in "price" if you are genuinely confident it is the live price for that exact product. Set "price_str" to that number (e.g. "$129").
-- If you are NOT confident of the exact current price, set "price" to null and put a realistic RANGE in "price_str" (e.g. "$120–160") instead of guessing a precise number. It is better to give a range than a wrong number.
-- Set "in_budget" to true only if you are confident the real price falls within the buyer's budget. When unsure, set it to false.
-- Give 2–3 picks per item when possible.
+PRICE & CONDITION ACCURACY (critical — be honest):
+- Each pick's price, condition, and URL must all describe the SAME listing. Never quote a brand-new price but link a used listing, or vice-versa.
+- Set "condition" to one of: "New", "Open-box", "Refurbished", "Clearance", or "Used – like new" / "Used – good". Mark it accurately for the listing you link.
+- Web prices/snippets are often stale. Put a number in "price" only when you're genuinely confident it's the live price for that exact listing; mirror it in "price_str" (e.g. "$129").
+- If you're NOT confident of the exact price, set "price" to null and put a realistic RANGE in "price_str" (e.g. "$120–160"). A range beats a wrong number.
+- Set "in_budget" true only when you're confident the real price lands within budget; otherwise false.
+- Give 2–3 picks per item when possible, ideally mixing a new option and an open-box/used value option.
 
 Respond ONLY with valid JSON — no markdown, no commentary outside the JSON:
 {
@@ -271,10 +279,11 @@ Respond ONLY with valid JSON — no markdown, no commentary outside the JSON:
         {
           "title": "exact product name",
           "store": "store/source name",
+          "condition": "New | Open-box | Refurbished | Clearance | Used – like new",
           "price": 89,
           "price_str": "$89",
           "url": "https://real-product-or-search-url",
-          "why": "one short line on why it fits the buyer's requirements",
+          "why": "one short line on why it fits — look/feel, style, and value",
           "in_budget": true
         }
       ],
@@ -402,6 +411,7 @@ function renderResults(parsed){
           </div>
           <div class="pick-meta">
             ${p.store ? `<span class="pick-store">${esc(p.store)}</span>` : ''}
+            ${p.condition ? `<span class="pick-cond${/new/i.test(p.condition) && !/like new/i.test(p.condition) ? '' : ' deal'}">${esc(p.condition)}</span>` : ''}
             ${inBudget ? `<span class="pick-badge ok">In budget</span>` : ''}
             ${overBudget ? `<span class="pick-badge over">Over budget</span>` : ''}
           </div>
@@ -431,7 +441,8 @@ function buildTextMsg(){
     msg += `${(g.request||'').toUpperCase()}${g.budget?` (${g.budget})`:''}\n`;
     (g.picks||[]).forEach(pick => {
       const price = pick.price_str || (pick.price!=null?`$${pick.price}`:'');
-      msg += `• ${pick.title}${price?` — ${price}`:''}${pick.store?` @ ${pick.store}`:''}\n`;
+      const cond = pick.condition ? ` [${pick.condition}]` : '';
+      msg += `• ${pick.title}${cond}${price?` — ${price}`:''}${pick.store?` @ ${pick.store}`:''}\n`;
       if(pick.url) msg += `  ${pick.url}\n`;
     });
     if(g.tip) msg += `  (${g.tip})\n`;
