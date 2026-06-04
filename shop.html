@@ -100,6 +100,7 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--bg); color
 .res-group-ttl { font-family:'Cormorant Garamond',serif; font-size:22px; font-weight:500; color:var(--ink); line-height:1.2; }
 .res-group-budget { font-size:11px; color:var(--muted); white-space:nowrap; text-transform:uppercase; letter-spacing:0.6px; }
 .res-tip { font-size:11px; color:var(--amber); background:var(--amber-tint); border-radius:8px; padding:8px 11px; margin-bottom:10px; line-height:1.5; }
+.price-note { display:flex; align-items:flex-start; gap:7px; font-size:11px; color:var(--muted); background:var(--bg-soft); border:0.5px solid var(--line); border-radius:9px; padding:9px 12px; margin-bottom:16px; line-height:1.5; }
 
 .pick-card { background:var(--bg-card); border:0.5px solid var(--line); border-radius:12px; padding:13px 15px; margin-bottom:10px; transition:border-color 0.15s; }
 .pick-card:hover { border-color:var(--olive-line); }
@@ -250,7 +251,13 @@ RULES:
 - Respect the buyer's PRIORITIES above all. If they say "lighter the better" or "quality doesn't matter," optimize for that — do not push premium products.
 - Respect the price ceiling. Prefer the cheapest option that genuinely meets the requirements. List picks cheapest-first.
 - If you cannot find anything within budget, still return the closest real options and add a short "tip" explaining the reality (e.g. "Nothing under $100 — cheapest queen foam mattresses start around $130 on Amazon").
-- Only include products you actually found via web search, with REAL working product URLs and REAL current prices. NEVER invent links, prices, or products. If unsure of the exact URL, link to the store's search results for that product instead.
+- Only include products you actually found via web search, with REAL working product URLs. NEVER invent links or products. If unsure of the exact URL, link to the store's search results for that product instead.
+
+PRICE ACCURACY (critical — be honest, do not overstate confidence):
+- Report the CURRENT regular price for the EXACT variant the buyer asked for (e.g. Queen size, new). Do not quote a price you saw for a different size, a used listing, an open-box deal, or an expired sale.
+- Web prices change and search snippets are often stale. Only put a number in "price" if you are genuinely confident it is the live price for that exact product. Set "price_str" to that number (e.g. "$129").
+- If you are NOT confident of the exact current price, set "price" to null and put a realistic RANGE in "price_str" (e.g. "$120–160") instead of guessing a precise number. It is better to give a range than a wrong number.
+- Set "in_budget" to true only if you are confident the real price falls within the buyer's budget. When unsure, set it to false.
 - Give 2–3 picks per item when possible.
 
 Respond ONLY with valid JSON — no markdown, no commentary outside the JSON:
@@ -322,7 +329,8 @@ async function runShop(){
         prompt: buildPrompt(reqs),
         system: SYSTEM_PROMPT,
         web_search: true,
-        max_tokens: 4000
+        max_tokens: 4000,
+        temperature: 0.2
       })
     });
 
@@ -360,6 +368,9 @@ function renderResults(parsed){
   }
 
   const groups = parsed.results || [];
+  if(groups.length > 0){
+    html += `<div class="price-note"><i class="ti ti-info-circle" style="font-size:13px"></i> Prices are the agent's best read from live listings and can be off — always confirm on the store page before buying.</div>`;
+  }
   if(groups.length === 0){
     html += `<div class="res-empty">The agent didn't return any products. Try adding more detail to your notes and shop again.</div>`;
     results.innerHTML = html;

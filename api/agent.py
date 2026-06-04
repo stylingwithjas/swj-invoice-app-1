@@ -65,6 +65,13 @@ class handler(BaseHTTPRequestHandler):
         except (TypeError, ValueError):
             max_tokens = 2000
         max_tokens = max(256, min(max_tokens, 4096))
+        temperature = body.get('temperature')  # optional; lower = more factual
+        try:
+            temperature = float(temperature) if temperature is not None else None
+        except (TypeError, ValueError):
+            temperature = None
+        if temperature is not None:
+            temperature = max(0.0, min(temperature, 1.0))
 
         if not prompt:
             self._respond(400, {'error': 'No prompt provided'})
@@ -125,6 +132,8 @@ class handler(BaseHTTPRequestHandler):
                 'max_tokens': max_tokens,
                 'messages': [{'role': 'user', 'content': full_prompt}]
             }
+            if temperature is not None:
+                payload_dict['temperature'] = temperature
 
             # Enable web search tool if requested
             if use_web_search:
