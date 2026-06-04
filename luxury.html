@@ -2245,8 +2245,10 @@ async function generatePDF(){
   const invNumFinal=document.getElementById('invnum-display').value.trim()||'202093';
   invNum=invNumFinal;
 
-  // No Stripe payment link — the proposal goes out with the approve & sign flow only.
+  setSt('loading','Creating payment link...');
   let payment_url=null;
+  try{payment_url=await createPaymentLink(grand,client,invNumFinal,address);}
+  catch(e){setSt('err','Stripe error — continuing without payment link');}
 
   setSt('loading','Generating your invoice PDF...');
   const data={client,address,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:document.getElementById('startdate').value,baserooms:[...selRooms].join(', '),extrate,taxrate,base_price:base,addons:allAddons,state:captureState(),home_value:homeValue,home_sqft:homeSqft,tier:selTier,scope:selScope,promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
