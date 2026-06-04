@@ -1392,8 +1392,8 @@ async function downloadPdfNow(){
   let valid=true;
   [['f-client','e-client','client'],['f-address','e-address','address'],['f-invdate','e-invdate','invdate'],['f-startdate','e-startdate','startdate']].forEach(([fid,eid,iid])=>{
     const inp=document.getElementById(iid);
-    if(!inp.value.trim()){inp.classList.add('err');document.getElementById(eid).classList.add('show');valid=false;}
-    else{inp.classList.remove('err');document.getElementById(eid).classList.remove('show');}
+    if(!inp || !inp.value.trim()){if(inp)inp.classList.add('err');document.getElementById(eid)?.classList.add('show');valid=false;}
+    else{inp.classList.remove('err');document.getElementById(eid)?.classList.remove('show');}
   });
   if(selRooms.size===0){document.getElementById('rooms-grid').classList.add('err');document.getElementById('e-rooms').classList.add('show');valid=false;}
   else{document.getElementById('rooms-grid').classList.remove('err');document.getElementById('e-rooms').classList.remove('show');}
@@ -1809,8 +1809,8 @@ async function generatePDF(){
   let valid=true;
   [['f-client','e-client','client'],['f-address','e-address','address'],['f-invdate','e-invdate','invdate'],['f-startdate','e-startdate','startdate']].forEach(([fid,eid,iid])=>{
     const inp=document.getElementById(iid);
-    if(!inp.value.trim()){inp.classList.add('err');document.getElementById(eid).classList.add('show');valid=false;}
-    else{inp.classList.remove('err');document.getElementById(eid).classList.remove('show');}
+    if(!inp || !inp.value.trim()){if(inp)inp.classList.add('err');document.getElementById(eid)?.classList.add('show');valid=false;}
+    else{inp.classList.remove('err');document.getElementById(eid)?.classList.remove('show');}
   });
   if(selRooms.size===0){document.getElementById('rooms-grid').classList.add('err');document.getElementById('e-rooms').classList.add('show');valid=false;}
   else{document.getElementById('rooms-grid').classList.remove('err');document.getElementById('e-rooms').classList.remove('show');}
@@ -1873,8 +1873,8 @@ async function generate(){
   let valid=true;
   [['f-client','e-client','client'],['f-address','e-address','address'],['f-invdate','e-invdate','invdate'],['f-startdate','e-startdate','startdate']].forEach(([fid,eid,iid])=>{
     const inp=document.getElementById(iid);
-    if(!inp.value.trim()){inp.classList.add('err');document.getElementById(eid).classList.add('show');valid=false;}
-    else{inp.classList.remove('err');document.getElementById(eid).classList.remove('show');}
+    if(!inp || !inp.value.trim()){if(inp)inp.classList.add('err');document.getElementById(eid)?.classList.add('show');valid=false;}
+    else{inp.classList.remove('err');document.getElementById(eid)?.classList.remove('show');}
   });
   if(selRooms.size===0){document.getElementById('rooms-grid').classList.add('err');document.getElementById('e-rooms').classList.add('show');valid=false;}
   else{document.getElementById('rooms-grid').classList.remove('err');document.getElementById('e-rooms').classList.remove('show');}
