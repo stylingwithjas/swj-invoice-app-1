@@ -59,6 +59,12 @@ class handler(BaseHTTPRequestHandler):
         prompt = body.get('prompt', '')
         use_web_search = body.get('web_search', False)
         jobs_data = body.get('jobs', [])  # optional job financial data
+        system_override = body.get('system')  # optional: replace staging system prompt
+        try:
+            max_tokens = int(body.get('max_tokens', 2000))
+        except (TypeError, ValueError):
+            max_tokens = 2000
+        max_tokens = max(256, min(max_tokens, 4096))
 
         if not prompt:
             self._respond(400, {'error': 'No prompt provided'})
@@ -106,12 +112,17 @@ class handler(BaseHTTPRequestHandler):
             f"{economics_context}"
         )
 
-        full_prompt = staging_system + "\n\n---\n\n" + prompt
+        # A custom system context (e.g. the free-form sourcing agent) overrides the
+        # staging-decor framing, which would otherwise bias utility-item searches.
+        if system_override:
+            full_prompt = str(system_override) + "\n\n---\n\n" + prompt
+        else:
+            full_prompt = staging_system + "\n\n---\n\n" + prompt
 
         try:
             payload_dict = {
                 'model': 'claude-sonnet-4-20250514',
-                'max_tokens': 2000,
+                'max_tokens': max_tokens,
                 'messages': [{'role': 'user', 'content': full_prompt}]
             }
 

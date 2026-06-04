@@ -11,6 +11,9 @@
     },
     "api/stripe.py": {
       "maxDuration": 30
+    },
+    "api/agent.py": {
+      "maxDuration": 60
     }
   },
   "rewrites": [
@@ -22,6 +25,7 @@
     { "source": "/board.html", "destination": "/board.html" },
     { "source": "/today.html", "destination": "/today.html" },
     { "source": "/shopping.html", "destination": "/shopping.html" },
+    { "source": "/shop.html", "destination": "/shop.html" },
     { "source": "/proposal.html", "destination": "/proposal.html" },
     { "source": "/sw.js", "destination": "/sw.js" },
     { "source": "/manifest.webmanifest", "destination": "/manifest.webmanifest" },

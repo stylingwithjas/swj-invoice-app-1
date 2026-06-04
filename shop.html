@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="/auth.js"></script>
+<meta charset="UTF-8">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="SWJ">
+<meta name="theme-color" content="#1a1814">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="512x512" href="/assets/icon-512.png">
+<script>if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(function(rs){rs.forEach(function(r){r.unregister();});}).catch(function(){});if('caches' in window){caches.keys().then(function(ks){ks.forEach(function(k){caches.delete(k);});}).catch(function(){});}}</script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>SWJ — Shopping Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Cormorant+Garamond:wght@300;400;500;600&display=swap">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css">
+<style>
+*, *::before, *::after { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+:root {
+  --bg:#fcfaf7; --bg-soft:#ffffff; --bg-card:#ffffff;
+  --ink:#2c2926; --ink-soft:#3d3833; --muted:#8c847c; --muted-soft:#b8ada1;
+  --line:#e7e1d9; --line-soft:#ede8e0;
+  --olive:#7a8574; --olive-dark:#5f685a; --olive-tint:#eef1ea; --olive-line:#c9d0c2;
+  --gold:#b89a63; --gold-soft:#f6f1e7; --gold-line:#eadfcb;
+  --green:#6f8a72; --green-tint:#edf4ee;
+  --amber:#b77b62; --amber-tint:#faefea;
+  --red:#9a5a4a; --red-tint:#f8ece8;
+  --cta:#4a443e; --cta-hover:#5a534b;
+}
+body { font-family:'Inter',-apple-system,sans-serif; background:var(--bg); color:var(--ink); min-height:100vh; }
+
+.hdr { background:var(--bg); position:sticky; top:0; z-index:60; border-bottom:0.5px solid var(--line); }
+.hdr-top { display:flex; align-items:center; justify-content:space-between; padding:14px 24px 12px; max-width:760px; margin:0 auto; }
+.brand-stack .b1 { font-family:'Cormorant Garamond',serif; font-size:13px; color:var(--ink); letter-spacing:3px; text-transform:uppercase; }
+.brand-stack .b2 { font-size:9px; color:var(--muted); letter-spacing:2px; text-transform:uppercase; margin-top:1px; }
+.nav-sw { display:flex; gap:2px; background:var(--bg-soft); border-radius:20px; padding:3px; border:0.5px solid var(--line); }
+.nav-btn { padding:5px 13px; border-radius:16px; border:none; font-size:11px; font-weight:500; cursor:pointer; font-family:'Inter',sans-serif; transition:all 0.18s; white-space:nowrap; }
+.nav-btn.on  { background:var(--cta); color:var(--bg-soft); }
+.nav-btn.off { background:transparent; color:var(--muted); }
+
+.content { padding:8px 24px 90px; max-width:760px; margin:0 auto; }
+
+/* HERO */
+.hero { padding:28px 0 14px; }
+.hero-title { font-family:'Cormorant Garamond',serif; font-size:40px; font-weight:400; color:var(--green); letter-spacing:-0.015em; line-height:1.1; margin-bottom:6px; }
+.hero-sub { font-size:13px; color:var(--muted); line-height:1.5; max-width:560px; }
+
+/* REQUEST BUILDER */
+.req-list { margin:6px 0 4px; }
+.req-card { background:var(--bg-card); border:0.5px solid var(--line); border-radius:13px; padding:14px 15px 15px; margin-bottom:12px; transition:border-color 0.15s; }
+.req-card:focus-within { border-color:var(--olive-line); }
+.req-top { display:flex; align-items:center; gap:8px; }
+.req-num { width:22px; height:22px; flex-shrink:0; border-radius:50%; background:var(--olive-tint); color:var(--olive-dark); font-size:11px; font-weight:600; display:flex; align-items:center; justify-content:center; }
+.req-item { flex:1; min-width:0; font-family:'Inter',sans-serif; font-size:15px; font-weight:500; color:var(--ink); border:none; background:none; outline:none; padding:2px 0; }
+.req-item::placeholder { color:var(--muted-soft); font-weight:400; }
+.req-del { width:26px; height:26px; flex-shrink:0; border:none; background:none; color:var(--muted-soft); font-size:18px; cursor:pointer; border-radius:50%; line-height:1; transition:all 0.15s; }
+.req-del:hover { background:var(--red-tint); color:var(--red); }
+.req-row { display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin:11px 0 0; padding-top:11px; border-top:0.5px solid var(--line-soft); }
+.req-field-lbl { font-size:9px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-right:2px; }
+.req-price { display:flex; align-items:center; gap:4px; }
+.req-cur { color:var(--muted); font-size:13px; }
+.req-dash { color:var(--muted-soft); font-size:13px; }
+.req-min, .req-max { width:62px; font-family:'Inter',sans-serif; font-size:14px; padding:6px 8px; border:1px solid var(--line); border-radius:8px; background:var(--bg-soft); outline:none; color:var(--ink); text-align:right; }
+.req-min:focus, .req-max:focus, .req-qty-input:focus { border-color:var(--olive); }
+.req-qty { display:flex; align-items:center; gap:6px; }
+.req-qty-input { width:50px; font-family:'Inter',sans-serif; font-size:14px; padding:6px 8px; border:1px solid var(--line); border-radius:8px; background:var(--bg-soft); outline:none; color:var(--ink); text-align:center; }
+.req-notes { width:100%; margin-top:11px; font-family:'Inter',sans-serif; font-size:13px; color:var(--ink-soft); border:1px solid var(--line); border-radius:9px; background:var(--bg-soft); outline:none; resize:vertical; min-height:46px; padding:9px 11px; line-height:1.5; transition:border-color 0.15s; }
+.req-notes:focus { border-color:var(--olive); }
+.req-notes::placeholder { color:var(--muted-soft); }
+
+.add-req-btn { display:flex; align-items:center; justify-content:center; gap:7px; width:100%; padding:12px; background:none; color:var(--olive-dark); border:1.5px dashed var(--olive-line); border-radius:11px; font-size:13px; font-weight:500; cursor:pointer; font-family:'Inter',sans-serif; transition:all 0.15s; margin-bottom:18px; }
+.add-req-btn:hover { background:var(--olive-tint); border-color:var(--olive); }
+
+/* SHOP BUTTON */
+.shop-btn { width:100%; padding:16px; background:var(--cta); color:#fff; border:none; border-radius:11px; font-family:'Cormorant Garamond',serif; font-size:17px; font-weight:300; letter-spacing:2px; text-transform:uppercase; cursor:pointer; transition:all 0.18s; display:flex; align-items:center; justify-content:center; gap:10px; }
+.shop-btn:hover { background:var(--cta-hover); }
+.shop-btn:disabled { opacity:0.5; cursor:not-allowed; }
+.shop-btn .spin { animation:spin 0.8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.shop-hint { font-size:11px; color:var(--muted); text-align:center; margin-top:9px; }
+
+/* STATUS BAR */
+.status-bar { display:flex; align-items:center; gap:8px; padding:11px 14px; background:var(--bg-card); border:0.5px solid var(--line); border-radius:9px; margin-top:18px; font-size:12px; color:var(--muted); }
+.status-dot { width:7px; height:7px; border-radius:50%; background:var(--muted-soft); flex-shrink:0; }
+.status-dot.thinking { background:var(--amber); animation:blink 0.7s infinite; }
+.status-dot.done { background:var(--green); }
+.status-dot.err { background:var(--red); }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+/* RESULTS */
+.results { margin-top:18px; }
+.agent-note { background:var(--olive-tint); border:0.5px solid var(--olive-line); border-radius:11px; padding:13px 16px; margin-bottom:16px; font-size:12px; color:var(--olive-dark); line-height:1.6; }
+.agent-note strong { color:var(--ink); }
+
+.res-group { margin-bottom:22px; }
+.res-group-hdr { display:flex; align-items:baseline; justify-content:space-between; gap:10px; margin-bottom:10px; padding-bottom:8px; border-bottom:0.5px solid var(--line); }
+.res-group-ttl { font-family:'Cormorant Garamond',serif; font-size:22px; font-weight:500; color:var(--ink); line-height:1.2; }
+.res-group-budget { font-size:11px; color:var(--muted); white-space:nowrap; text-transform:uppercase; letter-spacing:0.6px; }
+.res-tip { font-size:11px; color:var(--amber); background:var(--amber-tint); border-radius:8px; padding:8px 11px; margin-bottom:10px; line-height:1.5; }
+
+.pick-card { background:var(--bg-card); border:0.5px solid var(--line); border-radius:12px; padding:13px 15px; margin-bottom:10px; transition:border-color 0.15s; }
+.pick-card:hover { border-color:var(--olive-line); }
+.pick-top { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
+.pick-title { font-size:13.5px; font-weight:500; color:var(--ink); line-height:1.4; flex:1; }
+.pick-price { font-family:'Cormorant Garamond',serif; font-size:22px; font-weight:500; color:var(--green); white-space:nowrap; line-height:1; }
+.pick-price.na { font-size:12px; color:var(--muted); font-family:'Inter',sans-serif; }
+.pick-meta { display:flex; align-items:center; gap:7px; flex-wrap:wrap; margin:9px 0; }
+.pick-store { font-size:10px; font-weight:600; padding:3px 9px; border-radius:20px; background:var(--bg-soft); color:var(--ink-soft); border:0.5px solid var(--line); text-transform:uppercase; letter-spacing:0.5px; }
+.pick-badge { font-size:10px; font-weight:600; padding:3px 9px; border-radius:20px; }
+.pick-badge.ok { background:var(--green-tint); color:var(--green); }
+.pick-badge.over { background:var(--amber-tint); color:var(--amber); }
+.pick-why { font-size:11.5px; color:var(--muted); line-height:1.5; margin-bottom:11px; }
+.pick-btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; width:100%; padding:10px; font-size:12px; font-weight:600; border-radius:9px; border:none; background:var(--cta); color:#fff; cursor:pointer; font-family:'Inter',sans-serif; text-decoration:none; transition:all 0.15s; }
+.pick-btn:hover { background:var(--cta-hover); }
+.pick-btn.disabled { background:var(--bg-soft); color:var(--muted); border:0.5px solid var(--line); cursor:default; }
+
+.action-row { display:flex; gap:9px; margin-top:6px; }
+.act-btn { flex:1; padding:13px; border-radius:10px; border:0.5px solid var(--line); background:var(--bg-card); color:var(--ink-soft); font-size:12px; font-weight:500; cursor:pointer; font-family:'Inter',sans-serif; transition:all 0.15s; }
+.act-btn:hover { background:var(--bg-soft); }
+.act-btn.primary { background:var(--cta); color:#fff; border-color:var(--cta); }
+
+.res-empty { padding:30px 16px; text-align:center; background:var(--bg-soft); border-radius:10px; border:0.5px dashed var(--line); font-size:13px; color:var(--muted); }
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <div class="hdr-top">
+    <div class="brand-stack">
+      <div class="b1">Styling With Jas</div>
+      <div class="b2">Shopping Agent</div>
+    </div>
+    <div class="nav-sw">
+      <button class="nav-btn off" onclick="window.location.href='/today.html'">Today</button>
+      <button class="nav-btn off" onclick="window.location.href='/board.html'">Board</button>
+      <button class="nav-btn on">Shop</button>
+      <button class="nav-btn off" onclick="window.location.href='/index.html'">Invoice</button>
+    </div>
+  </div>
+</div>
+
+<div class="content">
+  <div class="hero">
+    <div class="hero-title">Shopping Agent</div>
+    <div class="hero-sub">Tell the agent exactly what you need — the item, your budget, and the details that matter. It searches the web and brings back real products you can buy.</div>
+  </div>
+
+  <div class="req-list" id="req-list"></div>
+
+  <button class="add-req-btn" onclick="addRequest()">
+    <i class="ti ti-plus" style="font-size:16px"></i> Add another item
+  </button>
+
+  <button class="shop-btn" id="shop-btn" onclick="runShop()">
+    <i class="ti ti-shopping-bag" style="font-size:18px"></i> Shop these items
+  </button>
+  <div class="shop-hint">The agent searches live stores — this can take 20–40 seconds.</div>
+
+  <div id="status-area"></div>
+  <div class="results" id="results"></div>
+</div>
+
+<script>
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+let reqCounter = 0;
+let lastResults = null;
+
+function reqCardHTML(id){
+  return `
+  <div class="req-card" data-id="${id}">
+    <div class="req-top">
+      <div class="req-num"></div>
+      <input class="req-item" type="text" placeholder="What do you need? e.g. Queen mattress">
+      <button class="req-del" onclick="removeRequest(${id})" title="Remove">&times;</button>
+    </div>
+    <div class="req-row">
+      <span class="req-field-lbl">Budget</span>
+      <div class="req-price">
+        <span class="req-cur">$</span>
+        <input class="req-min" type="number" inputmode="numeric" placeholder="min" min="0">
+        <span class="req-dash">&ndash;</span>
+        <span class="req-cur">$</span>
+        <input class="req-max" type="number" inputmode="numeric" placeholder="max" min="0">
+      </div>
+      <div class="req-qty">
+        <span class="req-field-lbl">Qty</span>
+        <input class="req-qty-input" type="number" value="1" min="1" inputmode="numeric">
+      </div>
+    </div>
+    <textarea class="req-notes" placeholder="Notes — describe what actually matters (e.g. quality doesn't matter, lighter the better, ~12in, foam, ships fast)"></textarea>
+  </div>`;
+}
+
+function renumber(){
+  document.querySelectorAll('#req-list .req-card').forEach((c,i)=>{
+    const n = c.querySelector('.req-num');
+    if(n) n.textContent = i+1;
+  });
+}
+
+function addRequest(focus){
+  const id = ++reqCounter;
+  document.getElementById('req-list').insertAdjacentHTML('beforeend', reqCardHTML(id));
+  renumber();
+  if(focus !== false){
+    const card = document.querySelector(`.req-card[data-id="${id}"]`);
+    const inp = card && card.querySelector('.req-item');
+    if(inp) inp.focus();
+  }
+}
+
+function removeRequest(id){
+  const card = document.querySelector(`.req-card[data-id="${id}"]`);
+  if(card) card.remove();
+  // Always keep at least one row
+  if(!document.querySelector('#req-list .req-card')) addRequest(false);
+  renumber();
+}
+
+function gatherRequests(){
+  const out = [];
+  document.querySelectorAll('#req-list .req-card').forEach(card => {
+    const item = card.querySelector('.req-item').value.trim();
+    if(!item) return;
+    const min = card.querySelector('.req-min').value.trim();
+    const max = card.querySelector('.req-max').value.trim();
+    const qty = parseInt(card.querySelector('.req-qty-input').value, 10) || 1;
+    const notes = card.querySelector('.req-notes').value.trim();
+    out.push({ item, min: min?Number(min):null, max: max?Number(max):null, qty, notes });
+  });
+  return out;
+}
+
+function budgetLabel(r){
+  if(r.min!=null && r.max!=null) return `$${r.min}–$${r.max}`;
+  if(r.max!=null) return `up to $${r.max}`;
+  if(r.min!=null) return `$${r.min}+`;
+  return 'no set budget';
+}
+
+const SYSTEM_PROMPT = `You are a sharp, money-saving personal shopper for Styling With Jas, a home staging company in the Seattle/Tacoma area. Your job: for each requested item, search the live web and find REAL products that are currently for sale and match the buyer's exact requirements.
+
+RULES:
+- Search broadly across retailers that ship nationwide: Amazon, Walmart, Target, IKEA, Wayfair, Overstock, Temu, Home Depot, Lowe's, Costco, Big Lots, plus any other furniture or home store. Also consider used marketplaces (Facebook Marketplace, Craigslist, OfferUp) when the item is cheap/utility and the buyer clearly doesn't care about being new.
+- Respect the buyer's PRIORITIES above all. If they say "lighter the better" or "quality doesn't matter," optimize for that — do not push premium products.
+- Respect the price ceiling. Prefer the cheapest option that genuinely meets the requirements. List picks cheapest-first.
+- If you cannot find anything within budget, still return the closest real options and add a short "tip" explaining the reality (e.g. "Nothing under $100 — cheapest queen foam mattresses start around $130 on Amazon").
+- Only include products you actually found via web search, with REAL working product URLs and REAL current prices. NEVER invent links, prices, or products. If unsure of the exact URL, link to the store's search results for that product instead.
+- Give 2–3 picks per item when possible.
+
+Respond ONLY with valid JSON — no markdown, no commentary outside the JSON:
+{
+  "note": "1–2 sentence overall summary of what you found",
+  "results": [
+    {
+      "request": "the item name",
+      "budget": "the budget as text",
+      "picks": [
+        {
+          "title": "exact product name",
+          "store": "store/source name",
+          "price": 89,
+          "price_str": "$89",
+          "url": "https://real-product-or-search-url",
+          "why": "one short line on why it fits the buyer's requirements",
+          "in_budget": true
+        }
+      ],
+      "tip": "optional: only if nothing fit the budget or there's an important caveat"
+    }
+  ]
+}`;
+
+function buildPrompt(reqs){
+  let p = 'SHOPPING REQUESTS — find real, buyable products for each:\n\n';
+  reqs.forEach((r,i)=>{
+    p += `${i+1}. ITEM: ${r.item}\n`;
+    p += `   BUDGET: ${budgetLabel(r)}\n`;
+    p += `   QTY: ${r.qty}\n`;
+    p += `   NOTES: ${r.notes || '(none — use your best judgement)'}\n\n`;
+  });
+  p += 'For each item, search live stores and return the best real options as JSON in the required format.';
+  return p;
+}
+
+function extractJson(raw){
+  let s = String(raw||'').replace(/```json|```/g,'').trim();
+  const a = s.indexOf('{');
+  const b = s.lastIndexOf('}');
+  if(a !== -1 && b !== -1 && b > a) s = s.slice(a, b+1);
+  return JSON.parse(s);
+}
+
+async function runShop(){
+  const reqs = gatherRequests();
+  const btn = document.getElementById('shop-btn');
+  const statusArea = document.getElementById('status-area');
+  const results = document.getElementById('results');
+
+  if(reqs.length === 0){
+    statusArea.innerHTML = `<div class="status-bar"><div class="status-dot err"></div><span>Add at least one item — type what you need in the box above.</span></div>`;
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '<i class="ti ti-loader-2 spin" style="font-size:18px"></i> Shopping…';
+  results.innerHTML = '';
+  statusArea.innerHTML = `<div class="status-bar"><div class="status-dot thinking" id="sdot"></div><span id="smsg">Searching live stores for ${reqs.length} item${reqs.length===1?'':'s'}…</span></div>`;
+
+  try {
+    const response = await fetch('/api/agent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        prompt: buildPrompt(reqs),
+        system: SYSTEM_PROMPT,
+        web_search: true,
+        max_tokens: 4000
+      })
+    });
+
+    if(!response.ok){
+      const err = await response.text();
+      throw new Error('Agent error: ' + err);
+    }
+
+    const data = await response.json();
+    const parsed = extractJson(data.text || '');
+
+    const dot = document.getElementById('sdot');
+    const msg = document.getElementById('smsg');
+    const count = (parsed.results||[]).reduce((s,g)=>s+((g.picks||[]).length),0);
+    if(dot) dot.className = 'status-dot done';
+    if(msg) msg.textContent = `Found ${count} product${count===1?'':'s'} across ${(parsed.results||[]).length} request${(parsed.results||[]).length===1?'':'s'}.`;
+
+    renderResults(parsed);
+  } catch(e){
+    console.error(e);
+    statusArea.innerHTML = `<div class="status-bar"><div class="status-dot err"></div><span>Couldn't finish the search: ${esc(e.message)}</span></div>`;
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="ti ti-refresh" style="font-size:18px"></i> Shop again';
+  }
+}
+
+function renderResults(parsed){
+  lastResults = parsed;
+  const results = document.getElementById('results');
+  let html = '';
+
+  if(parsed.note){
+    html += `<div class="agent-note"><strong>Agent:</strong> ${esc(parsed.note)}</div>`;
+  }
+
+  const groups = parsed.results || [];
+  if(groups.length === 0){
+    html += `<div class="res-empty">The agent didn't return any products. Try adding more detail to your notes and shop again.</div>`;
+    results.innerHTML = html;
+    return;
+  }
+
+  groups.forEach(g => {
+    html += `<div class="res-group">
+      <div class="res-group-hdr">
+        <span class="res-group-ttl">${esc(g.request)}</span>
+        ${g.budget ? `<span class="res-group-budget">${esc(g.budget)}</span>` : ''}
+      </div>`;
+
+    if(g.tip){ html += `<div class="res-tip">${esc(g.tip)}</div>`; }
+
+    const picks = g.picks || [];
+    if(picks.length === 0){
+      html += `<div class="res-empty">No matches found for this one.</div>`;
+    } else {
+      picks.forEach(p => {
+        const priceStr = p.price_str || (p.price!=null ? `$${p.price}` : '');
+        const inBudget = p.in_budget === true;
+        const overBudget = p.in_budget === false;
+        const url = (p.url && /^https?:\/\//i.test(p.url)) ? p.url : '';
+        html += `<div class="pick-card">
+          <div class="pick-top">
+            <div class="pick-title">${esc(p.title)}</div>
+            ${priceStr ? `<div class="pick-price">${esc(priceStr)}</div>` : `<div class="pick-price na">price varies</div>`}
+          </div>
+          <div class="pick-meta">
+            ${p.store ? `<span class="pick-store">${esc(p.store)}</span>` : ''}
+            ${inBudget ? `<span class="pick-badge ok">In budget</span>` : ''}
+            ${overBudget ? `<span class="pick-badge over">Over budget</span>` : ''}
+          </div>
+          ${p.why ? `<div class="pick-why">${esc(p.why)}</div>` : ''}
+          ${url
+            ? `<a class="pick-btn" href="${esc(url)}" target="_blank" rel="noopener"><i class="ti ti-external-link" style="font-size:14px"></i> View &amp; buy</a>`
+            : `<span class="pick-btn disabled">No direct link — search ${esc(p.store||'store')}</span>`}
+        </div>`;
+      });
+    }
+    html += `</div>`;
+  });
+
+  html += `<div class="action-row">
+    <button class="act-btn primary" onclick="copyResults()">Copy list</button>
+    <button class="act-btn" onclick="textResults()">Text to phone</button>
+  </div>`;
+
+  results.innerHTML = html;
+}
+
+function buildTextMsg(){
+  const p = lastResults;
+  if(!p) return '';
+  let msg = 'SWJ Shopping Finds\n\n';
+  (p.results||[]).forEach(g => {
+    msg += `${(g.request||'').toUpperCase()}${g.budget?` (${g.budget})`:''}\n`;
+    (g.picks||[]).forEach(pick => {
+      const price = pick.price_str || (pick.price!=null?`$${pick.price}`:'');
+      msg += `• ${pick.title}${price?` — ${price}`:''}${pick.store?` @ ${pick.store}`:''}\n`;
+      if(pick.url) msg += `  ${pick.url}\n`;
+    });
+    if(g.tip) msg += `  (${g.tip})\n`;
+    msg += '\n';
+  });
+  return msg.trim();
+}
+
+function copyResults(){
+  const msg = buildTextMsg();
+  if(!msg){ return; }
+  navigator.clipboard.writeText(msg).then(()=>{
+    const btn = document.querySelector('.act-btn.primary');
+    if(btn){ const t = btn.textContent; btn.textContent = 'Copied ✓'; setTimeout(()=>btn.textContent=t, 1400); }
+  }).catch(()=>{ alert('Could not copy.'); });
+}
+
+function textResults(){
+  const msg = buildTextMsg();
+  if(!msg){ return; }
+  window.open(`sms:+12064225618&body=${encodeURIComponent(msg)}`);
+}
+
+// Seed one empty request row on load
+addRequest(false);
+</script>
+</body>
+</html>
