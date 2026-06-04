@@ -191,7 +191,7 @@ function reqCardHTML(id){
         <input class="req-qty-input" type="number" value="1" min="1" inputmode="numeric">
       </div>
     </div>
-    <textarea class="req-notes" placeholder="Notes — describe what actually matters (e.g. quality doesn't matter, lighter the better, ~12in, foam, ships fast)"></textarea>
+    <textarea class="req-notes" placeholder="Details (optional): size, color, weight, must-haves… e.g. 10in, modern, light, ships fast"></textarea>
   </div>`;
 }
 
@@ -225,11 +225,12 @@ function gatherRequests(){
   const out = [];
   document.querySelectorAll('#req-list .req-card').forEach(card => {
     const item = card.querySelector('.req-item').value.trim();
-    if(!item) return;
+    const notes = card.querySelector('.req-notes').value.trim();
+    // A card counts if EITHER the item line or the details box has content.
+    if(!item && !notes) return;
     const min = card.querySelector('.req-min').value.trim();
     const max = card.querySelector('.req-max').value.trim();
     const qty = parseInt(card.querySelector('.req-qty-input').value, 10) || 1;
-    const notes = card.querySelector('.req-notes').value.trim();
     out.push({ item, min: min?Number(min):null, max: max?Number(max):null, qty, notes });
   });
   return out;
@@ -278,10 +279,12 @@ Respond ONLY with valid JSON — no markdown, no commentary outside the JSON:
 function buildPrompt(reqs){
   let p = 'SHOPPING REQUESTS — find real, buyable products for each:\n\n';
   reqs.forEach((r,i)=>{
-    p += `${i+1}. ITEM: ${r.item}\n`;
+    // If the item line was left blank, the details box carries the request.
+    p += `${i+1}. ITEM: ${r.item || r.notes}\n`;
     p += `   BUDGET: ${budgetLabel(r)}\n`;
     p += `   QTY: ${r.qty}\n`;
-    p += `   NOTES: ${r.notes || '(none — use your best judgement)'}\n\n`;
+    if(r.item && r.notes) p += `   NOTES: ${r.notes}\n`;
+    p += `\n`;
   });
   p += 'For each item, search live stores and return the best real options as JSON in the required format.';
   return p;
