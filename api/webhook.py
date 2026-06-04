@@ -12,8 +12,9 @@ from http.server import BaseHTTPRequestHandler
 SMTP_HOST = 'smtp.hostinger.com'
 SMTP_PORT = 465
 FROM_EMAIL = 'info@stylingwithjas.com'
-JASMINE_SMS = '2064225618@vtext.com'  # Verizon email-to-text (free)
+JASMINE_SMS = '2064225618@vtext.com'  # Verizon email-to-text (free SMS)
 SUPABASE_URL = 'https://cwvdfgrjlrpsdfwduwvn.supabase.co'
+
 
 def send_sms(message):
     """Send text to Jasmine via Verizon email-to-text gateway — free."""
@@ -32,6 +33,7 @@ def send_sms(message):
     except Exception as e:
         print(f'SMS error: {e}')
         return False
+
 
 def verify_signature(raw_body, sig_header, secret):
     """Verify Stripe webhook signature to ensure request is genuine."""
@@ -56,27 +58,29 @@ def verify_signature(raw_body, sig_header, secret):
         print(f'Signature error: {e}')
         return False
 
+
 def fmt_amount(cents):
     return f'${cents / 100:,.2f}'
+
 
 def fmt_date(ts):
     return datetime.datetime.fromtimestamp(ts).strftime('%b %d')
 
+
 def fmt_arrival(ts):
     return datetime.datetime.fromtimestamp(ts).strftime('%b %d, %Y')
+
 
 def supabase_get_by_amount(amount_cents):
     """Find invoice by amount as fallback when no invoice number in metadata."""
     try:
         key = os.environ.get('SUPABASE_KEY', '')
-        # Get recent invoices and match by amount
         req = urllib.request.Request(
             f'{SUPABASE_URL}/rest/v1/invoices?select=invnum,client,data&order=created_at.desc&limit=20',
             headers={'apikey': key, 'Authorization': f'Bearer {key}'}
         )
         with urllib.request.urlopen(req, timeout=10) as r:
             invoices = json.loads(r.read())
-        # Match by grand total
         amount_dollars = amount_cents / 100
         for inv in invoices:
             data = inv.get('data', {})
@@ -84,14 +88,14 @@ def supabase_get_by_amount(amount_cents):
             if abs(float(grand) - amount_dollars) < 0.02:
                 return inv
         return None
-    except:
+    except Exception:
         return None
+
 
 def supabase_update_payment(invnum, payment_info):
     """Update invoice record with payment details."""
     try:
         key = os.environ.get('SUPABASE_KEY', '')
-        # Get current data first
         req = urllib.request.Request(
             f'{SUPABASE_URL}/rest/v1/invoices?invnum=eq.{urllib.parse.quote(invnum)}&select=data',
             headers={'apikey': key, 'Authorization': f'Bearer {key}'}
@@ -145,7 +149,7 @@ class handler(BaseHTTPRequestHandler):
 
         try:
             event = json.loads(raw_body)
-        except:
+        except Exception:
             self._respond(400, {'error': 'Invalid JSON'})
             return
 
@@ -153,31 +157,18 @@ class handler(BaseHTTPRequestHandler):
         obj = event.get('data', {}).get('object', {})
 
         # ── PAYMENT RECEIVED ──
-        if event_type in ('payment_intent.succeeded', 'checkout.session.completed'):
-            # Normalize fields between the two event shapes
-            if event_type == 'checkout.session.completed':
-                amount      = obj.get('amount_total', 0)           # cents
-                created     = obj.get('created', 0)
-                metadata    = obj.get('metadata', {})
-                invnum      = metadata.get('invoice', '').strip()
-                client      = metadata.get('client', '').strip()
-                payment_id  = obj.get('payment_intent', '')
-                # If metadata empty, try customer_details name
-                if not client:
-                    cd = obj.get('customer_details', {})
-                    client = cd.get('name', '') or cd.get('email', '')
-            else:
-                # payment_intent.succeeded (direct API payments)
-                amount      = obj.get('amount', 0)
-                created     = obj.get('created', 0)
-                metadata    = obj.get('metadata', {})
-                invnum      = metadata.get('invoice', '').strip()
-                client      = metadata.get('client', '').strip()
-                payment_id  = obj.get('id', '')
-
+        if event_type == 'payment_intent.succeeded':
+            amount = obj.get('amount', 0)
             amount_str = fmt_amount(amount)
+            created = obj.get('created', 0)
             date_str = fmt_date(created)
             paid_date = datetime.datetime.fromtimestamp(created).strftime('%Y-%m-%d')
+            metadata = obj.get('metadata', {})
+            invnum = metadata.get('invoice', '').strip()
+            client = metadata.get('client', '').strip()
+            payment_id = obj.get('id', '')
+
+            # Fallback: find by amount if no invoice number in metadata
             if not invnum or not client:
                 matched = supabase_get_by_amount(amount)
                 if matched:
@@ -186,16 +177,14 @@ class handler(BaseHTTPRequestHandler):
 
             client_display = client or 'Client'
 
-            # Send SMS notification to Jasmine
             sms = (
-                f'SWJ Payment\n'
+                f'SWJ Payment Received\n'
                 f'{client_display} paid {amount_str}\n'
                 f'Date: {date_str}\n'
                 f'Inv #{invnum}'
             )
             send_sms(sms)
 
-            # Update Supabase
             if invnum:
                 supabase_update_payment(invnum, {
                     'paid_date': paid_date,
@@ -206,13 +195,12 @@ class handler(BaseHTTPRequestHandler):
 
             self._respond(200, {'received': True, 'type': event_type})
 
-        # ── PAYOUT CREATED (money on its way to bank) ──
+        # ── PAYOUT CREATED (money transferring to bank) ──
         elif event_type == 'payout.created':
             amount = obj.get('amount', 0)
             amount_str = fmt_amount(amount)
             arrival_ts = obj.get('arrival_date', 0)
             arrival_str = fmt_arrival(arrival_ts) if arrival_ts else 'TBD'
-            payout_id = obj.get('id', '')
 
             sms = (
                 f'SWJ Deposit Coming\n'
@@ -223,7 +211,7 @@ class handler(BaseHTTPRequestHandler):
             self._respond(200, {'received': True, 'type': event_type})
 
         else:
-            # Acknowledge all other events
+            # Acknowledge any other event without action
             self._respond(200, {'received': True, 'type': event_type})
 
     def _respond(self, code, data):
