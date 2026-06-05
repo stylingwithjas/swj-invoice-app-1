@@ -33,6 +33,8 @@ class handler(BaseHTTPRequestHandler):
             # Stripe wants amounts in cents
             amount_cents = int(round(grand * 100))
 
+            client_email = str(body.get('client_email', '')).strip()
+
             # Build the form-encoded body for Stripe's REST API
             # Note: this uses the Payment Links API, NOT checkout sessions
             data = {
@@ -44,7 +46,12 @@ class handler(BaseHTTPRequestHandler):
                 'metadata[invoice]': invnum,
                 'metadata[client]': client[:40],
                 'metadata[address]': address[:100],
+                'metadata[client_email]': client_email[:100],
             }
+
+            # If we have an email, also pre-fill it on the Stripe payment page
+            if client_email:
+                data['customer_creation'] = 'if_required'
 
             encoded = urllib.parse.urlencode(data).encode('utf-8')
 

@@ -349,6 +349,11 @@ textarea:focus { border-color:var(--gold); background:var(--warm); }
         <input class="field-input client-input" id="client" type="text" placeholder="Jane Smith" autocomplete="name">
         <div class="ferr" id="e-client">Required</div>
       </div>
+      <div class="field" id="f-client-email">
+        <div class="field-lbl">Client Email <span style="text-transform:none;letter-spacing:0;font-weight:400;color:var(--taupe);font-size:10px">— used for automatic receipt delivery</span></div>
+        <input class="field-input" id="client_email" type="email" placeholder="client@example.com" autocomplete="email">
+        <div class="ferr" id="e-client-email">Required for receipt delivery</div>
+      </div>
       <div class="field" id="f-address">
         <div class="field-lbl">Property Address</div>
         <input class="field-input" id="address" type="text" placeholder="123 Main St, Seattle WA" autocomplete="street-address">
@@ -856,7 +861,7 @@ function togglePaid(){
     document.getElementById('paid_date').value=new Date().toISOString().split('T')[0];
 }
 
-async function createPaymentLink(grand, client, invnum, address) {
+async function createPaymentLink(grand, client, invnum, address, client_email) {
   setSt('loading', 'Creating payment link...');
 
   const ctrl = new AbortController();
@@ -866,7 +871,7 @@ async function createPaymentLink(grand, client, invnum, address) {
     const r = await fetch('/api/stripe', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ grand, client, invnum, address }),
+      body: JSON.stringify({ grand, client, invnum, address, client_email }),
       signal: ctrl.signal,
     });
     clearTimeout(timeout);
@@ -1117,6 +1122,7 @@ function loadInvoiceData(d){
   try{
     // Fill form fields
     document.getElementById('client').value = d.client||'';
+    if(document.getElementById('client_email')) document.getElementById('client_email').value = d.client_email || '';
     document.getElementById('address').value = d.address||'';
     document.getElementById('zipcode').value = '';
     document.getElementById('invdate').value = d.invdate||'';
@@ -1359,13 +1365,14 @@ async function downloadPdfNow(){
   const sub=base+addonTotal, taxrate=parseFloat(document.getElementById('taxrate').value)||0;
   const grand=sub+sub*taxrate/100, extrate=Math.round(grand/3*100)/100;
   const client=document.getElementById('client').value.trim();
+  const clientEmail=document.getElementById('client_email')?.value.trim()||'';
   const addressBase=document.getElementById('address').value.trim();
   const zipVal=document.getElementById('zipcode')?.value.trim()||'';
   const address=zipVal&&!addressBase.includes(zipVal)?addressBase+' '+zipVal:addressBase;
   const invNumFinal=document.getElementById('invnum-display').value.trim()||'202093';
   invNum=invNumFinal;
 
-  const data={client,address,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:document.getElementById('startdate').value,baserooms:[...selRooms].join(', '),extrate,taxrate,base_price:base,addons:allAddons,state:captureState(),promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,promo4:document.getElementById('promo4').checked,payment_url:null,cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||''};
+  const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:document.getElementById('startdate').value,baserooms:[...selRooms].join(', '),extrate,taxrate,base_price:base,addons:allAddons,state:captureState(),promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,promo4:document.getElementById('promo4').checked,payment_url:null,cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||''};
 
   const ctrl=new AbortController();
   const to=setTimeout(()=>ctrl.abort(),90000);
@@ -1503,19 +1510,28 @@ async function generatePDF(){
   const sub=base+addonTotal,taxrate=parseFloat(document.getElementById('taxrate').value)||0;
   const grand=sub+sub*taxrate/100,extrate=Math.round(grand/3*100)/100;
   const client=document.getElementById('client').value.trim();
+  const clientEmail=document.getElementById('client_email')?.value.trim()||'';
   const addressBase=document.getElementById('address').value.trim();
   const zipVal=document.getElementById('zipcode')?.value.trim()||'';
   const address=zipVal&&!addressBase.includes(zipVal)?addressBase+' '+zipVal:addressBase;
   const invNumFinal=document.getElementById('invnum-display').value.trim()||'202093';
   invNum=invNumFinal;
 
+  const emailRegex=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if(!clientEmail){
+    const skip=confirm('No client email provided.\n\nWithout an email, the client will not automatically receive a payment receipt when they pay. Jasmine will need to send it manually.\n\nTap OK to skip and continue, or Cancel to add an email now.');
+    if(!skip){ document.getElementById('client_email').focus(); document.getElementById('f-client-email').scrollIntoView({behavior:'smooth',block:'center'}); return; }
+  } else if(!emailRegex.test(clientEmail)){
+    alert('That email looks invalid. Please check the format (example: name@example.com).');
+    document.getElementById('client_email').focus(); return;
+  }
   setSt('loading','Creating payment link...');
   let payment_url=null;
-  try{payment_url=await createPaymentLink(grand,client,invNumFinal,address);}
+  try{payment_url=await createPaymentLink(grand,client,invNumFinal,address,clientEmail);}
   catch(e){setSt('err','Stripe error — continuing without payment link');}
 
   setSt('loading','Generating your invoice PDF...');
-  const data={client,address,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:document.getElementById('startdate').value,baserooms:[...selRooms].join(', '),extrate,taxrate,base_price:base,addons:allAddons,state:captureState(),promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
+  const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:document.getElementById('startdate').value,baserooms:[...selRooms].join(', '),extrate,taxrate,base_price:base,addons:allAddons,state:captureState(),promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
             promo4:document.getElementById('promo4').checked,payment_url,cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||''};
 
   const _ctrl=new AbortController();
@@ -1568,6 +1584,7 @@ async function generate(){
   const base=parseFloat(document.getElementById('base_price')?.value)||2500; const sub=base+addonTotal,taxrate=parseFloat(document.getElementById('taxrate').value)||0;
   const grand=sub+sub*taxrate/100,extrate=Math.round(grand/3*100)/100;
   const client=document.getElementById('client').value.trim();
+  const clientEmail=document.getElementById('client_email')?.value.trim()||'';
   const addressBase=document.getElementById('address').value.trim();
   const zipVal=document.getElementById('zipcode')?.value.trim()||'';
   const address=zipVal&&!addressBase.includes(zipVal)?addressBase+' '+zipVal:addressBase;
@@ -1576,9 +1593,17 @@ async function generate(){
   const invNumFinal = document.getElementById('invnum-display').value.trim() || '202093';
   invNum = invNumFinal;
 
+  const emailRegex=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if(!clientEmail){
+    const skip=confirm('No client email provided.\n\nWithout an email, the client will not automatically receive a payment receipt when they pay. Jasmine will need to send it manually.\n\nTap OK to skip and continue, or Cancel to add an email now.');
+    if(!skip){ document.getElementById('client_email').focus(); document.getElementById('f-client-email').scrollIntoView({behavior:'smooth',block:'center'}); return; }
+  } else if(!emailRegex.test(clientEmail)){
+    alert('That email looks invalid. Please check the format (example: name@example.com).');
+    document.getElementById('client_email').focus(); return;
+  }
   payment_url=null;
   try{
-    payment_url=await createPaymentLink(grand,client,invNumFinal,address);
+    payment_url=await createPaymentLink(grand,client,invNumFinal,address,clientEmail);
   }catch(e){
     setSt('err','Stripe error — generating invoice without payment link');
   }
@@ -1587,7 +1612,7 @@ async function generate(){
 
   
 
-  const data={client,address,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:document.getElementById('startdate').value,baserooms:[...selRooms].join(', '),extrate,taxrate,base_price:parseFloat(document.getElementById('base_price')?.value)||2500,addons:allAddons,state:captureState(),promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
+  const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:document.getElementById('startdate').value,baserooms:[...selRooms].join(', '),extrate,taxrate,base_price:parseFloat(document.getElementById('base_price')?.value)||2500,addons:allAddons,state:captureState(),promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
             promo4:document.getElementById('promo4').checked,payment_url,cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||''};
 
   // Send to API and download PDF

@@ -239,6 +239,7 @@ def supabase_update_payment(invnum, payment_info):
             'stripe_payment_id': payment_info.get('payment_id', ''),
             'stripe_amount': payment_info.get('amount', 0),
             'payout_arrival': payment_info.get('arrival_date', ''),
+            'client_email': payment_info.get('client_email', ''),   # NEW
         })
         body = json.dumps({'data': current_data}).encode()
         patch_req = urllib.request.Request(
@@ -552,8 +553,10 @@ class handler(BaseHTTPRequestHandler):
                 print(f'Receipt PDF error: {e}')
                 pdf_bytes = None
 
-            # Look up client email from Stripe
-            client_email = get_client_email_from_stripe(payment_id)
+            # Get client email — prefer metadata (reliable), fall back to Stripe charge (unreliable)
+            client_email = metadata.get('client_email', '').strip()
+            if not client_email:
+                client_email = get_client_email_from_stripe(payment_id)
 
             # Build client thank-you email (only if we have their email)
             first_name = client_display.split()[0] if client_display else 'there'
@@ -619,7 +622,8 @@ class handler(BaseHTTPRequestHandler):
                     'paid_date': paid_date_iso,
                     'payment_id': payment_id,
                     'amount': amount / 100,
-                    'arrival_date': ''
+                    'arrival_date': '',
+                    'client_email': client_email,   # NEW
                 })
 
             self._respond(200, {'received': True, 'type': event_type})
