@@ -563,6 +563,7 @@ class handler(BaseHTTPRequestHandler):
 
             pdf_filename = f'SWJ_Receipt_{invnum or "payment"}.pdf'
 
+            # ── 1) CLIENT THANK-YOU EMAIL (only if we have their email) ──
             if client_email and pdf_bytes:
                 send_email(
                     to_email=client_email,
@@ -582,10 +583,10 @@ class handler(BaseHTTPRequestHandler):
                     html_body=client_thankyou_html(first_name, amount_str, installation_date, address),
                     pdf_attachment=pdf_bytes,
                     pdf_filename=pdf_filename,
-                    cc=JASMINE_EMAIL,   # Jasmine gets a copy of the client email
+                    # No CC — Jasmine gets her own separate notification (easier to forward later)
                 )
 
-            # Always send Jasmine a notification (whether or not we had the client email)
+            # ── 2) JASMINE NOTIFICATION EMAIL (always — even when client email exists) ──
             jasmine_subject = f'💰 Payment Received — {client_display} ({amount_str})'
             jasmine_body = (
                 f'Payment Received\n\n'
@@ -596,19 +597,21 @@ class handler(BaseHTTPRequestHandler):
             )
             if address: jasmine_body += f'Property: {address}\n'
             if installation_date: jasmine_body += f'Staging date: {installation_date}\n'
-            if client_email: jasmine_body += f'\nReceipt sent to: {client_email}'
-            else: jasmine_body += '\n(No client email on file — receipt PDF not auto-sent. Send manually if needed.)'
+            if client_email:
+                jasmine_body += f'\nReceipt sent to: {client_email}\n'
+                jasmine_body += '(The PDF is attached below — forward to client if they say they didn\'t receive it.)'
+            else:
+                jasmine_body += '\n(No client email on file — receipt PDF not auto-sent to client.\n'
+                jasmine_body += 'Forward the attached PDF manually if needed.)'
 
-            # If we already CC'd Jasmine on the client email, skip this — otherwise send standalone
-            if not client_email:
-                send_email(
-                    to_email=JASMINE_EMAIL,
-                    subject=jasmine_subject,
-                    body_text=jasmine_body,
-                    html_body=notification_html(jasmine_body),
-                    pdf_attachment=pdf_bytes,
-                    pdf_filename=pdf_filename,
-                )
+            send_email(
+                to_email=JASMINE_EMAIL,
+                subject=jasmine_subject,
+                body_text=jasmine_body,
+                html_body=notification_html(jasmine_body),
+                pdf_attachment=pdf_bytes,
+                pdf_filename=pdf_filename,
+            )
 
             # Update Supabase
             if invnum:
