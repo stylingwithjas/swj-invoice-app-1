@@ -603,10 +603,9 @@ body { background:#eceff3; color:var(--ink); }
             <div class="modal-field"><label>Subject</label><input id="email-subject" type="text"></div>
             <div class="modal-field"><label>Message</label><textarea id="email-body"></textarea></div>
             <div id="email-status" style="font-size:13px;color:#888;margin-top:8px;min-height:18px"></div>
-            <button class="modal-send-btn" onclick="openLastPdf()" style="width:100%;margin-bottom:8px;background:#111">⬇ Download / Open PDF</button>
+            <button class="modal-send-btn" id="email-send-btn" onclick="sendEmail()" style="width:100%;margin-bottom:8px">Send Email</button>
             <div class="modal-btns">
-                <button class="modal-cancel-btn" onclick="closeEmailModal()">Cancel</button>
-                <button class="modal-send-btn" id="email-send-btn" onclick="sendEmail()">Send Email</button>
+                <button class="modal-cancel-btn" onclick="closeEmailModal()" style="flex:1">Cancel</button>
             </div>
         </div>
     </div>
