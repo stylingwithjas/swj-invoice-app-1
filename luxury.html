@@ -391,7 +391,7 @@ body { background:#eceff3; color:var(--ink); }
 
   <!-- CLIENT & PROPERTY -->
   <div class="card">
-    <div class="card-hdr"><span class="sec-lbl">Client & Residence</span><div class="sec-accent"></div></div>
+    <div class="card-hdr"><span class="sec-lbl" id="lbl-client">Client & Residence</span><div class="sec-accent"></div></div>
     <div class="card-body">
       <div class="field" id="f-client">
         <div class="field-lbl">Client Name</div>
@@ -475,7 +475,7 @@ body { background:#eceff3; color:var(--ink); }
 
   <!-- BASE PACKAGE -->
   <div class="card">
-    <div class="card-hdr"><span class="sec-lbl">Signature Package — Select Spaces</span><div class="sec-accent"></div></div>
+    <div class="card-hdr"><span class="sec-lbl" id="lbl-package">Signature Package — Select Spaces</span><div class="sec-accent"></div></div>
     <div class="card-body">
       <div class="base-row">
         <span class="base-lbl">Signature package investment</span>
@@ -491,7 +491,7 @@ body { background:#eceff3; color:var(--ink); }
 
   <!-- ADD-ONS -->
   <div class="card">
-    <div class="card-hdr"><span class="sec-lbl">Curated Enhancements</span><div class="sec-accent"></div></div>
+    <div class="card-hdr"><span class="sec-lbl" id="lbl-addons">Curated Enhancements</span><div class="sec-accent"></div></div>
     <div class="card-body" style="padding-top:8px">
       <div id="addon-categories"></div>
       <div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(162,156,150,0.08)">
@@ -1039,6 +1039,7 @@ function restoreState(state){
   const _hs=document.getElementById('home_sqft'); if(_hs) _hs.value=homeSqft?tierCommas(homeSqft):'';
   selTier=state.tier||''; selScope=state.scope||'';
   document.querySelectorAll('#tier-pills .pill').forEach(function(p){ p.classList.toggle('sel', p.dataset.tier===selTier); });
+  applyTierLabels();
   renderScopePills(); updateTierUI();
   recalc();
   return true;
@@ -1206,11 +1207,26 @@ function onSqftInput(input){
   input.value = homeSqft ? tierCommas(homeSqft) : '';
   refreshEstimate();
 }
+function applyTierLabels(){
+  // Standard shows the original invoice-generator labels; Premium/Luxury keep the luxury names.
+  const std = (selTier==='Standard');
+  function set(id,t){ const e=document.getElementById(id); if(e) e.textContent=t; }
+  set('lbl-client',  std ? 'Client & Property'           : 'Client & Residence');
+  set('lbl-package', std ? 'Base Package — Select Rooms' : 'Signature Package — Select Spaces');
+  set('lbl-addons',  std ? 'Add-ons by Room'             : 'Curated Enhancements');
+}
 function selectTier(tier, manual){
+  const tierChanged = (tier !== selTier);
   selTier = tier;
   if(manual) tierManual = true;
   document.querySelectorAll('#tier-pills .pill').forEach(function(p){ p.classList.toggle('sel', p.dataset.tier===tier); });
   if(selScope && TIER_SCOPES[tier].indexOf(selScope) < 0) selScope='';
+  // Standard = original fixed pricing: when switching in, reset the base to the editable $2,500 default.
+  if(tier==='Standard' && tierChanged){
+    const bp=document.getElementById('base_price');
+    if(bp){ bp.value=2500; _origBasePrice=2500; const chk=document.getElementById('base-save-check'); if(chk) chk.classList.remove('changed','saved'); }
+  }
+  applyTierLabels();
   applyRoomMult();
   refreshEstimate();
 }
@@ -1238,6 +1254,7 @@ function selectScope(sc){
 }
 function setBaseForTier(){
   if(!selTier || BASE_PCT[selTier]==null) return;
+  if(selTier==='Standard') return;   // Standard uses the fixed editable base — the estimator never overrides it
   const target = estimatePrice();
   if(!target) return;
   const base = Math.round((target * BASE_PCT[selTier]/100)/50)*50;   // base = % of the sq-ft target
@@ -1268,7 +1285,7 @@ function updateTierUI(){
     const me=document.getElementById('mult-'+t);
     if(me && document.activeElement!==me) me.value=ROOM_MULT[t];
   });
-  if(!selTier || !selScope){ box.style.display='none'; return; }
+  if(!selTier || !selScope || selTier==='Standard'){ box.style.display='none'; return; }
   box.style.display='block';
   const target = estimatePrice();
   const base = Math.round((target * (BASE_PCT[selTier]||0)/100)/50)*50;
@@ -1487,15 +1504,24 @@ async function loadRecent(){
           <div class="ri-name">${inv.client}</div>
           <div class="ri-addr">${inv.address||''}</div>
         </div>
-        <div>
-          <div class="ri-num">#${inv.invnum}</div>
-          <div class="ri-date">${inv.invdate||''}</div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="text-align:right">
+            <div class="ri-num">#${inv.invnum}</div>
+            <div class="ri-date">${inv.invdate||''}</div>
+          </div>
+          <button class="draft-del" onclick="event.stopPropagation();deleteRecent('${inv.invnum}')" title="Delete invoice">×</button>
         </div>
       </div>
     `).join('');
   }catch(e){
     document.getElementById('recent-list').textContent='Could not load recent invoices.';
   }
+}
+
+async function deleteRecent(invnum){
+  if(!confirm('Delete invoice #'+invnum+'? This cannot be undone.')) return;
+  try{ await _sb.from('invoices').delete().eq('invnum', invnum); }catch(e){}
+  loadRecent();
 }
 
 function loadInvoice(idx){
@@ -2086,7 +2112,7 @@ document.addEventListener('DOMContentLoaded', function(){
     if(bp){bp.addEventListener('input',recalc);bp.addEventListener('change',recalc);}
     buildRooms();
     buildCats();
-    loadPricingDefaults().then(()=>{ buildCats(); recalc(); _origBasePrice = parseFloat(document.getElementById('base_price').value)||2500; }).catch(()=>{});
+    loadPricingDefaults().then(()=>{ buildCats(); recalc(); _origBasePrice = parseFloat(document.getElementById('base_price').value)||2500; selectTier('Standard', false); }).catch(()=>{ selectTier('Standard', false); });
     recalc();
     initInvNum();
     loadRecent();
