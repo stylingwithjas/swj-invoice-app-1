@@ -47,6 +47,14 @@ class handler(BaseHTTPRequestHandler):
                 'metadata[client]': client[:40],
                 'metadata[address]': address[:100],
                 'metadata[client_email]': client_email[:100],
+                # Stamp the SAME metadata onto the PaymentIntent. Payment Link metadata
+                # does NOT propagate to the PaymentIntent, and the webhook listens to
+                # payment_intent.succeeded — so without this the webhook sees no invoice
+                # number or client email ("not matched" / "no email on file").
+                'payment_intent_data[metadata][invoice]': invnum,
+                'payment_intent_data[metadata][client]': client[:40],
+                'payment_intent_data[metadata][address]': address[:100],
+                'payment_intent_data[metadata][client_email]': client_email[:100],
             }
 
             # If we have an email, also pre-fill it on the Stripe payment page
