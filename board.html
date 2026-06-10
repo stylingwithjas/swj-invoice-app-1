@@ -331,6 +331,7 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
       <div class="brand-sub">Project Board</div>
     </div>
     <div class="hdr-right">
+      <button class="compact-toggle" id="refresh-btn" onclick="loadBoard()" title="Refresh board">↻ Refresh</button>
       <button class="compact-toggle" id="compact-btn" onclick="toggleCompact()">Compact</button>
       <div class="nav-sw">
         <button class="nav-btn off" onclick="window.location.href='/today.html'">Today</button>
@@ -1093,6 +1094,16 @@ function buildCardHTML(inv){
   // Tags based on stage + status
   const tags = [];
   if(d.startdate) tags.push({text:'Staging ' + fmtDateShort(d.startdate)});
+  if(stage==='staged' && d.startdate){
+    // 45-day furniture-rental countdown from the staging (installation) date.
+    const _sd = new Date(d.startdate + 'T00:00:00');
+    const _t0 = new Date(); _t0.setHours(0,0,0,0);
+    const _left = 45 - Math.round((_t0 - _sd)/(1000*60*60*24));
+    if(_left > 1) tags.push({text:_left + ' days left', cls:'ok'});
+    else if(_left === 1) tags.push({text:'1 day left', cls:'a'});
+    else if(_left === 0) tags.push({text:'Last day — destage', cls:'a'});
+    else tags.push({text:'Rental ended ' + (-_left) + 'd ago', cls:'w'});
+  }
   if(d.mover_name && d.mover2_name){
     tags.push({text:'Movers: ' + d.mover_name + ' + ' + d.mover2_name});
   } else if(d.mover_name){
@@ -1127,6 +1138,26 @@ function escapeHtml(s){
 }
 
 // Load all real (non-DRAFT) invoices and render the board
+async function autoAdvanceStages(invoices){
+  // On/after the staging date, a Confirmed project automatically becomes Staged.
+  // Persisted to Supabase so every device (incl. the wall display) stays in agreement.
+  const today = new Date(); today.setHours(0,0,0,0);
+  for(const inv of invoices){
+    const d = inv.data || {};
+    if((d.stage || 'proposal') === 'confirmed' && d.startdate){
+      const sd = new Date(d.startdate + 'T00:00:00');
+      if(sd <= today){
+        d.stage = 'staged';
+        inv.data = d;   // reflect immediately in this render
+        try {
+          await _sb.from('invoices').upsert({
+            invnum: inv.invnum, client: inv.client, address: inv.address, invdate: inv.invdate, data: d
+          }, { onConflict: 'invnum' });
+        } catch(e){}
+      }
+    }
+  }
+}
 async function loadBoard(){
   try {
     const { data, error } = await _sb
@@ -1148,6 +1179,9 @@ async function loadBoard(){
     // Reset registry
     CARDS = {};
     invoices.forEach(inv => { CARDS[inv.invnum] = inv; });
+
+    // Auto-advance Confirmed → Staged for any project whose staging date has arrived.
+    await autoAdvanceStages(invoices);
 
     // Group by stage; default missing stage to 'proposal'
     const grouped = { proposal:[], confirmed:[], staged:[], destage:[], done:[], denied:[] };
@@ -1649,6 +1683,14 @@ document.addEventListener('DOMContentLoaded', ()=>{
   const allTab = document.querySelectorAll('.tab')[0];
   if(allTab) filter('all', allTab);
   loadBoard();
+  // Live updates for the wall display: refresh the moment any project changes (e.g. moves stages).
+  try {
+    _sb.channel('board-live')
+      .on('postgres_changes', { event:'*', schema:'public', table:'invoices' }, () => loadBoard())
+      .subscribe();
+  } catch(e){}
+  // Safety net in case Supabase Realtime isn't enabled on the table — quiet 2-min re-pull.
+  setInterval(loadBoard, 120000);
 });
 
 
