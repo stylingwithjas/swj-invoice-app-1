@@ -1294,6 +1294,20 @@ function updateTodayStrip(invoices){
         return;
       }
     }
+
+    // Payment due soon: confirmed & unpaid with staging within ~2 days (payment is due ~2 days before).
+    if(stage==='confirmed' && !d.paid && d.startdate){
+      const sd = new Date(d.startdate + 'T00:00:00');
+      const du = Math.round((sd - today)/(1000*60*60*24));
+      if(du >= 0 && du <= 2){
+        const when = du===0 ? 'staging today' : du===1 ? 'staging tomorrow' : 'staging ' + fmtDateShort(d.startdate);
+        items.push({type:'urgent', label:'Payment due', value:client + ' — ' + when, invnum:inv.invnum, sortKey:870});
+      }
+    }
+    // Staged but payment never posted — furniture is out; chase payment.
+    if(stage==='staged' && !d.paid){
+      items.push({type:'urgent', label:'Staged · unpaid', value:client, invnum:inv.invnum, sortKey:960});
+    }
     // Staging tomorrow
     if(d.startdate){
       const startDate = new Date(d.startdate + 'T00:00:00');
