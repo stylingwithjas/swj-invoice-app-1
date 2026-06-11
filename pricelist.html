@@ -163,7 +163,7 @@
   var PARTIAL = 0.40;                             // Partial = share of Full
   var SIZES  = { Premium: [2400, 4000], Luxury: [3500, 6000] };  // typical sq ft per tier
   // Explicit Partial "Signature Spaces" ranges (owner-set, not the sq-ft formula). null = use formula.
-  var PARTIAL_PRICE = { Premium: '$3,900 – $5,500', Luxury: null };
+  var PARTIAL_PRICE = { Premium: '$3,900 – $5,500', Luxury: '$4,600 – $7,500' };
 
   function r100(x){ return Math.round(x/100)*100; }
   function money(x){ return '$' + r100(x).toLocaleString('en-US'); }
