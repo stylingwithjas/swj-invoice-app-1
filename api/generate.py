@@ -40,9 +40,125 @@ def make_qr_image(url):
     except Exception as e:
         return None
 
+
+def build_extension_pdf(data):
+    """Branded one-page 'Rental Extension' invoice that continues the original
+    signed agreement. Isolated from the staging layout. Returns a temp file path."""
+    import tempfile
+    PW, PH = letter
+    ML, MR = 45, 45
+    CW = PW - ML - MR
+    INK   = colors.HexColor('#111111')
+    GRAY  = colors.HexColor('#555555')
+    LGRAY = colors.HexColor('#cccccc')
+    GOLD  = colors.HexColor('#9d7a44')
+
+    def fdate(v):
+        if not v: return ''
+        p = str(v).split('-')
+        return f"{p[1]}/{p[2]}/{p[0][2:]}" if len(p) == 3 else str(v)
+    def fmt(n): return f"${n:,.2f}"
+    def wrap(text, font, size, width):
+        cv.setFont(font, size); out=[]; line=''
+        for w in str(text).split():
+            t=(line+' '+w).strip()
+            if cv.stringWidth(t, font, size) <= width: line=t
+            else:
+                if line: out.append(line)
+                line=w
+        if line: out.append(line)
+        return out
+
+    client   = str(data.get('client', 'Client'))
+    address  = str(data.get('address', ''))
+    ext_inv  = str(data.get('invnum', ''))
+    orig_inv = str(data.get('extension_of', '') or (ext_inv.split('-EXT')[0] if '-EXT' in ext_inv else ext_inv))
+    invdate  = fdate(data.get('invdate', ''))
+    periods  = int(data.get('extension_periods', 1) or 1)
+    amount   = float(data.get('base_price', 0) or 0)
+    extrate  = float(data.get('extrate', 0) or (amount / periods if periods else amount))
+    payment_url = data.get('payment_url')
+
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf'); tmp.close()
+    fname = tmp.name
+    cv = canvas.Canvas(fname, pagesize=letter)
+
+    ASSETS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'assets')
+    LOGO_PATH = os.path.join(ASSETS_DIR, 'swj_logo.png')
+
+    y = PH - 64
+    try:
+        cv.drawImage(LOGO_PATH, ML - 20, y - 34, width=148, height=85, mask='auto', preserveAspectRatio=True)
+    except Exception:
+        pass
+    cv.setFont('Helvetica', 8.5); cv.setFillColor(INK)
+    cv.drawRightString(PW - MR, y, f'Extension No {ext_inv}')
+    cv.drawRightString(PW - MR, y - 12, invdate)
+
+    cv.setFillColor(GOLD); cv.setFont('Helvetica', 20)
+    title = 'RENTAL EXTENSION'; gap = 2.0
+    tw = cv.stringWidth(title, 'Helvetica', 20) + gap * (len(title) - 1)
+    sx = (PW - tw) / 2
+    for ch in title:
+        cv.drawString(sx, y - 60, ch); sx += cv.stringWidth(ch, 'Helvetica', 20) + gap
+    y -= 98
+    cv.setStrokeColor(LGRAY); cv.setLineWidth(0.5); cv.line(ML, y, PW - MR, y); y -= 22
+
+    cv.setFont('Helvetica', 7.5); cv.setFillColor(colors.HexColor('#888888'))
+    cv.drawString(ML, y, 'Client'); cv.drawString(ML + 230, y, 'Property'); y -= 12
+    cv.setFont('Helvetica', 10); cv.setFillColor(INK)
+    cv.drawString(ML, y, client)
+    for i, al in enumerate(wrap(address, 'Helvetica', 10, CW - 230)):
+        cv.drawString(ML + 230, y - (i * 12), al)
+    y -= 28
+    cv.setFont('Helvetica', 9); cv.setFillColor(GRAY)
+    cv.drawString(ML, y, f'Continues your original signed agreement — Invoice No {orig_inv}.'); y -= 26
+
+    cv.setStrokeColor(INK); cv.setLineWidth(1.2); cv.line(ML, y, PW - MR, y); y -= 16
+    cv.setFont('Helvetica-Bold', 9); cv.setFillColor(INK)
+    cv.drawString(ML, y, 'Description'); cv.drawRightString(PW - MR, y, 'Amount'); y -= 16
+    cv.setFont('Helvetica', 9.5); cv.setFillColor(colors.HexColor('#333333'))
+    plural = 's' if periods > 1 else ''
+    cv.drawString(ML, y, f'Furniture rental extension — {periods} × 30-day period{plural}')
+    cv.drawRightString(PW - MR, y, fmt(amount)); y -= 11
+    cv.setFont('Helvetica', 8); cv.setFillColor(GRAY)
+    cv.drawString(ML, y, f'{fmt(extrate)} per 30-day period × {periods}'); y -= 16
+    cv.setStrokeColor(LGRAY); cv.setLineWidth(0.5); cv.line(ML, y, PW - MR, y); y -= 18
+    cv.setFont('Helvetica-Bold', 12); cv.setFillColor(INK)
+    cv.drawString(ML, y, 'Total Due'); cv.drawRightString(PW - MR, y, fmt(amount)); y -= 34
+
+    if payment_url:
+        qr = make_qr_image(payment_url)
+        if qr:
+            try: cv.drawImage(qr, PW - MR - 58, y - 44, width=58, height=58, preserveAspectRatio=True)
+            except Exception: pass
+        cv.setFont('Helvetica-Bold', 8.5); cv.setFillColor(INK); cv.drawString(ML, y, 'Pay Online'); y -= 12
+        cv.setFont('Helvetica', 7.5); cv.setFillColor(GRAY)
+        cv.drawString(ML, y, 'Scan to pay by card or Apple Pay:'); y -= 11
+        cv.setFont('Helvetica', 7.5); cv.setFillColor(colors.HexColor('#1a73e8'))
+        cv.drawString(ML, y, payment_url[:74]); y -= 26
+        if qr:
+            try: os.unlink(qr)
+            except Exception: pass
+
+    cv.setFont('Helvetica', 8); cv.setFillColor(GRAY)
+    note = ('This extension continues the furnishing rental under the terms of your original signed '
+            'agreement; all other terms remain in effect. Washington sales tax applies where applicable.')
+    for l in wrap(note, 'Helvetica', 8, CW):
+        cv.drawString(ML, y, l); y -= 11
+
+    cv.setStrokeColor(LGRAY); cv.setLineWidth(0.4); cv.line(ML, 42, PW - MR, 42)
+    cv.setFont('Helvetica', 8); cv.setFillColor(GRAY)
+    cv.drawString(ML, 30, 'Jasmine Santana  ·  206-422-5618  ·  info@stylingwithjas.com')
+    cv.save()
+    return fname
+
+
 def generate_invoice_pdf(data):
     """Generate SWJ invoice PDF and return path to temp file."""
-    
+    if data.get('extension'):
+        return build_extension_pdf(data)
+
     def fdate(v):
         if not v: return ''
         parts = v.split('-')
