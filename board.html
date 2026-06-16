@@ -470,6 +470,10 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
     <div class="m-sec" style="margin-top:10px">
       <div class="m-sec-ttl">Client</div>
       <div class="m-row">
+        <span class="m-lbl">Invoice total ($)</span>
+        <input class="m-input" id="m-amount" type="text" inputmode="decimal" placeholder="e.g. 3841.61" style="flex:1">
+      </div>
+      <div class="m-row">
         <span class="m-lbl">Address</span>
         <input class="m-input" id="m-address-in" type="text" placeholder="Property address" style="flex:1">
       </div>
@@ -549,10 +553,6 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
     <!-- Payment -->
     <div class="m-sec">
       <div class="m-sec-ttl">Payment</div>
-      <div class="m-row">
-        <span class="m-lbl">Invoice amount</span>
-        <input class="m-input" id="m-amount" type="number" step="50" inputmode="decimal" placeholder="$ total">
-      </div>
       <div class="m-row">
         <span class="m-lbl">Status</span>
         <select class="m-select" id="m-payment">
