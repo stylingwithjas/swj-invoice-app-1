@@ -537,6 +537,10 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
     <div class="m-sec">
       <div class="m-sec-ttl">Payment</div>
       <div class="m-row">
+        <span class="m-lbl">Invoice amount</span>
+        <input class="m-input" id="m-amount" type="number" step="50" inputmode="decimal" placeholder="$ total">
+      </div>
+      <div class="m-row">
         <span class="m-lbl">Status</span>
         <select class="m-select" id="m-payment">
           <option>Awaiting payment</option>
@@ -1506,6 +1510,7 @@ function realOpenCard(invnum){
   document.getElementById('m-name').textContent = inv.client || d.client || '';
   document.getElementById('m-addr').textContent = inv.address || d.address || '';
   document.getElementById('m-amt').textContent = fmtMoney(computeGrand(d));
+  setVal('m-amount', (d.base_price != null ? d.base_price : Math.round(computeGrand(d))));
   document.getElementById('m-bar').className = 'm-bar ' + stage;
 
   // Staging
@@ -1680,6 +1685,8 @@ async function saveCard(){
 
   // Merge modal fields into the data blob
   const d = { ...(inv.data || {}) };
+  const _amt = parseFloat(document.getElementById('m-amount').value);
+  if(!isNaN(_amt)) d.base_price = _amt;   // editable invoice amount (also drives the extension rate)
   d.startdate = document.getElementById('m-sdate').value || null;
   d.mover_name = document.getElementById('m-mover').value || null;
   d.mover_phone = document.getElementById('m-mover-tel').value || null;
