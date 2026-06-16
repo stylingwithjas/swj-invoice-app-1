@@ -331,6 +331,7 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
       <div class="brand-sub">Project Board</div>
     </div>
     <div class="hdr-right">
+      <button class="compact-toggle" onclick="addPastJob()" title="Add a past/legacy job to the board">+ Past Job</button>
       <button class="compact-toggle" id="refresh-btn" onclick="loadBoard()" title="Refresh board">↻ Refresh</button>
       <button class="compact-toggle" id="compact-btn" onclick="toggleCompact()">Compact</button>
       <div class="nav-sw">
@@ -1634,6 +1635,39 @@ async function extendRental(invnum){
   loadBoard();
   try { await navigator.clipboard.writeText(url); } catch(e){}
   alert('Extension ' + extNum + ' created ✓\n\n• Invoice PDF opened in a new tab\n• Payment link copied to clipboard\n• Countdown extended ' + addDays + ' days\n\nText or email it — the client gets a receipt automatically when they pay.');
+}
+
+async function addPastJob(){
+  const invnum = (prompt('Add a past job to the board.\n\nInvoice # (e.g., 202092):') || '').trim();
+  if(!invnum) return;
+  // Already in the system? (don't overwrite real data — just open it)
+  let existing = null;
+  try {
+    const { data } = await _sb.from('invoices').select('invnum,client,address,invdate,data').eq('invnum', invnum).limit(1);
+    existing = data && data[0];
+  } catch(e){}
+  if(existing){
+    CARDS[invnum] = existing;
+    alert('Invoice ' + invnum + ' already exists — opening it.');
+    openCard(invnum);
+    return;
+  }
+  const client = (prompt('Client name:') || '').trim();
+  if(!client) return;
+  const address = (prompt('Property address:') || '').trim();
+  const startdate = (prompt('Staging / install date (YYYY-MM-DD):') || '').trim();
+  const total = parseFloat((prompt('Invoice total $ (used to price extensions):') || '').replace(/[^0-9.]/g,'')) || 0;
+  const email = (prompt('Client email (for the receipt):') || '').trim();
+  const d = { client, address, invnum, startdate: startdate || null, client_email: email,
+              base_price: total, addons: [], taxrate: 0, grand: total,
+              stage: 'staged', rental_days: 45, paid: true, imported: true };
+  try {
+    await _sb.from('invoices').upsert({ invnum, client, address,
+      invdate: (startdate || new Date().toISOString().split('T')[0]), data: d }, { onConflict: 'invnum' });
+  } catch(e){ alert('Could not save: ' + e.message); return; }
+  await loadBoard();
+  openCard(invnum);
+  alert('Added ' + invnum + ' to the board (Currently Staged).\n\nIt opened so you can adjust details or tap ⏱ Extend Rental. Marked Paid by default — change it on the card if needed.');
 }
 
 async function saveCard(){
