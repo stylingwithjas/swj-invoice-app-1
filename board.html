@@ -466,6 +466,19 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
       <div class="ps-arrow">›</div>
     </div>
 
+    <!-- Client details (editable) -->
+    <div class="m-sec" style="margin-top:10px">
+      <div class="m-sec-ttl">Client</div>
+      <div class="m-row">
+        <span class="m-lbl">Address</span>
+        <input class="m-input" id="m-address-in" type="text" placeholder="Property address" style="flex:1">
+      </div>
+      <div class="m-row">
+        <span class="m-lbl">Client email</span>
+        <input class="m-input" id="m-email-in" type="email" placeholder="client@example.com" style="flex:1">
+      </div>
+    </div>
+
     <!-- Staging -->
     <div class="m-sec" style="margin-top:10px">
       <div class="m-sec-ttl">Staging Day</div>
@@ -1511,6 +1524,8 @@ function realOpenCard(invnum){
   document.getElementById('m-addr').textContent = inv.address || d.address || '';
   document.getElementById('m-amt').textContent = fmtMoney(computeGrand(d));
   setVal('m-amount', (d.base_price != null ? d.base_price : Math.round(computeGrand(d))));
+  setVal('m-address-in', inv.address || d.address || '');
+  setVal('m-email-in', d.client_email || '');
   document.getElementById('m-bar').className = 'm-bar ' + stage;
 
   // Staging
@@ -1659,20 +1674,16 @@ async function addPastJob(){
   }
   const client = (prompt('Client name:') || '').trim();
   if(!client) return;
-  const address = (prompt('Property address:') || '').trim();
-  const startdate = (prompt('Staging / install date (YYYY-MM-DD):') || '').trim();
-  const total = parseFloat((prompt('Invoice total $ (used to price extensions):') || '').replace(/[^0-9.]/g,'')) || 0;
-  const email = (prompt('Client email (for the receipt):') || '').trim();
-  const d = { client, address, invnum, startdate: startdate || null, client_email: email,
-              base_price: total, addons: [], taxrate: 0, grand: total,
+  const d = { client, address: '', invnum, startdate: null, client_email: '',
+              base_price: 0, addons: [], taxrate: 0, grand: 0,
               stage: 'staged', rental_days: 45, paid: true, imported: true };
   try {
-    await _sb.from('invoices').upsert({ invnum, client, address,
-      invdate: (startdate || new Date().toISOString().split('T')[0]), data: d }, { onConflict: 'invnum' });
+    await _sb.from('invoices').upsert({ invnum, client, address: '',
+      invdate: new Date().toISOString().split('T')[0], data: d }, { onConflict: 'invnum' });
   } catch(e){ alert('Could not save: ' + e.message); return; }
   await loadBoard();
   openCard(invnum);
-  alert('Added ' + invnum + ' to the board (Currently Staged).\n\nIt opened so you can adjust details or tap ⏱ Extend Rental. Marked Paid by default — change it on the card if needed.');
+  alert('Added ' + invnum + ' for ' + client + ' (Currently Staged) and opened it.\n\nNow fill in the rest right on the card — Address, Client email, Invoice amount, Staging date — then Save Changes.');
 }
 
 async function saveCard(){
@@ -1687,6 +1698,9 @@ async function saveCard(){
   const d = { ...(inv.data || {}) };
   const _amt = parseFloat(document.getElementById('m-amount').value);
   if(!isNaN(_amt)) d.base_price = _amt;   // editable invoice amount (also drives the extension rate)
+  const _addr = (document.getElementById('m-address-in').value || '').trim();
+  d.address = _addr; inv.address = _addr;
+  d.client_email = (document.getElementById('m-email-in').value || '').trim();
   d.startdate = document.getElementById('m-sdate').value || null;
   d.mover_name = document.getElementById('m-mover').value || null;
   d.mover_phone = document.getElementById('m-mover-tel').value || null;
