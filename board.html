@@ -1105,6 +1105,11 @@ function buildCardHTML(inv){
     else if(_left === 1) tags.push({text:'1 day left', cls:'a'});
     else if(_left === 0) tags.push({text:'Last day — destage', cls:'a'});
     else tags.push({text:'Rental ended ' + (-_left) + 'd ago', cls:'w'});
+    const _extPeriods = (d.extensions||[]).reduce((s,e)=>s+(parseInt(e.periods,10)||1),0);
+    if(_extPeriods > 0){
+      const _thru = new Date(_sd); _thru.setDate(_thru.getDate() + _rentalDays);
+      tags.push({text:'Extended ×' + _extPeriods + ' · through ' + fmtDateShort(_thru.toISOString().split('T')[0])});
+    }
   }
   if(d.mover_name && d.mover2_name){
     tags.push({text:'Movers: ' + d.mover_name + ' + ' + d.mover2_name});
