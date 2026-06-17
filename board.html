@@ -658,6 +658,7 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
 
     <div class="m-btns">
       <button class="mbtn" onclick="extendRental(currentCardId)" style="background:#f5ead8;color:#9d7a44" title="Extend the furniture rental and bill it">⏱ Extend Rental</button>
+      <button class="mbtn" onclick="clearExtensions(currentCardId)" style="background:#f3e9e9;color:#b53535" title="Remove all logged rental extensions (test cleanup)">↩︎ Reset ext.</button>
       <button class="mbtn del" onclick="deleteCard()">Remove from Board</button>
       <button class="mbtn hard-del" onclick="hardDeleteCard()" title="Permanently delete from database">Delete</button>
       <div style="flex:1"></div>
@@ -1604,6 +1605,20 @@ function realOpenCard(invnum){
 }
 
 function setVal(id, v){ const el = document.getElementById(id); if(el) el.value = v; }
+
+async function clearExtensions(invnum){
+  const inv = CARDS[invnum]; if(!inv){ alert('Open a project first.'); return; }
+  const d = inv.data || {};
+  const n = (d.extensions||[]).length;
+  if(!n){ alert('No extensions logged on this project.'); return; }
+  if(!confirm('Remove all ' + n + ' logged extension(s) from this project and reset the rental window to 45 days?\n\n(This only cleans up the board — it does not refund any Stripe payments.)')) return;
+  d.extensions = [];
+  d.rental_days = 45;
+  try { await _sb.from('invoices').upsert({ invnum: inv.invnum, client: inv.client, address: inv.address, invdate: inv.invdate, data: d }, { onConflict: 'invnum' }); } catch(e){}
+  closeModal();
+  loadBoard();
+  alert('Cleared ' + n + ' extension(s). The rental window is back to 45 days from the destage date.');
+}
 
 async function extendRental(invnum){
   const inv = CARDS[invnum];
