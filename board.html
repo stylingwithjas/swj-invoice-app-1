@@ -1623,9 +1623,6 @@ async function extendRental(invnum){
               '   (at $' + extrate.toLocaleString() + ' / 30 days)\n\nCreates a payment link + extension invoice PDF and pushes the rental end out ' + days +
               ' days. No new contract — the signed original covers it.')) return;
 
-  // Open the PDF tab now, inside the tap, so iOS doesn't block it after the awaits.
-  let pdfWin = null; try { pdfWin = window.open('', '_blank'); } catch(e){}
-
   // 1) New payment link (metadata flows to the auto-receipt when they pay)
   let url = null;
   try {
@@ -1634,7 +1631,7 @@ async function extendRental(invnum){
     const j = await r.json();
     if(j.error) throw new Error(j.error);
     url = j.url;
-  } catch(e){ if(pdfWin){ try{ pdfWin.close(); }catch(_){ } } alert('Could not create the payment link:\n' + e.message + '\n\nNothing was changed.'); return; }
+  } catch(e){ alert('Could not create the payment link:\n' + e.message + '\n\nNothing was changed.'); return; }
 
   // 2) Extend the rental window + log the extension on the original invoice
   d.rental_days = (parseInt(d.rental_days, 10) || 45) + addDays;
@@ -1644,28 +1641,39 @@ async function extendRental(invnum){
     await _sb.from('invoices').upsert({ invnum: inv.invnum, client: inv.client, address: inv.address, invdate: inv.invdate, data: d }, { onConflict: 'invnum' });
   } catch(e){}
 
-  // 3) Branded "Rental Extension" invoice PDF (carries the payment QR + link)
+  // 3) Build the extension PDF blob (do NOT auto-open — iOS blocks blob navigation in a
+  //    popup after awaits, which left an about:blank tab). We hand it back as a tappable link.
+  let pdfUrl = null, pdfErr = '';
   try {
     const pdfData = { extension:true, extension_days:days, extension_of:invnum, client:inv.client, address:inv.address,
       invnum:extNum, invdate:new Date().toISOString().split('T')[0], base_price:amount, extrate:extrate, payment_url:url };
     const pr = await fetch('/api/generate', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(pdfData) });
-    if(!pr.ok){ const t = await pr.text(); throw new Error('Server ' + pr.status + ' — ' + t.substring(0,140)); }
+    if(!pr.ok){ const t = await pr.text(); throw new Error('Server ' + pr.status + ' — ' + t.substring(0,120)); }
     const b = await pr.blob();
-    if(!b || b.size < 800) throw new Error('Empty PDF returned from server');
-    const u = URL.createObjectURL(b);
-    const fname = 'SWJ_Extension_' + extNum + '.pdf';
-    if(pdfWin){ try{ pdfWin.location.href = u; }catch(_){ pdfWin = null; } }
-    if(!pdfWin){ const a = document.createElement('a'); a.style.display='none'; a.href=u; a.download=fname; a.target='_blank'; document.body.appendChild(a); a.click(); setTimeout(()=>{ try{document.body.removeChild(a);}catch(_){ } }, 4000); }
-    setTimeout(()=>URL.revokeObjectURL(u), 120000);
-  } catch(e){
-    if(pdfWin){ try{ pdfWin.close(); }catch(_){ } }
-    alert('Extension saved and the payment link is copied — but the PDF preview failed:\n' + e.message + '\n\nYou can still send the payment link; I can look into the PDF separately.');
-  }
+    if(!b || b.size < 800) throw new Error('empty PDF');
+    pdfUrl = URL.createObjectURL(b);
+  } catch(e){ pdfErr = e.message; }
 
   closeModal();
   loadBoard();
   try { await navigator.clipboard.writeText(url); } catch(e){}
-  alert('Extension ' + extNum + ' created ✓\n\n• Invoice PDF opened in a new tab\n• Payment link copied to clipboard\n• Countdown extended ' + addDays + ' days\n\nText or email it — the client gets a receipt automatically when they pay.');
+
+  // 4) Result card with TAPPABLE links — a real tap opens/saves reliably on iOS.
+  const fname = 'SWJ_Extension_' + extNum + '.pdf';
+  const ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(26,24,20,0.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:24px;font-family:Inter,-apple-system,sans-serif';
+  ov.innerHTML =
+    '<div style="background:#fff;border-radius:16px;max-width:360px;width:100%;padding:22px;text-align:center">'
+    + '<div style="font-family:Georgia,serif;font-size:20px;color:#1a1814;margin-bottom:4px">Extension ' + extNum + '</div>'
+    + '<div style="font-size:13px;color:#3d3830;line-height:1.5;margin-bottom:16px">' + days + ' days &middot; $' + amount.toLocaleString() + '<br>Payment link copied to clipboard.</div>'
+    + (pdfUrl ? ('<a href="' + pdfUrl + '" download="' + fname + '" target="_blank" style="display:block;background:#1a1814;color:#fff;text-decoration:none;padding:13px;border-radius:11px;font-weight:600;margin-bottom:8px">📄 Open / Save invoice PDF</a>')
+              : ('<div style="font-size:12px;color:#b53535;margin-bottom:10px">PDF preview unavailable (' + (pdfErr||'error') + ') — the payment link still works.</div>'))
+    + '<a href="' + url + '" target="_blank" style="display:block;background:#f5ead8;color:#9d7a44;text-decoration:none;padding:12px;border-radius:11px;font-weight:600;margin-bottom:6px">💳 Open payment link</a>'
+    + '<button id="ext-ov-close" style="background:none;border:none;color:#a29c96;font-size:13px;padding:8px;cursor:pointer">Close</button>'
+    + '</div>';
+  document.body.appendChild(ov);
+  ov.querySelector('#ext-ov-close').onclick = function(){ ov.remove(); };
+  ov.addEventListener('click', function(e){ if(e.target === ov) ov.remove(); });
 }
 
 async function addPastJob(){
