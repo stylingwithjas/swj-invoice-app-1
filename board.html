@@ -481,6 +481,7 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
         <span class="m-lbl">Client email</span>
         <input class="m-input" id="m-email-in" type="email" placeholder="client@example.com" style="flex:1">
       </div>
+      <div id="m-rental-info" style="font-size:11px;color:#a29c96;padding:8px 2px 0;line-height:1.5"></div>
     </div>
 
     <!-- Staging -->
@@ -1529,6 +1530,20 @@ function realOpenCard(invnum){
   setVal('m-amount', (d.base_price != null ? d.base_price : Math.round(computeGrand(d))));
   setVal('m-address-in', inv.address || d.address || '');
   setVal('m-email-in', d.client_email || '');
+  (function(){
+    const el = document.getElementById('m-rental-info'); if(!el) return;
+    const exts = d.extensions || [];
+    const extDays = exts.reduce((s,e)=>s + (parseInt(e.days,10) || 30*(parseInt(e.periods,10)||1)), 0);
+    let through = '?';
+    if(d.destage_date || d.startdate){
+      let end = d.destage_date ? new Date(d.destage_date + 'T00:00:00')
+                               : (function(){ const x = new Date(d.startdate + 'T00:00:00'); x.setDate(x.getDate()+45); return x; })();
+      end.setDate(end.getDate() + extDays);
+      through = end.getFullYear() + '-' + String(end.getMonth()+1).padStart(2,'0') + '-' + String(end.getDate()).padStart(2,'0');
+    }
+    el.textContent = 'Rental — staged ' + (d.startdate||'?') + ' · destage ' + (d.destage_date||'(not set)')
+                   + ' · ' + exts.length + ' ext (' + extDays + 'd) → through ' + through;
+  })();
   document.getElementById('m-bar').className = 'm-bar ' + stage;
 
   // Staging
