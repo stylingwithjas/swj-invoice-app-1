@@ -1639,6 +1639,10 @@ async function extendRental(invnum){
   const inv = CARDS[invnum];
   if(!inv){ alert('Open a project first.'); return; }
   const d = inv.data || {};
+  // Pick up any unsaved date edits currently in the open card so the extension uses AND saves them
+  // (otherwise it would use the last-saved data and ignore what you just typed).
+  const _ldd = document.getElementById('m-ddate'); if(_ldd && _ldd.value) d.destage_date = _ldd.value;
+  const _lsd = document.getElementById('m-sdate'); if(_lsd && _lsd.value) d.startdate = _lsd.value;
   const grand = computeGrand(d);
   // Extension rate = the contract's stated rate (~1/3 of the total per 30-day period).
   const extrate = parseFloat(d.extrate) || Math.round(grand/3*100)/100;
