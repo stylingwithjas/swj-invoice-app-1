@@ -1649,9 +1649,18 @@ async function extendRental(invnum){
     const pdfData = { extension:true, extension_days:days, extension_of:invnum, client:inv.client, address:inv.address,
       invnum:extNum, invdate:new Date().toISOString().split('T')[0], base_price:amount, extrate:extrate, payment_url:url };
     const pr = await fetch('/api/generate', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(pdfData) });
-    if(pr.ok){ const b = await pr.blob(); const u = URL.createObjectURL(b); if(pdfWin) pdfWin.location.href = u; else window.open(u, '_blank'); }
-    else if(pdfWin){ try{ pdfWin.close(); }catch(_){ } }
-  } catch(e){ if(pdfWin){ try{ pdfWin.close(); }catch(_){ } } }
+    if(!pr.ok){ const t = await pr.text(); throw new Error('Server ' + pr.status + ' — ' + t.substring(0,140)); }
+    const b = await pr.blob();
+    if(!b || b.size < 800) throw new Error('Empty PDF returned from server');
+    const u = URL.createObjectURL(b);
+    const fname = 'SWJ_Extension_' + extNum + '.pdf';
+    if(pdfWin){ try{ pdfWin.location.href = u; }catch(_){ pdfWin = null; } }
+    if(!pdfWin){ const a = document.createElement('a'); a.style.display='none'; a.href=u; a.download=fname; a.target='_blank'; document.body.appendChild(a); a.click(); setTimeout(()=>{ try{document.body.removeChild(a);}catch(_){ } }, 4000); }
+    setTimeout(()=>URL.revokeObjectURL(u), 120000);
+  } catch(e){
+    if(pdfWin){ try{ pdfWin.close(); }catch(_){ } }
+    alert('Extension saved and the payment link is copied — but the PDF preview failed:\n' + e.message + '\n\nYou can still send the payment link; I can look into the PDF separately.');
+  }
 
   closeModal();
   loadBoard();
