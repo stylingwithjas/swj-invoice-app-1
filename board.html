@@ -1675,12 +1675,20 @@ async function extendRental(invnum){
     await _sb.from('invoices').upsert({ invnum: inv.invnum, client: inv.client, address: inv.address, invdate: inv.invdate, data: d }, { onConflict: 'invnum' });
   } catch(e){}
 
+  // New rental end = (destage date, or staging + 45 if none) + all extension days — shown on the PDF.
+  const _totExtDays = d.extensions.reduce((s,e)=>s + (parseInt(e.days,10) || 30*(parseInt(e.periods,10)||1)), 0);
+  let _re = d.destage_date ? new Date(d.destage_date + 'T00:00:00')
+            : new Date((d.startdate || new Date().toISOString().split('T')[0]) + 'T00:00:00');
+  if(!d.destage_date && d.startdate) _re.setDate(_re.getDate() + 45);
+  _re.setDate(_re.getDate() + _totExtDays);
+  const rentedThrough = _re.getFullYear() + '-' + String(_re.getMonth()+1).padStart(2,'0') + '-' + String(_re.getDate()).padStart(2,'0');
+
   // 3) Build the extension PDF blob (do NOT auto-open — iOS blocks blob navigation in a
   //    popup after awaits, which left an about:blank tab). We hand it back as a tappable link.
   let pdfUrl = null, pdfErr = '';
   try {
     const pdfData = { extension:true, extension_days:days, extension_of:invnum, client:inv.client, address:inv.address,
-      invnum:extNum, invdate:new Date().toISOString().split('T')[0], base_price:amount, extrate:extrate, payment_url:url };
+      invnum:extNum, invdate:new Date().toISOString().split('T')[0], base_price:amount, extrate:extrate, payment_url:url, rented_through:rentedThrough };
     const pr = await fetch('/api/generate', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(pdfData) });
     if(!pr.ok){ const t = await pr.text(); throw new Error('Server ' + pr.status + ' — ' + t.substring(0,120)); }
     const b = await pr.blob();

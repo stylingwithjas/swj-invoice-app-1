@@ -127,7 +127,13 @@ def build_extension_pdf(data):
     cv.drawString(ML, y, f'{fmt(extrate)} per 30-day period (prorated)'); y -= 16
     cv.setStrokeColor(LGRAY); cv.setLineWidth(0.5); cv.line(ML, y, PW - MR, y); y -= 18
     cv.setFont('Helvetica-Bold', 12); cv.setFillColor(INK)
-    cv.drawString(ML, y, 'Total Due'); cv.drawRightString(PW - MR, y, fmt(amount)); y -= 34
+    cv.drawString(ML, y, 'Total Due'); cv.drawRightString(PW - MR, y, fmt(amount)); y -= 26
+    rented_through = str(data.get('rented_through', '') or '')
+    if rented_through:
+        cv.setFont('Helvetica-Bold', 10); cv.setFillColor(GOLD)
+        cv.drawString(ML, y, 'Rental now runs through ' + fdate(rented_through)); y -= 24
+    else:
+        y -= 8
 
     if payment_url:
         qr = make_qr_image(payment_url)
