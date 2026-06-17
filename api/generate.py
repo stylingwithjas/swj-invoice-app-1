@@ -74,9 +74,12 @@ def build_extension_pdf(data):
     ext_inv  = str(data.get('invnum', ''))
     orig_inv = str(data.get('extension_of', '') or (ext_inv.split('-EXT')[0] if '-EXT' in ext_inv else ext_inv))
     invdate  = fdate(data.get('invdate', ''))
-    periods  = int(data.get('extension_periods', 1) or 1)
+    days     = int(data.get('extension_days', 0) or 0)
+    periods  = int(data.get('extension_periods', 0) or 0)
+    if not days and periods: days = 30 * periods
+    if not days: days = 30
     amount   = float(data.get('base_price', 0) or 0)
-    extrate  = float(data.get('extrate', 0) or (amount / periods if periods else amount))
+    extrate  = float(data.get('extrate', 0) or (amount * 30 / days if days else amount))
     payment_url = data.get('payment_url')
 
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf'); tmp.close()
@@ -118,11 +121,10 @@ def build_extension_pdf(data):
     cv.setFont('Helvetica-Bold', 9); cv.setFillColor(INK)
     cv.drawString(ML, y, 'Description'); cv.drawRightString(PW - MR, y, 'Amount'); y -= 16
     cv.setFont('Helvetica', 9.5); cv.setFillColor(colors.HexColor('#333333'))
-    plural = 's' if periods > 1 else ''
-    cv.drawString(ML, y, f'Furniture rental extension — {periods} × 30-day period{plural}')
+    cv.drawString(ML, y, f'Furniture rental extension — {days} days')
     cv.drawRightString(PW - MR, y, fmt(amount)); y -= 11
     cv.setFont('Helvetica', 8); cv.setFillColor(GRAY)
-    cv.drawString(ML, y, f'{fmt(extrate)} per 30-day period × {periods}'); y -= 16
+    cv.drawString(ML, y, f'{fmt(extrate)} per 30-day period (prorated)'); y -= 16
     cv.setStrokeColor(LGRAY); cv.setLineWidth(0.5); cv.line(ML, y, PW - MR, y); y -= 18
     cv.setFont('Helvetica-Bold', 12); cv.setFillColor(INK)
     cv.drawString(ML, y, 'Total Due'); cv.drawRightString(PW - MR, y, fmt(amount)); y -= 34

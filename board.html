@@ -1114,19 +1114,21 @@ function buildCardHTML(inv){
   const tags = [];
   if(d.startdate) tags.push({text:'Staging ' + fmtDateShort(d.startdate)});
   if(stage==='staged' && d.startdate){
-    // Furniture-rental countdown from the staging date (45 days, plus any extensions).
-    const _sd = new Date(d.startdate + 'T00:00:00');
     const _t0 = new Date(); _t0.setHours(0,0,0,0);
-    const _rentalDays = parseInt(d.rental_days, 10) || 45;
-    const _left = _rentalDays - Math.round((_t0 - _sd)/(1000*60*60*24));
+    const _extDays = (d.extensions||[]).reduce((s,e)=>s + (parseInt(e.days,10) || 30*(parseInt(e.periods,10)||1)), 0);
+    // Rental end = the scheduled destage date (or staging + 45 if none is set), plus any extension days.
+    let _end;
+    if(d.destage_date){ _end = new Date(d.destage_date + 'T00:00:00'); }
+    else { _end = new Date(d.startdate + 'T00:00:00'); _end.setDate(_end.getDate() + 45); }
+    if(_extDays > 0) _end.setDate(_end.getDate() + _extDays);
+    const _left = Math.round((_end - _t0)/(1000*60*60*24));
     if(_left > 1) tags.push({text:_left + ' days left', cls:'ok'});
     else if(_left === 1) tags.push({text:'1 day left', cls:'a'});
     else if(_left === 0) tags.push({text:'Last day — destage', cls:'a'});
     else tags.push({text:'Rental ended ' + (-_left) + 'd ago', cls:'w'});
-    const _extPeriods = (d.extensions||[]).reduce((s,e)=>s+(parseInt(e.periods,10)||1),0);
-    if(_extPeriods > 0){
-      const _thru = new Date(_sd); _thru.setDate(_thru.getDate() + _rentalDays);
-      tags.push({text:'Extended ×' + _extPeriods + ' · through ' + fmtDateShort(_thru.toISOString().split('T')[0])});
+    if(_extDays > 0){
+      const _iso = _end.getFullYear() + '-' + String(_end.getMonth()+1).padStart(2,'0') + '-' + String(_end.getDate()).padStart(2,'0');
+      tags.push({text:'Extended ' + _extDays + 'd · through ' + fmtDateShort(_iso)});
     }
   }
   if(d.mover_name && d.mover2_name){
@@ -1610,15 +1612,15 @@ async function extendRental(invnum){
   const grand = computeGrand(d);
   // Extension rate = the contract's stated rate (~1/3 of the total per 30-day period).
   const extrate = parseFloat(d.extrate) || Math.round(grand/3*100)/100;
-  const pStr = prompt('Extend furniture rental for ' + (inv.client||'this client') + '.\n\nRate: $' + extrate.toLocaleString() + ' per 30-day period (already in the signed contract).\n\nHow many 30-day periods?', '1');
-  if(pStr === null) return;
-  const periods = Math.max(1, parseInt(pStr, 10) || 0);
-  if(!periods) return;
-  const amount = Math.round(extrate * periods * 100) / 100;
+  const daysStr = prompt('Extend furniture rental for ' + (inv.client||'this client') + '.\n\nRate: $' + extrate.toLocaleString() + ' per 30-day period (prorated by day).\n\nExtend by how many days?  (most are 30 — edit if needed)', '30');
+  if(daysStr === null) return;
+  const days = Math.max(1, parseInt(daysStr, 10) || 0);
+  if(!days) return;
+  const amount = Math.round(extrate * days / 30 * 100) / 100;
   const extNum = invnum + '-EXT' + (((d.extensions||[]).length) + 1);
-  const addDays = 30 * periods;
-  if(!confirm('Create ' + extNum + '?\n\n' + periods + ' × 30 days  =  $' + amount.toLocaleString() +
-              '\n\nCreates a payment link, generates the extension invoice PDF, and pushes the rental countdown out ' + addDays +
+  const addDays = days;
+  if(!confirm('Create ' + extNum + '?\n\n' + days + ' days  =  $' + amount.toLocaleString() +
+              '   (at $' + extrate.toLocaleString() + ' / 30 days)\n\nCreates a payment link + extension invoice PDF and pushes the rental end out ' + days +
               ' days. No new contract — the signed original covers it.')) return;
 
   // Open the PDF tab now, inside the tap, so iOS doesn't block it after the awaits.
@@ -1637,14 +1639,14 @@ async function extendRental(invnum){
   // 2) Extend the rental window + log the extension on the original invoice
   d.rental_days = (parseInt(d.rental_days, 10) || 45) + addDays;
   d.extensions = d.extensions || [];
-  d.extensions.push({ invnum: extNum, periods: periods, amount: amount, payment_url: url, created: new Date().toISOString().split('T')[0] });
+  d.extensions.push({ invnum: extNum, days: days, amount: amount, payment_url: url, created: new Date().toISOString().split('T')[0] });
   try {
     await _sb.from('invoices').upsert({ invnum: inv.invnum, client: inv.client, address: inv.address, invdate: inv.invdate, data: d }, { onConflict: 'invnum' });
   } catch(e){}
 
   // 3) Branded "Rental Extension" invoice PDF (carries the payment QR + link)
   try {
-    const pdfData = { extension:true, extension_periods:periods, extension_of:invnum, client:inv.client, address:inv.address,
+    const pdfData = { extension:true, extension_days:days, extension_of:invnum, client:inv.client, address:inv.address,
       invnum:extNum, invdate:new Date().toISOString().split('T')[0], base_price:amount, extrate:extrate, payment_url:url };
     const pr = await fetch('/api/generate', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(pdfData) });
     if(pr.ok){ const b = await pr.blob(); const u = URL.createObjectURL(b); if(pdfWin) pdfWin.location.href = u; else window.open(u, '_blank'); }
