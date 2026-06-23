@@ -1541,7 +1541,7 @@ function loadInvoiceData(d){
     document.getElementById('zipcode').value = '';
     document.getElementById('invdate').value = d.invdate||'';
     document.getElementById('startdate').value = d.startdate||'';
-    document.getElementById('invnum-display').value = nextRevision(d.invnum||'');
+    document.getElementById('invnum-display').value = d.invnum||'';   // keep the same number so editing + regenerating UPDATES this invoice (and its Approve/Sign link)
     document.getElementById('taxrate').value = d.taxrate||10.25;
     document.getElementById('base_price').value = d.base_price||2500;
     document.getElementById('promo1').checked = d.promo1||false;
