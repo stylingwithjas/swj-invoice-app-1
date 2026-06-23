@@ -5,6 +5,9 @@
       "includeFiles": "assets/**",
       "maxDuration": 60
     },
+    "api/taxrate.py": {
+      "maxDuration": 15
+    },
     "api/sign.py": {
       "includeFiles": "{api/generate.py,assets/**}",
       "maxDuration": 60

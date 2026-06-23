@@ -356,12 +356,12 @@ textarea:focus { border-color:var(--gold); background:var(--warm); }
       </div>
       <div class="field" id="f-address">
         <div class="field-lbl">Property Address</div>
-        <input class="field-input" id="address" type="text" placeholder="123 Main St, Seattle WA" autocomplete="street-address">
+        <input class="field-input" id="address" type="text" placeholder="123 Main St, Seattle WA" autocomplete="street-address" oninput="lookupTaxRate()">
         <div class="ferr" id="e-address">Required</div>
       </div>
       <div class="field" style="max-width:180px">
         <div class="field-lbl">ZIP Code</div>
-        <input class="field-input" id="zipcode" type="text" inputmode="numeric" maxlength="5" placeholder="98126" oninput="getWATaxByZip(this.value)">
+        <input class="field-input" id="zipcode" type="text" inputmode="numeric" maxlength="5" placeholder="98126" oninput="lookupTaxRate()">
         <div class="zip-note" id="tax-note">&nbsp;</div>
       </div>
     </div>
@@ -907,71 +907,45 @@ async function createPaymentLink(grand, client, invnum, address, client_email) {
 }
 
 
-function getWATax(address){
-  const match = address.match(/(9[0-9]{4})/);
-  if(!match) { const n=document.getElementById('tax-note'); if(n) n.textContent=''; return; }
-  const zip = match[1];
-  const WA_TAX={
-    '98126':10.25,'98101':10.25,'98102':10.25,'98103':10.25,'98104':10.25,
-    '98105':10.25,'98106':10.25,'98107':10.25,'98108':10.25,'98109':10.25,
-    '98110':10.25,'98112':10.25,'98115':10.25,'98116':10.25,'98117':10.25,
-    '98118':10.25,'98119':10.25,'98121':10.25,'98122':10.25,'98125':10.25,
-    '98133':10.25,'98134':10.25,'98136':10.25,'98144':10.25,'98146':10.25,
-    '98148':10.25,'98155':10.25,'98166':10.25,'98168':10.25,'98177':10.25,
-    '98178':10.25,'98188':10.25,'98198':10.25,'98199':10.25,
-    '98004':10.2,'98005':10.2,'98006':10.2,'98007':10.2,'98008':10.2,
-    '98033':10.2,'98034':10.2,'98052':10.2,'98053':10.2,
-    '98401':10.2,'98402':10.2,'98403':10.2,'98404':10.2,'98405':10.2,
-    '98406':10.2,'98407':10.2,'98408':10.2,'98409':10.2,'98418':10.2,
-    '98421':10.2,'98422':10.2,'98424':10.2,'98444':10.2,'98445':10.2,
-    '98446':10.2,'98447':10.2,'98391':10.55,
-    '98201':10.6,'98203':10.6,'98204':10.6,'98208':10.6,
-    '98501':9.0,'98502':9.0,'98503':9.0,
-    '98660':8.7,'98661':8.7,'98662':8.7,'98663':8.7,'98664':8.7,'98665':8.7,
-    '98671':8.7,'99201':8.9,'99202':8.9,'99203':8.9,'99204':8.9,
-    '99205':8.9,'99206':8.9,'99207':8.9,'99208':8.9
-  };
-  const note = document.getElementById('tax-note');
-  if(WA_TAX[zip]!==undefined){
-    document.getElementById('taxrate').value = WA_TAX[zip].toFixed(2);
-    recalc();
-    if(note) note.textContent = `✓ Tax rate set to ${WA_TAX[zip]}% for zip ${zip}`;
-  } else {
-    if(note) note.textContent = '';
-  }
-}
-
-function getWATaxByZip(zip){
+// Live, address-accurate WA sales-tax lookup via the official Department of Revenue API
+// (server-proxied at /api/taxrate). Uses the full street address + ZIP so the EXACT
+// location-code rate is applied -- not an approximate ZIP guess. The field stays editable.
+let _taxLookupTimer=null, _taxLookupSeq=0;
+function lookupTaxRate(){
   const note=document.getElementById('tax-note');
-  if(zip.length<5){if(note){note.textContent='';note.style.color='';}return;}
-  const WA_TAX={
-    '98126':10.25,'98101':10.25,'98102':10.25,'98103':10.25,'98104':10.25,
-    '98105':10.25,'98106':10.25,'98107':10.25,'98108':10.25,'98109':10.25,
-    '98110':10.25,'98112':10.25,'98115':10.25,'98116':10.25,'98117':10.25,
-    '98118':10.25,'98119':10.25,'98121':10.25,'98122':10.25,'98125':10.25,
-    '98133':10.25,'98134':10.25,'98136':10.25,'98144':10.25,'98146':10.25,
-    '98148':10.25,'98155':10.25,'98166':10.25,'98168':10.25,'98177':10.25,
-    '98178':10.25,'98188':10.25,'98198':10.25,'98199':10.25,
-    '98004':10.2,'98005':10.2,'98006':10.2,'98007':10.2,'98008':10.2,
-    '98033':10.2,'98034':10.2,'98052':10.2,'98053':10.2,
-    '98401':10.2,'98402':10.2,'98403':10.2,'98404':10.2,'98405':10.2,
-    '98406':10.2,'98407':10.2,'98408':10.2,'98409':10.2,'98418':10.2,
-    '98421':10.2,'98422':10.2,'98424':10.2,'98444':10.2,'98445':10.2,
-    '98446':10.2,'98447':10.2,'98391':10.55,
-    '98201':10.6,'98203':10.6,'98204':10.6,'98208':10.6,
-    '98501':9.0,'98502':9.0,'98503':9.0,
-    '98660':8.7,'98661':8.7,'98662':8.7,'98663':8.7,'98664':8.7,'98665':8.7,
-    '98671':8.7,'99201':8.9,'99202':8.9,'99203':8.9,'99204':8.9,
-    '99205':8.9,'99206':8.9,'99207':8.9,'99208':8.9
-  };
-  if(WA_TAX[zip]!==undefined){
-    document.getElementById('taxrate').value=WA_TAX[zip].toFixed(2);
-    recalc();
-    if(note){note.textContent='✓ Tax rate set to '+WA_TAX[zip]+'% for zip '+zip;note.style.color='#22c55e';}
-  } else {
-    if(note){note.textContent='⚠ ZIP not found — set tax rate manually';note.style.color='#f59e0b';}
-  }
+  const addr=(document.getElementById('address')?.value||'').trim();
+  const zip=(document.getElementById('zipcode')?.value||'').replace(/\D/g,'').slice(0,5);
+  if(zip.length<5){ if(note){note.textContent='';note.style.color='';} return; }
+  if(note){ note.textContent='Checking official WA tax rate\u2026'; note.style.color='#888'; }
+  clearTimeout(_taxLookupTimer);
+  const seq=++_taxLookupSeq;
+  _taxLookupTimer=setTimeout(async()=>{
+    try{
+      const params=new URLSearchParams({addr, city:'', zip});
+      const r=await fetch('/api/taxrate?'+params.toString());
+      const d=await r.json();
+      if(seq!==_taxLookupSeq) return;   // a newer keystroke superseded this lookup
+      if(d && d.ok && typeof d.rate==='number'){
+        document.getElementById('taxrate').value=d.rate.toFixed(2);
+        recalc();
+        if(note){
+          note.textContent=d.exact
+            ? '\u2713 Official WA rate '+d.rate.toFixed(2)+'% \u2014 exact address'
+            : '\u2713 WA rate '+d.rate.toFixed(2)+'% \u2014 matched by ZIP (confirm street address)';
+          note.style.color=d.exact?'#22c55e':'#f59e0b';
+        }
+      } else {
+        if(note){ note.textContent='\u26a0 Couldn\u2019t verify \u2014 please enter the tax rate manually'; note.style.color='#f59e0b'; }
+      }
+    }catch(e){
+      if(seq!==_taxLookupSeq) return;
+      if(note){ note.textContent='\u26a0 Tax lookup unavailable \u2014 enter rate manually'; note.style.color='#f59e0b'; }
+    }
+  },500);
 }
+// Back-compat shims: older inline handlers route into the live lookup.
+function getWATaxByZip(){ lookupTaxRate(); }
+function getWATax(){ lookupTaxRate(); }
 
 
 const _sb = supabase.createClient('https://cwvdfgrjlrpsdfwduwvn.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN3dmRmZ3JqbHJwc2Rmd2R1d3ZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwMDcyODUsImV4cCI6MjA5MzU4MzI4NX0.zam9AnIwW91TI6eCKUcg05LhvFcRa7op4QsjRpdcrCY');
