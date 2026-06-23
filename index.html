@@ -652,8 +652,11 @@ function renderExtraBedrooms(){
     sg.style.marginBottom = '12px';
     cat.sizes.forEach((opt, oi) => {
       const chip = document.createElement('div');
-      chip.className = 'size-chip' + (bed.size === opt.size ? ' sel' : '');
-      chip.innerHTML = `<span class="chk">${chk()}</span><span class="size-label">${opt.size}</span><span class="price-edit-wrap"><span style="font-family:'Cormorant Garamond',serif;font-size:15px;color:var(--green)">$</span><input type="number" class="price-edit-input" value="${opt.price}" onclick="event.stopPropagation()" oninput="onPriceEdit(this,1,${oi})"><button class="price-save-check" onclick="event.stopPropagation();savePriceClicked(1,${oi},this)" title="Save as new default">✓</button></span>`;
+      const isSel = bed.size === opt.size;
+      chip.className = 'size-chip' + (isSel ? ' sel' : '');
+      // Selected chip shows THIS bedroom's own (editable) price; others show the category default as a hint.
+      const chipPrice = isSel ? (bed.price!=null?bed.price:opt.price) : opt.price;
+      chip.innerHTML = `<span class="chk">${chk()}</span><span class="size-label">${opt.size}</span><span class="price-edit-wrap"><span style="font-family:'Cormorant Garamond',serif;font-size:15px;color:var(--green)">$</span><input type="number" class="price-edit-input" value="${chipPrice}" onclick="event.stopPropagation()" oninput="onBedPriceEdit(this,${idx},${oi})"></span>`;
       chip.onclick = () => {
         extraBedrooms[idx].size = opt.size;
         extraBedrooms[idx].price = CATS[1].sizes[oi].price;
@@ -806,11 +809,7 @@ function fmt(n){return'$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maxi
 function recalc(){
   let t=0;selAddons.forEach(e=>{t+=parseFloat(CATS[e.ci].sizes[e.oi].price)||0;});
   t+=customs.reduce((s,a)=>s+(parseFloat(a.price)||0),0);
-  t+=extraBedrooms.reduce((s,b)=>{
-    const sz=CATS[1].sizes.find(x=>x.size===b.size);
-    if(sz) b.price=sz.price;            // keep extra-bedroom price live with the Bedroom default
-    return s+(parseFloat(b.price)||0);
-  },0);
+  t+=extraBedrooms.reduce((s,b)=>s+(parseFloat(b.price)||0),0);  // each extra bedroom keeps its OWN price (independent of other bedrooms)
   const base=parseFloat(document.getElementById('base_price')?.value)||2500;
   const sub=base+t,rate=parseFloat(document.getElementById('taxrate').value)||0;
   // Manual overrides: anything typed prints exactly; blank fields auto-calculate.
@@ -1068,6 +1067,18 @@ async function saveBasePriceDefault(newPrice){
     }, { onConflict: 'invnum' });
     return true;
   } catch(e){ return false; }
+}
+
+// Per-bedroom price editor: typing a price sets THIS bedroom's size + price only (does not touch other bedrooms or the global default).
+function onBedPriceEdit(input, idx, oi){
+  const b = extraBedrooms[idx];
+  if(!b) return;
+  if(b.size !== CATS[1].sizes[oi].size){
+    b.size = CATS[1].sizes[oi].size;
+    b.scope = BED_SCOPES['Bedroom']?.[b.size]?.[b.bed] || DEFAULT_SCOPES['Bedroom'][b.size] || b.scope || '';
+  }
+  b.price = parseFloat(input.value) || 0;
+  recalc();   // recalc only — don't re-render mid-typing so the keyboard stays up
 }
 
 function onPriceEdit(input, ci, si){
