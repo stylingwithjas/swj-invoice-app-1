@@ -837,9 +837,12 @@ function renderExtraAreas(){
     typeRow.innerHTML='<label>Area type:</label><select onchange="onAreaTypeChange('+idx+',this.value)" style="font-family:Inter,sans-serif;font-size:13px;padding:6px 10px;border:1.5px solid var(--taupe-lt);border-radius:8px;background:var(--cream);color:var(--ink);outline:none">'+opts+'</select>';
     body.appendChild(typeRow);
     const sg=document.createElement('div'); sg.className='size-grid'; sg.style.marginBottom='12px';
-    cat.sizes.forEach(function(opt){
-      const chip=document.createElement('div'); chip.className='size-chip'+(area.size===opt.size?' sel':'');
-      chip.innerHTML='<span class="chk">'+chk()+'</span><span class="size-label">'+opt.size+'</span><span class="size-price">$'+opt.price+'</span>';
+    cat.sizes.forEach(function(opt, oi){
+      const isSel = area.size===opt.size;
+      const chip=document.createElement('div'); chip.className='size-chip'+(isSel?' sel':'');
+      // Selected chip shows THIS area's own editable price; others show the default as a hint.
+      const chipPrice = isSel ? (area.price!=null?area.price:opt.price) : opt.price;
+      chip.innerHTML='<span class="chk">'+chk()+'</span><span class="size-label">'+opt.size+'</span><span class="price-edit-wrap"><span style="font-family:\'Cormorant Garamond\',serif;font-size:15px;color:var(--green)">$</span><input type="number" class="price-edit-input" value="'+chipPrice+'" onclick="event.stopPropagation()" oninput="onAreaPriceEdit(this,'+idx+','+oi+')"></span>';
       chip.onclick=function(){
         extraAreas[idx].size=opt.size; extraAreas[idx].price=opt.price;
         extraAreas[idx].scope=(DEFAULT_SCOPES[area.type]&&DEFAULT_SCOPES[area.type][opt.size])||extraAreas[idx].scope||'';
@@ -1451,6 +1454,20 @@ function onBedPriceEdit(input, idx, oi){
     b.scope = BED_SCOPES['Bedroom']?.[b.size]?.[b.bed] || DEFAULT_SCOPES['Bedroom'][b.size] || b.scope || '';
   }
   b.price = parseFloat(input.value) || 0;
+  recalc();
+}
+
+// Per-area price editor: typing a price sets THIS area's size + price only (independent of other areas).
+function onAreaPriceEdit(input, idx, oi){
+  const a = extraAreas[idx];
+  if(!a) return;
+  const cat = catByName(a.type);
+  if(!cat || !cat.sizes[oi]) return;
+  if(a.size !== cat.sizes[oi].size){
+    a.size = cat.sizes[oi].size;
+    a.scope = (DEFAULT_SCOPES[a.type] && DEFAULT_SCOPES[a.type][a.size]) || a.scope || '';
+  }
+  a.price = parseFloat(input.value) || 0;
   recalc();
 }
 
