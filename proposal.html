@@ -219,6 +219,12 @@ async function loadProposal(){
     const d = _inv.data||{};
     _grand = computeGrand(d);
 
+    // Voided by Styling With Jas — block approval (e.g. the invoice was wrong and is being re-issued)
+    if(d.voided){
+      showError('This proposal is no longer available. Please contact Jasmine at 206-422-5618 for your updated proposal.');
+      return;
+    }
+
     // Already signed?
     if(d.signed){
       showSigned(d);

@@ -660,6 +660,7 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
     <div class="m-btns">
       <button class="mbtn" onclick="extendRental(currentCardId)" style="background:#f5ead8;color:#9d7a44" title="Extend the furniture rental and bill it">⏱ Extend Rental</button>
       <button class="mbtn" onclick="clearExtensions(currentCardId)" style="background:#f3e9e9;color:#b53535" title="Remove all logged rental extensions (test cleanup)">↩︎ Reset ext.</button>
+      <button class="mbtn" onclick="voidProposal(currentCardId)" style="background:#3a2e2e;color:#f3d6d6" title="Block / restore the client's Approve & Sign link">⛔ Void / Re‑issue</button>
       <button class="mbtn del" onclick="deleteCard()">Remove from Board</button>
       <button class="mbtn hard-del" onclick="hardDeleteCard()" title="Permanently delete from database">Delete</button>
       <div style="flex:1"></div>
@@ -1620,6 +1621,22 @@ function realOpenCard(invnum){
 }
 
 function setVal(id, v){ const el = document.getElementById(id); if(el) el.value = v; }
+
+async function voidProposal(invnum){
+  const inv = CARDS[invnum]; if(!inv){ alert('Open a project first.'); return; }
+  const d = inv.data || {};
+  if(d.voided){
+    if(!confirm('Re-activate this proposal?\n\nThe client’s Approve & Sign link will work again.')) return;
+    d.voided = false;
+  } else {
+    if(!confirm('Void this proposal?\n\nThe client’s Approve & Sign link will immediately show "no longer available" — they can’t approve it. Use this when the invoice was wrong; re-generate the corrected invoice (same number) to re-issue, or tap this again to re-activate.')) return;
+    d.voided = true;
+  }
+  try { await _sb.from('invoices').upsert({ invnum: inv.invnum, client: inv.client, address: inv.address, invdate: inv.invdate, data: d }, { onConflict: 'invnum' }); } catch(e){}
+  closeModal();
+  loadBoard();
+  alert(d.voided ? 'Proposal voided — the Approve & Sign link now shows "no longer available."' : 'Proposal re-activated — the link works again.');
+}
 
 async function clearExtensions(invnum){
   const inv = CARDS[invnum]; if(!inv){ alert('Open a project first.'); return; }
