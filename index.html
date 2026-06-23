@@ -1285,7 +1285,10 @@ async function saveDraft(silent){
 
   const sub = parseFloat(document.getElementById('base_price')?.value)||2500;
   const taxrate = parseFloat(document.getElementById('taxrate').value)||0;
-  const grand = (sub + allAddons.reduce((s,a)=>s+a.price,0)) * (1 + taxrate/100);
+  const ovSub=_ov('ov-subtotal'),ovTax=_ov('ov-tax'),ovTot=_ov('ov-total');
+  const subEff=ovSub!==null?ovSub:(sub + allAddons.reduce((s,a)=>s+a.price,0));
+  const taxEff=ovTax!==null?ovTax:subEff*taxrate/100;
+  const grand=ovTot!==null?ovTot:subEff+taxEff;
 
   const draft = {
     invnum: invnum||'DRAFT',
@@ -1296,6 +1299,7 @@ async function saveDraft(silent){
     extrate: Math.round(grand/3*100)/100,
     taxrate,
     base_price: parseFloat(document.getElementById('base_price')?.value)||2500,
+    subtotal_override: ovSub, tax_override: ovTax, total_override: ovTot,
     addons: allAddons,
     state: captureState(),
     promo1: document.getElementById('promo1').checked,

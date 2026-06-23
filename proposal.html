@@ -254,7 +254,9 @@ function renderProposal(d){
   const base = parseFloat(d.base_price)||2500;
   const addons = d.addons||[];
   const _subEff = _ovNum(d.subtotal_override)!=null ? _ovNum(d.subtotal_override) : (base + addons.reduce((s,a)=>s+(parseFloat(a.price)||0),0));
-  const tax = _ovNum(d.tax_override)!=null ? _ovNum(d.tax_override) : (_grand - _subEff);
+  // Tax line must match the invoice PDF exactly: blank tax auto-calculates as subtotal × rate (NOT grand − subtotal),
+  // so a manually-set Total without a manual Tax shows the same tax figure on the proposal and the PDF.
+  const tax = _ovNum(d.tax_override)!=null ? _ovNum(d.tax_override) : (_subEff*(parseFloat(d.taxrate)||0)/100);
   const rooms = (d.baserooms||'').split(', ').filter(Boolean);
   const stagingDate = d.startdate;
   const extrate = Math.round(_grand/3*100)/100;

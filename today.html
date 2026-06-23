@@ -391,7 +391,7 @@ function isToday(d){return toISODate(d)===toISODate(todayDate);}
 function daysAgo(iso){const d=new Date(iso+'T00:00:00');return Math.round((viewDate-d)/864e5);}
 function daysAway(iso){const d=new Date(iso+'T00:00:00');return Math.round((d-viewDate)/864e5);}
 function fmtShort(iso){if(!iso)return'';const d=new Date(iso+'T00:00:00');return d.toLocaleDateString('en-US',{month:'short',day:'numeric'});}
-function computeGrand(d){const b=parseFloat(d.base_price)||2500;const a=(d.addons||[]).reduce((s,x)=>s+(parseFloat(x.price)||0),0);return(b+a)*(1+(parseFloat(d.taxrate)||0)/100);}
+function computeGrand(d){const _ov=v=>(v!=null&&v!=='')?parseFloat(v):null;const tot=_ov(d.total_override);if(tot!=null)return tot;const b=parseFloat(d.base_price)||2500;const a=(d.addons||[]).reduce((s,x)=>s+(parseFloat(x.price)||0),0);const sub=_ov(d.subtotal_override),subEff=sub!=null?sub:(b+a);const tax=_ov(d.tax_override),taxEff=tax!=null?tax:subEff*(parseFloat(d.taxrate)||0)/100;return subEff+taxEff;}
 function firstName(c){return(c||'').split(' ')[0];}
 
 // ── GREETING ───────────────────────────────────────────
