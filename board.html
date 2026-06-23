@@ -1074,10 +1074,15 @@ let CARDS = {};
 
 // Compute grand total from saved data blob
 function computeGrand(d){
+  // Manual total overrides take precedence (Fully manual); blank fields auto-calculate.
+  const _ov=v=>(v!=null&&v!=='')?parseFloat(v):null;
+  const tot=_ov(d.total_override); if(tot!=null) return tot;
   const base = parseFloat(d.base_price) || 2500;
   const addonsTotal = (d.addons||[]).reduce((s,a)=>s+(parseFloat(a.price)||0),0);
   const taxrate = parseFloat(d.taxrate) || 0;
-  return (base + addonsTotal) * (1 + taxrate/100);
+  const sub=_ov(d.subtotal_override); const subEff=sub!=null?sub:(base+addonsTotal);
+  const tax=_ov(d.tax_override); const taxEff=tax!=null?tax:subEff*taxrate/100;
+  return subEff+taxEff;
 }
 
 function fmtMoney(n){ return '$' + Math.round(n).toLocaleString(); }

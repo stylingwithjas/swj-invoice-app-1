@@ -195,10 +195,15 @@ function fmtDate(iso){if(!iso)return'';const d=new Date(iso+'T00:00:00');return 
 let _inv = null;
 let _grand = 0;
 
+function _ovNum(v){return (v!=null&&v!=='')?parseFloat(v):null;}
 function computeGrand(d){
+  // Manual total overrides take precedence (Fully manual); blank fields auto-calculate.
+  const tot=_ovNum(d.total_override); if(tot!=null) return tot;
   const base=parseFloat(d.base_price)||2500;
   const addons=(d.addons||[]).reduce((s,a)=>s+(parseFloat(a.price)||0),0);
-  return (base+addons)*(1+(parseFloat(d.taxrate)||0)/100);
+  const sub=_ovNum(d.subtotal_override); const subEff=sub!=null?sub:(base+addons);
+  const tax=_ovNum(d.tax_override); const taxEff=tax!=null?tax:subEff*(parseFloat(d.taxrate)||0)/100;
+  return subEff+taxEff;
 }
 
 async function loadProposal(){
@@ -248,7 +253,8 @@ function renderProposal(d){
   const addr = _inv.address||d.address||'';
   const base = parseFloat(d.base_price)||2500;
   const addons = d.addons||[];
-  const tax = _grand - (base + addons.reduce((s,a)=>s+(parseFloat(a.price)||0),0));
+  const _subEff = _ovNum(d.subtotal_override)!=null ? _ovNum(d.subtotal_override) : (base + addons.reduce((s,a)=>s+(parseFloat(a.price)||0),0));
+  const tax = _ovNum(d.tax_override)!=null ? _ovNum(d.tax_override) : (_grand - _subEff);
   const rooms = (d.baserooms||'').split(', ').filter(Boolean);
   const stagingDate = d.startdate;
   const extrate = Math.round(_grand/3*100)/100;

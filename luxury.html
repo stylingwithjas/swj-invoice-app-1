@@ -546,6 +546,19 @@ body { background:#eceff3; color:var(--ink); }
     </div>
   </div>
 
+  <!-- MANUAL TOTAL OVERRIDES -->
+  <div class="card">
+    <div class="card-hdr"><span class="sec-lbl">Manual Totals (optional)</span><div class="sec-accent"></div></div>
+    <div class="card-body">
+      <div class="field-row">
+        <div class="field"><div class="field-lbl">Subtotal $</div><input class="field-input" id="ov-subtotal" type="number" step="0.01" inputmode="decimal" placeholder="auto" oninput="recalc()"></div>
+        <div class="field"><div class="field-lbl">Tax $</div><input class="field-input" id="ov-tax" type="number" step="0.01" inputmode="decimal" placeholder="auto" oninput="recalc()"></div>
+        <div class="field"><div class="field-lbl">Total $</div><input class="field-input" id="ov-total" type="number" step="0.01" inputmode="decimal" placeholder="auto" oninput="recalc()"></div>
+      </div>
+      <div style="font-size:10px;color:var(--taupe);margin-top:6px">Leave blank to auto-calculate. Anything you type prints exactly on the invoice &amp; proposal.</div>
+    </div>
+  </div>
+
   <!-- OPTIONS -->
   <div class="card">
     <div class="card-hdr"><span class="sec-lbl">Options</span><div class="sec-accent"></div></div>
@@ -982,15 +995,21 @@ function recalc(){
   },0);
   const base=parseFloat(document.getElementById('base_price')?.value)||2500;
   const sub=base+t,rate=parseFloat(document.getElementById('taxrate').value)||0;
-  const tax=sub*rate/100,grand=sub+tax;
+  // Manual overrides: anything typed prints exactly; blank fields auto-calculate.
+  const ovSub=_ov('ov-subtotal'),ovTax=_ov('ov-tax'),ovTot=_ov('ov-total');
+  const subShown=ovSub!==null?ovSub:sub;
+  const taxShown=ovTax!==null?ovTax:subShown*rate/100;
+  const grandShown=ovTot!==null?ovTot:subShown+taxShown;
   const baseEl=document.getElementById('t-base'); if(baseEl) baseEl.textContent=fmt(base);
   document.getElementById('t-addons').textContent=fmt(t);
-  document.getElementById('t-sub').textContent=fmt(sub);
+  document.getElementById('t-sub').textContent=fmt(subShown);
   document.getElementById('t-taxlabel').textContent=`Tax (${rate.toFixed(2)}%)`;
-  document.getElementById('t-tax').textContent=fmt(tax);
-  document.getElementById('t-grand').textContent=fmt(grand);
-  document.getElementById('t-ext').textContent=fmt(grand/3)+' / 30 days';
+  document.getElementById('t-tax').textContent=fmt(taxShown);
+  document.getElementById('t-grand').textContent=fmt(grandShown);
+  document.getElementById('t-ext').textContent=fmt(grandShown/3)+' / 30 days';
 }
+// Parse a manual-override input: returns a number only when the field has real content, else null.
+function _ov(id){const el=document.getElementById(id);if(!el)return null;const v=el.value;if(v===''||v==null)return null;const n=parseFloat(v);return isNaN(n)?null:n;}
 
 // Capture the full structured form state so drafts/invoices round-trip exactly.
 function captureState(){
@@ -1544,6 +1563,10 @@ function loadInvoiceData(d){
     document.getElementById('invnum-display').value = d.invnum||'';   // keep the same number so editing + regenerating UPDATES this invoice (and its Approve/Sign link)
     document.getElementById('taxrate').value = d.taxrate||10.25;
     document.getElementById('base_price').value = d.base_price||2500;
+    // Restore manual total overrides (blank if none were set)
+    if(document.getElementById('ov-subtotal')) document.getElementById('ov-subtotal').value = (d.subtotal_override!=null?d.subtotal_override:'');
+    if(document.getElementById('ov-tax')) document.getElementById('ov-tax').value = (d.tax_override!=null?d.tax_override:'');
+    if(document.getElementById('ov-total')) document.getElementById('ov-total').value = (d.total_override!=null?d.total_override:'');
     document.getElementById('promo1').checked = d.promo1||false;
     document.getElementById('promo2').checked = d.promo2||false;
     document.getElementById('promo3').checked = d.promo3||false;
@@ -1782,7 +1805,10 @@ async function downloadPdfNow(){
   const base=parseFloat(document.getElementById('base_price')?.value)||2500;
   const addonTotal=allAddons.reduce((s,a)=>s+a.price,0);
   const sub=base+addonTotal, taxrate=parseFloat(document.getElementById('taxrate').value)||0;
-  const grand=sub+sub*taxrate/100, extrate=Math.round(grand/3*100)/100;
+  const ovSub=_ov('ov-subtotal'),ovTax=_ov('ov-tax'),ovTot=_ov('ov-total');
+  const subEff=ovSub!==null?ovSub:sub;
+  const taxEff=ovTax!==null?ovTax:subEff*taxrate/100;
+  const grand=ovTot!==null?ovTot:subEff+taxEff, extrate=Math.round(grand/3*100)/100;
   const client=document.getElementById('client').value.trim();
   const clientEmail=document.getElementById('client_email')?.value.trim()||'';
   const addressBase=document.getElementById('address').value.trim();
@@ -1790,7 +1816,7 @@ async function downloadPdfNow(){
   const address=zipVal&&!addressBase.includes(zipVal)?addressBase+' '+zipVal:addressBase;
   const invNumFinal=document.getElementById('invnum-display').value.trim()||'202093';
 
-  const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:document.getElementById('startdate').value,baserooms:[...selRooms].join(', '),extrate,taxrate,base_price:base,addons:allAddons,home_value:homeValue,home_sqft:homeSqft,tier:selTier,scope:selScope,promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,promo4:document.getElementById('promo4')?.checked||false,payment_url:null,cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||''};
+  const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:document.getElementById('startdate').value,baserooms:[...selRooms].join(', '),extrate,taxrate,base_price:base,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,home_value:homeValue,home_sqft:homeSqft,tier:selTier,scope:selScope,promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,promo4:document.getElementById('promo4')?.checked||false,payment_url:null,cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||''};
 
   const ctrl=new AbortController();
   const to=setTimeout(()=>ctrl.abort(),90000);
@@ -1942,7 +1968,10 @@ async function generatePDF(){
   const addonTotal=allAddons.reduce((s,a)=>s+a.price,0);
   const base=parseFloat(document.getElementById('base_price')?.value)||2500;
   const sub=base+addonTotal,taxrate=parseFloat(document.getElementById('taxrate').value)||0;
-  const grand=sub+sub*taxrate/100,extrate=Math.round(grand/3*100)/100;
+  const ovSub=_ov('ov-subtotal'),ovTax=_ov('ov-tax'),ovTot=_ov('ov-total');
+  const subEff=ovSub!==null?ovSub:sub;
+  const taxEff=ovTax!==null?ovTax:subEff*taxrate/100;
+  const grand=ovTot!==null?ovTot:subEff+taxEff,extrate=Math.round(grand/3*100)/100;
   const client=document.getElementById('client').value.trim();
   const clientEmail=document.getElementById('client_email')?.value.trim()||'';
   const addressBase=document.getElementById('address').value.trim();
@@ -1965,7 +1994,7 @@ async function generatePDF(){
   catch(e){setSt('err','Stripe error — continuing without payment link');}
 
   setSt('loading','Generating your invoice PDF...');
-  const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:document.getElementById('startdate').value,baserooms:[...selRooms].join(', '),extrate,taxrate,base_price:base,addons:allAddons,state:captureState(),home_value:homeValue,home_sqft:homeSqft,tier:selTier,scope:selScope,promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
+  const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:document.getElementById('startdate').value,baserooms:[...selRooms].join(', '),extrate,taxrate,base_price:base,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,state:captureState(),home_value:homeValue,home_sqft:homeSqft,tier:selTier,scope:selScope,promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
             promo4:document.getElementById('promo4').checked,payment_url,cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||''};
 
   const _ctrl=new AbortController();
@@ -2017,7 +2046,10 @@ async function generate(){
 
   const addonTotal=allAddons.reduce((s,a)=>s+a.price,0);
   const base=parseFloat(document.getElementById('base_price')?.value)||2500; const sub=base+addonTotal,taxrate=parseFloat(document.getElementById('taxrate').value)||0;
-  const grand=sub+sub*taxrate/100,extrate=Math.round(grand/3*100)/100;
+  const ovSub=_ov('ov-subtotal'),ovTax=_ov('ov-tax'),ovTot=_ov('ov-total');
+  const subEff=ovSub!==null?ovSub:sub;
+  const taxEff=ovTax!==null?ovTax:subEff*taxrate/100;
+  const grand=ovTot!==null?ovTot:subEff+taxEff,extrate=Math.round(grand/3*100)/100;
   const client=document.getElementById('client').value.trim();
   const clientEmail=document.getElementById('client_email')?.value.trim()||'';
   const addressBase=document.getElementById('address').value.trim();
@@ -2047,7 +2079,7 @@ async function generate(){
 
   
 
-  const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:document.getElementById('startdate').value,baserooms:[...selRooms].join(', '),extrate,taxrate,base_price:parseFloat(document.getElementById('base_price')?.value)||2500,addons:allAddons,state:captureState(),home_value:homeValue,home_sqft:homeSqft,tier:selTier,scope:selScope,promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
+  const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:document.getElementById('startdate').value,baserooms:[...selRooms].join(', '),extrate,taxrate,base_price:parseFloat(document.getElementById('base_price')?.value)||2500,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,state:captureState(),home_value:homeValue,home_sqft:homeSqft,tier:selTier,scope:selScope,promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
             promo4:document.getElementById('promo4').checked,payment_url,cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||''};
 
   // Send to API and download PDF
