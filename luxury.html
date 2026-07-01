@@ -1932,28 +1932,56 @@ async function downloadPdfNow(){
 }
 
 // Any "Other Contributions" links (audience:'other') are created alongside the invoice but
-// never shown to the client — Jasmine has to send them herself. Without this, the link is
-// created and saved yet invisible anywhere in the generator UI.
+// never shown to the client — Jasmine has to send them herself. This overlay lets her email
+// each one directly (own recipient field per link) instead of only opening/copying it.
+window._contribLinksForEmail = [];
 function showContributorLinksOverlay(payments){
   const others=(payments||[]).filter(p=>p.audience==='other'&&p.payment_url);
   if(!others.length) return;
+  window._contribLinksForEmail = others;
   const ov=document.createElement('div');
-  ov.style.cssText='position:fixed;inset:0;background:rgba(26,24,20,0.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:24px;font-family:Inter,-apple-system,sans-serif';
-  const rows=others.map(p=>`
-    <div style="text-align:left;margin-bottom:10px">
+  ov.style.cssText='position:fixed;inset:0;background:rgba(26,24,20,0.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:24px;font-family:Inter,-apple-system,sans-serif;overflow-y:auto';
+  const rows=others.map((p,i)=>`
+    <div style="text-align:left;margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid #eee">
       <div style="font-size:13px;font-weight:600;color:#1a1814">${p.label} — $${parseFloat(p.amount).toLocaleString(undefined,{minimumFractionDigits:2})}</div>
-      <a href="${p.payment_url}" target="_blank" style="display:block;background:#f5ead8;color:#9d7a44;text-decoration:none;padding:11px;border-radius:10px;font-weight:600;margin-top:4px;font-size:13px">💳 Open link to send</a>
+      <a href="${p.payment_url}" target="_blank" style="display:block;background:#f5ead8;color:#9d7a44;text-decoration:none;padding:10px;border-radius:9px;font-weight:600;margin-top:6px;font-size:12.5px;text-align:center">💳 Open link</a>
+      <div style="display:flex;gap:6px;margin-top:8px">
+        <input type="email" id="contrib-email-${i}" placeholder="their email address" style="flex:1;font-size:12.5px;padding:9px 10px;border:1px solid #ddd;border-radius:8px;font-family:inherit">
+        <button onclick="emailContributorLink(${i})" id="contrib-send-${i}" style="background:#1a1814;color:#fff;border:none;border-radius:8px;padding:9px 14px;font-size:12.5px;font-weight:600;cursor:pointer">Send</button>
+      </div>
+      <div id="contrib-email-status-${i}" style="font-size:11px;margin-top:5px;min-height:14px"></div>
     </div>`).join('');
-  ov.innerHTML=`<div style="background:#fff;border-radius:16px;max-width:360px;width:100%;padding:22px;text-align:center">
+  ov.innerHTML=`<div style="background:#fff;border-radius:16px;max-width:380px;width:100%;padding:22px;text-align:center;max-height:88vh;overflow-y:auto">
     <div style="font-family:Georgia,serif;font-size:19px;color:#1a1814;margin-bottom:4px">Other Payment Link${others.length>1?'s':''}</div>
-    <div style="font-size:12px;color:#3d3830;margin-bottom:14px">Not shown to the client — send ${others.length>1?'these':'this'} directly to the payer.</div>
+    <div style="font-size:12px;color:#3d3830;margin-bottom:14px">Not shown to the client. Email each one directly to the payer, or open it and send it yourself.</div>
     ${rows}
-    <button id="contrib-ov-close" style="background:none;border:none;color:#a29c96;font-size:13px;padding:8px;cursor:pointer;margin-top:6px">Close</button>
+    <button id="contrib-ov-close" style="background:none;border:none;color:#a29c96;font-size:13px;padding:8px;cursor:pointer;margin-top:2px">Close</button>
   </div>`;
   document.body.appendChild(ov);
   ov.querySelector('#contrib-ov-close').onclick=()=>ov.remove();
   ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
   try{ navigator.clipboard.writeText(others[0].payment_url); }catch(e){}
+}
+
+async function emailContributorLink(i){
+  const p=window._contribLinksForEmail[i];
+  if(!p) return;
+  const emailInput=document.getElementById('contrib-email-'+i);
+  const statusEl=document.getElementById('contrib-email-status-'+i);
+  const btn=document.getElementById('contrib-send-'+i);
+  const to=emailInput.value.trim();
+  const emailRegex=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if(!to || !emailRegex.test(to)){ statusEl.textContent='Enter a valid email address'; statusEl.style.color='#e24b4a'; return; }
+  btn.disabled=true; statusEl.textContent='Sending…'; statusEl.style.color='#888';
+  const amt='$'+parseFloat(p.amount).toLocaleString(undefined,{minimumFractionDigits:2});
+  const subject=`Payment Request — ${p.label}`;
+  const message=`Hi,\n\nJasmine Santana with Styling With Jas is requesting ${amt} for: ${p.label}.\n\nYou can pay securely here:\n${p.payment_url}\n\nThank you!\n\nJasmine Santana\nOwner & Creative Director — Styling With Jas\n206-422-5618\ninfo@stylingwithjas.com`;
+  try{
+    const r=await fetch('/api/email',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({to,subject,message})});
+    const d=await r.json();
+    if(d.sent){ statusEl.textContent='✓ Sent to '+to; statusEl.style.color='#22c55e'; }
+    else{ statusEl.textContent='Error: '+(d.error||'Unknown'); statusEl.style.color='#e24b4a'; btn.disabled=false; }
+  }catch(e){ statusEl.textContent='Error: '+e.message; statusEl.style.color='#e24b4a'; btn.disabled=false; }
 }
 
 async function generateAndEmail(){
