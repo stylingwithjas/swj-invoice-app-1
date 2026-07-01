@@ -879,8 +879,10 @@ function togglePaid(){
     document.getElementById('paid_date').value=new Date().toISOString().split('T')[0];
 }
 
+let _lastPaymentLinkId = null;   // Stripe payment_link id from the most recent createPaymentLink() call — lets the board later deactivate this exact link if a split payment supersedes it.
 async function createPaymentLink(grand, client, invnum, address, client_email) {
   setSt('loading', 'Creating payment link...');
+  _lastPaymentLinkId = null;
 
   const ctrl = new AbortController();
   const timeout = setTimeout(() => ctrl.abort(), 15000);  // 15 sec hard cap
@@ -898,6 +900,7 @@ async function createPaymentLink(grand, client, invnum, address, client_email) {
     if (d.error) throw new Error(d.error);
 
     setSt('ok', 'Payment link ready');
+    _lastPaymentLinkId = d.id || null;
     return d.url;
   } catch (e) {
     clearTimeout(timeout);
@@ -1550,7 +1553,7 @@ async function generatePDF(){
 
   setSt('loading','Generating your invoice PDF...');
   const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:document.getElementById('startdate').value,baserooms:[...selRooms].join(', '),extrate,taxrate,base_price:base,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,state:captureState(),promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
-            promo4:document.getElementById('promo4').checked,payment_url,cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||''};
+            promo4:document.getElementById('promo4').checked,payment_url,payment_link_id:_lastPaymentLinkId,cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||''};
 
   const _ctrl=new AbortController();
   const _to=setTimeout(()=>_ctrl.abort(),90000);   // never spin forever
@@ -1634,7 +1637,7 @@ async function generate(){
   
 
   const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:document.getElementById('startdate').value,baserooms:[...selRooms].join(', '),extrate,taxrate,base_price:parseFloat(document.getElementById('base_price')?.value)||2500,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,state:captureState(),promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
-            promo4:document.getElementById('promo4').checked,payment_url,cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||''};
+            promo4:document.getElementById('promo4').checked,payment_url,payment_link_id:_lastPaymentLinkId,cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||''};
 
   // Send to API and download PDF
   try {

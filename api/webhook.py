@@ -18,6 +18,7 @@ Required env vars (all already set in Vercel):
 
 import json
 import os
+import re
 import hashlib
 import hmac
 import smtplib
@@ -221,7 +222,107 @@ def supabase_get_by_amount(amount_cents):
         return None
 
 
+# Matches the synthetic invoice numbers split-payment links are created with, e.g. "202092-PAY1".
+# Deliberately distinct from the existing "-EXT<n>" extension-payment scheme so extension
+# handling (unchanged) can never collide with this.
+SPLIT_PAY_RE = re.compile(r'^(.+)-PAY(\d+)$')
+
+
+def compute_grand(data):
+    """Same Subtotal/Tax/Total-with-overrides formula used by api/generate.py and the
+    generators, so 'fully paid' is decided against the exact number on the invoice."""
+    base_price = float(data.get('base_price', 2500) or 2500)
+    addon_total = sum(float(a.get('price', 0) or 0) for a in (data.get('addons') or []))
+    sub_ov = data.get('subtotal_override')
+    tax_ov = data.get('tax_override')
+    tot_ov = data.get('total_override')
+    taxrate = float(data.get('taxrate', 0) or 0)
+    subtotal = float(sub_ov) if sub_ov not in (None, '') else base_price + addon_total
+    tax = float(tax_ov) if tax_ov not in (None, '') else subtotal * taxrate / 100
+    return float(tot_ov) if tot_ov not in (None, '') else subtotal + tax
+
+
+def _patch_invoice_data(invnum, data):
+    key = os.environ.get('SUPABASE_KEY', '')
+    body = json.dumps({'data': data}).encode()
+    patch_req = urllib.request.Request(
+        f'{SUPABASE_URL}/rest/v1/invoices?invnum=eq.{urllib.parse.quote(invnum)}',
+        data=body, method='PATCH'
+    )
+    patch_req.add_header('apikey', key)
+    patch_req.add_header('Authorization', f'Bearer {key}')
+    patch_req.add_header('Content-Type', 'application/json')
+    patch_req.add_header('Prefer', 'return=minimal')
+    with urllib.request.urlopen(patch_req, timeout=10):
+        return True
+
+
+def supabase_update_split_payment(parent_invnum, pay_id, payment_info):
+    """A split/partial payment link (id like '202092-PAY1') got paid. Update the matching
+    entry in the PARENT invoice's data.payments[] and recompute the running amount_paid —
+    rather than looking for a Supabase row that doesn't exist (that's the gap the older
+    extension-payment flow has: it never finds a row for '<invnum>-EXT1' and silently no-ops)."""
+    try:
+        key = os.environ.get('SUPABASE_KEY', '')
+        req = urllib.request.Request(
+            f'{SUPABASE_URL}/rest/v1/invoices?invnum=eq.{urllib.parse.quote(parent_invnum)}&select=data',
+            headers={'apikey': key, 'Authorization': f'Bearer {key}'}
+        )
+        with urllib.request.urlopen(req, timeout=10) as r:
+            rows = json.loads(r.read())
+        if not rows:
+            return False
+        current_data = rows[0].get('data', {}) or {}
+        payments = current_data.get('payments') or []
+
+        entry = next((p for p in payments if p.get('id') == pay_id), None)
+        if entry is None:
+            print(f'Split payment {pay_id} not found on {parent_invnum}')
+            return False
+
+        # Idempotent against Stripe webhook redelivery: if this exact payment already
+        # recorded this payment_id as paid, don't re-apply.
+        if entry.get('status') == 'paid' and entry.get('payment_id') == payment_info.get('payment_id'):
+            return True
+
+        entry['status'] = 'paid'
+        entry['payment_id'] = payment_info.get('payment_id', '')
+        entry['paid_date'] = payment_info.get('paid_date', '')
+        entry['amount'] = payment_info.get('amount', entry.get('amount', 0))  # trust Stripe's actual charge
+
+        # Running total: legacy single full-payment amount (if that path was ALSO used) + every
+        # paid split entry. The two never overlap — splits live only in payments[], never in
+        # the legacy stripe_amount/paid fields — so this can't double-count.
+        legacy_amount = float(current_data.get('stripe_amount', 0) or 0) if current_data.get('paid') else 0
+        splits_amount = sum(float(p.get('amount', 0) or 0) for p in payments if p.get('status') == 'paid')
+        amount_paid = legacy_amount + splits_amount
+        grand = compute_grand(current_data)
+
+        current_data['payments'] = payments
+        current_data['amount_paid'] = amount_paid
+        current_data['paid'] = amount_paid >= grand - 0.01
+        if current_data['paid'] and not current_data.get('paid_date'):
+            current_data['paid_date'] = entry['paid_date']
+        if payment_info.get('client_email'):
+            current_data['client_email'] = payment_info['client_email']
+
+        # This link just cleared — stop pointing the client's Approve/Sign page at it.
+        if current_data.get('active_client_payment_id') == pay_id:
+            current_data['active_client_payment_id'] = None
+
+        return _patch_invoice_data(parent_invnum, current_data)
+    except Exception as e:
+        print(f'Split payment update error: {e}')
+        return False
+
+
 def supabase_update_payment(invnum, payment_info):
+    # Route split-payment links (metadata.invoice like "202092-PAY1") to the parent
+    # invoice's payments[] array instead of looking for a row that doesn't exist.
+    m = SPLIT_PAY_RE.match(invnum)
+    if m:
+        return supabase_update_split_payment(m.group(1), 'PAY' + m.group(2), payment_info)
+
     try:
         key = os.environ.get('SUPABASE_KEY', '')
         req = urllib.request.Request(
@@ -238,20 +339,11 @@ def supabase_update_payment(invnum, payment_info):
             'paid_date': payment_info.get('paid_date', ''),
             'stripe_payment_id': payment_info.get('payment_id', ''),
             'stripe_amount': payment_info.get('amount', 0),
+            'amount_paid': payment_info.get('amount', 0),
             'payout_arrival': payment_info.get('arrival_date', ''),
             'client_email': payment_info.get('client_email', ''),   # NEW
         })
-        body = json.dumps({'data': current_data}).encode()
-        patch_req = urllib.request.Request(
-            f'{SUPABASE_URL}/rest/v1/invoices?invnum=eq.{urllib.parse.quote(invnum)}',
-            data=body, method='PATCH'
-        )
-        patch_req.add_header('apikey', key)
-        patch_req.add_header('Authorization', f'Bearer {key}')
-        patch_req.add_header('Content-Type', 'application/json')
-        patch_req.add_header('Prefer', 'return=minimal')
-        with urllib.request.urlopen(patch_req, timeout=10) as r:
-            return True
+        return _patch_invoice_data(invnum, current_data)
     except Exception as e:
         print(f'Supabase update error: {e}')
         return False

@@ -570,6 +570,7 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
         <span class="m-lbl">Est. bank deposit</span>
         <input class="m-input" id="m-deposit-date" type="text" placeholder="TBA — from Stripe" value="">
       </div>
+      <div id="m-payments-list" style="margin-top:8px"></div>
     </div>
 
     <!-- Destage -->
@@ -658,6 +659,7 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
     </div>
 
     <div class="m-btns">
+      <button class="mbtn" onclick="createSplitPayment(currentCardId)" style="background:#e8f3e9;color:#2d6a0a" title="Create a payment link for part of the total (deposit, balance, or a third party like an agent)">💳 Payment Link</button>
       <button class="mbtn" onclick="extendRental(currentCardId)" style="background:#f5ead8;color:#9d7a44" title="Extend the furniture rental and bill it">⏱ Extend Rental</button>
       <button class="mbtn" onclick="clearExtensions(currentCardId)" style="background:#f3e9e9;color:#b53535" title="Remove all logged rental extensions (test cleanup)">↩︎ Reset ext.</button>
       <button class="mbtn" onclick="voidProposal(currentCardId)" style="background:#3a2e2e;color:#f3d6d6" title="Block / restore the client's Approve & Sign link">⛔ Void / Re‑issue</button>
@@ -1586,6 +1588,7 @@ function realOpenCard(invnum){
   }
   setVal('m-paid-date', d.paid_date || '');
   setVal('m-deposit-date', d.deposit_date || '');
+  renderPaymentsList(d);
 
   // Destage
   setVal('m-ddate', d.destage_date || '');
@@ -1655,6 +1658,110 @@ async function clearExtensions(invnum){
   closeModal();
   loadBoard();
   alert('Cleared ' + n + ' extension(s). The rental window is back to 45 days from the destage date.');
+}
+
+// Total actually paid toward the invoice: legacy single-payment amount (if that flow
+// was used) + every paid entry in the split-payments array. Falls back to the plain
+// paid boolean for older records saved before amount_paid was tracked.
+function computeAmountPaid(d){
+  if(d.amount_paid!=null) return parseFloat(d.amount_paid)||0;
+  return d.paid ? computeGrand(d) : 0;
+}
+
+function renderPaymentsList(d){
+  const el=document.getElementById('m-payments-list');
+  if(!el) return;
+  const payments=d.payments||[];
+  if(!payments.length){ el.innerHTML=''; return; }
+  const grand=computeGrand(d);
+  const paid=computeAmountPaid(d);
+  const remaining=Math.max(0, grand-paid);
+  const rows=payments.map(p=>{
+    const statusColor=p.status==='paid'?'#2d6a0a':'#9d7a44';
+    const statusText=p.status==='paid'?'✓ Paid':'Pending';
+    const who=p.audience==='other'?' · sent to other payer':'';
+    return '<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px solid #f0ede8">'
+      +'<span>'+(p.label||'Payment')+who+'</span>'
+      +'<span style="color:'+statusColor+';font-weight:600">$'+parseFloat(p.amount||0).toLocaleString(undefined,{minimumFractionDigits:2})+' — '+statusText+'</span>'
+      +'</div>';
+  }).join('');
+  el.innerHTML='<div style="font-size:11px;color:#a29c96;text-transform:uppercase;letter-spacing:0.5px;margin:10px 0 4px">Payment links</div>'
+    + rows
+    + '<div style="display:flex;justify-content:space-between;font-size:13px;font-weight:700;padding:8px 0 0;margin-top:4px">'
+    +   '<span>Paid $'+paid.toLocaleString(undefined,{minimumFractionDigits:2})+' of $'+grand.toLocaleString(undefined,{minimumFractionDigits:2})+'</span>'
+    +   (remaining>0.01 ? '<span style="color:#b53535">$'+remaining.toLocaleString(undefined,{minimumFractionDigits:2})+' remaining</span>' : '<span style="color:#2d6a0a">Paid in full</span>')
+    + '</div>';
+}
+
+// Create a payment link for PART of the invoice total — a deposit/balance split for the
+// same client, or a one-off contribution from a third party (e.g. a referring agent).
+// Mirrors the proven extendRental() pattern: a synthetic invnum (<parent>-PAY<n>) carries
+// metadata to the webhook, which now correctly finds and updates the PARENT invoice's
+// payments[] array (unlike the older -EXT extension flow, which never finds a row for its
+// synthetic number — this one is wired to actually track payment).
+async function createSplitPayment(invnum){
+  const inv=CARDS[invnum]; if(!inv){ alert('Open a project first.'); return; }
+  const d=inv.data||{};
+  const grand=computeGrand(d);
+  const paid=computeAmountPaid(d);
+  const remaining=Math.max(0, grand-paid);
+
+  const amountStr=prompt('Create a payment link for part of the total.\n\nInvoice total: $'+grand.toLocaleString(undefined,{minimumFractionDigits:2})+'\nAlready paid: $'+paid.toLocaleString(undefined,{minimumFractionDigits:2})+'\nRemaining: $'+remaining.toLocaleString(undefined,{minimumFractionDigits:2})+'\n\nAmount for this link:', remaining>0?remaining.toFixed(2):'');
+  if(amountStr===null) return;
+  const amount=parseFloat(amountStr);
+  if(!amount||amount<=0){ alert('Enter a valid amount.'); return; }
+
+  const label=(prompt('Label for this link (shown on the board & the Stripe receipt) — e.g. "Deposit", "Balance", "Agent contribution":', '')||'').trim();
+
+  const forClient=confirm('Is this link for '+(inv.client||'the client')+' to pay?\n\nOK = Yes — this becomes the payment button on their Approve & Sign page (replaces whatever was there).\nCancel = No — this is for someone else (e.g. a referring agent). It will NOT appear on the client\'s page; you send this link to them directly.');
+
+  const payNum=((d.payments||[]).length)+1;
+  const payId='PAY'+payNum;
+  const linkInvnum=invnum+'-'+payId;
+
+  let url=null, linkId=null;
+  try{
+    const r=await fetch('/api/stripe',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({grand:amount, client:inv.client, invnum:linkInvnum, address:inv.address, client_email:d.client_email||'', label})});
+    const j=await r.json();
+    if(j.error) throw new Error(j.error);
+    url=j.url; linkId=j.id||null;
+  }catch(e){ alert('Could not create the payment link:\n'+e.message+'\n\nNothing was changed.'); return; }
+
+  // If this is a new client-facing link, retire whichever one the client currently sees
+  // so they can never pay a stale amount.
+  if(forClient){
+    const prevId=d.active_client_payment_id;
+    const prevEntry=(d.payments||[]).find(p=>p.id===prevId);
+    if(prevEntry && prevEntry.link_id){
+      try{ await fetch('/api/stripe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'deactivate',link_id:prevEntry.link_id})}); }catch(e){}
+    } else if(!prevEntry && d.payment_url && d.payment_link_id){
+      // Retiring the ORIGINAL full-amount link created at invoice generation, if we have its id.
+      try{ await fetch('/api/stripe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'deactivate',link_id:d.payment_link_id})}); }catch(e){}
+    }
+  }
+
+  d.payments=d.payments||[];
+  d.payments.push({id:payId, amount, label, audience:forClient?'client':'other', payment_url:url, link_id:linkId, status:'pending', created:new Date().toISOString().split('T')[0]});
+  if(forClient) d.active_client_payment_id=payId;
+
+  try{ await _sb.from('invoices').upsert({invnum:inv.invnum, client:inv.client, address:inv.address, invdate:inv.invdate, data:d}, {onConflict:'invnum'}); }catch(e){}
+
+  closeModal();
+  loadBoard();
+  try{ await navigator.clipboard.writeText(url); }catch(e){}
+
+  const ov=document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;background:rgba(26,24,20,0.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:24px;font-family:Inter,-apple-system,sans-serif';
+  ov.innerHTML='<div style="background:#fff;border-radius:16px;max-width:360px;width:100%;padding:22px;text-align:center">'
+    +'<div style="font-family:Georgia,serif;font-size:20px;color:#1a1814;margin-bottom:4px">'+(label||'Payment link')+'</div>'
+    +'<div style="font-size:13px;color:#3d3830;line-height:1.5;margin-bottom:16px">$'+amount.toLocaleString(undefined,{minimumFractionDigits:2})+(forClient?' · will show on the client\'s Approve &amp; Sign page':' · for a separate payer — not shown to the client')+'<br>Link copied to clipboard.</div>'
+    +'<a href="'+url+'" target="_blank" style="display:block;background:#1a1814;color:#fff;text-decoration:none;padding:13px;border-radius:11px;font-weight:600;margin-bottom:8px">💳 Open payment link</a>'
+    +'<button id="pay-ov-close" style="background:none;border:none;color:#a29c96;font-size:13px;padding:8px;cursor:pointer">Close</button>'
+    +'</div>';
+  document.body.appendChild(ov);
+  ov.querySelector('#pay-ov-close').onclick=function(){ ov.remove(); };
+  ov.addEventListener('click',function(e){ if(e.target===ov) ov.remove(); });
 }
 
 async function extendRental(invnum){

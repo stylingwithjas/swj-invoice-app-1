@@ -196,6 +196,28 @@ let _inv = null;
 let _grand = 0;
 
 function _ovNum(v){return (v!=null&&v!=='')?parseFloat(v):null;}
+
+// Total actually paid so far: legacy single-payment amount (if that flow was used) +
+// every paid entry in the split-payments array. Falls back to the plain paid boolean
+// for older records saved before amount_paid was tracked.
+function computeAmountPaid(d){
+  if(d.amount_paid!=null) return parseFloat(d.amount_paid)||0;
+  return d.paid ? computeGrand(d) : 0;
+}
+
+// Which payment link (if any) should the client see right now. Once ANY split payment
+// has been created for this invoice, we STOP falling back to the original full-amount
+// link — showing a stale full-total "Pay Now" after a deposit was set up would risk the
+// client double-paying. Only the explicit active_client_payment_id link is shown.
+function getActivePayment(d, grand){
+  const payments = d.payments||[];
+  if(payments.length){
+    const active = payments.find(p=>p.id===d.active_client_payment_id && p.status!=='paid');
+    return active ? {url:active.payment_url, amount:parseFloat(active.amount)||0, label:active.label||'Payment'} : null;
+  }
+  return d.payment_url ? {url:d.payment_url, amount:grand, label:'Full payment'} : null;
+}
+
 function computeGrand(d){
   // Manual total overrides take precedence (Fully manual); blank fields auto-calculate.
   const tot=_ovNum(d.total_override); if(tot!=null) return tot;
@@ -260,6 +282,8 @@ function renderProposal(d){
   const rooms = (d.baserooms||'').split(', ').filter(Boolean);
   const stagingDate = d.startdate;
   const extrate = Math.round(_grand/3*100)/100;
+  const _amountPaid = computeAmountPaid(d);
+  const _balanceRemaining = Math.max(0, _grand-_amountPaid);
 
   // Update status
   setStatus('pending','Awaiting your approval');
@@ -300,7 +324,7 @@ function renderProposal(d){
       <div class="prop-total">
         <div class="prop-total-lbl">Total Investment</div>
         <div class="prop-total-val">${fmt(_grand)}</div>
-        <div class="prop-total-sub">Full payment due 48 hours before staging</div>
+        <div class="prop-total-sub">${_amountPaid>0.009 ? `Paid ${fmt(_amountPaid)} · ${fmt(_balanceRemaining)} remaining` : 'Full payment due 48 hours before staging'}</div>
       </div>
       <div class="line-items">
         ${lineItemsHTML}
@@ -439,7 +463,9 @@ async function submitSignature(){
 function showConfirmation(name, date, contractUrl){
   setStatus('signed','Approved & signed');
   const d = _inv.data||{};
-  const paymentUrl = d.payment_url||null;
+  const amountPaid = computeAmountPaid(d);
+  const balanceRemaining = Math.max(0, _grand-amountPaid);
+  const active = getActivePayment(d, _grand);
   document.getElementById('main-content').innerHTML = `
     <div class="confirm-card">
       <div class="confirm-icon">✅</div>
@@ -450,12 +476,19 @@ function showConfirmation(name, date, contractUrl){
         <div class="confirm-detail-row"><span>Date</span><strong>${fmtDate(date)}</strong></div>
         <div class="confirm-detail-row"><span>Invoice</span><strong>#${esc(_inv.invnum)}</strong></div>
         <div class="confirm-detail-row"><span>Total</span><strong>${fmt(_grand)}</strong></div>
+        ${amountPaid>0.009?`<div class="confirm-detail-row"><span>Paid so far</span><strong>${fmt(amountPaid)}</strong></div>`:''}
       </div>
-      ${paymentUrl?`
+      ${active?`
       <div style="margin-top:16px;padding:14px 16px;background:#fff;border-radius:10px;font-size:12px;color:var(--muted);text-align:center;">
-        Your payment of <strong style="color:var(--ink)">${fmt(_grand)}</strong> is due 48 hours before staging.
+        ${amountPaid>0.009
+          ? `Your ${esc(active.label.toLowerCase())} of <strong style="color:var(--ink)">${fmt(active.amount)}</strong> is due 48 hours before staging. (${fmt(balanceRemaining)} remaining after this payment.)`
+          : `Your payment of <strong style="color:var(--ink)">${fmt(active.amount)}</strong> is due 48 hours before staging.`}
       </div>
-      <a href="${esc(paymentUrl)}" class="pay-btn" target="_blank">Pay Now — ${fmt(_grand)}</a>`:''}
+      <a href="${esc(active.url)}" class="pay-btn" target="_blank">Pay Now — ${fmt(active.amount)}</a>`
+      : (balanceRemaining>0.009?`
+      <div style="margin-top:16px;padding:14px 16px;background:#fff;border-radius:10px;font-size:12px;color:var(--muted);text-align:center;">
+        Balance due: <strong style="color:var(--ink)">${fmt(balanceRemaining)}</strong>. Jasmine will send you a payment link.
+      </div>`:'')}
       ${contractUrl?`<a href="${esc(contractUrl)}" class="pay-btn" style="background:var(--olive);margin-top:10px;" target="_blank">Download Signed Contract</a>`:''}
     </div>
   `;
@@ -464,12 +497,18 @@ function showConfirmation(name, date, contractUrl){
 
 function showSigned(d){
   setStatus('signed','Approved & signed');
+  const grand = computeGrand(d);
+  const amountPaid = computeAmountPaid(d);
+  const balanceRemaining = Math.max(0, grand-amountPaid);
+  const active = getActivePayment(d, grand);
   document.getElementById('main-content').innerHTML = `
     <div class="confirm-card">
       <div class="confirm-icon">✅</div>
       <div class="confirm-title">Already signed.</div>
       <div class="confirm-sub">This proposal was approved by <strong>${esc(d.signed_by||'')}</strong> on ${fmtDate(d.signed_date)}.</div>
-      ${d.payment_url?`<a href="${esc(d.payment_url)}" class="pay-btn" target="_blank">Pay Now — ${fmt(computeGrand(d))}</a>`:''}
+      ${amountPaid>0.009?`<div style="margin-top:12px;font-size:12px;color:var(--muted);text-align:center;">Paid ${fmt(amountPaid)} of ${fmt(grand)}${balanceRemaining>0.009?` · ${fmt(balanceRemaining)} remaining`:' · Paid in full'}</div>`:''}
+      ${active?`<a href="${esc(active.url)}" class="pay-btn" target="_blank">Pay Now — ${fmt(active.amount)}</a>`
+        : (balanceRemaining>0.009?`<div style="margin-top:10px;font-size:12px;color:var(--muted);text-align:center;">Balance due: <strong style="color:var(--ink)">${fmt(balanceRemaining)}</strong>. Jasmine will send you a payment link.</div>`:'')}
     </div>
   `;
 }
