@@ -162,10 +162,126 @@ def build_extension_pdf(data):
     return fname
 
 
+def build_balance_update_pdf(data):
+    """Short one-page notice sent when a split payment (set up from the board, after the
+    original invoice already shipped) changes what the client owes. Isolated from the main
+    invoice layout, mirrors build_extension_pdf's pattern. Returns a temp file path."""
+    import tempfile
+    PW, PH = letter
+    ML, MR = 45, 45
+    CW = PW - ML - MR
+    INK   = colors.HexColor('#111111')
+    GRAY  = colors.HexColor('#555555')
+    LGRAY = colors.HexColor('#cccccc')
+    GOLD  = colors.HexColor('#9d7a44')
+
+    def fmt(n): return f"${float(n):,.2f}"
+    def wrap(text, font, size, width):
+        cv.setFont(font, size); out=[]; line=''
+        for w in str(text).split():
+            t=(line+' '+w).strip()
+            if cv.stringWidth(t, font, size) <= width: line=t
+            else:
+                if line: out.append(line)
+                line=w
+        if line: out.append(line)
+        return out
+
+    client   = str(data.get('client', 'Client'))
+    address  = str(data.get('address', ''))
+    orig_inv = str(data.get('invnum', ''))
+    invdate  = str(data.get('invdate', ''))
+    original_total = float(data.get('original_total', 0) or 0)
+    contributions  = data.get('contributions') or []   # [{label, amount}]
+    balance_due    = float(data.get('balance_due', 0) or 0)
+    payment_url    = data.get('payment_url')
+
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf'); tmp.close()
+    fname = tmp.name
+    cv = canvas.Canvas(fname, pagesize=letter)
+
+    ASSETS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'assets')
+    LOGO_PATH = os.path.join(ASSETS_DIR, 'swj_logo.png')
+
+    y = PH - 64
+    try:
+        cv.drawImage(LOGO_PATH, ML - 20, y - 34, width=148, height=85, mask='auto', preserveAspectRatio=True)
+    except Exception:
+        pass
+    cv.setFont('Helvetica', 8.5); cv.setFillColor(INK)
+    cv.drawRightString(PW - MR, y, f'Re: Invoice No {orig_inv}')
+    if invdate:
+        cv.drawRightString(PW - MR, y - 12, invdate)
+
+    cv.setFillColor(GOLD); cv.setFont('Helvetica', 20)
+    title = 'BALANCE UPDATE'; gap = 2.0
+    tw = cv.stringWidth(title, 'Helvetica', 20) + gap * (len(title) - 1)
+    sx = (PW - tw) / 2
+    for ch in title:
+        cv.drawString(sx, y - 60, ch); sx += cv.stringWidth(ch, 'Helvetica', 20) + gap
+    y -= 98
+    cv.setStrokeColor(LGRAY); cv.setLineWidth(0.5); cv.line(ML, y, PW - MR, y); y -= 22
+
+    cv.setFont('Helvetica', 7.5); cv.setFillColor(colors.HexColor('#888888'))
+    cv.drawString(ML, y, 'Client'); cv.drawString(ML + 230, y, 'Property'); y -= 12
+    cv.setFont('Helvetica', 10); cv.setFillColor(INK)
+    cv.drawString(ML, y, client)
+    for i, al in enumerate(wrap(address, 'Helvetica', 10, CW - 230)):
+        cv.drawString(ML + 230, y - (i * 12), al)
+    y -= 28
+    cv.setFont('Helvetica', 9); cv.setFillColor(GRAY)
+    cv.drawString(ML, y, f'This updates the balance on your original Invoice No {orig_inv} — all other terms remain in effect.'); y -= 26
+
+    cv.setStrokeColor(INK); cv.setLineWidth(1.2); cv.line(ML, y, PW - MR, y); y -= 18
+    cv.setFont('Helvetica', 9.5); cv.setFillColor(colors.HexColor('#333333'))
+    cv.drawString(ML, y, 'Original invoice total'); cv.drawRightString(PW - MR, y, fmt(original_total)); y -= 16
+    for c in contributions:
+        label = str(c.get('label') or 'Payment received')
+        amt = float(c.get('amount', 0) or 0)
+        cv.setFont('Helvetica', 9.5); cv.setFillColor(GRAY)
+        for i, l in enumerate(wrap(f'Less: {label}', 'Helvetica', 9.5, CW - 90)):
+            cv.drawString(ML, y, l)
+            if i == 0: cv.drawRightString(PW - MR, y, '-' + fmt(amt))
+            y -= 14
+    cv.setStrokeColor(LGRAY); cv.setLineWidth(0.5); cv.line(ML, y, PW - MR, y); y -= 18
+    cv.setFont('Helvetica-Bold', 13); cv.setFillColor(INK)
+    cv.drawString(ML, y, 'Balance Due'); cv.drawRightString(PW - MR, y, fmt(balance_due)); y -= 30
+
+    if payment_url and balance_due > 0.009:
+        qr = make_qr_image(payment_url)
+        if qr:
+            try: cv.drawImage(qr, PW - MR - 58, y - 44, width=58, height=58, preserveAspectRatio=True)
+            except Exception: pass
+        cv.setFont('Helvetica-Bold', 8.5); cv.setFillColor(INK); cv.drawString(ML, y, 'Pay Online'); y -= 12
+        cv.setFont('Helvetica', 7.5); cv.setFillColor(GRAY)
+        cv.drawString(ML, y, 'Scan to pay by card or Apple Pay:'); y -= 11
+        cv.setFont('Helvetica', 7.5); cv.setFillColor(colors.HexColor('#1a73e8'))
+        cv.drawString(ML, y, payment_url[:74]); y -= 26
+        if qr:
+            try: os.unlink(qr)
+            except Exception: pass
+    elif balance_due <= 0.009:
+        cv.setFont('Helvetica-Bold', 10); cv.setFillColor(GOLD)
+        cv.drawString(ML, y, 'Covered in full — no further payment is due.'); y -= 26
+
+    cv.setFont('Helvetica', 8); cv.setFillColor(GRAY)
+    note = 'All other terms of your original signed agreement remain in effect. Washington sales tax applies where applicable.'
+    for l in wrap(note, 'Helvetica', 8, CW):
+        cv.drawString(ML, y, l); y -= 11
+
+    cv.setStrokeColor(LGRAY); cv.setLineWidth(0.4); cv.line(ML, 42, PW - MR, 42)
+    cv.setFont('Helvetica', 8); cv.setFillColor(GRAY)
+    cv.drawString(ML, 30, 'Jasmine Santana  ·  206-422-5618  ·  info@stylingwithjas.com')
+    cv.save()
+    return fname
+
+
 def generate_invoice_pdf(data):
     """Generate SWJ invoice PDF and return path to temp file."""
     if data.get('extension'):
         return build_extension_pdf(data)
+    if data.get('balance_update'):
+        return build_balance_update_pdf(data)
 
     def fdate(v):
         if not v: return ''
@@ -222,7 +338,15 @@ def generate_invoice_pdf(data):
     subtotal = float(sub_ov) if sub_ov not in (None, '') else base_price + addon_total
     tax = float(tax_ov) if tax_ov not in (None, '') else subtotal * taxrate / 100
     grand = float(tot_ov) if tot_ov not in (None, '') else subtotal + tax
-    
+
+    # Part of the total coming from someone other than the client (e.g. an agent
+    # contribution), decided upfront when the invoice is created. Free-text label —
+    # Jasmine's wording, not a fixed set. Reduces the amount actually billed to the client;
+    # the QR/payment link on this PDF is always for that reduced "Balance Due" figure.
+    contributions = data.get('contributions') or []
+    contrib_total = sum(float(c.get('amount', 0) or 0) for c in contributions)
+    balance_due = grand - contrib_total
+
     # Accept payment_url from invoice data (generated by browser) or call Stripe directly
     payment_url = data.get('payment_url')
     qr_path = make_qr_image(payment_url) if payment_url else None
@@ -745,7 +869,7 @@ def generate_invoice_pdf(data):
     y -= 8
 
     # Keep totals + payment + footer together on one page
-    ensure_space(240)
+    ensure_space(240 + 28 * (len(contributions) + 1) if contributions else 240)
 
     # Totals
     cv.setFont('Helvetica', 9); cv.setFillColor(GRAY)
@@ -754,7 +878,28 @@ def generate_invoice_pdf(data):
     cv.setStrokeColor(BLACK); cv.setLineWidth(0.8)
     cv.line(PW-MR-130, y, PW-MR, y); y -= 13
     cv.setFont('Helvetica-Bold', 10); cv.setFillColor(BLACK)
-    cv.drawString(PW-MR-120, y, 'Grand Total:');             cv.drawRightString(PW-MR, y, fmt(grand));    y -= 34
+    cv.drawString(PW-MR-120, y, 'Grand Total:');             cv.drawRightString(PW-MR, y, fmt(grand));    y -= 20
+
+    # Money coming from someone other than the client — reduces what's billed to them.
+    # Labels are Jasmine's free text and can run long, so they get the full row width
+    # (wrapped if needed) rather than the narrow Subtotal/Tax column.
+    if contributions:
+        max_label_w = CW - 90
+        for c in contributions:
+            label = str(c.get('label') or 'Contribution')
+            amt = float(c.get('amount', 0) or 0)
+            cv.setFont('Helvetica', 9); cv.setFillColor(GRAY)
+            lines = wrap(cv, f'Less: {label}', 'Helvetica', 9, max_label_w) or ['Less:']
+            for i, l in enumerate(lines):
+                cv.drawString(ML, y, l)
+                if i == 0: cv.drawRightString(PW-MR, y, '-' + fmt(amt))
+                y -= 13
+        cv.setStrokeColor(BLACK); cv.setLineWidth(0.8)
+        cv.line(ML, y, PW-MR, y); y -= 13
+        cv.setFont('Helvetica-Bold', 10); cv.setFillColor(BLACK)
+        cv.drawString(ML, y, 'Balance Due:'); cv.drawRightString(PW-MR, y, fmt(balance_due)); y -= 14
+
+    y -= 14
     
     # Extension italic note
     cv.setFont('Helvetica-Oblique', 8); cv.setFillColor(GRAY)

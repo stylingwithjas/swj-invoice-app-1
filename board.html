@@ -1721,8 +1721,10 @@ async function createSplitPayment(invnum){
 
   let url=null, linkId=null;
   try{
+    // Third-party links never get the client's email pre-filled on Stripe's checkout —
+    // that email belongs to a different payer.
     const r=await fetch('/api/stripe',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({grand:amount, client:inv.client, invnum:linkInvnum, address:inv.address, client_email:d.client_email||'', label})});
+      body:JSON.stringify({grand:amount, client:inv.client, invnum:linkInvnum, address:inv.address, client_email:forClient?(d.client_email||''):'', label})});
     const j=await r.json();
     if(j.error) throw new Error(j.error);
     url=j.url; linkId=j.id||null;
@@ -1774,6 +1776,27 @@ async function createSplitPayment(invnum){
 
   try{ await _sb.from('invoices').upsert({invnum:inv.invnum, client:inv.client, address:inv.address, invdate:inv.invdate, data:d}, {onConflict:'invnum'}); }catch(e){}
 
+  // The original invoice PDF is a static snapshot — it still shows the old total and a now-
+  // retired link. Whenever a THIRD PARTY is involved (the case this PDF exists for), generate
+  // a short "Balance Update" notice with the real breakdown + the client's current link, so
+  // Jasmine has something fresh and accurate to send instead of the stale original PDF.
+  const contribBreakdown=d.payments.filter(p=>p.audience==='other').map(p=>({label:p.label, amount:p.amount}));
+  let balancePdfUrl=null, balancePdfErr='';
+  if(contribBreakdown.length){
+    const clientBalanceAmount=forClient?amount:secondAmount;
+    const clientBalanceUrl=forClient?url:secondUrl;
+    try{
+      const pr=await fetch('/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+        balance_update:true, client:inv.client, address:inv.address, invnum:invnum, invdate:new Date().toISOString().split('T')[0],
+        original_total:grand, contributions:contribBreakdown, balance_due:clientBalanceAmount, payment_url:clientBalanceUrl
+      })});
+      if(!pr.ok){ const t=await pr.text(); throw new Error('Server '+pr.status+' — '+t.substring(0,120)); }
+      const b=await pr.blob();
+      if(!b||b.size<500) throw new Error('empty PDF');
+      balancePdfUrl=URL.createObjectURL(b);
+    }catch(e){ balancePdfErr=e.message; }
+  }
+
   closeModal();
   loadBoard();
   try{ await navigator.clipboard.writeText(url); }catch(e){}
@@ -1788,6 +1811,8 @@ async function createSplitPayment(invnum){
       +'<a href="'+secondUrl+'" target="_blank" style="display:block;background:#f5ead8;color:#9d7a44;text-decoration:none;padding:12px;border-radius:11px;font-weight:600;margin-bottom:6px">💳 Open client\'s new link</a>')
       : (secondNote?'<div style="font-size:12px;color:#b53535;margin:14px 0 0">'+secondNote+'</div>'
       : (!forClient?'<div style="font-size:12px;color:#2d6a0a;margin:14px 0 0">Covered in full — the client\'s payment link has been retired.</div>':'')))
+    +(balancePdfUrl?('<a href="'+balancePdfUrl+'" download="SWJ_Balance_Update_'+invnum+'.pdf" target="_blank" style="display:block;background:#f5f2ed;color:#1a1814;text-decoration:none;padding:12px;border-radius:11px;font-weight:600;margin-top:8px">📄 Open Balance Update PDF</a>')
+      : (balancePdfErr?'<div style="font-size:11px;color:#b53535;margin-top:10px">Balance Update PDF failed ('+balancePdfErr+') — links above still work.</div>':''))
     +'<button id="pay-ov-close" style="background:none;border:none;color:#a29c96;font-size:13px;padding:8px;cursor:pointer;margin-top:8px">Close</button>'
     +'</div>';
   document.body.appendChild(ov);

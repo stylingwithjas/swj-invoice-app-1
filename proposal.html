@@ -284,6 +284,12 @@ function renderProposal(d){
   const extrate = Math.round(_grand/3*100)/100;
   const _amountPaid = computeAmountPaid(d);
   const _balanceRemaining = Math.max(0, _grand-_amountPaid);
+  // Money allocated from someone else (e.g. an agent), set up at invoice creation — may
+  // still be PENDING (not yet paid), so this is distinct from _amountPaid above. Shown so
+  // the client isn't left wondering why "Total Investment" doesn't match what they owe.
+  const _contribEntries = (d.payments||[]).filter(p=>p.audience==='other');
+  const _contribTotal = _contribEntries.reduce((s,p)=>s+(parseFloat(p.amount)||0),0);
+  const _clientBalance = Math.max(0, _grand-_contribTotal);
 
   // Update status
   setStatus('pending','Awaiting your approval');
@@ -324,7 +330,7 @@ function renderProposal(d){
       <div class="prop-total">
         <div class="prop-total-lbl">Total Investment</div>
         <div class="prop-total-val">${fmt(_grand)}</div>
-        <div class="prop-total-sub">${_amountPaid>0.009 ? `Paid ${fmt(_amountPaid)} · ${fmt(_balanceRemaining)} remaining` : 'Full payment due 48 hours before staging'}</div>
+        <div class="prop-total-sub">${_amountPaid>0.009 ? `Paid ${fmt(_amountPaid)} · ${fmt(_balanceRemaining)} remaining` : (_contribTotal>0.009 ? `${fmt(_contribTotal)} covered separately · your balance is ${fmt(_clientBalance)}` : 'Full payment due 48 hours before staging')}</div>
       </div>
       <div class="line-items">
         ${lineItemsHTML}

@@ -559,6 +559,16 @@ body { background:#eceff3; color:var(--ink); }
     </div>
   </div>
 
+  <!-- OTHER CONTRIBUTIONS -->
+  <div class="card">
+    <div class="card-hdr"><span class="sec-lbl">Other Contributions (optional)</span><div class="sec-accent"></div></div>
+    <div class="card-body">
+      <div id="contributions-list"></div>
+      <button class="add-btn" onclick="addContribution()">+ Add contribution</button>
+      <div style="font-size:10px;color:var(--taupe);margin-top:6px">Money coming from someone other than the client (e.g. an agent). Reduces what the client is billed &amp; gets its own separate payment link — never shown to the client. Wording is yours to write.</div>
+    </div>
+  </div>
+
   <!-- OPTIONS -->
   <div class="card">
     <div class="card-hdr"><span class="sec-lbl">Options</span><div class="sec-accent"></div></div>
@@ -604,6 +614,10 @@ body { background:#eceff3; color:var(--ink); }
       <span class="sum-grand-val" id="t-grand">$2,756.25</span>
     </div>
     <div class="sum-ext"><span id="t-ext">Extension: $918.75 / 30 days</span></div>
+    <div id="contrib-summary-wrap" style="display:none;padding:0 20px 10px">
+      <div class="t-row"><span>Other contributions</span><span id="t-contrib" style="color:#4a7c50">-$0.00</span></div>
+      <div class="t-row" style="font-weight:700"><span>Balance Due (Client)</span><span id="t-balance">$0.00</span></div>
+    </div>
     <div class="stripe-bar" style="margin:0 16px 14px">
       <span class="sdot" id="sdot"></span>
       <span id="smsg">Ready to generate your luxury proposal.</span>
@@ -711,7 +725,7 @@ const CATS=[
   {name:'Primary suite sitting area',hasBed:false,sizes:[{size:'Small',price:200},{size:'Large',price:275}]},
 ];
 
-let selRooms=new Set(),selAddons=new Map(),bedSel=new Map(),customs=[],invNum='',extraBedrooms=[],extraAreas=[];
+let selRooms=new Set(),selAddons=new Map(),bedSel=new Map(),customs=[],invNum='',extraBedrooms=[],extraAreas=[],contributions=[];
 
 function addExtraBedroom(){
   const n = extraBedrooms.length;
@@ -983,6 +997,23 @@ function renderCustoms(){
 }
 function updCustom(id,k,v){const a=customs.find(x=>x.id===id);if(a){a[k]=v;if(k==='price')recalc();}}
 
+// Money coming from someone other than the client (e.g. an agent contribution), decided
+// upfront when the invoice is created. Free-text label so Jasmine can write it however she
+// wants. Reduces what the client is billed & gets its own separate payment link at
+// generation time (see createPaymentLinksForInvoice).
+function addContribution(){const id=Date.now();contributions.push({id,label:'',amount:0});renderContributions();}
+function removeContribution(id){contributions=contributions.filter(x=>x.id!==id);renderContributions();}
+function renderContributions(){
+  const c=document.getElementById('contributions-list');if(!c)return;c.innerHTML='';
+  contributions.forEach(x=>{
+    const w=document.createElement('div');w.className='custom-item';
+    w.innerHTML=`<div class="custom-header"><input type="text" placeholder="e.g. Agent contribution" value="${x.label}" oninput="updContribution(${x.id},'label',this.value)"><input type="number" placeholder="$0" value="${x.amount||''}" step="25" inputmode="decimal" oninput="updContribution(${x.id},'amount',parseFloat(this.value)||0)"><button class="rm-btn" onclick="removeContribution(${x.id})">×</button></div>`;
+    c.appendChild(w);
+  });
+  recalc();
+}
+function updContribution(id,k,v){const x=contributions.find(y=>y.id===id);if(x){x[k]=v;recalc();}}
+
 function fmt(n){return'$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
 function recalc(){
   let t=0;selAddons.forEach(e=>{t+=parseFloat(CATS[e.ci].sizes[e.oi].price)||0;});
@@ -1003,6 +1034,16 @@ function recalc(){
   document.getElementById('t-tax').textContent=fmt(taxShown);
   document.getElementById('t-grand').textContent=fmt(grandShown);
   document.getElementById('t-ext').textContent=fmt(grandShown/3)+' / 30 days';
+
+  const contribTotal=contributions.reduce((s,c)=>s+(parseFloat(c.amount)||0),0);
+  const contribWrap=document.getElementById('contrib-summary-wrap');
+  if(contribWrap){
+    contribWrap.style.display=contribTotal>0.009?'block':'none';
+    if(contribTotal>0.009){
+      document.getElementById('t-contrib').textContent='-'+fmt(contribTotal);
+      document.getElementById('t-balance').textContent=fmt(Math.max(0,grandShown-contribTotal));
+    }
+  }
 }
 // Parse a manual-override input: returns a number only when the field has real content, else null.
 function _ov(id){const el=document.getElementById(id);if(!el)return null;const v=el.value;if(v===''||v==null)return null;const n=parseFloat(v);return isNaN(n)?null:n;}
@@ -1016,6 +1057,7 @@ function captureState(){
     extraBedrooms:extraBedrooms.map(b=>({...b})),
     extraAreas:extraAreas.map(a=>({...a})),
     customs:customs.map(c=>({...c})),
+    contributions:contributions.map(c=>({...c})),
     cats:CATS.map(c=>({name:c.name,sizes:c.sizes.map(s=>({size:s.size,price:s.price}))})),
     base_price:parseFloat(document.getElementById('base_price')?.value)||2500,
     home_value:homeValue, home_sqft:homeSqft, tier:selTier, scope:selScope, tier_manual:tierManual
@@ -1044,11 +1086,13 @@ function restoreState(state){
   extraBedrooms=(state.extraBedrooms||[]).map(b=>({...b}));
   extraAreas=(state.extraAreas||[]).map(a=>({...a}));
   customs=(state.customs||[]).map(c=>({...c}));
+  contributions=(state.contributions||[]).map(c=>({...c}));
   buildRooms();
   buildCats();
   renderExtraBedrooms();
   renderExtraAreas();
   renderCustoms();
+  renderContributions();
   homeValue=state.home_value||0; homeSqft=state.home_sqft||0; tierManual=!!state.tier_manual;
   const _hv=document.getElementById('home_value'); if(_hv) _hv.value=homeValue?('$'+tierCommas(homeValue)):'';
   const _hs=document.getElementById('home_sqft'); if(_hs) _hs.value=homeSqft?tierCommas(homeSqft):'';
@@ -1070,7 +1114,7 @@ function togglePaid(){
 }
 
 let _lastPaymentLinkId = null;   // Stripe payment_link id from the most recent createPaymentLink() call — lets the board later deactivate this exact link if a split payment supersedes it.
-async function createPaymentLink(grand, client, invnum, address, client_email) {
+async function createPaymentLink(grand, client, invnum, address, client_email, label) {
   setSt('loading', 'Creating payment link...');
   _lastPaymentLinkId = null;
 
@@ -1081,7 +1125,7 @@ async function createPaymentLink(grand, client, invnum, address, client_email) {
     const r = await fetch('/api/stripe', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ grand, client, invnum, address, client_email }),
+      body: JSON.stringify({ grand, client, invnum, address, client_email, label }),
       signal: ctrl.signal,
     });
     clearTimeout(timeout);
@@ -1097,6 +1141,40 @@ async function createPaymentLink(grand, client, invnum, address, client_email) {
     setSt('err', 'Stripe error: ' + e.message);
     return null;   // graceful failure — PDF still generates without link
   }
+}
+
+// When Other Contributions are set, the client's own link/PDF must be for the REDUCED
+// balance (grand minus every contribution), never the full total — and each contribution
+// gets its own separate link, tagged <invnum>-PAY<n> (same scheme the board's split-payment
+// flow uses), so the webhook tracks them the same way. Only the client's own link/amount is
+// ever shown on the Approve & Sign page; contribution links are handed to Jasmine to send
+// directly. With no contributions, this behaves exactly like a plain createPaymentLink call.
+async function createPaymentLinksForInvoice(grand, client, invnum, address, client_email, contribs){
+  const list=(contribs||[]).filter(c=>c.label && parseFloat(c.amount)>0);
+  if(!list.length){
+    const url=await createPaymentLink(grand, client, invnum, address, client_email);
+    return {payment_url:url, payment_link_id:_lastPaymentLinkId, payments:null, active_client_payment_id:null};
+  }
+  const payments=[];
+  let payNum=0;
+  for(const c of list){
+    payNum++;
+    const payId='PAY'+payNum;
+    const url=await createPaymentLink(parseFloat(c.amount), client, invnum+'-'+payId, address, '', c.label);
+    payments.push({id:payId, amount:parseFloat(c.amount), label:c.label, audience:'other', payment_url:url, link_id:_lastPaymentLinkId, status:'pending', created:new Date().toISOString().split('T')[0]});
+  }
+  const contribTotal=list.reduce((s,c)=>s+parseFloat(c.amount),0);
+  const clientAmount=Math.max(0, Math.round((grand-contribTotal)*100)/100);
+  let clientUrl=null, clientLinkId=null, activeId=null;
+  if(clientAmount>0.009){
+    payNum++;
+    const clientPayId='PAY'+payNum;
+    clientUrl=await createPaymentLink(clientAmount, client, invnum+'-'+clientPayId, address, client_email, 'Balance');
+    clientLinkId=_lastPaymentLinkId;
+    payments.push({id:clientPayId, amount:clientAmount, label:'Balance', audience:'client', payment_url:clientUrl, link_id:clientLinkId, status:'pending', created:new Date().toISOString().split('T')[0]});
+    activeId=clientPayId;
+  }
+  return {payment_url:clientUrl, payment_link_id:clientLinkId, payments, active_client_payment_id:activeId};
 }
 
 
@@ -1819,7 +1897,8 @@ async function downloadPdfNow(){
   const address=zipVal&&!addressBase.includes(zipVal)?addressBase+' '+zipVal:addressBase;
   const invNumFinal=document.getElementById('invnum-display').value.trim()||'202093';
 
-  const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:document.getElementById('startdate').value,baserooms:[...selRooms].join(', '),extrate,taxrate,base_price:base,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,home_value:homeValue,home_sqft:homeSqft,tier:selTier,scope:selScope,promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,promo4:document.getElementById('promo4')?.checked||false,payment_url:null,cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||''};
+  const _contribList=contributions.filter(c=>c.label&&parseFloat(c.amount)>0).map(c=>({label:c.label,amount:parseFloat(c.amount)}));
+  const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:document.getElementById('startdate').value,baserooms:[...selRooms].join(', '),extrate,taxrate,base_price:base,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,home_value:homeValue,home_sqft:homeSqft,tier:selTier,scope:selScope,promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,promo4:document.getElementById('promo4')?.checked||false,payment_url:null,contributions:_contribList,cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||''};
 
   const ctrl=new AbortController();
   const to=setTimeout(()=>ctrl.abort(),90000);
@@ -1992,13 +2071,16 @@ async function generatePDF(){
     document.getElementById('client_email').focus(); return;
   }
   setSt('loading','Creating payment link...');
-  let payment_url=null;
-  try{payment_url=await createPaymentLink(grand,client,invNumFinal,address,clientEmail);}
-  catch(e){setSt('err','Stripe error — continuing without payment link');}
+  let payment_url=null, payment_link_id=null, splitPayments=null, activeClientPaymentId=null;
+  try{
+    const _pl=await createPaymentLinksForInvoice(grand,client,invNumFinal,address,clientEmail,contributions);
+    payment_url=_pl.payment_url; payment_link_id=_pl.payment_link_id; splitPayments=_pl.payments; activeClientPaymentId=_pl.active_client_payment_id;
+  }catch(e){setSt('err','Stripe error — continuing without payment link');}
 
   setSt('loading','Generating your invoice PDF...');
+  const _contribList=contributions.filter(c=>c.label&&parseFloat(c.amount)>0).map(c=>({label:c.label,amount:parseFloat(c.amount)}));
   const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:document.getElementById('startdate').value,baserooms:[...selRooms].join(', '),extrate,taxrate,base_price:base,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,state:captureState(),home_value:homeValue,home_sqft:homeSqft,tier:selTier,scope:selScope,promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
-            promo4:document.getElementById('promo4').checked,payment_url,payment_link_id:_lastPaymentLinkId,cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||''};
+            promo4:document.getElementById('promo4').checked,payment_url,payment_link_id,contributions:_contribList,payments:splitPayments,active_client_payment_id:activeClientPaymentId,cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||''};
 
   const _ctrl=new AbortController();
   const _to=setTimeout(()=>_ctrl.abort(),90000);   // never spin forever
@@ -2072,18 +2154,19 @@ async function generate(){
     document.getElementById('client_email').focus(); return;
   }
   payment_url=null;
+  let payment_link_id=null, splitPayments=null, activeClientPaymentId=null;
   try{
-    payment_url=await createPaymentLink(grand,client,invNumFinal,address,clientEmail);
+    const _pl=await createPaymentLinksForInvoice(grand,client,invNumFinal,address,clientEmail,contributions);
+    payment_url=_pl.payment_url; payment_link_id=_pl.payment_link_id; splitPayments=_pl.payments; activeClientPaymentId=_pl.active_client_payment_id;
   }catch(e){
     setSt('err','Stripe error — generating invoice without payment link');
   }
   btn.textContent='Generating PDF...';
   setSt('loading','Generating your invoice PDF...');
 
-  
-
+  const _contribList=contributions.filter(c=>c.label&&parseFloat(c.amount)>0).map(c=>({label:c.label,amount:parseFloat(c.amount)}));
   const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:document.getElementById('startdate').value,baserooms:[...selRooms].join(', '),extrate,taxrate,base_price:parseFloat(document.getElementById('base_price')?.value)||2500,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,state:captureState(),home_value:homeValue,home_sqft:homeSqft,tier:selTier,scope:selScope,promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
-            promo4:document.getElementById('promo4').checked,payment_url,payment_link_id:_lastPaymentLinkId,cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||''};
+            promo4:document.getElementById('promo4').checked,payment_url,payment_link_id,contributions:_contribList,payments:splitPayments,active_client_payment_id:activeClientPaymentId,cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||''};
 
   // Send to API and download PDF
   try {
