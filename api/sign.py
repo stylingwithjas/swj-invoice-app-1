@@ -142,21 +142,35 @@ def flatten_signature_image(sig_image_b64):
         return img_bytes
 
 
-def build_full_signed_contract(inv, signed_by, signed_date, signed_time, ip_address,
-                                sig_image_b64=None, sig_mode='drawn'):
-    """Generate the full proposal PDF and stamp the client signature + record onto page 3.
-    
+def _nearest_below(hits, y_ref, max_dist):
+    """Among text-search hits, return the one whose top edge is closest below y_ref
+    (within max_dist), or None. Used to pair a block's own 'Printed Name:'/'Date:'
+    line with its signature line, when multiple signer blocks share those same
+    label strings on the page."""
+    candidates = [h for h in hits if h.y0 > y_ref and h.y0 - y_ref < max_dist]
+    if not candidates:
+        return None
+    return min(candidates, key=lambda h: h.y0 - y_ref)
+
+
+def build_full_signed_contract(inv, signatures):
+    """Generate the full proposal PDF and stamp every signer's signature + record onto it.
+
+    signatures: ordered list of dicts, one per required signer, each with:
+      {label, signed_by, signed_date, signed_time, ip_address, sig_image_b64, sig_mode}
+    'label' is the exact text drawn in generate.py above that signer's line, e.g.
+    'Client Signature:' or '{role} Signature:' for an optional co-signer.
+
     Strategy:
     1. Call generate_invoice_pdf() to build the full 3-page proposal
-    2. Open it with PyMuPDF and stamp the signature line + electronic record on page 3
+    2. Open it with PyMuPDF and stamp each signer's line + a combined record page
     3. Return the modified PDF as bytes
     """
     try:
         import fitz  # PyMuPDF
     except ImportError:
         print('[sign] PyMuPDF not available — falling back to standalone PDF')
-        return build_standalone_record(inv, signed_by, signed_date, signed_time, ip_address,
-                                       sig_image_b64, sig_mode)
+        return build_standalone_record(inv, signatures)
 
     # Step 1: Build the full invoice PDF
     invoice_pdf_path = None
@@ -169,8 +183,7 @@ def build_full_signed_contract(inv, signed_by, signed_date, signed_time, ip_addr
             from generate import generate_invoice_pdf
         except ImportError as e:
             print(f'[sign] could not import generate: {e}')
-            return build_standalone_record(inv, signed_by, signed_date, signed_time, ip_address,
-                                           sig_image_b64, sig_mode)
+            return build_standalone_record(inv, signatures)
 
         d = inv.get('data', {})
         # Reconstruct the data payload generate.py expects
@@ -185,105 +198,81 @@ def build_full_signed_contract(inv, signed_by, signed_date, signed_time, ip_addr
 
         if not invoice_pdf_path or not os.path.exists(invoice_pdf_path):
             print('[sign] generate_invoice_pdf did not return a valid path')
-            return build_standalone_record(inv, signed_by, signed_date, signed_time, ip_address,
-                                           sig_image_b64, sig_mode)
+            return build_standalone_record(inv, signatures)
 
         # Step 2: Open the generated PDF
         doc = fitz.open(invoice_pdf_path)
 
-        # Step 3: Stamp client signature, name, date on page 3 (terms page)
-        # Locate the last page (which has the signature lines)
-        # The terms page is page 3 (index 2) for invoices with cover page, page 2 (index 1) without
-        # Look for "Client Signature:" on each page
+        # Step 3: Stamp each signer's line, name, date on the terms page
+        # Locate the page with the first signer's label (they're always on the same page)
         target_page_idx = None
+        first_label = signatures[0]['label']
         for i in range(len(doc)):
-            if doc[i].search_for("Client Signature:"):
+            if doc[i].search_for(first_label):
                 target_page_idx = i
                 break
 
         if target_page_idx is None:
-            print('[sign] could not find Client Signature: in any page')
+            print(f'[sign] could not find "{first_label}" in any page')
             doc.close()
-            return build_standalone_record(inv, signed_by, signed_date, signed_time, ip_address,
-                                           sig_image_b64, sig_mode)
+            return build_standalone_record(inv, signatures)
 
         page = doc[target_page_idx]
+        date_formatted_by_role = {}
 
-        # ─── Dynamically locate signature lines via text search ───
-        # Find "Client Signature:" — the signature image goes ABOVE this label
-        # Find "Printed Name:" — name goes on the line next to it
-        # Find "Date:" (last one before "Styling With Jas") — date goes next to it
-        client_sig_hits = page.search_for("Client Signature:")
-        printed_name_hits = page.search_for("Printed Name:")
-        date_hits = page.search_for("Date:")
+        for sig in signatures:
+            label = sig['label']
+            sig_hits = page.search_for(label)
+            if not sig_hits:
+                print(f'[sign] WARNING: could not find "{label}" on page — skipping this signer\'s stamp')
+                continue
 
-        if not client_sig_hits:
-            print('[sign] WARNING: Could not find "Client Signature:" on page — falling back to standalone')
-            doc.close()
-            return build_standalone_record(inv, signed_by, signed_date, signed_time, ip_address,
-                                           sig_image_b64, sig_mode)
+            sig_rect = sig_hits[0]
+            # The signature LINE in the original PDF starts right after the label text.
+            line_x_start = sig_rect.x1 + 8
+            line_x_end = line_x_start + 280
+            sig_top = sig_rect.y0 - 20
+            sig_bottom = sig_rect.y1 + 4
 
-        client_sig_rect = client_sig_hits[0]
-        # The signature LINE in the original PDF starts ~90pt to the right of "Client Signature:"
-        # We want to overlay the drawn signature ON that line area
-        # The label is at e.g. (45, 614) — line is roughly (135-450, 615-625)
-        line_x_start = client_sig_rect.x1 + 8  # right after the label
-        line_x_end = line_x_start + 280        # signature box width
-        # Position the signature so its bottom sits ON the underline.
-        # The underline is ~5pt below the label baseline (label y1 ≈ line y).
-        # We want the signature box from ~24pt above the line down to right on the line.
-        sig_top = client_sig_rect.y0 - 20      # top of signature box (above label)
-        sig_bottom = client_sig_rect.y1 + 4    # bottom sits just ON the underline
+            if sig.get('sig_image_b64'):
+                try:
+                    sig_bytes = flatten_signature_image(sig['sig_image_b64'])
+                    sig_img_rect = fitz.Rect(line_x_start, sig_top, line_x_end, sig_bottom)
+                    page.insert_image(sig_img_rect, stream=sig_bytes, keep_proportion=False, overlay=True)
+                except Exception as e:
+                    print(f'[sign] signature image embed error: {e}')
 
-        if sig_image_b64:
+            # This block's own "Printed Name:" line is the nearest one below its signature line
+            printed_name_hits = page.search_for("Printed Name:")
+            pn_rect = _nearest_below(printed_name_hits, sig_rect.y1, max_dist=20)
+            if pn_rect:
+                page.insert_text(
+                    fitz.Point(pn_rect.x1 + 8, pn_rect.y1 - 2),
+                    sig['signed_by'],
+                    fontsize=10,
+                    fontname='Helvetica',
+                    color=(0.067, 0.067, 0.067),
+                )
+
+            # Format date as MM/DD/YY
             try:
-                sig_bytes = flatten_signature_image(sig_image_b64)
-                sig_rect = fitz.Rect(line_x_start, sig_top, line_x_end, sig_bottom)
-                # keep_proportion=False so the signature fills the box edge-to-edge,
-                # giving it a proper "sitting on the line" appearance instead of floating in the top-left.
-                page.insert_image(sig_rect, stream=sig_bytes, keep_proportion=False, overlay=True)
-            except Exception as e:
-                print(f'[sign] signature image embed error: {e}')
+                dt = datetime.datetime.strptime(sig['signed_date'], '%Y-%m-%d')
+                date_formatted = dt.strftime('%m/%d/%y')
+            except Exception:
+                date_formatted = sig['signed_date']
+            date_formatted_by_role[sig.get('role', label)] = date_formatted
 
-        # Printed name goes on the line after "Printed Name:" label
-        if printed_name_hits:
-            name_rect = printed_name_hits[0]
-            name_x = name_rect.x1 + 8
-            name_y = name_rect.y1 - 2  # baseline aligned with label
-            page.insert_text(
-                fitz.Point(name_x, name_y),
-                signed_by,
-                fontsize=10,
-                fontname='Helvetica',
-                color=(0.067, 0.067, 0.067),
-            )
-
-        # Format date as MM/DD/YY
-        try:
-            dt = datetime.datetime.strptime(signed_date, '%Y-%m-%d')
-            date_formatted = dt.strftime('%m/%d/%y')
-        except Exception:
-            date_formatted = signed_date
-
-        # The "Date:" we want is the CLIENT'S date — the one BETWEEN "Printed Name:" and "Styling With Jas"
-        # date_hits returns ALL "Date:" occurrences. Pick the first one BELOW "Printed Name:" and above the Styling With Jas block
-        client_date_rect = None
-        if printed_name_hits:
-            pn_y = printed_name_hits[0].y1
-            for d_rect in date_hits:
-                # Must be below printed name, but in the client signature block
-                if d_rect.y0 > pn_y and d_rect.y0 < pn_y + 40:  # within ~40pt below
-                    client_date_rect = d_rect
-                    break
-
-        if client_date_rect:
-            page.insert_text(
-                fitz.Point(client_date_rect.x1 + 8, client_date_rect.y1 - 2),
-                date_formatted,
-                fontsize=10,
-                fontname='Helvetica',
-                color=(0.067, 0.067, 0.067),
-            )
+            # This block's own "Date:" line is the nearest one below its "Printed Name:" line
+            date_hits = page.search_for("Date:")
+            date_rect = _nearest_below(date_hits, pn_rect.y1, max_dist=20) if pn_rect else None
+            if date_rect:
+                page.insert_text(
+                    fitz.Point(date_rect.x1 + 8, date_rect.y1 - 2),
+                    date_formatted,
+                    fontsize=10,
+                    fontname='Helvetica',
+                    color=(0.067, 0.067, 0.067),
+                )
 
         # Step 4: Append electronic signature record as a NEW page
         # This keeps the existing 3 pages untouched and gives the audit trail its own page
@@ -335,28 +324,38 @@ def build_full_signed_contract(inv, signed_by, signed_date, signed_time, ip_addr
         new_page.insert_text(fitz.Point(54, y), 'Signature Audit Trail', fontsize=11, fontname='Helvetica-Bold', color=ink)
         y += 22
 
-        # Record rows
-        rows = [
-            ('Signed by', signed_by),
-            ('Date', date_formatted),
-            ('Time', f'{signed_time} PST'),
-            ('IP Address', ip_address),
-            ('Invoice', f"#{inv.get('invnum','')}"),
-            ('Method', f'{"Drawn" if sig_mode=="drawn" else "Typed"} signature via stylingwithjas.com'),
-            ('Legal basis', 'ESIGN Act (15 U.S.C. § 7001)'),
-        ]
-        for lbl, val in rows:
-            new_page.insert_text(fitz.Point(54, y), lbl, fontsize=9, fontname='Helvetica', color=muted)
-            new_page.insert_text(fitz.Point(180, y), str(val), fontsize=9, fontname='Helvetica-Bold', color=ink)
+        # One record block per signer
+        for sig in signatures:
+            new_page.insert_text(fitz.Point(54, y), sig['label'].rstrip(':'), fontsize=9.5, fontname='Helvetica-Bold', color=(0.722, 0.604, 0.388))
             y += 16
+            rows = [
+                ('Signed by', sig['signed_by']),
+                ('Date', date_formatted_by_role.get(sig.get('role', sig['label']), sig['signed_date'])),
+                ('Time', f"{sig['signed_time']} PST"),
+                ('IP Address', sig['ip_address']),
+                ('Method', f"{'Drawn' if sig.get('sig_mode')=='drawn' else 'Typed'} signature via stylingwithjas.com"),
+            ]
+            for lbl, val in rows:
+                new_page.insert_text(fitz.Point(54, y), lbl, fontsize=9, fontname='Helvetica', color=muted)
+                new_page.insert_text(fitz.Point(180, y), str(val), fontsize=9, fontname='Helvetica-Bold', color=ink)
+                y += 16
+            y += 8
+
+        new_page.insert_text(fitz.Point(54, y), 'Invoice', fontsize=9, fontname='Helvetica', color=muted)
+        new_page.insert_text(fitz.Point(180, y), f"#{inv.get('invnum','')}", fontsize=9, fontname='Helvetica-Bold', color=ink)
+        y += 16
+        new_page.insert_text(fitz.Point(54, y), 'Legal basis', fontsize=9, fontname='Helvetica', color=muted)
+        new_page.insert_text(fitz.Point(180, y), 'ESIGN Act (15 U.S.C. § 7001)', fontsize=9, fontname='Helvetica-Bold', color=ink)
+        y += 16
 
         y += 10
         new_page.draw_line(fitz.Point(54, y), fitz.Point(558, y), color=(0.906, 0.882, 0.851), width=0.5)
         y += 18
 
         # Legal disclaimer
+        signer_names = ' and '.join(s['signed_by'] for s in signatures)
         disclaimer = (
-            f'By signing above, {signed_by} agrees to the staging services proposal '
+            f'By signing above, {signer_names} agree(s) to the staging services proposal '
             f'issued by Styling With Jas (Lux Ventures LLC). This electronic signature '
             f'is legally binding under the Electronic Signatures in Global and National '
             f'Commerce Act (ESIGN Act, 15 U.S.C. § 7001 et seq.).'
@@ -405,12 +404,10 @@ def build_full_signed_contract(inv, signed_by, signed_date, signed_time, ip_addr
         print(f'[sign] full contract build failed: {e}')
         import traceback
         traceback.print_exc()
-        return build_standalone_record(inv, signed_by, signed_date, signed_time, ip_address,
-                                       sig_image_b64, sig_mode)
+        return build_standalone_record(inv, signatures)
 
 
-def build_standalone_record(inv, signed_by, signed_date, signed_time, ip_address,
-                            sig_image_b64=None, sig_mode='drawn'):
+def build_standalone_record(inv, signatures):
     """Fallback: build standalone signature record PDF (old behavior).
     Only used if PyMuPDF or generate.py can't be loaded."""
     try:
@@ -444,15 +441,23 @@ def build_standalone_record(inv, signed_by, signed_date, signed_time, ip_address
 
         c.setFont('Helvetica', 9)
         c.setFillColor(muted)
-        for lbl, val in [
-            ('Signed by', signed_by),
-            ('Date', signed_date),
-            ('Time', f'{signed_time} PST'),
-            ('IP', ip_address),
-            ('Invoice', f"#{inv.get('invnum','')}"),
-        ]:
-            c.drawString(0.75*inch, y, f'{lbl}: {val}')
-            y -= 14
+        for sig in signatures:
+            c.setFont('Helvetica-Bold', 10)
+            c.setFillColor(ink)
+            c.drawString(0.75*inch, y, sig['label'].rstrip(':'))
+            y -= 16
+            c.setFont('Helvetica', 9)
+            c.setFillColor(muted)
+            for lbl, val in [
+                ('Signed by', sig['signed_by']),
+                ('Date', sig['signed_date']),
+                ('Time', f"{sig['signed_time']} PST"),
+                ('IP', sig['ip_address']),
+            ]:
+                c.drawString(0.75*inch, y, f'{lbl}: {val}')
+                y -= 14
+            y -= 6
+        c.drawString(0.75*inch, y, f"Invoice: #{inv.get('invnum','')}")
 
         c.save()
         return buf.getvalue()
@@ -514,6 +519,39 @@ def send_signed_email(to_email, client_name, invnum, pdf_bytes, contract_url, ja
         return False
 
 
+def send_pending_signature_email(to_email, to_name, other_signer_name, invnum, proposal_link):
+    """Notify the second required signer that the first party has signed and it's their turn."""
+    try:
+        password = os.environ.get('EMAIL_PASSWORD', '')
+        if not password:
+            return False
+
+        msg = MIMEMultipart()
+        msg['From'] = FROM_EMAIL
+        msg['To'] = to_email
+        msg['Subject'] = f'Your countersignature is needed — #{invnum}'
+        body = (
+            f'Hi {to_name.split()[0] if to_name else ""},\n\n'
+            f'{other_signer_name} has signed the staging proposal for invoice #{invnum}, '
+            f'and it now needs your countersignature to finalize the agreement.\n\n'
+            f'Please review and sign here:\n{proposal_link}\n\n'
+            f'Once you sign, both of you will receive the fully executed contract by email.\n\n'
+            f'Questions? Call or text Jasmine at 206-422-5618.\n\n'
+            f'— Jasmine Santana\n'
+            f'Styling With Jas\n'
+            f'206-422-5618 · info@stylingwithjas.com'
+        )
+        msg.attach(MIMEText(body, 'plain'))
+
+        with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=15) as server:
+            server.login(FROM_EMAIL, password)
+            server.sendmail(FROM_EMAIL, to_email, msg.as_string())
+        return True
+    except Exception as e:
+        print(f'Email error to {to_email}: {e}')
+        return False
+
+
 class handler(BaseHTTPRequestHandler):
     def do_OPTIONS(self):
         self.send_response(200)
@@ -534,6 +572,9 @@ class handler(BaseHTTPRequestHandler):
         agreed = body.get('agreed', False)
         sig_image = body.get('sig_image', None)
         sig_mode = body.get('sig_mode', 'typed')
+        role = (body.get('role') or 'client').strip()
+        if role not in ('client', 'cosigner'):
+            role = 'client'
 
         if not invnum:
             self._respond(400, {'error': 'Missing invnum'})
@@ -565,27 +606,93 @@ class handler(BaseHTTPRequestHandler):
             d = inv.get('data', {})
             client = inv.get('client', signed_by)
             client_email = d.get('client_email', '')
+            cosigner = d.get('cosigner') or {}
+            cosigner_role_label = (cosigner.get('role') or '').strip() or 'Co-Signer'
+            has_cosigner = bool(cosigner.get('name') and cosigner.get('email'))
+            if role == 'cosigner' and not has_cosigner:
+                role = 'client'  # defensive — UI shouldn't offer this role otherwise
 
-            # Build the full signed contract (full proposal + signature stamped on page 3)
-            pdf_bytes = build_full_signed_contract(
-                inv, signed_by, signed_date, signed_time, ip_address,
-                sig_image_b64=sig_image, sig_mode=sig_mode
-            )
+            required_roles = ['client'] + (['cosigner'] if has_cosigner else [])
+            existing_signatures = d.get('signatures') or []
+
+            # Idempotent: a duplicate submit for a role already recorded just reports current state
+            already = next((s for s in existing_signatures if s.get('role') == role), None)
+            if already:
+                fully_signed = all(any(s.get('role') == r for s in existing_signatures) for r in required_roles)
+                self._respond(200, {
+                    'signed': True,
+                    'fully_signed': fully_signed,
+                    'invnum': invnum,
+                    'contract_url': d.get('contract_url'),
+                    'stage': d.get('stage', 'confirmed' if fully_signed else None),
+                })
+                return
+
+            new_sig = {
+                'role': role,
+                'label': 'Client Signature:' if role == 'client' else f'{cosigner_role_label} Signature:',
+                'signed_by': signed_by,
+                'signed_date': signed_date,
+                'signed_time': signed_time,
+                'ip_address': ip_address,
+                'sig_mode': sig_mode,
+                'signed_at': signed_at,
+                'sig_image_b64': sig_image,
+            }
+            signatures = existing_signatures + [new_sig]
+            fully_signed = all(any(s.get('role') == r for s in signatures) for r in required_roles)
+
+            if not fully_signed:
+                # One required signer is still pending — save progress, notify them, don't build the contract yet
+                updated_data = {
+                    **d,
+                    'signatures': signatures,
+                }
+                supabase_update_invoice(invnum, {
+                    'data': updated_data,
+                    'client': inv.get('client', ''),
+                    'address': inv.get('address', ''),
+                    'invdate': inv.get('invdate', ''),
+                })
+
+                waiting_role = next(r for r in required_roles if not any(s.get('role') == r for s in signatures))
+                waiting_name = client if waiting_role == 'client' else cosigner.get('name', '')
+                waiting_email = client_email if waiting_role == 'client' else cosigner.get('email', '')
+                origin = 'https://' + (self.headers.get('X-Forwarded-Host') or self.headers.get('Host') or 'stylingwithjas.com')
+                proposal_link = f'{origin}/proposal.html?inv={urllib.parse.quote(invnum)}'
+                if waiting_email:
+                    send_pending_signature_email(waiting_email, waiting_name, signed_by, invnum, proposal_link)
+
+                self._respond(200, {
+                    'signed': True,
+                    'fully_signed': False,
+                    'invnum': invnum,
+                    'waiting_on': waiting_name,
+                })
+                return
+
+            # Every required party has now signed — build the merged contract
+            pdf_bytes = build_full_signed_contract(inv, signatures)
 
             # Upload to Supabase Storage
             contract_url = None
             if pdf_bytes:
                 contract_url = supabase_upload_pdf(invnum, pdf_bytes)
 
+            # The raw signature images are baked into the PDF now — no need to keep them in the JSON blob
+            signatures_stored = [{k: v for k, v in s.items() if k != 'sig_image_b64'} for s in signatures]
+            last_sig = signatures[-1]
+
             # Update invoice with signature data + move to confirmed stage
             updated_data = {
                 **d,
+                'signatures': signatures_stored,
                 'signed': True,
-                'signed_by': signed_by,
-                'signed_date': signed_date,
-                'signed_time': signed_time,
-                'signed_ip': ip_address,
-                'signed_at': signed_at,
+                'signed_by': ' & '.join(s['signed_by'] for s in signatures),
+                'signed_date': last_sig['signed_date'],
+                'signed_time': last_sig['signed_time'],
+                'signed_ip': last_sig['ip_address'],
+                'signed_at': last_sig['signed_at'],
                 'contract_url': contract_url,
                 'stage': 'confirmed',
             }
@@ -599,12 +706,15 @@ class handler(BaseHTTPRequestHandler):
             # Email Jasmine
             send_signed_email(JASMINE_EMAIL, client, invnum, pdf_bytes, contract_url, jasmine=True)
 
-            # Email client
+            # Email every signer who has an address on file
             if client_email:
                 send_signed_email(client_email, client, invnum, pdf_bytes, contract_url, jasmine=False)
+            if has_cosigner and cosigner.get('email'):
+                send_signed_email(cosigner['email'], cosigner.get('name', client), invnum, pdf_bytes, contract_url, jasmine=False)
 
             self._respond(200, {
                 'signed': True,
+                'fully_signed': True,
                 'invnum': invnum,
                 'contract_url': contract_url,
                 'stage': 'confirmed',

@@ -257,11 +257,22 @@ async function loadProposal(){
       showSigned(d);
       return;
     }
+
+    // Determine which required party still needs to sign. Client always signs first;
+    // an optional co-signer (set up at generation time) countersigns after.
+    const cosigner = d.cosigner||{};
+    const hasCosigner = !!(cosigner.name && cosigner.email);
+    const signatures = d.signatures||[];
+    const requiredRoles = ['client'].concat(hasCosigner?['cosigner']:[]);
+    _pendingRole = requiredRoles.find(r=>!signatures.some(s=>s.role===r)) || 'client';
+
     renderProposal(d);
   } catch(e){
     showError('Could not load proposal: '+e.message);
   }
 }
+
+let _pendingRole = 'client';
 
 function renderProposal(d){
   const invnum = _inv.invnum;
@@ -290,6 +301,13 @@ function renderProposal(d){
   const _contribEntries = (d.payments||[]).filter(p=>p.audience==='other');
   const _contribTotal = _contribEntries.reduce((s,p)=>s+(parseFloat(p.amount)||0),0);
   const _clientBalance = Math.max(0, _grand-_contribTotal);
+
+  // Multi-party signing: an optional co-signer (spouse, co-buyer, referring agent — role label
+  // is Jasmine's to write) countersigns after the client. _pendingRole was set in loadProposal().
+  const cosigner = d.cosigner||{};
+  const cosignerRoleLabel = (cosigner.role||'').trim() || 'Co-Signer';
+  const pendingIsCosigner = _pendingRole === 'cosigner';
+  const pendingSignerName = pendingIsCosigner ? (cosigner.name||'') : client;
 
   // Update status
   setStatus('pending','Awaiting your approval');
@@ -364,7 +382,11 @@ function renderProposal(d){
 
 
     <div class="sign-section" id="sign-section">
-      <div class="sign-title">Sign this proposal</div>
+      ${pendingIsCosigner?`
+      <div style="background:var(--bg);border:0.5px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:16px;font-size:12px;color:var(--muted);">
+        <strong style="color:var(--ink)">${esc(client)}</strong> has signed. Your countersignature as <strong style="color:var(--ink)">${esc(cosignerRoleLabel)}</strong> is needed to finalize this agreement.
+      </div>`:''}
+      <div class="sign-title">${pendingIsCosigner?`Countersign as ${esc(cosignerRoleLabel)}`:'Sign this proposal'}</div>
       <div class="sign-sub">Draw your signature using your finger or mouse. On desktop you can also type your name instead. This is legally binding under the ESIGN Act.</div>
 
       <!-- Draw mode -->
@@ -393,7 +415,7 @@ function renderProposal(d){
       <!-- Full name for records (always shown) -->
       <div class="sign-field" style="margin-top:6px;">
         <div class="sign-lbl">Full name (for records)</div>
-        <input class="sign-input" id="sig-name" type="text" placeholder="Type your full name" autocomplete="name" style="font-size:16px;">
+        <input class="sign-input" id="sig-name" type="text" placeholder="Type your full name" autocomplete="name" style="font-size:16px;" value="${esc(pendingSignerName)}">
       </div>
 
       <div class="sign-field">
@@ -405,7 +427,7 @@ function renderProposal(d){
         <div class="sign-agree-text">I have read and agree to the staging proposal and terms above. I understand this is a binding agreement and authorize <strong>Styling With Jas</strong> to provide staging services as described for <strong>${fmt(_grand)}</strong>.</div>
       </label>
       <button class="sign-submit" id="sign-btn" onclick="submitSignature()">
-        I Approve &amp; Sign This Proposal
+        ${pendingIsCosigner?'I Countersign This Proposal':'I Approve &amp; Sign This Proposal'}
       </button>
       <div class="sign-legal">
         Electronic signature · ${new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})} ·
@@ -450,6 +472,7 @@ async function submitSignature(){
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({
         invnum: _inv.invnum,
+        role: _pendingRole,
         signed_by: name,
         signed_date: date,
         agreed: true,
@@ -458,13 +481,29 @@ async function submitSignature(){
       })
     });
     const result = await r.json();
-    if(result.error){ alert('Signing failed: '+result.error); btn.disabled=false; btn.textContent='I Approve &amp; Sign This Proposal'; return; }
-    showConfirmation(name, date, result.contract_url);
+    if(result.error){ alert('Signing failed: '+result.error); btn.disabled=false; btn.textContent=_pendingRole==='cosigner'?'I Countersign This Proposal':'I Approve & Sign This Proposal'; return; }
+    if(result.fully_signed){
+      showConfirmation(name, date, result.contract_url);
+    } else {
+      showWaitingOnOther(name, result.waiting_on);
+    }
   } catch(e){
     alert('Error: '+e.message);
     btn.disabled=false;
-    btn.textContent='I Approve &amp; Sign This Proposal';
+    btn.textContent=_pendingRole==='cosigner'?'I Countersign This Proposal':'I Approve & Sign This Proposal';
   }
+}
+
+function showWaitingOnOther(name, waitingOn){
+  setStatus('pending','Awaiting countersignature');
+  document.getElementById('main-content').innerHTML = `
+    <div class="confirm-card">
+      <div class="confirm-icon">✍️</div>
+      <div class="confirm-title">Thank you, ${esc(name.split(' ')[0])}.</div>
+      <div class="confirm-sub">Your signature has been recorded. We've notified ${esc(waitingOn||'the other party')} to countersign — you'll both receive the fully executed contract by email once they do.</div>
+    </div>
+  `;
+  window.scrollTo({top:0,behavior:'smooth'});
 }
 
 function showConfirmation(name, date, contractUrl){
@@ -508,11 +547,15 @@ function showSigned(d){
   const amountPaid = computeAmountPaid(d);
   const balanceRemaining = Math.max(0, grand-amountPaid);
   const active = getActivePayment(d, grand);
+  const sigs = d.signatures||[];
+  const approvedByHTML = sigs.length
+    ? sigs.map(s=>`<strong>${esc(s.signed_by)}</strong> on ${fmtDate(s.signed_date)}`).join(' &nbsp;&amp;&nbsp; ')
+    : `<strong>${esc(d.signed_by||'')}</strong> on ${fmtDate(d.signed_date)}`;
   document.getElementById('main-content').innerHTML = `
     <div class="confirm-card">
       <div class="confirm-icon">✅</div>
       <div class="confirm-title">Already signed.</div>
-      <div class="confirm-sub">This proposal was approved by <strong>${esc(d.signed_by||'')}</strong> on ${fmtDate(d.signed_date)}.</div>
+      <div class="confirm-sub">This proposal was approved by ${approvedByHTML}.</div>
       ${amountPaid>0.009?`<div style="margin-top:12px;font-size:12px;color:var(--muted);text-align:center;">Paid ${fmt(amountPaid)} of ${fmt(grand)}${balanceRemaining>0.009?` · ${fmt(balanceRemaining)} remaining`:' · Paid in full'}</div>`:''}
       ${active?`<a href="${esc(active.url)}" class="pay-btn" target="_blank">Pay Now — ${fmt(active.amount)}</a>`
         : (balanceRemaining>0.009?`<div style="margin-top:10px;font-size:12px;color:var(--muted);text-align:center;">Balance due: <strong style="color:var(--ink)">${fmt(balanceRemaining)}</strong>. Jasmine will send you a payment link.</div>`:'')}
