@@ -1806,12 +1806,20 @@ async function createSplitPayment(invnum){
   loadBoard();
   try{ await navigator.clipboard.writeText(url); }catch(e){}
 
+  // Third-party links (not shown to the client) need to actually be sent somewhere —
+  // give Jasmine an email field right here instead of only "open/copy it yourself".
+  window._boardEmailLink = !forClient ? {url, label, amount} : null;
+
   const ov=document.createElement('div');
-  ov.style.cssText='position:fixed;inset:0;background:rgba(26,24,20,0.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:24px;font-family:Inter,-apple-system,sans-serif';
-  ov.innerHTML='<div style="background:#fff;border-radius:16px;max-width:360px;width:100%;padding:22px;text-align:center">'
+  ov.style.cssText='position:fixed;inset:0;background:rgba(26,24,20,0.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:24px;font-family:Inter,-apple-system,sans-serif;overflow-y:auto';
+  ov.innerHTML='<div style="background:#fff;border-radius:16px;max-width:380px;width:100%;padding:22px;text-align:center;max-height:88vh;overflow-y:auto">'
     +'<div style="font-family:Georgia,serif;font-size:20px;color:#1a1814;margin-bottom:4px">'+(label||'Payment link')+'</div>'
     +'<div style="font-size:13px;color:#3d3830;line-height:1.5;margin-bottom:16px">$'+amount.toLocaleString(undefined,{minimumFractionDigits:2})+(forClient?' · will show on the client\'s Approve &amp; Sign page':' · for a separate payer — not shown to the client')+'<br>This link copied to clipboard.</div>'
     +'<a href="'+url+'" target="_blank" style="display:block;background:#1a1814;color:#fff;text-decoration:none;padding:13px;border-radius:11px;font-weight:600;margin-bottom:8px">💳 Open this link</a>'
+    +(!forClient?('<div style="display:flex;gap:6px;margin-bottom:4px;text-align:left">'
+      +'<input type="email" id="board-contrib-email" placeholder="their email address" style="flex:1;font-size:12.5px;padding:9px 10px;border:1px solid #ddd;border-radius:8px;font-family:inherit">'
+      +'<button onclick="emailBoardContribLink()" id="board-contrib-send" style="background:#1a1814;color:#fff;border:none;border-radius:8px;padding:9px 14px;font-size:12.5px;font-weight:600;cursor:pointer">Send</button>'
+      +'</div><div id="board-contrib-status" style="font-size:11px;text-align:left;margin-bottom:10px;min-height:14px"></div>') : '')
     +(secondUrl?('<div style="font-size:12px;color:#2d6a0a;margin:14px 0 6px;border-top:1px solid #eee;padding-top:12px">Client\'s balance auto-updated to $'+secondAmount.toLocaleString(undefined,{minimumFractionDigits:2})+' — their old link is retired.</div>'
       +'<a href="'+secondUrl+'" target="_blank" style="display:block;background:#f5ead8;color:#9d7a44;text-decoration:none;padding:12px;border-radius:11px;font-weight:600;margin-bottom:6px">💳 Open client\'s new link</a>')
       : (secondNote?'<div style="font-size:12px;color:#b53535;margin:14px 0 0">'+secondNote+'</div>'
@@ -1823,6 +1831,27 @@ async function createSplitPayment(invnum){
   document.body.appendChild(ov);
   ov.querySelector('#pay-ov-close').onclick=function(){ ov.remove(); };
   ov.addEventListener('click',function(e){ if(e.target===ov) ov.remove(); });
+}
+
+async function emailBoardContribLink(){
+  const p=window._boardEmailLink;
+  if(!p) return;
+  const emailInput=document.getElementById('board-contrib-email');
+  const statusEl=document.getElementById('board-contrib-status');
+  const btn=document.getElementById('board-contrib-send');
+  const to=emailInput.value.trim();
+  const emailRegex=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if(!to || !emailRegex.test(to)){ statusEl.textContent='Enter a valid email address'; statusEl.style.color='#e24b4a'; return; }
+  btn.disabled=true; statusEl.textContent='Sending…'; statusEl.style.color='#888';
+  const amt='$'+parseFloat(p.amount).toLocaleString(undefined,{minimumFractionDigits:2});
+  const subject='Payment Request — '+(p.label||'Payment');
+  const message='Hi,\n\nJasmine Santana with Styling With Jas is requesting '+amt+' for: '+(p.label||'this payment')+'.\n\nYou can pay securely here:\n'+p.url+'\n\nThank you!\n\nJasmine Santana\nOwner & Creative Director — Styling With Jas\n206-422-5618\ninfo@stylingwithjas.com';
+  try{
+    const r=await fetch('/api/email',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({to,subject,message})});
+    const d=await r.json();
+    if(d.sent){ statusEl.textContent='✓ Sent to '+to; statusEl.style.color='#22c55e'; }
+    else{ statusEl.textContent='Error: '+(d.error||'Unknown'); statusEl.style.color='#e24b4a'; btn.disabled=false; }
+  }catch(e){ statusEl.textContent='Error: '+e.message; statusEl.style.color='#e24b4a'; btn.disabled=false; }
 }
 
 async function extendRental(invnum){
