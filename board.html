@@ -1728,22 +1728,49 @@ async function createSplitPayment(invnum){
     url=j.url; linkId=j.id||null;
   }catch(e){ alert('Could not create the payment link:\n'+e.message+'\n\nNothing was changed.'); return; }
 
-  // If this is a new client-facing link, retire whichever one the client currently sees
-  // so they can never pay a stale amount.
-  if(forClient){
+  // Retire whichever link the client currently sees, so they can never pay a stale amount.
+  // Works whether the prior active link was an earlier split entry or the ORIGINAL
+  // full-amount link created at invoice generation.
+  async function retireActiveClientLink(){
     const prevId=d.active_client_payment_id;
     const prevEntry=(d.payments||[]).find(p=>p.id===prevId);
     if(prevEntry && prevEntry.link_id){
       try{ await fetch('/api/stripe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'deactivate',link_id:prevEntry.link_id})}); }catch(e){}
     } else if(!prevEntry && d.payment_url && d.payment_link_id){
-      // Retiring the ORIGINAL full-amount link created at invoice generation, if we have its id.
       try{ await fetch('/api/stripe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'deactivate',link_id:d.payment_link_id})}); }catch(e){}
     }
   }
 
   d.payments=d.payments||[];
   d.payments.push({id:payId, amount, label, audience:forClient?'client':'other', payment_url:url, link_id:linkId, status:'pending', created:new Date().toISOString().split('T')[0]});
-  if(forClient) d.active_client_payment_id=payId;
+
+  let secondUrl=null, secondAmount=0, secondNote='';
+  if(forClient){
+    await retireActiveClientLink();
+    d.active_client_payment_id=payId;
+  } else {
+    // Someone ELSE is covering part of the total — the client's own balance just
+    // shrank, so we automatically refresh THEIR link to match. This is what makes
+    // it one click: Jasmine never has to come back and create a "leftover" link
+    // herself, and the client can never pay a stale (too-high) amount in the meantime.
+    const newRemaining=Math.max(0, Math.round((grand - d.payments.reduce((s,p)=>s+(parseFloat(p.amount)||0),0))*100)/100);
+    await retireActiveClientLink();
+    if(newRemaining>0.01){
+      const payNum2=d.payments.length+1;
+      const payId2='PAY'+payNum2;
+      try{
+        const r2=await fetch('/api/stripe',{method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({grand:newRemaining, client:inv.client, invnum:invnum+'-'+payId2, address:inv.address, client_email:d.client_email||'', label:'Remaining balance'})});
+        const j2=await r2.json();
+        if(j2.error) throw new Error(j2.error);
+        d.payments.push({id:payId2, amount:newRemaining, label:'Remaining balance', audience:'client', payment_url:j2.url, link_id:j2.id||null, status:'pending', created:new Date().toISOString().split('T')[0]});
+        d.active_client_payment_id=payId2;
+        secondUrl=j2.url; secondAmount=newRemaining;
+      }catch(e){ secondNote='Could not auto-create the client\'s new balance link ('+e.message+') — create one manually.'; d.active_client_payment_id=null; }
+    } else {
+      d.active_client_payment_id=null;   // covered in full — nothing left for the client to pay
+    }
+  }
 
   try{ await _sb.from('invoices').upsert({invnum:inv.invnum, client:inv.client, address:inv.address, invdate:inv.invdate, data:d}, {onConflict:'invnum'}); }catch(e){}
 
@@ -1755,9 +1782,13 @@ async function createSplitPayment(invnum){
   ov.style.cssText='position:fixed;inset:0;background:rgba(26,24,20,0.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:24px;font-family:Inter,-apple-system,sans-serif';
   ov.innerHTML='<div style="background:#fff;border-radius:16px;max-width:360px;width:100%;padding:22px;text-align:center">'
     +'<div style="font-family:Georgia,serif;font-size:20px;color:#1a1814;margin-bottom:4px">'+(label||'Payment link')+'</div>'
-    +'<div style="font-size:13px;color:#3d3830;line-height:1.5;margin-bottom:16px">$'+amount.toLocaleString(undefined,{minimumFractionDigits:2})+(forClient?' · will show on the client\'s Approve &amp; Sign page':' · for a separate payer — not shown to the client')+'<br>Link copied to clipboard.</div>'
-    +'<a href="'+url+'" target="_blank" style="display:block;background:#1a1814;color:#fff;text-decoration:none;padding:13px;border-radius:11px;font-weight:600;margin-bottom:8px">💳 Open payment link</a>'
-    +'<button id="pay-ov-close" style="background:none;border:none;color:#a29c96;font-size:13px;padding:8px;cursor:pointer">Close</button>'
+    +'<div style="font-size:13px;color:#3d3830;line-height:1.5;margin-bottom:16px">$'+amount.toLocaleString(undefined,{minimumFractionDigits:2})+(forClient?' · will show on the client\'s Approve &amp; Sign page':' · for a separate payer — not shown to the client')+'<br>This link copied to clipboard.</div>'
+    +'<a href="'+url+'" target="_blank" style="display:block;background:#1a1814;color:#fff;text-decoration:none;padding:13px;border-radius:11px;font-weight:600;margin-bottom:8px">💳 Open this link</a>'
+    +(secondUrl?('<div style="font-size:12px;color:#2d6a0a;margin:14px 0 6px;border-top:1px solid #eee;padding-top:12px">Client\'s balance auto-updated to $'+secondAmount.toLocaleString(undefined,{minimumFractionDigits:2})+' — their old link is retired.</div>'
+      +'<a href="'+secondUrl+'" target="_blank" style="display:block;background:#f5ead8;color:#9d7a44;text-decoration:none;padding:12px;border-radius:11px;font-weight:600;margin-bottom:6px">💳 Open client\'s new link</a>')
+      : (secondNote?'<div style="font-size:12px;color:#b53535;margin:14px 0 0">'+secondNote+'</div>'
+      : (!forClient?'<div style="font-size:12px;color:#2d6a0a;margin:14px 0 0">Covered in full — the client\'s payment link has been retired.</div>':'')))
+    +'<button id="pay-ov-close" style="background:none;border:none;color:#a29c96;font-size:13px;padding:8px;cursor:pointer;margin-top:8px">Close</button>'
     +'</div>';
   document.body.appendChild(ov);
   ov.querySelector('#pay-ov-close').onclick=function(){ ov.remove(); };
