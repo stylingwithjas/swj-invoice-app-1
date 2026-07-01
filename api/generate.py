@@ -1059,22 +1059,28 @@ def generate_invoice_pdf(data):
             cv.line(ML + 80, y + 2, ML + 180, y + 2)
             y -= 16
     
+    # Optional second required signer (e.g. spouse, co-buyer, referring agent) — set up
+    # at invoice generation. Wording of the role label is Jasmine's to write.
+    cosigner = data.get('cosigner') or {}
+    cosigner_role = (cosigner.get('role') or '').strip() or 'Co-Signer'
+    has_cosigner = bool(cosigner.get('name') and cosigner.get('email'))
+
     # Keep the whole signature block together — if it won't fit, start a fresh page
     # so the acceptance lines, Jasmine's signature, and date never get cut off.
-    if y < 235:
+    if y < (235 + (48 if has_cosigner else 0)):
         cv.showPage()
         y = draw_header(775)
 
     # Signatures
     cv.setStrokeColor(LGRAY); cv.setLineWidth(0.4)
     cv.line(ML, y, PW-MR, y); y -= 14
-    
+
     cv.setFont('Helvetica-Bold', 8.5); cv.setFillColor(BLACK)
     cv.drawCentredString(PW/2, y, 'Acceptance of Proposal'); y -= 10
     cv.setFont('Helvetica', 7.5); cv.setFillColor(colors.HexColor('#444444'))
     cv.drawCentredString(PW/2, y, 'By signing below, both parties confirm they have read, understood, and agree to all terms, pricing, and conditions above.')
     y -= 22
-    
+
     sig_w = CW * 0.55
     cv.setFont('Helvetica', 8); cv.setFillColor(colors.HexColor('#333333'))
     cv.drawString(ML, y, 'Client Signature:')
@@ -1084,7 +1090,17 @@ def generate_invoice_pdf(data):
     cv.line(ML+75, y+2, ML+sig_w, y+2); y -= 12
     cv.drawString(ML, y, 'Date:')
     cv.line(ML+30, y+2, ML+sig_w, y+2); y -= 24
-    
+
+    if has_cosigner:
+        cosign_label = f'{cosigner_role} Signature:'
+        label_w = cv.stringWidth(cosign_label, 'Helvetica', 8)
+        cv.drawString(ML, y, cosign_label)
+        cv.line(ML+label_w+8, y+2, ML+sig_w, y+2); y -= 12
+        cv.drawString(ML, y, 'Printed Name:')
+        cv.line(ML+75, y+2, ML+sig_w, y+2); y -= 12
+        cv.drawString(ML, y, 'Date:')
+        cv.line(ML+30, y+2, ML+sig_w, y+2); y -= 24
+
     cv.setFont('Helvetica-Bold', 8); cv.setFillColor(BLACK)
     cv.drawString(ML, y, 'Styling With Jas'); y -= 11
     cv.setFont('Helvetica', 8); cv.setFillColor(colors.HexColor('#333333'))

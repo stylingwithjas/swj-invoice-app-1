@@ -1149,6 +1149,7 @@ function buildCardHTML(inv){
     tags.push({text:'Mover: TBD', cls:'w'});
   }
   if(d.signed) tags.push({text:'Signed ✓', cls:'ok'});
+  else if((d.signatures||[]).length) tags.push({text:'Awaiting countersignature', cls:'a'});
   if(d.paid) tags.push({text:'Paid'});
   else if(stage==='confirmed') tags.push({text:'Payment pending', cls:'a'});
   if(d.photo_date && (stage==='confirmed'||stage==='staged')) tags.push({text:'Photos ' + fmtDateShort(d.photo_date)});

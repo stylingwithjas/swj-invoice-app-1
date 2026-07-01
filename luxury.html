@@ -569,6 +569,28 @@ body { background:#eceff3; color:var(--ink); }
     </div>
   </div>
 
+  <!-- CO-SIGNER -->
+  <div class="card">
+    <div class="card-hdr"><span class="sec-lbl">Co-Signer (optional)</span><div class="sec-accent"></div></div>
+    <div class="card-body">
+      <div class="field-row">
+        <div class="field" style="max-width:150px">
+          <div class="field-lbl">Role label</div>
+          <input class="field-input" id="cosigner-role" type="text" placeholder="Co-Signer">
+        </div>
+        <div class="field">
+          <div class="field-lbl">Full name</div>
+          <input class="field-input" id="cosigner-name" type="text" placeholder="Jane Doe" autocomplete="name">
+        </div>
+      </div>
+      <div class="field">
+        <div class="field-lbl">Email</div>
+        <input class="field-input" id="cosigner-email" type="email" placeholder="cosigner@example.com" autocomplete="email">
+      </div>
+      <div style="font-size:10px;color:var(--taupe);margin-top:6px">A second required signer (e.g. spouse, co-buyer, referring agent). The client signs first; this person is then emailed automatically to countersign, and both signatures merge into one contract. Leave blank for a single-signer invoice.</div>
+    </div>
+  </div>
+
   <!-- OPTIONS -->
   <div class="card">
     <div class="card-hdr"><span class="sec-lbl">Options</span><div class="sec-accent"></div></div>
@@ -1013,6 +1035,17 @@ function renderContributions(){
   recalc();
 }
 function updContribution(id,k,v){const x=contributions.find(y=>y.id===id);if(x){x[k]=v;recalc();}}
+
+// Optional second required signer (e.g. spouse, co-buyer, referring agent). Client always
+// signs first; this person is then emailed to countersign, and the two signatures merge
+// into one contract. Returns null when name/email aren't both filled in — single-signer invoice.
+function getCosigner(){
+  const role=(document.getElementById('cosigner-role')?.value||'').trim();
+  const name=(document.getElementById('cosigner-name')?.value||'').trim();
+  const email=(document.getElementById('cosigner-email')?.value||'').trim();
+  if(!name||!email) return null;
+  return {role:role||'Co-Signer',name,email};
+}
 
 function fmt(n){return'$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
 function recalc(){
@@ -1654,6 +1687,10 @@ function loadInvoiceData(d){
     document.getElementById('cover_page').checked = d.cover_page||false;
     if(document.getElementById('cover_note')) document.getElementById('cover_note').value = d.cover_note||'';
     if(d.cover_page) toggleCover();
+    const _cs = d.cosigner||{};
+    if(document.getElementById('cosigner-role')) document.getElementById('cosigner-role').value = _cs.role||'';
+    if(document.getElementById('cosigner-name')) document.getElementById('cosigner-name').value = _cs.name||'';
+    if(document.getElementById('cosigner-email')) document.getElementById('cosigner-email').value = _cs.email||'';
 
     // Prefer exact structured restore for records saved with full state.
     if(d.state){
@@ -1794,6 +1831,7 @@ async function saveDraft(silent){
     paid: document.getElementById('paid').checked,
     paid_date: document.getElementById('paid_date')?.value||'',
     payment_url: null,
+    cosigner: getCosigner(),
     _is_draft: true,
     _draft_saved: new Date().toLocaleDateString()
   };
@@ -1898,7 +1936,7 @@ async function downloadPdfNow(){
   const invNumFinal=document.getElementById('invnum-display').value.trim()||'202093';
 
   const _contribList=contributions.filter(c=>c.label&&parseFloat(c.amount)>0).map(c=>({label:c.label,amount:parseFloat(c.amount)}));
-  const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:document.getElementById('startdate').value,baserooms:[...selRooms].join(', '),extrate,taxrate,base_price:base,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,home_value:homeValue,home_sqft:homeSqft,tier:selTier,scope:selScope,promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,promo4:document.getElementById('promo4')?.checked||false,payment_url:null,contributions:_contribList,cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||''};
+  const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:document.getElementById('startdate').value,baserooms:[...selRooms].join(', '),extrate,taxrate,base_price:base,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,home_value:homeValue,home_sqft:homeSqft,tier:selTier,scope:selScope,promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,promo4:document.getElementById('promo4')?.checked||false,payment_url:null,contributions:_contribList,cosigner:getCosigner(),cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||''};
 
   const ctrl=new AbortController();
   const to=setTimeout(()=>ctrl.abort(),90000);
@@ -2145,7 +2183,7 @@ async function generatePDF(){
   setSt('loading','Generating your invoice PDF...');
   const _contribList=contributions.filter(c=>c.label&&parseFloat(c.amount)>0).map(c=>({label:c.label,amount:parseFloat(c.amount)}));
   const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:document.getElementById('startdate').value,baserooms:[...selRooms].join(', '),extrate,taxrate,base_price:base,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,state:captureState(),home_value:homeValue,home_sqft:homeSqft,tier:selTier,scope:selScope,promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
-            promo4:document.getElementById('promo4').checked,payment_url,payment_link_id,contributions:_contribList,payments:splitPayments,active_client_payment_id:activeClientPaymentId,cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||''};
+            promo4:document.getElementById('promo4').checked,payment_url,payment_link_id,contributions:_contribList,payments:splitPayments,active_client_payment_id:activeClientPaymentId,cosigner:getCosigner(),cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||''};
 
   const _ctrl=new AbortController();
   const _to=setTimeout(()=>_ctrl.abort(),90000);   // never spin forever
@@ -2231,7 +2269,7 @@ async function generate(){
 
   const _contribList=contributions.filter(c=>c.label&&parseFloat(c.amount)>0).map(c=>({label:c.label,amount:parseFloat(c.amount)}));
   const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:document.getElementById('startdate').value,baserooms:[...selRooms].join(', '),extrate,taxrate,base_price:parseFloat(document.getElementById('base_price')?.value)||2500,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,state:captureState(),home_value:homeValue,home_sqft:homeSqft,tier:selTier,scope:selScope,promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
-            promo4:document.getElementById('promo4').checked,payment_url,payment_link_id,contributions:_contribList,payments:splitPayments,active_client_payment_id:activeClientPaymentId,cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||''};
+            promo4:document.getElementById('promo4').checked,payment_url,payment_link_id,contributions:_contribList,payments:splitPayments,active_client_payment_id:activeClientPaymentId,cosigner:getCosigner(),cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||''};
 
   // Send to API and download PDF
   try {
