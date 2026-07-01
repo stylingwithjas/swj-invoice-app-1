@@ -398,7 +398,7 @@ function renderProposal(d){
 
       <div class="sign-field">
         <div class="sign-lbl">Date</div>
-        <input class="sign-date" id="sig-date" type="date" value="${new Date().toISOString().split('T')[0]}">
+        <div class="sign-date" style="display:flex;align-items:center;color:var(--muted);background:var(--bg);cursor:default">${new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})}</div>
       </div>
       <label class="sign-agree">
         <input type="checkbox" id="sig-agree">
@@ -417,13 +417,14 @@ function renderProposal(d){
 
 async function submitSignature(){
   const name = document.getElementById('sig-name').value.trim();
-  const date = document.getElementById('sig-date').value;
+  // Always today — the date is locked (no picker), so it's read from the clock at the
+  // moment of signing, not from an editable field.
+  const date = new Date().toISOString().split('T')[0];
   const agreed = document.getElementById('sig-agree').checked;
   const drawMode = document.getElementById('draw-mode').style.display !== 'none';
 
   // Validate
   if(!name){ document.getElementById('sig-name').focus(); alert('Please enter your full name for records.'); return; }
-  if(!date){ document.getElementById('sig-date').focus(); return; }
   if(!agreed){ alert('Please check the agreement box to proceed.'); return; }
 
   // Get signature image
