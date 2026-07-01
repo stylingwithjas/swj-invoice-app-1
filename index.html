@@ -520,7 +520,7 @@ textarea:focus { border-color:var(--gold); background:var(--warm); }
 <div class="modal-overlay" id="email-modal">
         <div class="modal">
             <div class="modal-title">✉️ Send Proposal</div>
-            <div class="modal-field"><label>To</label><input id="email-to" type="email" placeholder="client@email.com"></div>
+            <div class="modal-field"><label>To</label><input id="email-to" type="email" multiple placeholder="client@email.com, spouse@email.com"></div>
             <div class="modal-field"><label>Subject</label><input id="email-subject" type="text"></div>
             <div class="modal-field"><label>Message</label><textarea id="email-body"></textarea></div>
             <div id="email-status" style="font-size:13px;color:#888;margin-top:8px;min-height:18px"></div>
@@ -553,8 +553,8 @@ function togglePaid(){
 function updateSummaryHeader(){
   const c = document.getElementById('client').value;
   const a = document.getElementById('address').value;
-  document.getElementById('sum-client').textContent = c || ' ';
-  document.getElementById('sum-addr').textContent = a || ' ';
+  document.getElementById('sum-client').textContent = c || ' ';
+  document.getElementById('sum-addr').textContent = a || ' ';
 }
 document.addEventListener('DOMContentLoaded',()=>{
   document.getElementById('client').addEventListener('input', updateSummaryHeader);
@@ -997,7 +997,7 @@ function lookupTaxRate(){
   const addr=(document.getElementById('address')?.value||'').trim();
   const zip=(document.getElementById('zipcode')?.value||'').replace(/\D/g,'').slice(0,5);
   if(zip.length<5){ if(note){note.textContent='';note.style.color='';} return; }
-  if(note){ note.textContent='Checking official WA tax rate\u2026'; note.style.color='#888'; }
+  if(note){ note.textContent='Checking official WA tax rate…'; note.style.color='#888'; }
   clearTimeout(_taxLookupTimer);
   const seq=++_taxLookupSeq;
   _taxLookupTimer=setTimeout(async()=>{
@@ -1011,16 +1011,16 @@ function lookupTaxRate(){
         recalc();
         if(note){
           note.textContent=d.exact
-            ? '\u2713 Official WA rate '+d.rate.toFixed(2)+'% \u2014 exact address'
-            : '\u2713 WA rate '+d.rate.toFixed(2)+'% \u2014 matched by ZIP (confirm street address)';
+            ? '✓ Official WA rate '+d.rate.toFixed(2)+'% — exact address'
+            : '✓ WA rate '+d.rate.toFixed(2)+'% — matched by ZIP (confirm street address)';
           note.style.color=d.exact?'#22c55e':'#f59e0b';
         }
       } else {
-        if(note){ note.textContent='\u26a0 Couldn\u2019t verify \u2014 please enter the tax rate manually'; note.style.color='#f59e0b'; }
+        if(note){ note.textContent='⚠ Couldn’t verify — please enter the tax rate manually'; note.style.color='#f59e0b'; }
       }
     }catch(e){
       if(seq!==_taxLookupSeq) return;
-      if(note){ note.textContent='\u26a0 Tax lookup unavailable \u2014 enter rate manually'; note.style.color='#f59e0b'; }
+      if(note){ note.textContent='⚠ Tax lookup unavailable — enter rate manually'; note.style.color='#f59e0b'; }
     }
   },500);
 }
@@ -1517,7 +1517,7 @@ function showContributorLinksOverlay(payments){
       <div style="font-size:13px;font-weight:600;color:#1a1814">${p.label} — $${parseFloat(p.amount).toLocaleString(undefined,{minimumFractionDigits:2})}</div>
       <a href="${p.payment_url}" target="_blank" style="display:block;background:#f5ead8;color:#9d7a44;text-decoration:none;padding:10px;border-radius:9px;font-weight:600;margin-top:6px;font-size:12.5px;text-align:center">💳 Open link</a>
       <div style="display:flex;gap:6px;margin-top:8px">
-        <input type="email" id="contrib-email-${i}" placeholder="their email address" style="flex:1;font-size:12.5px;padding:9px 10px;border:1px solid #ddd;border-radius:8px;font-family:inherit">
+        <input type="email" multiple id="contrib-email-${i}" placeholder="their email(s), comma separated" style="flex:1;font-size:12.5px;padding:9px 10px;border:1px solid #ddd;border-radius:8px;font-family:inherit">
         <button onclick="emailContributorLink(${i})" id="contrib-send-${i}" style="background:#1a1814;color:#fff;border:none;border-radius:8px;padding:9px 14px;font-size:12.5px;font-weight:600;cursor:pointer">Send</button>
       </div>
       <div id="contrib-email-status-${i}" style="font-size:11px;margin-top:5px;min-height:14px"></div>
@@ -1540,17 +1540,19 @@ async function emailContributorLink(i){
   const emailInput=document.getElementById('contrib-email-'+i);
   const statusEl=document.getElementById('contrib-email-status-'+i);
   const btn=document.getElementById('contrib-send-'+i);
-  const to=emailInput.value.trim();
+  const raw=emailInput.value.trim();
   const emailRegex=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if(!to || !emailRegex.test(to)){ statusEl.textContent='Enter a valid email address'; statusEl.style.color='#e24b4a'; return; }
+  const addrs=raw.split(/[,;]/).map(a=>a.trim()).filter(Boolean);
+  const bad=addrs.filter(a=>!emailRegex.test(a));
+  if(!addrs.length || bad.length){ statusEl.textContent=bad.length?'Invalid email: '+bad.join(', '):'Enter a valid email address'; statusEl.style.color='#e24b4a'; return; }
   btn.disabled=true; statusEl.textContent='Sending…'; statusEl.style.color='#888';
   const amt='$'+parseFloat(p.amount).toLocaleString(undefined,{minimumFractionDigits:2});
   const subject=`Payment Request — ${p.label}`;
   const message=`Hi,\n\nJasmine Santana with Styling With Jas is requesting ${amt} for: ${p.label}.\n\nYou can pay securely here:\n${p.payment_url}\n\nThank you!\n\nJasmine Santana\nOwner & Creative Director — Styling With Jas\n206-422-5618\ninfo@stylingwithjas.com`;
   try{
-    const r=await fetch('/api/email',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({to,subject,message})});
+    const r=await fetch('/api/email',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({to:addrs.join(', '),subject,message})});
     const d=await r.json();
-    if(d.sent){ statusEl.textContent='✓ Sent to '+to; statusEl.style.color='#22c55e'; }
+    if(d.sent){ const n=(d.to||[]).length; statusEl.textContent='✓ Sent to '+(n>1?n+' recipients':addrs[0]); statusEl.style.color='#22c55e'; }
     else{ statusEl.textContent='Error: '+(d.error||'Unknown'); statusEl.style.color='#e24b4a'; btn.disabled=false; }
   }catch(e){ statusEl.textContent='Error: '+e.message; statusEl.style.color='#e24b4a'; btn.disabled=false; }
 }
@@ -1621,15 +1623,24 @@ async function sendEmail(){
   const statusEl=document.getElementById('email-status');
   const sendBtn=document.getElementById('email-send-btn');
   if(!to){statusEl.textContent='Please enter a recipient email.';statusEl.style.color='#e24b4a';return;}
+  // Multiple recipients: comma or semicolon separated (matches the input's `multiple` mode).
+  const emailRegex=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const addrs=to.split(/[,;]/).map(a=>a.trim()).filter(Boolean);
+  const bad=addrs.filter(a=>!emailRegex.test(a));
+  if(!addrs.length || bad.length){statusEl.textContent=bad.length?'Invalid email: '+bad.join(', '):'Please enter a recipient email.';statusEl.style.color='#e24b4a';return;}
   if(!_lastPdfBlob){statusEl.textContent='No PDF generated yet.';statusEl.style.color='#e24b4a';return;}
   sendBtn.disabled=true; sendBtn.textContent='Sending...';
   statusEl.textContent='Sending email...'; statusEl.style.color='#888';
   try{
     const ab=await _lastPdfBlob.arrayBuffer();
     const base64=btoa(String.fromCharCode(...new Uint8Array(ab)));
-    const r=await fetch('/api/email',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({to,subject,message,pdf:base64,filename:_lastPdfFilename})});
+    const r=await fetch('/api/email',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({to:addrs.join(', '),subject,message,pdf:base64,filename:_lastPdfFilename})});
     const d=await r.json();
-    if(d.sent){statusEl.textContent='✓ Email sent!';statusEl.style.color='#22c55e';setTimeout(()=>{closeEmailModal();},1500);}
+    if(d.sent){
+      const n=(d.to||[]).length;
+      statusEl.textContent='✓ Sent to '+(n>1?n+' recipients':'1 recipient')+(d.skipped&&d.skipped.length?' (skipped invalid: '+d.skipped.join(', ')+')':'')+'!';
+      statusEl.style.color='#22c55e';setTimeout(()=>{closeEmailModal();},1800);
+    }
     else{statusEl.textContent='Error: '+(d.error||'Unknown');statusEl.style.color='#e24b4a';}
   }catch(e){statusEl.textContent='Error: '+e.message;statusEl.style.color='#e24b4a';}
   sendBtn.disabled=false; sendBtn.textContent='Send Email';
