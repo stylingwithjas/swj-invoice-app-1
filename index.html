@@ -1502,6 +1502,31 @@ async function downloadPdfNow(){
   }
 }
 
+// Any "Other Contributions" links (audience:'other') are created alongside the invoice but
+// never shown to the client — Jasmine has to send them herself. Without this, the link is
+// created and saved yet invisible anywhere in the generator UI.
+function showContributorLinksOverlay(payments){
+  const others=(payments||[]).filter(p=>p.audience==='other'&&p.payment_url);
+  if(!others.length) return;
+  const ov=document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;background:rgba(26,24,20,0.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:24px;font-family:Inter,-apple-system,sans-serif';
+  const rows=others.map(p=>`
+    <div style="text-align:left;margin-bottom:10px">
+      <div style="font-size:13px;font-weight:600;color:#1a1814">${p.label} — $${parseFloat(p.amount).toLocaleString(undefined,{minimumFractionDigits:2})}</div>
+      <a href="${p.payment_url}" target="_blank" style="display:block;background:#f5ead8;color:#9d7a44;text-decoration:none;padding:11px;border-radius:10px;font-weight:600;margin-top:4px;font-size:13px">💳 Open link to send</a>
+    </div>`).join('');
+  ov.innerHTML=`<div style="background:#fff;border-radius:16px;max-width:360px;width:100%;padding:22px;text-align:center">
+    <div style="font-family:Georgia,serif;font-size:19px;color:#1a1814;margin-bottom:4px">Other Payment Link${others.length>1?'s':''}</div>
+    <div style="font-size:12px;color:#3d3830;margin-bottom:14px">Not shown to the client — send ${others.length>1?'these':'this'} directly to the payer.</div>
+    ${rows}
+    <button id="contrib-ov-close" style="background:none;border:none;color:#a29c96;font-size:13px;padding:8px;cursor:pointer;margin-top:6px">Close</button>
+  </div>`;
+  document.body.appendChild(ov);
+  ov.querySelector('#contrib-ov-close').onclick=()=>ov.remove();
+  ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
+  try{ navigator.clipboard.writeText(others[0].payment_url); }catch(e){}
+}
+
 async function generateAndEmail(){
   const emailBtn=document.getElementById('email-btn');
   emailBtn.disabled=true; emailBtn.textContent='Generating...';
@@ -1509,6 +1534,7 @@ async function generateAndEmail(){
   emailBtn.disabled=false; emailBtn.textContent='Generate + Email to Client';
   if(!result) return;
   _lastPdfBlob=result.blob; _lastPdfFilename=result.filename;
+  showContributorLinksOverlay(result.data.payments);
   openEmailModal(result.data);
 }
 
@@ -1763,6 +1789,7 @@ async function generate(){
 
     setSt('ok', 'Invoice generated and downloaded! Check your Downloads folder.');
     setTimeout(()=>saveInvoice(data).catch(()=>{}), 100);
+    showContributorLinksOverlay(data.payments);
     btn.textContent = 'Generate Invoice + Payment Link';
     btn.disabled = false;
     console.log('PDF: all done!');

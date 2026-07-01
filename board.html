@@ -1680,10 +1680,15 @@ function renderPaymentsList(d){
     const statusColor=p.status==='paid'?'#2d6a0a':'#9d7a44';
     const statusText=p.status==='paid'?'✓ Paid':'Pending';
     const who=p.audience==='other'?' · sent to other payer':'';
-    return '<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px solid #f0ede8">'
-      +'<span>'+(p.label||'Payment')+who+'</span>'
-      +'<span style="color:'+statusColor+';font-weight:600">$'+parseFloat(p.amount||0).toLocaleString(undefined,{minimumFractionDigits:2})+' — '+statusText+'</span>'
-      +'</div>';
+    // Still-pending links stay clickable so Jasmine can re-open/re-copy one she already
+    // sent (or missed) — e.g. a contributor's link created back when the invoice was
+    // first generated.
+    const canOpen=p.status!=='paid' && p.payment_url;
+    const amtSpan='<span style="color:'+statusColor+';font-weight:600">$'+parseFloat(p.amount||0).toLocaleString(undefined,{minimumFractionDigits:2})+' — '+statusText+(canOpen?' · open ↗':'')+'</span>';
+    const inner='<span>'+(p.label||'Payment')+who+'</span>'+amtSpan;
+    return canOpen
+      ? '<a href="'+p.payment_url+'" target="_blank" style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px solid #f0ede8;text-decoration:none;color:inherit">'+inner+'</a>'
+      : '<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px solid #f0ede8">'+inner+'</div>';
   }).join('');
   el.innerHTML='<div style="font-size:11px;color:#a29c96;text-transform:uppercase;letter-spacing:0.5px;margin:10px 0 4px">Payment links</div>'
     + rows
