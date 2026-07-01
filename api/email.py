@@ -123,7 +123,7 @@ class handler(BaseHTTPRequestHandler):
             self._respond(500, {'error': 'Email password not configured'})
             return
 
-        to_email   = body.get('to', '')
+        to_raw     = body.get('to', '')
         subject    = body.get('subject', 'Your Staging Proposal — Styling With Jas')
         message    = body.get('message', '')
         pdf_base64 = body.get('pdf', '')
@@ -131,14 +131,22 @@ class handler(BaseHTTPRequestHandler):
         proposal_link = body.get('proposal_link', None)
         client_first_name = body.get('client_first_name', '')
 
-        if not to_email:
-            self._respond(400, {'error': 'Recipient email required'})
+        # Accept multiple recipients: comma or semicolon separated (matches the browser's
+        # <input type="email" multiple> comma-separated format). Every address here is a
+        # real To: recipient — not a hidden BCC — so everyone can see who else got it.
+        EMAIL_RE = re.compile(r'^[^\s@]+@[^\s@]+\.[^\s@]+$')
+        to_list = [a.strip() for a in re.split(r'[,;]', to_raw) if a.strip()]
+        invalid = [a for a in to_list if not EMAIL_RE.match(a)]
+        to_list = [a for a in to_list if EMAIL_RE.match(a)]
+
+        if not to_list:
+            self._respond(400, {'error': 'At least one valid recipient email is required'})
             return
 
         try:
             msg = MIMEMultipart('mixed')
             msg['From'] = f'{FROM_NAME} <{FROM_EMAIL}>'
-            msg['To'] = to_email
+            msg['To'] = ', '.join(to_list)
             msg['Subject'] = subject
             msg['Reply-To'] = FROM_EMAIL
             msg['Cc'] = FROM_EMAIL
@@ -161,9 +169,9 @@ class handler(BaseHTTPRequestHandler):
 
             with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=20) as server:
                 server.login(FROM_EMAIL, password)
-                server.sendmail(FROM_EMAIL, [to_email, FROM_EMAIL], msg.as_string())
+                server.sendmail(FROM_EMAIL, to_list + [FROM_EMAIL], msg.as_string())
 
-            self._respond(200, {'sent': True, 'to': to_email})
+            self._respond(200, {'sent': True, 'to': to_list, 'skipped': invalid})
 
         except smtplib.SMTPAuthenticationError:
             self._respond(500, {'error': 'Email authentication failed — check password'})
