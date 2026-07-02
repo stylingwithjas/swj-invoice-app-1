@@ -2051,7 +2051,13 @@ async function saveCard(){
   d.paid_date = document.getElementById('m-paid-date').value || null;
   d.deposit_date = document.getElementById('m-deposit-date').value || null;
 
-  d.destage_date = document.getElementById('m-ddate').value || null;
+  const _newDestageDate = document.getElementById('m-ddate').value || null;
+  if(_newDestageDate !== d.destage_date){
+    // Date moved (e.g. rental extended) — re-arm the destage reminder cron for the new date.
+    delete d.reminder_15_sent;
+    delete d.reminder_7_sent;
+  }
+  d.destage_date = _newDestageDate;
   d.destage_mover = document.getElementById('m-dmover').value || null;
   d.destage_mover_phone = document.getElementById('m-dmover-tel').value || null;
   d.destage_time = document.getElementById('m-dtime').value || null;
