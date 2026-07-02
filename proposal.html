@@ -308,6 +308,9 @@ function renderProposal(d){
   const cosignerRoleLabel = (cosigner.role||'').trim() || 'Co-Signer';
   const pendingIsCosigner = _pendingRole === 'cosigner';
   const pendingSignerName = pendingIsCosigner ? (cosigner.name||'') : client;
+  // Invoice is addressed to both names only when the co-signer is explicitly marked as a
+  // joint client (spouse/co-buyer) rather than a third party like an agent.
+  const clientDisplay = (cosigner.joint && cosigner.name) ? `${client} & ${cosigner.name}` : client;
 
   // Update status
   setStatus('pending','Awaiting your approval');
@@ -342,7 +345,7 @@ function renderProposal(d){
     ${welcomeHTML}
     <div class="prop-card">
       <div class="prop-client">
-        <div class="prop-client-name">${esc(client)}</div>
+        <div class="prop-client-name">${esc(clientDisplay)}</div>
         <div class="prop-client-addr">${esc(addr)}</div>
       </div>
       <div class="prop-total">

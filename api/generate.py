@@ -25,6 +25,17 @@ except:
     pass
 
 
+def display_client_name(data, fallback='Client'):
+    """The name the invoice/proposal is addressed to. Normally just the client's name;
+    when a co-signer is explicitly marked as a joint client (spouse/co-buyer, not a
+    third party like an agent), both names are shown together."""
+    client = str(data.get('client') or fallback)
+    cosigner = data.get('cosigner') or {}
+    if cosigner.get('joint') and cosigner.get('name'):
+        return f"{client} & {cosigner['name']}"
+    return client
+
+
 def make_qr_image(url):
     """Generate a QR code PNG and return the temp file path."""
     try:
@@ -69,7 +80,7 @@ def build_extension_pdf(data):
         if line: out.append(line)
         return out
 
-    client   = str(data.get('client', 'Client'))
+    client   = display_client_name(data)
     address  = str(data.get('address', ''))
     ext_inv  = str(data.get('invnum', ''))
     orig_inv = str(data.get('extension_of', '') or (ext_inv.split('-EXT')[0] if '-EXT' in ext_inv else ext_inv))
@@ -187,7 +198,7 @@ def build_balance_update_pdf(data):
         if line: out.append(line)
         return out
 
-    client   = str(data.get('client', 'Client'))
+    client   = display_client_name(data)
     address  = str(data.get('address', ''))
     orig_inv = str(data.get('invnum', ''))
     invdate  = str(data.get('invdate', ''))
@@ -423,8 +434,10 @@ def generate_invoice_pdf(data):
         row_y -= 12
     
         cv.setFont('Helvetica', 9); cv.setFillColor(BLACK)
-        cv.drawString(col1, row_y, client)
-    
+        client_lines = wrap(cv, display_client_name(data), 'Helvetica', 9, col2 - col1 - 10)
+        for i, cl in enumerate(client_lines):
+            cv.drawString(col1, row_y - (i * 11), cl)
+
         addr_lines = wrap(cv, address, 'Helvetica', 9, col3 - col2 - 10)
         ay = row_y
         for al in addr_lines:
@@ -545,7 +558,11 @@ def generate_invoice_pdf(data):
         cv.line(0, hero_top - hero_h, PW, hero_top - hero_h)
     
         # email-greeting: CG 13px letter-spacing 2px taupe uppercase
-        first_name = client.split()[0] if client else client
+        _cosigner = data.get('cosigner') or {}
+        if _cosigner.get('joint') and _cosigner.get('name'):
+            first_name = f"{client.split()[0]} & {_cosigner['name'].split()[0]}" if client else _cosigner['name'].split()[0]
+        else:
+            first_name = client.split()[0] if client else client
         cv.setFillColor(TAUPE); cv.setFont(CG, 13)
         greeting = f'HELLO, {first_name.upper()}'
         gw = cv.stringWidth(greeting, CG, 13)
