@@ -864,13 +864,16 @@ function updContribution(id,k,v){const x=contributions.find(y=>y.id===id);if(x){
 
 // Optional second required signer (e.g. spouse, co-buyer, referring agent). Client always
 // signs first; this person is then emailed to countersign, and the two signatures merge
-// into one contract. Returns null when name/email aren't both filled in — single-signer invoice.
+// into one contract. Returns null only when the card is completely untouched.
 function getCosigner(){
   const role=(document.getElementById('cosigner-role')?.value||'').trim();
   const name=(document.getElementById('cosigner-name')?.value||'').trim();
   const email=(document.getElementById('cosigner-email')?.value||'').trim();
   const joint=document.getElementById('cosigner-joint')?.checked||false;
-  if(!name||!email) return null;
+  if(!name&&!email) return null;
+  // Returned even if incomplete (only one of name/email filled) so generate()/sendEmail()
+  // can warn instead of silently dropping it — PDF generation and signing both independently
+  // require BOTH fields before treating this as a real co-signer.
   return {role:role||'Co-Signer',name,email,joint};
 }
 
@@ -1687,10 +1690,13 @@ async function sendEmail(){
       // Co-signer gets their own tailored Approve & Sign email at the same time — signing
       // doesn't wait on the client to go first anymore, so both need their invite up front.
       const cosignerResult=await sendCosignerInviteEmail(window._lastInvoiceData, base64);
+      const cosignerProblem = cosignerResult==='error' || cosignerResult==='incomplete';
       if(cosignerResult==='sent') statusMsg+=' Co-signer invited too.';
       else if(cosignerResult==='error') statusMsg+=' (Co-signer invite failed — resend from the board.)';
+      else if(cosignerResult==='incomplete') statusMsg+=' (Co-signer NOT emailed — Name and Email both need to be filled in on the Co-Signer card.)';
       statusEl.textContent=statusMsg;
-      statusEl.style.color='#22c55e';setTimeout(()=>{closeEmailModal();},1800);
+      statusEl.style.color=cosignerProblem?'#c97c2e':'#22c55e';
+      setTimeout(()=>{closeEmailModal();},cosignerProblem?4500:1800);
     }
     else{statusEl.textContent='Error: '+(d.error||'Unknown');statusEl.style.color='#e24b4a';}
   }catch(e){statusEl.textContent='Error: '+e.message;statusEl.style.color='#e24b4a';}
@@ -1701,7 +1707,8 @@ async function sendEmail(){
 // client's — both parties can review and sign whenever they're ready, in either order.
 // Returns 'sent' | 'skipped' (no co-signer configured) | 'error'.
 async function sendCosignerInviteEmail(data, pdfBase64){
-  if(!data || !data.cosigner || !data.cosigner.name || !data.cosigner.email) return 'skipped';
+  if(!data || !data.cosigner) return 'skipped';
+  if(!data.cosigner.name || !data.cosigner.email) return 'incomplete';
   const cosigner=data.cosigner;
   const cosignerFirst=cosigner.name.split(' ')[0];
   const client=data.client||'';
@@ -1760,6 +1767,17 @@ async function generatePDF(){
   } else if(!emailRegex.test(clientEmail)){
     alert('That email looks invalid. Please check the format (example: name@example.com).');
     document.getElementById('client_email').focus(); return;
+  }
+  {
+    const _csName=(document.getElementById('cosigner-name')?.value||'').trim();
+    const _csEmail=(document.getElementById('cosigner-email')?.value||'').trim();
+    if((_csName&&!_csEmail)||(!_csName&&_csEmail)){
+      const skip=confirm('Co-Signer is incomplete — both Name and Email are needed for them to be invited to sign.\n\nTap OK to continue anyway (no co-signer will be included on this invoice), or Cancel to fill in the missing field.');
+      if(!skip){ document.getElementById(_csName?'cosigner-email':'cosigner-name').focus(); return null; }
+    } else if(_csEmail&&!emailRegex.test(_csEmail)){
+      alert('That co-signer email looks invalid. Please check the format (example: name@example.com).');
+      document.getElementById('cosigner-email').focus(); return null;
+    }
   }
   setSt('loading','Creating payment link...');
   let payment_url=null, payment_link_id=null, splitPayments=null, activeClientPaymentId=null;
@@ -1842,6 +1860,17 @@ async function generate(){
   } else if(!emailRegex.test(clientEmail)){
     alert('That email looks invalid. Please check the format (example: name@example.com).');
     document.getElementById('client_email').focus(); return;
+  }
+  {
+    const _csName=(document.getElementById('cosigner-name')?.value||'').trim();
+    const _csEmail=(document.getElementById('cosigner-email')?.value||'').trim();
+    if((_csName&&!_csEmail)||(!_csName&&_csEmail)){
+      const skip=confirm('Co-Signer is incomplete — both Name and Email are needed for them to be invited to sign.\n\nTap OK to continue anyway (no co-signer will be included on this invoice), or Cancel to fill in the missing field.');
+      if(!skip){ document.getElementById(_csName?'cosigner-email':'cosigner-name').focus(); return; }
+    } else if(_csEmail&&!emailRegex.test(_csEmail)){
+      alert('That co-signer email looks invalid. Please check the format (example: name@example.com).');
+      document.getElementById('cosigner-email').focus(); return;
+    }
   }
   payment_url=null;
   let payment_link_id=null, splitPayments=null, activeClientPaymentId=null;
