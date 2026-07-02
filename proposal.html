@@ -231,6 +231,7 @@ function computeGrand(d){
 async function loadProposal(){
   const params = new URLSearchParams(window.location.search);
   const invnum = params.get('inv');
+  const urlRole = params.get('role'); // 'client' | 'cosigner' — which person this link was sent to
   if(!invnum){
     showError('No proposal found. Please use the link sent to you by Styling With Jas.');
     return;
@@ -258,13 +259,28 @@ async function loadProposal(){
       return;
     }
 
-    // Determine which required party still needs to sign. Client always signs first;
-    // an optional co-signer (set up at generation time) countersigns after.
+    // Determine which required party this visitor should sign as. Both the client and an
+    // optional co-signer (set up at generation time) are emailed their own link with an
+    // explicit ?role= param, so either can sign first — signing isn't sequential anymore.
     const cosigner = d.cosigner||{};
     const hasCosigner = !!(cosigner.name && cosigner.email);
     const signatures = d.signatures||[];
     const requiredRoles = ['client'].concat(hasCosigner?['cosigner']:[]);
-    _pendingRole = requiredRoles.find(r=>!signatures.some(s=>s.role===r)) || 'client';
+    const unsignedRoles = requiredRoles.filter(r=>!signatures.some(s=>s.role===r));
+
+    if(urlRole && requiredRoles.includes(urlRole)){
+      if(!unsignedRoles.includes(urlRole)){
+        // This specific person already signed via this link — show them where things
+        // stand rather than re-showing a signing form or a generic "fully signed" screen.
+        showAlreadySignedWaitingOnOther(d, urlRole, cosigner);
+        return;
+      }
+      _pendingRole = urlRole;
+    } else {
+      // No (or unrecognized) role param — generic/legacy link. Fall back to whichever
+      // required party hasn't signed yet, client first.
+      _pendingRole = unsignedRoles[0] || 'client';
+    }
 
     renderProposal(d);
   } catch(e){
@@ -504,6 +520,21 @@ function showWaitingOnOther(name, waitingOn){
       <div class="confirm-icon">✍️</div>
       <div class="confirm-title">Thank you, ${esc(name.split(' ')[0])}.</div>
       <div class="confirm-sub">Your signature has been recorded. We've notified ${esc(waitingOn||'the other party')} to countersign — you'll both receive the fully executed contract by email once they do.</div>
+    </div>
+  `;
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+function showAlreadySignedWaitingOnOther(d, role, cosigner){
+  setStatus('pending','Awaiting countersignature');
+  const mySig = (d.signatures||[]).find(s=>s.role===role);
+  const otherRole = role==='client' ? 'cosigner' : 'client';
+  const otherName = otherRole==='cosigner' ? (cosigner.name||'the other party') : (_inv.client||d.client||'the other party');
+  document.getElementById('main-content').innerHTML = `
+    <div class="confirm-card">
+      <div class="confirm-icon">✍️</div>
+      <div class="confirm-title">You've already signed.</div>
+      <div class="confirm-sub">${mySig?`Recorded on ${fmtDate(mySig.signed_date)}. `:''}Still waiting on ${esc(otherName)} to countersign — you'll both receive the fully executed contract by email once they do.</div>
     </div>
   `;
   window.scrollTo({top:0,behavior:'smooth'});

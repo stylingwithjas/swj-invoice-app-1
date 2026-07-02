@@ -662,7 +662,7 @@ class handler(BaseHTTPRequestHandler):
                 waiting_name = client if waiting_role == 'client' else cosigner.get('name', '')
                 waiting_email = client_email if waiting_role == 'client' else cosigner.get('email', '')
                 origin = 'https://' + (self.headers.get('X-Forwarded-Host') or self.headers.get('Host') or 'stylingwithjas.com')
-                proposal_link = f'{origin}/proposal.html?inv={urllib.parse.quote(invnum)}'
+                proposal_link = f'{origin}/proposal.html?inv={urllib.parse.quote(invnum)}&role={waiting_role}'
                 if waiting_email:
                     send_pending_signature_email(waiting_email, waiting_name, signed_by, invnum, proposal_link)
 
