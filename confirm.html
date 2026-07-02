@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="SWJ">
+<meta name="theme-color" content="#1a1814">
+<link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="512x512" href="/assets/icon-512.png">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>SWJ — Confirm Availability</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Cormorant+Garamond:wght@300;400;500;600&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg:#fcfaf7;--bg-soft:#ffffff;
+  --ink:#2c2926;--ink-soft:#3d3833;--muted:#8c847c;--muted-soft:#b8ada1;
+  --line:#e7e1d9;--line-soft:#ede8e0;
+  --olive:#7a8574;--olive-dark:#5f685a;--olive-tint:#eef1ea;
+  --green:#6f8a72;--green-tint:#edf4ee;--green-dark:#4a6b4e;
+  --gold:#b89a63;--gold-soft:#f6f1e7;
+  --red:#9a5a4a;--red-tint:#f8ece8;
+  --cta:#2c2926;
+}
+body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var(--ink);min-height:100vh;}
+.hdr{background:var(--cta);padding:20px 24px 18px;}
+.hdr-inner{max-width:520px;margin:0 auto;}
+.brand{font-family:'Cormorant Garamond',serif;font-size:11px;letter-spacing:3px;color:rgba(255,255,255,0.5);text-transform:uppercase;}
+.hdr-title{font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:400;color:#f0ebe3;margin-top:3px;}
+.content{max-width:520px;margin:0 auto;padding:24px 24px 60px;}
+.loading{text-align:center;padding:60px 20px;color:var(--muted);}
+.loading-spin{font-size:24px;animation:spin 1s linear infinite;display:inline-block;margin-bottom:12px;}
+@keyframes spin{to{transform:rotate(360deg)}}
+.error-box{background:var(--red-tint);border:0.5px solid var(--red);border-radius:12px;padding:20px;text-align:center;margin-top:24px;color:var(--red);font-size:14px;}
+.job-card{background:var(--bg-soft);border:0.5px solid var(--line);border-radius:14px;overflow:hidden;margin-top:8px;}
+.job-hdr{padding:18px 20px 14px;border-bottom:0.5px solid var(--line);}
+.job-type{font-size:9px;font-weight:600;color:var(--gold);text-transform:uppercase;letter-spacing:1.8px;margin-bottom:6px;}
+.job-name{font-family:'Cormorant Garamond',serif;font-size:24px;font-weight:400;color:var(--ink);}
+.job-row{display:flex;align-items:center;gap:10px;padding:14px 20px;border-bottom:0.5px solid var(--line-soft);}
+.job-row:last-child{border-bottom:none;}
+.job-icon{font-size:16px;width:22px;text-align:center;flex-shrink:0;}
+.job-lbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;}
+.job-val{font-size:14px;font-weight:500;color:var(--ink);margin-top:1px;}
+.ask{text-align:center;margin-top:26px;font-size:14px;color:var(--ink-soft);line-height:1.6;}
+.btn-row{display:flex;flex-direction:column;gap:10px;margin-top:20px;}
+.btn{display:block;width:100%;padding:15px;border:none;border-radius:12px;font-size:15px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;}
+.btn-yes{background:var(--olive);color:#fff;}
+.btn-no{background:var(--bg-soft);color:var(--muted);border:0.5px solid var(--line);}
+.btn:disabled{opacity:0.5;}
+.result-card{background:var(--bg-soft);border:0.5px solid var(--line);border-radius:14px;padding:32px 24px;text-align:center;margin-top:24px;}
+.result-icon{font-size:36px;margin-bottom:12px;}
+.result-title{font-family:'Cormorant Garamond',serif;font-size:22px;color:var(--ink);margin-bottom:8px;}
+.result-sub{font-size:13px;color:var(--muted);line-height:1.6;}
+.result-card.declined .result-icon{color:var(--red);}
+</style>
+</head>
+<body>
+
+<div class="hdr"><div class="hdr-inner">
+  <div class="brand">Styling With Jas</div>
+  <div class="hdr-title">Confirm Availability</div>
+</div></div>
+
+<div class="content" id="main-content">
+  <div class="loading"><div class="loading-spin">⟳</div><div>Loading job details…</div></div>
+</div>
+
+<script>
+const _sb = supabase.createClient(
+  'https://cwvdfgrjlrpsdfwduwvn.supabase.co',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN3dmRmZ3JqbHJwc2Rmd2R1d3ZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwMDcyODUsImV4cCI6MjA5MzU4MzI4NX0.zam9AnIwW91TI6eCKUcg05LhvFcRa7op4QsjRpdcrCY'
+);
+
+const ROLE_INFO = {
+  mover1:      { jobType: 'Staging Crew',  dateField: 'startdate',     timeField: 'truck_pickup_time', nameField: 'mover_name' },
+  mover2:      { jobType: 'Staging Crew',  dateField: 'startdate',     timeField: 'truck_pickup_time', nameField: 'mover2_name' },
+  dmover:      { jobType: 'Destage Crew',  dateField: 'destage_date',  timeField: 'destage_time',       nameField: 'destage_mover' },
+  photographer:{ jobType: 'Photography',   dateField: 'photo_date',    timeField: null,                 nameField: 'photographer_name' },
+};
+
+let _invnum = null, _role = null, _roleInfo = null;
+
+function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function fmtDate(iso){ if(!iso) return 'Date TBD'; const d=new Date(iso+'T12:00:00'); return d.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'}); }
+
+async function load(){
+  const params = new URLSearchParams(window.location.search);
+  _invnum = params.get('inv');
+  _role = params.get('role');
+  _roleInfo = ROLE_INFO[_role];
+
+  if(!_invnum || !_roleInfo){
+    showError('This confirmation link looks incomplete. Please contact Jasmine at 206-422-5618.');
+    return;
+  }
+
+  try{
+    const {data,error} = await _sb.from('invoices').select('*').eq('invnum',_invnum).limit(1);
+    if(error || !data || !data[0]){
+      showError('Job not found. Please contact Jasmine at 206-422-5618.');
+      return;
+    }
+    const inv = data[0];
+    const d = inv.data || {};
+    const existing = (d.confirmations || {})[_role];
+    if(existing && existing.status){
+      showResult(existing.status, d);
+      return;
+    }
+    renderAsk(inv, d);
+  }catch(e){
+    showError('Could not load this job: '+e.message);
+  }
+}
+
+function renderAsk(inv, d){
+  const name = d[_roleInfo.nameField] || '';
+  const address = inv.address || d.address || '';
+  const date = d[_roleInfo.dateField];
+  const time = _roleInfo.timeField ? d[_roleInfo.timeField] : '';
+
+  document.getElementById('main-content').innerHTML = `
+    <div class="job-card">
+      <div class="job-hdr">
+        <div class="job-type">${esc(_roleInfo.jobType)}</div>
+        <div class="job-name">${name?esc(name)+', are you available?':'Are you available?'}</div>
+      </div>
+      <div class="job-row"><div class="job-icon">📍</div><div><div class="job-lbl">Address</div><div class="job-val">${esc(address||'TBD')}</div></div></div>
+      <div class="job-row"><div class="job-icon">📅</div><div><div class="job-lbl">Date</div><div class="job-val">${esc(fmtDate(date))}</div></div></div>
+      ${time?`<div class="job-row"><div class="job-icon">🕐</div><div><div class="job-lbl">Time</div><div class="job-val">${esc(time)}</div></div></div>`:''}
+    </div>
+    <div class="ask">Tap below to let Jasmine know — she'll get notified right away either way.</div>
+    <div class="btn-row">
+      <button class="btn btn-yes" id="btn-yes" onclick="respond('confirmed')">✓ Yes, I'm Available</button>
+      <button class="btn btn-no" id="btn-no" onclick="respond('declined')">Not Available</button>
+    </div>
+  `;
+}
+
+async function respond(status){
+  document.getElementById('btn-yes').disabled = true;
+  document.getElementById('btn-no').disabled = true;
+  try{
+    // Re-read fresh right before writing so we merge into the current data blob rather
+    // than a snapshot from page load (someone else may have edited the card meanwhile).
+    const {data,error} = await _sb.from('invoices').select('*').eq('invnum',_invnum).limit(1);
+    if(error || !data || !data[0]) throw new Error('Job no longer found');
+    const inv = data[0];
+    const d = inv.data || {};
+    const name = d[_roleInfo.nameField] || '';
+    const confirmed_at = new Date().toISOString();
+    const updated = {
+      ...d,
+      confirmations: { ...(d.confirmations||{}), [_role]: { status, name, confirmed_at } },
+    };
+    await _sb.from('invoices').upsert({
+      invnum: inv.invnum, client: inv.client, address: inv.address, invdate: inv.invdate, data: updated,
+    }, { onConflict: 'invnum' });
+
+    // Notify Jasmine — best-effort, don't block the thank-you screen on it.
+    const address = inv.address || d.address || '';
+    const date = fmtDate(d[_roleInfo.dateField]);
+    const verb = status==='confirmed' ? 'confirmed availability for' : 'is NOT available for';
+    fetch('/api/email', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        to: 'info@stylingwithjas.com',
+        subject: `${status==='confirmed'?'✓':'✗'} ${_roleInfo.jobType} — ${name||'Reply'} ${status}`,
+        message: `${name||'Someone'} ${verb} ${_roleInfo.jobType.toLowerCase()} at ${address} on ${date}.\n\nInvoice #${_invnum}.`,
+      })
+    }).catch(()=>{});
+
+    showResult(status, updated);
+  }catch(e){
+    document.getElementById('btn-yes').disabled = false;
+    document.getElementById('btn-no').disabled = false;
+    alert('Something went wrong — please try again, or just call/text Jasmine at 206-422-5618.');
+  }
+}
+
+function showResult(status, d){
+  const confirmed = status === 'confirmed';
+  document.getElementById('main-content').innerHTML = `
+    <div class="result-card ${confirmed?'':'declined'}">
+      <div class="result-icon">${confirmed?'✅':'👍'}</div>
+      <div class="result-title">${confirmed?'You\'re confirmed!':'Thanks for letting us know'}</div>
+      <div class="result-sub">${confirmed?'Jasmine has been notified — thank you for confirming.':'Jasmine has been notified you\'re not available, and will find coverage.'}</div>
+    </div>
+  `;
+}
+
+function showError(msg){
+  document.getElementById('main-content').innerHTML = `<div class="error-box">${esc(msg)}</div>`;
+}
+
+document.addEventListener('DOMContentLoaded', load);
+</script>
+</body>
+</html>
