@@ -35,6 +35,7 @@
     { "source": "/today.html", "destination": "/today.html" },
     { "source": "/shop.html", "destination": "/shop.html" },
     { "source": "/proposal.html", "destination": "/proposal.html" },
+    { "source": "/confirm.html", "destination": "/confirm.html" },
     { "source": "/sw.js", "destination": "/sw.js" },
     { "source": "/manifest.webmanifest", "destination": "/manifest.webmanifest" },
     { "source": "/assets/:path*", "destination": "/assets/:path*" },

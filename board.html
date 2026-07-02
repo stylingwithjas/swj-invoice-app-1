@@ -503,6 +503,7 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
           <input class="m-tel-input" id="m-mover-tel" type="tel" placeholder="Phone" style="width:100px">
           <button class="m-text-btn" onclick="textMover('staging')">Text</button>
         </div>
+        <div id="m-confirm-mover1" style="font-size:11px;margin-top:4px"></div>
       </div>
       <div class="m-row">
         <span class="m-lbl">Mover 2</span>
@@ -517,6 +518,7 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
           <input class="m-tel-input" id="m-mover2-tel" type="tel" placeholder="Phone" style="width:100px">
           <button class="m-text-btn" onclick="textMover('staging2')">Text</button>
         </div>
+        <div id="m-confirm-mover2" style="font-size:11px;margin-top:4px"></div>
       </div>
       <div class="m-row">
         <span class="m-lbl">Truck booked</span>
@@ -540,10 +542,16 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
       <div class="m-sec-ttl">Photography</div>
       <div class="m-row">
         <span class="m-lbl">Photo date</span>
+        <input class="m-input" id="m-photo" type="date" >
+      </div>
+      <div class="m-row">
+        <span class="m-lbl">Photographer</span>
         <div class="m-tel-row">
-          <input class="m-input" id="m-photo" type="date" >
-          <button class="m-text-btn" onclick="textPhotographer()" style="background:var(--rose,#b5706a)">Text Gabriel</button>
+          <input class="m-tel-input" id="m-photographer" type="text" placeholder="Name" style="width:80px">
+          <input class="m-tel-input" id="m-photographer-tel" type="tel" placeholder="Phone" style="width:100px">
+          <button class="m-text-btn" onclick="textPhotographer()" style="background:var(--rose,#b5706a)">Text</button>
         </div>
+        <div id="m-confirm-photographer" style="font-size:11px;margin-top:4px"></div>
       </div>
       <div class="m-row">
         <span class="m-lbl">Photo delivery</span>
@@ -593,6 +601,7 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
           <input class="m-tel-input" id="m-dmover-tel" type="tel" placeholder="Phone" style="width:100px">
           <button class="m-text-btn" onclick="textMover('destage')">Text</button>
         </div>
+        <div id="m-confirm-dmover" style="font-size:11px;margin-top:4px"></div>
       </div>
       <div class="m-row">
         <span class="m-lbl">Destage time</span>
@@ -778,6 +787,10 @@ function setStage(s, el){
   el.classList.add('cur');
 }
 
+// type -> which confirmation role this text is for (see ROLE_KEY_TO_FIELDS + confirm.html's
+// own copy of this mapping — keep them in sync if either changes).
+const MOVER_ROLE_KEY = { staging: 'mover1', staging2: 'mover2', destage: 'dmover' };
+
 function textMover(type){
   const name = type==='staging'
     ? document.getElementById('m-mover').value || 'Anthony'
@@ -790,24 +803,50 @@ function textMover(type){
     ? document.getElementById('m-mover2-tel').value || ''
     : document.getElementById('m-dmover-tel').value || '';
   const addr = document.getElementById('m-addr').textContent;
-  const date = type==='staging'
+  const date = (type==='staging'||type==='staging2')
     ? document.getElementById('m-sdate').value
     : document.getElementById('m-ddate').value;
 
   const fmtDate = date ? new Date(date+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'}) : '[date TBD]';
-  const action = type==='staging' ? 'staging' : 'destage/pickup';
-  const msg = `Hi ${name}, we have a new ${action} coming up at ${addr} on ${fmtDate}. Are you available?`;
+  const action = (type==='staging'||type==='staging2') ? 'staging' : 'destage/pickup';
+  const link = `${location.origin}/confirm.html?inv=${encodeURIComponent(currentCardId||'')}&role=${MOVER_ROLE_KEY[type]}`;
+  const msg = `Hi ${name}, we have a new ${action} coming up at ${addr} on ${fmtDate}. Please confirm here: ${link}`;
 
   const clean = tel.replace(/\D/g,'');
   window.open(`sms:${clean}&body=${encodeURIComponent(msg)}`);
 }
 
 function textPhotographer(){
+  const name = document.getElementById('m-photographer').value || 'there';
+  const tel = document.getElementById('m-photographer-tel').value || '';
   const addr = document.getElementById('m-addr').textContent;
   const date = document.getElementById('m-photo').value;
   const fmtDate = date ? new Date(date+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'}) : '[date TBD]';
-  const msg = `Hi Gabriel, photos are scheduled for ${addr} on ${fmtDate}, the day after staging. Let me know if that works!`;
-  window.open(`sms:+1&body=${encodeURIComponent(msg)}`);
+  const link = `${location.origin}/confirm.html?inv=${encodeURIComponent(currentCardId||'')}&role=photographer`;
+  const msg = `Hi ${name}, photos are scheduled for ${addr} on ${fmtDate}. Please confirm here: ${link}`;
+  const clean = tel.replace(/\D/g,'');
+  window.open(`sms:${clean}&body=${encodeURIComponent(msg)}`);
+}
+
+// Small status line under each mover/photographer row, populated from d.confirmations
+// (written by confirm.html when they tap Confirm/Not Available on their end).
+function renderConfirmationStatuses(d){
+  const confirmations = d.confirmations || {};
+  const targets = { mover1: 'm-confirm-mover1', mover2: 'm-confirm-mover2', dmover: 'm-confirm-dmover', photographer: 'm-confirm-photographer' };
+  Object.keys(targets).forEach(role=>{
+    const el = document.getElementById(targets[role]);
+    if(!el) return;
+    const c = confirmations[role];
+    if(!c || !c.status){ el.textContent=''; return; }
+    const when = c.confirmed_at ? new Date(c.confirmed_at).toLocaleDateString('en-US',{month:'short',day:'numeric'}) : '';
+    if(c.status==='confirmed'){
+      el.innerHTML = `<span style="color:#4a7c50">✓ Confirmed${when?' · '+when:''}</span>`;
+    } else if(c.status==='declined'){
+      el.innerHTML = `<span style="color:#b53535">✗ Not available${when?' · '+when:''}</span>`;
+    } else {
+      el.textContent = '';
+    }
+  });
 }
 
 function addToCalendar(type){
@@ -1141,18 +1180,25 @@ function buildCardHTML(inv){
       tags.push({text:'Extended ' + _extDays + 'd · through ' + fmtDateShort(_iso)});
     }
   }
+  // Confirmation status from confirm.html (mover/photographer tapped Confirm or Not Available)
+  const _confirms = d.confirmations || {};
+  const _moverConfirmSuffix = (role) => _confirms[role]?.status==='confirmed' ? ' ✓' : '';
+  const _anyMoverDeclined = ['mover1','mover2','dmover'].some(r => _confirms[r]?.status==='declined');
+
   if(d.mover_name && d.mover2_name){
-    tags.push({text:'Movers: ' + d.mover_name + ' + ' + d.mover2_name});
+    tags.push({text:'Movers: ' + d.mover_name + _moverConfirmSuffix('mover1') + ' + ' + d.mover2_name + _moverConfirmSuffix('mover2')});
   } else if(d.mover_name){
-    tags.push({text:'Mover: ' + d.mover_name});
+    tags.push({text:'Mover: ' + d.mover_name + _moverConfirmSuffix('mover1')});
   } else if(stage==='confirmed' || stage==='staged'){
     tags.push({text:'Mover: TBD', cls:'w'});
   }
+  if(_anyMoverDeclined) tags.push({text:'⚠ Mover declined — reassign', cls:'w'});
   if(d.signed) tags.push({text:'Signed ✓', cls:'ok'});
   else if((d.signatures||[]).length) tags.push({text:'Awaiting countersignature', cls:'a'});
   if(d.paid) tags.push({text:'Paid'});
   else if(stage==='confirmed') tags.push({text:'Payment pending', cls:'a'});
-  if(d.photo_date && (stage==='confirmed'||stage==='staged')) tags.push({text:'Photos ' + fmtDateShort(d.photo_date)});
+  if(d.photo_date && (stage==='confirmed'||stage==='staged')) tags.push({text:'Photos ' + fmtDateShort(d.photo_date) + _moverConfirmSuffix('photographer')});
+  if(_confirms.photographer?.status==='declined') tags.push({text:'⚠ Photographer declined', cls:'w'});
 
   const tagHTML = tags.map(t => `<span class="tag ${t.cls||''}">${t.text}</span>`).join('');
   const noteHTML = d.notes ? `<div class="c-note">${escapeHtml(d.notes)}</div>` : '';
@@ -1578,6 +1624,8 @@ function realOpenCard(invnum){
 
   // Photography
   setVal('m-photo', d.photo_date || '');
+  setVal('m-photographer', d.photographer_name || 'Gabriel');
+  setVal('m-photographer-tel', d.photographer_phone || '+12064225618');
   setVal('m-photo-del', d.photo_delivery || '');
 
   // Payment
@@ -1601,6 +1649,8 @@ function realOpenCard(invnum){
     dmoverSel.value = known || '';
   }
   setVal('m-dtime', d.destage_time || '');
+
+  renderConfirmationStatuses(d);
 
   // Notes
   setVal('m-notes', d.notes || '');
@@ -1992,6 +2042,8 @@ async function saveCard(){
   d.truck_booked = document.getElementById('m-truck').value === 'Booked';
   d.truck_pickup_time = document.getElementById('m-truck-time').value || null;
   d.photo_date = document.getElementById('m-photo').value || null;
+  d.photographer_name = document.getElementById('m-photographer').value || null;
+  d.photographer_phone = document.getElementById('m-photographer-tel').value || null;
   d.photo_delivery = document.getElementById('m-photo-del').value || null;
 
   const paymentVal = document.getElementById('m-payment').value;
