@@ -257,6 +257,117 @@ def _patch_invoice_data(invnum, data):
         return True
 
 
+# ════════════════════════════════════════════════════════════════
+# DAILY DESTAGE REMINDERS (Vercel Cron — see vercel.json "crons")
+# ════════════════════════════════════════════════════════════════
+# Two fixed checkpoints, both predetermined off the already-known destage_date:
+#   15 days out — heads-up to Jasmine, mainly a staffing check (mover assigned yet?)
+#   7 days out  — heads-up to Jasmine with a ready-to-review mailto: link she can tap to
+#                 send the client a predetermined reminder — nothing emails the client
+#                 automatically, she decides.
+# reminder_15_sent / reminder_7_sent flags on the invoice make each checkpoint fire once,
+# and use <= rather than == so a missed cron run still catches up the next day.
+
+def supabase_list_invoices_with_destage():
+    """All invoices that have a destage date set, for the daily reminder cron. Fetches a
+    generous page and filters in Python rather than PostgREST JSON-path date comparisons,
+    which are easy to get subtly wrong against a text-stored ISO date."""
+    try:
+        key = os.environ.get('SUPABASE_KEY', '')
+        req = urllib.request.Request(
+            f'{SUPABASE_URL}/rest/v1/invoices?select=invnum,client,address,data&order=created_at.desc&limit=1000',
+            headers={'apikey': key, 'Authorization': f'Bearer {key}'}
+        )
+        with urllib.request.urlopen(req, timeout=20) as r:
+            invoices = json.loads(r.read())
+        return [inv for inv in invoices if (inv.get('data') or {}).get('destage_date')]
+    except Exception as e:
+        print(f'[reminders] list error: {e}')
+        return []
+
+
+def client_reminder_mailto(client_email, client_first_name, destage_date_fmt):
+    """A pre-written client reminder, opened in Jasmine's own mail app for her to review
+    and send herself — matches the sms: link pattern already used for movers/photographer."""
+    subject = urllib.parse.quote('Your Styling With Jas Rental — Ending Soon')
+    body = urllib.parse.quote(
+        f"Hi {client_first_name},\n\n"
+        f"Just a friendly reminder that your staging rental period wraps up on {destage_date_fmt}. "
+        f"If you'd like to extend, just let us know — otherwise we'll proceed with destage as scheduled.\n\n"
+        f"Thank you!\n"
+        f"Jasmine Santana\nStyling With Jas\n206-422-5618"
+    )
+    return f'mailto:{client_email}?subject={subject}&body={body}'
+
+
+def run_destage_reminders():
+    today = datetime.date.today()
+    sent = []
+    for inv in supabase_list_invoices_with_destage():
+        d = inv.get('data') or {}
+        stage = d.get('stage', 'proposal')
+        if stage in ('cancelled', 'voided') or d.get('voided'):
+            continue
+        try:
+            destage_date = datetime.datetime.strptime(d['destage_date'], '%Y-%m-%d').date()
+        except Exception:
+            continue
+        days_until = (destage_date - today).days
+        if days_until < 0 or days_until > 15:
+            continue  # already past, or too far out to matter yet
+
+        invnum = inv.get('invnum', '')
+        client = inv.get('client', '') or d.get('client', '')
+        address = inv.get('address', '') or d.get('address', '')
+        address_short = address.split(',')[0] if address else ''
+        destage_fmt = destage_date.strftime('%A, %B %d')
+        mover = d.get('destage_mover', '')
+        updates = {}
+
+        if days_until <= 15 and not d.get('reminder_15_sent'):
+            mover_line = f'Destage mover: {mover}' if mover else 'No destage mover assigned yet.'
+            body = (
+                f'Destage for {client} at {address} is coming up on {destage_fmt} ({days_until} days away).\n\n'
+                f'{mover_line}\n\n'
+                f'Invoice #{invnum}.'
+            )
+            send_email(JASMINE_EMAIL, f'Destage in {days_until}d — {client} ({address_short})',
+                       body, html_body=notification_html(body))
+            updates['reminder_15_sent'] = True
+            sent.append(f'{invnum}:15d')
+
+        if days_until <= 7 and not d.get('reminder_7_sent'):
+            client_email = d.get('client_email', '')
+            client_first = client.split()[0] if client else 'there'
+            if client_email:
+                link = client_reminder_mailto(client_email, client_first, destage_fmt)
+                body = (
+                    f'Destage for {client} at {address} is in {days_until} days ({destage_fmt}).\n\n'
+                    f'Want to remind {client_first} their rental is wrapping up? Tap below to open a '
+                    f'pre-written email to them — nothing sends automatically, review it first:\n\n'
+                    f'{link}\n\n'
+                    f'Invoice #{invnum}.'
+                )
+            else:
+                body = (
+                    f'Destage for {client} at {address} is in {days_until} days ({destage_fmt}), '
+                    f'but there\'s no client email on file to send them a reminder.\n\n'
+                    f'Invoice #{invnum}.'
+                )
+            send_email(JASMINE_EMAIL, f'Destage in {days_until}d — remind {client}? ({address_short})',
+                       body, html_body=notification_html(body))
+            updates['reminder_7_sent'] = True
+            sent.append(f'{invnum}:7d')
+
+        if updates:
+            try:
+                _patch_invoice_data(invnum, {**d, **updates})
+            except Exception as e:
+                print(f'[reminders] patch failed for {invnum}: {e}')
+
+    return sent
+
+
 def supabase_update_split_payment(parent_invnum, pay_id, payment_info):
     """A split/partial payment link (id like '202092-PAY1') got paid. Update the matching
     entry in the PARENT invoice's data.payments[] and recompute the running amount_paid —
@@ -553,6 +664,21 @@ class handler(BaseHTTPRequestHandler):
         self._cors()
         self.end_headers()
 
+    def do_GET(self):
+        # Vercel Cron Jobs hit this via GET once daily (see vercel.json). Guarded by
+        # CRON_SECRET if it's set — Vercel auto-sends it as a Bearer token when the env var
+        # exists. Worst case without it is Jasmine getting an extra reminder email, not data
+        # loss, so this doesn't hard-fail while the secret isn't configured yet.
+        secret = os.environ.get('CRON_SECRET', '')
+        if secret and self.headers.get('Authorization', '') != f'Bearer {secret}':
+            self._respond(401, {'error': 'Unauthorized'})
+            return
+        try:
+            sent = run_destage_reminders()
+            self._respond(200, {'ok': True, 'reminders_sent': sent})
+        except Exception as e:
+            self._respond(500, {'error': str(e)})
+
     def do_POST(self):
         length = int(self.headers.get('Content-Length', 0))
         raw_body = self.rfile.read(length)
@@ -758,7 +884,7 @@ class handler(BaseHTTPRequestHandler):
 
     def _cors(self):
         self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Methods', 'POST, GET, OPTIONS')
         self.send_header('Access-Control-Allow-Headers', 'Content-Type, Stripe-Signature')
 
     def log_message(self, format, *args):

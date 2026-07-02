@@ -41,5 +41,8 @@
     { "source": "/assets/:path*", "destination": "/assets/:path*" },
     { "source": "/", "destination": "/today.html" },
     { "source": "/((?!api/).*)", "destination": "/today.html" }
+  ],
+  "crons": [
+    { "path": "/api/webhook", "schedule": "0 15 * * *" }
   ]
 }
