@@ -82,7 +82,7 @@ const ROLE_INFO = {
   photographer:{ jobType: 'Photography',   dateField: 'photo_date',    timeField: null,                 nameField: 'photographer_name' },
 };
 
-let _invnum = null, _role = null, _roleInfo = null;
+let _invnum = null, _role = null, _roleInfo = null, _jobAddress = '';
 
 function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function fmtDate(iso){ if(!iso) return 'Date TBD'; const d=new Date(iso+'T12:00:00'); return d.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'}); }
@@ -106,6 +106,7 @@ async function load(){
     }
     const inv = data[0];
     const d = inv.data || {};
+    _jobAddress = inv.address || d.address || '';
     const existing = (d.confirmations || {})[_role];
     if(existing && existing.status){
       showResult(existing.status, d);
@@ -163,6 +164,7 @@ async function respond(status){
 
     // Notify Jasmine — best-effort, don't block the thank-you screen on it.
     const address = inv.address || d.address || '';
+    _jobAddress = address;
     const date = fmtDate(d[_roleInfo.dateField]);
     const verb = status==='confirmed' ? 'confirmed availability for' : 'is NOT available for';
     fetch('/api/email', {
@@ -184,13 +186,41 @@ async function respond(status){
 
 function showResult(status, d){
   const confirmed = status === 'confirmed';
+  const time = _roleInfo.timeField ? (d[_roleInfo.timeField]||'') : '';
   document.getElementById('main-content').innerHTML = `
     <div class="result-card ${confirmed?'':'declined'}">
       <div class="result-icon">${confirmed?'✅':'👍'}</div>
       <div class="result-title">${confirmed?'You\'re confirmed!':'Thanks for letting us know'}</div>
       <div class="result-sub">${confirmed?'Jasmine has been notified — thank you for confirming.':'Jasmine has been notified you\'re not available, and will find coverage.'}</div>
     </div>
+    ${confirmed?`<div class="btn-row"><button class="btn btn-yes" style="background:var(--ink)" onclick="downloadCalendarInvite('${esc(d[_roleInfo.dateField]||'')}','${esc(time)}')">📅 Add to My Calendar</button></div>`:''}
   `;
+}
+
+// Downloadable .ics for the PERSON WHO CONFIRMED to save on their own phone — this doesn't
+// (and can't) write into their calendar directly, it just triggers their device's own
+// "Add Event" prompt when they tap the downloaded file, same as any calendar invite.
+function downloadCalendarInvite(dateVal, timeStr){
+  if(!dateVal){ alert('No date set for this job yet — check back closer to the date.'); return; }
+  const title = `SWJ ${_roleInfo.jobType}${timeStr?' — '+timeStr:''}`;
+  const start = new Date(dateVal+'T09:00:00');   // default call time; exact time (if any) is in the description
+  const end = new Date(start.getTime() + 4*60*60*1000);
+  const pad = n => String(n).padStart(2,'0');
+  const fmt = dt => `${dt.getFullYear()}${pad(dt.getMonth()+1)}${pad(dt.getDate())}T${pad(dt.getHours())}${pad(dt.getMinutes())}00`;
+  const desc = `Styling With Jas — ${_roleInfo.jobType}${timeStr?'\\nCall time: '+timeStr:''}${_jobAddress?'\\nAddress: '+_jobAddress:''}`;
+  const ics = [
+    'BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//SWJ//Confirm//EN','BEGIN:VEVENT',
+    `DTSTART:${fmt(start)}`, `DTEND:${fmt(end)}`, `SUMMARY:${title}`,
+    `DESCRIPTION:${desc}`, `LOCATION:${_jobAddress}`,
+    'BEGIN:VALARM','TRIGGER:-PT120M','ACTION:DISPLAY',`DESCRIPTION:${title} in 2 hours`,'END:VALARM',
+    'END:VEVENT','END:VCALENDAR'
+  ].join('\r\n');
+  const blob = new Blob([ics], {type:'text/calendar'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `SWJ_${_roleInfo.jobType.replace(/\s/g,'_')}.ics`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url), 30000);
 }
 
 function showError(msg){
