@@ -2053,7 +2053,8 @@ function openEmailModal(data){
   const spaceCount=(data.baserooms||"").split(", ").filter(Boolean).length + arr.length;
   const scopeWord=data.scope?(data.scope+" staging"):"staging";
   const spacesBit=spaceCount?(" · "+spaceCount+" curated spaces"):"";
-  const proposalUrl=location.origin+"/proposal.html?inv="+(data.invnum||"");
+  const clientRoleParam=data.cosigner&&data.cosigner.name?"&role=client":"";
+  const proposalUrl=location.origin+"/proposal.html?inv="+(data.invnum||"")+clientRoleParam;
   const approveLine="\n\nTo approve this proposal, review & sign here:\n"+proposalUrl;
   document.getElementById("email-to").value="";
   if(isLux){
@@ -2125,12 +2126,38 @@ async function sendEmail(){
     const d=await r.json();
     if(d.sent){
       const n=(d.to||[]).length;
-      statusEl.textContent='✓ Sent to '+(n>1?n+' recipients':'1 recipient')+(d.skipped&&d.skipped.length?' (skipped invalid: '+d.skipped.join(', ')+')':'')+'!';
+      let statusMsg='✓ Sent to '+(n>1?n+' recipients':'1 recipient')+(d.skipped&&d.skipped.length?' (skipped invalid: '+d.skipped.join(', ')+')':'')+'!';
+      // Co-signer gets their own tailored Approve & Sign email at the same time — signing
+      // doesn't wait on the client to go first anymore, so both need their invite up front.
+      const cosignerResult=await sendCosignerInviteEmail(window._lastInvoiceData, base64);
+      if(cosignerResult==='sent') statusMsg+=' Co-signer invited too.';
+      else if(cosignerResult==='error') statusMsg+=' (Co-signer invite failed — resend from the board.)';
+      statusEl.textContent=statusMsg;
       statusEl.style.color='#22c55e';setTimeout(()=>{closeEmailModal();},1800);
     }
     else{statusEl.textContent='Error: '+(d.error||'Unknown');statusEl.style.color='#e24b4a';}
   }catch(e){statusEl.textContent='Error: '+e.message;statusEl.style.color='#e24b4a';}
   sendBtn.disabled=false; sendBtn.textContent='Send Email';
+}
+
+// Sends the co-signer their own personalized Approve & Sign invite, in parallel with the
+// client's — both parties can review and sign whenever they're ready, in either order.
+// Returns 'sent' | 'skipped' (no co-signer configured) | 'error'.
+async function sendCosignerInviteEmail(data, pdfBase64){
+  if(!data || !data.cosigner || !data.cosigner.name || !data.cosigner.email) return 'skipped';
+  const cosigner=data.cosigner;
+  const cosignerFirst=cosigner.name.split(' ')[0];
+  const client=data.client||'';
+  const address=data.address||'';
+  const roleLabel=cosigner.role||'Co-Signer';
+  const link=location.origin+"/proposal.html?inv="+(data.invnum||"")+"&role=cosigner";
+  const subject=`Please Review & Sign — ${address}`;
+  const message=`Hi ${cosignerFirst},\n\n${client} has set up a staging proposal for ${address}, and you're needed as ${roleLabel.toLowerCase()==='co-signer'?'a co-signer':roleLabel} to countersign it.\n\nTo review and sign, please visit:\n${link}\n\nOnce both of you have signed, you'll each receive the fully executed contract by email — you don't need to wait for ${client.split(' ')[0]||'the other party'} to sign first.\n\nQuestions? Call or text Jasmine at 206-422-5618.\n\nWarmly,\nJasmine Santana\nOwner & Creative Director — Styling With Jas\n📱 206-422-5618\n📧 info@stylingwithjas.com`;
+  try{
+    const r=await fetch('/api/email',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({to:cosigner.email,subject,message,pdf:pdfBase64,filename:_lastPdfFilename,proposal_link:link,client_first_name:cosignerFirst})});
+    const d=await r.json();
+    return d.sent?'sent':'error';
+  }catch(e){ return 'error'; }
 }
 
 async function generatePDF(){
