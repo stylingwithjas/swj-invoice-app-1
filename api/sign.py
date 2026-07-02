@@ -309,6 +309,9 @@ def build_full_signed_contract(inv, signatures):
 
         client = inv.get('client', '')
         address = inv.get('address', '')
+        _cosigner = d.get('cosigner') or {}
+        if _cosigner.get('joint') and _cosigner.get('name'):
+            client = f"{client} & {_cosigner['name']}" if client else _cosigner['name']
 
         # Client block
         new_page.insert_text(fitz.Point(54, y), client, fontsize=14, fontname='Helvetica-Bold', color=ink)

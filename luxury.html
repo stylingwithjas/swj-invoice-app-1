@@ -587,6 +587,10 @@ body { background:#eceff3; color:var(--ink); }
         <div class="field-lbl">Email</div>
         <input class="field-input" id="cosigner-email" type="email" placeholder="cosigner@example.com" autocomplete="email">
       </div>
+      <div class="toggle-row" style="padding-top:6px">
+        <input type="checkbox" id="cosigner-joint">
+        <label for="cosigner-joint">Joint client — address the invoice to both (e.g. "Jane Smith &amp; John Smith"). Leave unchecked for a third party like an agent, who countersigns but isn't billed.</label>
+      </div>
       <div style="font-size:10px;color:var(--taupe);margin-top:6px">A second required signer (e.g. spouse, co-buyer, referring agent). The client signs first; this person is then emailed automatically to countersign, and both signatures merge into one contract. Leave blank for a single-signer invoice.</div>
     </div>
   </div>
@@ -1043,8 +1047,9 @@ function getCosigner(){
   const role=(document.getElementById('cosigner-role')?.value||'').trim();
   const name=(document.getElementById('cosigner-name')?.value||'').trim();
   const email=(document.getElementById('cosigner-email')?.value||'').trim();
+  const joint=document.getElementById('cosigner-joint')?.checked||false;
   if(!name||!email) return null;
-  return {role:role||'Co-Signer',name,email};
+  return {role:role||'Co-Signer',name,email,joint};
 }
 
 function fmt(n){return'$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
@@ -1691,6 +1696,7 @@ function loadInvoiceData(d){
     if(document.getElementById('cosigner-role')) document.getElementById('cosigner-role').value = _cs.role||'';
     if(document.getElementById('cosigner-name')) document.getElementById('cosigner-name').value = _cs.name||'';
     if(document.getElementById('cosigner-email')) document.getElementById('cosigner-email').value = _cs.email||'';
+    if(document.getElementById('cosigner-joint')) document.getElementById('cosigner-joint').checked = _cs.joint||false;
 
     // Prefer exact structured restore for records saved with full state.
     if(d.state){
