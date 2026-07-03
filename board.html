@@ -38,10 +38,13 @@
   --red-lt:     #fef0f0;
   --slate:      #4a5e82;
   --slate-lt:   #edf0f6;
+  --teal:       #2f8f6f;
+  --teal-lt:    #e6f4ee;
+  --teal-dk:    #226b52;
 
   --proposal-bg:  #f2f0ee;
   --confirmed-bg: #edf4ed;
-  --staged-bg:    #faf3e8;
+  --staged-bg:    var(--teal-lt);
   --destage-bg:   #edf0f6;
   --done-bg:      #f0eeec;
   --denied-bg:    #fdf0f0;
@@ -167,7 +170,7 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
 .card:active { transform:scale(0.976); }
 .card.proposal  { background:var(--proposal-bg);  border-color:rgba(122,111,105,0.14); }
 .card.confirmed { background:var(--confirmed-bg); border-color:rgba(74,124,80,0.14); }
-.card.staged    { background:var(--staged-bg);    border-color:rgba(157,122,68,0.16); }
+.card.staged    { background:var(--staged-bg);    border-color:rgba(47,143,111,0.18); }
 .card.destage   { background:var(--destage-bg);   border-color:rgba(74,94,130,0.14); }
 .card.done      { background:var(--done-bg);      border-color:rgba(162,156,150,0.1); opacity:0.6; }
 .card.denied    { background:var(--denied-bg);    border-color:rgba(181,53,53,0.12); opacity:0.55; }
@@ -176,12 +179,12 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
 .c-name { font-family:'Cormorant Garamond',serif; font-size:16px; font-weight:400; line-height:1.2; }
 .card.proposal  .c-name { color:var(--ink); }
 .card.confirmed .c-name { color:#1e3d21; }
-.card.staged    .c-name { color:#3d2e10; }
+.card.staged    .c-name { color:#123a2c; }
 .card.destage   .c-name { color:#1e2e45; }
 .c-amt { font-size:12px; font-weight:600; white-space:nowrap; margin-left:8px; }
 .card.proposal  .c-amt { color:var(--taupe-dk); }
 .card.confirmed .c-amt { color:var(--green); }
-.card.staged    .c-amt { color:var(--gold-dk); }
+.card.staged    .c-amt { color:var(--teal-dk); }
 .card.destage   .c-amt { color:var(--slate); }
 .c-addr { font-size:11px; color:var(--taupe); margin-bottom:8px; line-height:1.35; }
 
@@ -191,7 +194,7 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
 .card.confirmed .tag { background:rgba(74,124,80,0.1);    color:var(--green); }
 .card.confirmed .tag.w { background:rgba(201,124,46,0.1); color:var(--amber); }
 .card.confirmed .tag.a { background:rgba(181,53,53,0.1);  color:var(--red); }
-.card.staged    .tag { background:rgba(157,122,68,0.1);   color:var(--gold-dk); }
+.card.staged    .tag { background:rgba(47,143,111,0.12);   color:var(--teal-dk); }
 .card.destage   .tag { background:rgba(74,94,130,0.1);    color:var(--slate); }
 .card.done      .tag { background:rgba(162,156,150,0.1);  color:var(--taupe); }
 
@@ -232,7 +235,7 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
 .m-bar { height:3px; margin:10px 20px 0; border-radius:2px; }
 .m-bar.proposal  { background:var(--taupe); }
 .m-bar.confirmed { background:var(--green); }
-.m-bar.staged    { background:var(--gold); }
+.m-bar.staged    { background:var(--teal); }
 .m-bar.destage   { background:var(--slate); }
 
 /* Modal header */
@@ -419,7 +422,7 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
   <div class="col" data-s="staged">
     <div class="col-hdr">
       <span class="col-lbl" style="color:var(--gold-dk)">Currently Staged</span>
-      <span class="col-n" id="col-n-staged" style="background:var(--gold);color:var(--ink)">0</span>
+      <span class="col-n" id="col-n-staged" style="background:var(--teal)">0</span>
     </div>
     <div id="col-body-staged"></div>
   </div>
@@ -617,6 +620,14 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
       <div class="m-row">
         <span class="m-lbl">Calendar</span>
         <button class="m-cal-btn" onclick="addToCalendar('destage')">Add Destage to Calendar</button>
+      </div>
+      <div class="m-row" style="flex-direction:column;align-items:stretch;gap:6px">
+        <span class="m-lbl">Client reminder</span>
+        <div style="display:flex;gap:8px">
+          <button class="m-text-btn" style="flex:1;background:var(--teal,#2f8f6f)" onclick="emailClientDestageReminder('pickup')">Email: Pickup Reminder</button>
+          <button class="m-text-btn" style="flex:1;background:var(--slate)" onclick="emailClientDestageReminder('extend')">Email: Offer Extension</button>
+        </div>
+        <div id="m-destage-email-status" style="font-size:11px;color:#888;text-align:right"></div>
       </div>
     </div>
 
@@ -953,6 +964,48 @@ async function resendSignatureInvite(role){
     const r = await fetch('/api/email', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({to, subject, message, proposal_link:link, client_first_name:firstName})});
     const j = await r.json();
     if(statusEl) statusEl.textContent = j.sent ? '✓ Sent' : ('Error: '+(j.error||'unknown'));
+  }catch(e){
+    if(statusEl) statusEl.textContent = 'Error: '+e.message;
+  }
+}
+
+// Sends the client a destage reminder directly from the board's Destage section — same
+// predetermined wording as the 15/7-day cron's suggested email (see run_destage_reminders()
+// in api/webhook.py), but triggerable any time, not just from the daily reminder email's
+// mailto: link. kind is 'pickup' (standard wrap-up notice) or 'extend' (offers another
+// 30-day period at the invoice's extension rate).
+async function emailClientDestageReminder(kind){
+  const inv = CARDS[currentCardId];
+  if(!inv){ alert('Open a project first.'); return; }
+  const d = inv.data || {};
+  const statusEl = document.getElementById('m-destage-email-status');
+  const clientEmail = (document.getElementById('m-email-in')?.value || d.client_email || '').trim();
+  const client = inv.client || d.client || '';
+  const firstName = client.split(' ')[0] || 'there';
+  const address = inv.address || d.address || '';
+  const destageDate = document.getElementById('m-ddate')?.value || d.destage_date || '';
+  const destageFmt = destageDate
+    ? new Date(destageDate+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})
+    : 'your scheduled destage date';
+
+  if(!clientEmail){ if(statusEl) statusEl.textContent='No client email on file'; return; }
+
+  let subject, message;
+  if(kind==='pickup'){
+    subject = 'Your Styling With Jas Rental — Ending Soon';
+    message = 'Hi '+firstName+',\n\nJust a friendly reminder that your staging rental period at '+address+' wraps up on '+destageFmt+'.\n\nIf you\'d like to extend, just let us know — otherwise we\'ll proceed with destage as scheduled.\n\nThank you!\nJasmine Santana\nStyling With Jas\n206-422-5618';
+  } else {
+    const grand = computeGrand(d);
+    const extrate = parseFloat(d.extrate) || Math.round(grand/3*100)/100;
+    subject = 'Extend Your Styling With Jas Rental?';
+    message = 'Hi '+firstName+',\n\nYour staging rental at '+address+' is scheduled to wrap up on '+destageFmt+'.\n\nIf you\'d like more time, we\'re happy to extend — additional 30-day periods are $'+extrate.toLocaleString(undefined,{minimumFractionDigits:2})+' (prorated by day if needed).\n\nJust reply and let us know, or give us a call!\n\nThank you!\nJasmine Santana\nStyling With Jas\n206-422-5618';
+  }
+
+  if(statusEl) statusEl.textContent='Sending…';
+  try{
+    const r = await fetch('/api/email', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({to:clientEmail, subject, message})});
+    const j = await r.json();
+    if(statusEl) statusEl.textContent = j.sent ? ('✓ Sent to '+clientEmail) : ('Error: '+(j.error||'unknown'));
   }catch(e){
     if(statusEl) statusEl.textContent = 'Error: '+e.message;
   }

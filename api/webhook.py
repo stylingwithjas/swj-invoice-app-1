@@ -326,10 +326,19 @@ def run_destage_reminders():
 
         if days_until <= 15 and not d.get('reminder_15_sent'):
             mover_line = f'Destage mover: {mover}' if mover else 'No destage mover assigned yet.'
+            # Auto-advance the board card from Staged into Destage Scheduled — she shouldn't
+            # have to remember to drag it over herself once the countdown starts. Only moves
+            # it from the expected predecessor stage; leaves anything already further along
+            # (or manually held back) alone.
+            moved = False
+            if stage == 'staged':
+                updates['stage'] = 'destage'
+                moved = True
             body = (
                 f'Destage for {client} at {address} is coming up on {destage_fmt} ({days_until} days away).\n\n'
                 f'{mover_line}\n\n'
-                f'Invoice #{invnum}.'
+                + ('Moved this card to Destage Scheduled on the board.\n\n' if moved else '')
+                + f'Invoice #{invnum}.'
             )
             send_email(JASMINE_EMAIL, f'Destage in {days_until}d — {client} ({address_short})',
                        body, html_body=notification_html(body))
