@@ -560,6 +560,12 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
       </div>
     </div>
 
+    <!-- Signatures (only shown when a co-signer is configured on this invoice) -->
+    <div class="m-sec" id="m-signatures-sec" style="display:none">
+      <div class="m-sec-ttl">Signatures</div>
+      <div id="m-signatures-list"></div>
+    </div>
+
     <!-- Payment -->
     <div class="m-sec">
       <div class="m-sec-ttl">Payment</div>
@@ -848,6 +854,75 @@ function renderConfirmationStatuses(d){
       el.textContent = '';
     }
   });
+}
+
+// Shows client + co-signer signing status when this invoice has a co-signer configured,
+// with a Resend button for whichever party hasn't signed yet. Resending reuses the SAME
+// proposal link (?inv=&role=) already created at generation time — it does NOT regenerate
+// the invoice or create new Stripe payment links, unlike re-running "Generate + Email".
+function renderSignaturesSection(inv, d){
+  const sec = document.getElementById('m-signatures-sec');
+  const list = document.getElementById('m-signatures-list');
+  if(!sec || !list) return;
+  const cosigner = d.cosigner || {};
+  if(!(cosigner.name && cosigner.email)){ sec.style.display='none'; return; }
+  sec.style.display='';
+
+  const sigs = d.signatures || [];
+  const clientSig = sigs.find(s=>s.role==='client');
+  const cosignerSig = sigs.find(s=>s.role==='cosigner');
+  const client = inv.client || d.client || '';
+  const roleLabel = cosigner.role || 'Co-Signer';
+
+  const row = (label, sig, role) => `
+    <div class="m-row">
+      <span class="m-lbl">${escapeHtml(label)}</span>
+      <span style="font-size:13px;${sig?'color:#4a7c50':'color:#b53535'}">${sig?('✓ Signed '+(sig.signed_date||'')):'Not yet signed'}</span>
+    </div>
+    ${!sig?`<div style="display:flex;justify-content:flex-end;gap:8px;margin:-4px 0 8px;align-items:center">
+      <span id="m-resend-status-${role}" style="font-size:11px;color:#888"></span>
+      <button class="m-text-btn" onclick="resendSignatureInvite('${role}')">Resend</button>
+    </div>`:''}
+  `;
+
+  list.innerHTML =
+    row(`Client — ${client}`, clientSig, 'client') +
+    row(`${roleLabel} — ${cosigner.name}`, cosignerSig, 'cosigner');
+}
+
+async function resendSignatureInvite(role){
+  const inv = CARDS[currentCardId];
+  if(!inv){ alert('Open a project first.'); return; }
+  const d = inv.data || {};
+  const cosigner = d.cosigner || {};
+  const client = inv.client || d.client || '';
+  const roleLabel = cosigner.role || 'Co-Signer';
+  const statusEl = document.getElementById('m-resend-status-'+role);
+
+  const to = role==='client' ? (d.client_email||'') : (cosigner.email||'');
+  const firstName = role==='client' ? (client.split(' ')[0]||'there') : (cosigner.name.split(' ')[0]||'there');
+  if(!to){ if(statusEl) statusEl.textContent='No email on file'; return; }
+
+  const link = location.origin+'/proposal.html?inv='+encodeURIComponent(currentCardId)+'&role='+role;
+  const subject = 'Please Review & Sign — '+(inv.address||d.address||'');
+  let intro;
+  if(role==='client'){
+    intro = 'Just a reminder to review and sign your staging proposal for '+(inv.address||d.address||'')+'.';
+  } else if(cosigner.joint){
+    intro = 'A staging proposal for '+(inv.address||d.address||'')+' is ready for you and '+client+' to review and sign together as joint clients.';
+  } else {
+    intro = client+' has set up a staging proposal for '+(inv.address||d.address||'')+', and you\'re needed as '+(roleLabel.toLowerCase()==='co-signer'?'a co-signer':roleLabel)+' to countersign it.';
+  }
+  const message = 'Hi '+firstName+',\n\n'+intro+'\n\nTo review and sign, please visit:\n'+link+'\n\nQuestions? Call or text Jasmine at 206-422-5618.\n\nWarmly,\nJasmine Santana\nOwner & Creative Director — Styling With Jas\n📱 206-422-5618\n📧 info@stylingwithjas.com';
+
+  if(statusEl) statusEl.textContent='Sending…';
+  try{
+    const r = await fetch('/api/email', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({to, subject, message, proposal_link:link, client_first_name:firstName})});
+    const j = await r.json();
+    if(statusEl) statusEl.textContent = j.sent ? '✓ Sent' : ('Error: '+(j.error||'unknown'));
+  }catch(e){
+    if(statusEl) statusEl.textContent = 'Error: '+e.message;
+  }
 }
 
 function addToCalendar(type){
@@ -1653,6 +1728,7 @@ function realOpenCard(invnum){
   setVal('m-dtime', d.destage_time || '');
 
   renderConfirmationStatuses(d);
+  renderSignaturesSection(inv, d);
 
   // Notes
   setVal('m-notes', d.notes || '');
