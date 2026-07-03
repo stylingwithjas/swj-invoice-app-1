@@ -874,20 +874,21 @@ function renderSignaturesSection(inv, d){
   const client = inv.client || d.client || '';
   const roleLabel = cosigner.role || 'Co-Signer';
 
-  const row = (label, sig, role) => `
+  const row = (label, sig, role, email) => `
     <div class="m-row">
       <span class="m-lbl">${escapeHtml(label)}</span>
       <span style="font-size:13px;${sig?'color:#4a7c50':'color:#b53535'}">${sig?('✓ Signed '+(sig.signed_date||'')):'Not yet signed'}</span>
     </div>
-    ${!sig?`<div style="display:flex;justify-content:flex-end;gap:8px;margin:-4px 0 8px;align-items:center">
-      <span id="m-resend-status-${role}" style="font-size:11px;color:#888"></span>
+    ${!sig?`<div style="display:flex;gap:8px;margin:-4px 0 4px;align-items:center">
+      <input type="email" id="m-resend-email-${role}" class="m-tel-input" value="${escapeHtml(email||'')}" placeholder="email@example.com" style="flex:1">
       <button class="m-text-btn" onclick="resendSignatureInvite('${role}')">Resend</button>
-    </div>`:''}
+    </div>
+    <div id="m-resend-status-${role}" style="font-size:11px;color:#888;text-align:right;margin:0 0 8px"></div>`:''}
   `;
 
   list.innerHTML =
-    row(`Client — ${client}`, clientSig, 'client') +
-    row(`${roleLabel} — ${cosigner.name}`, cosignerSig, 'cosigner');
+    row(`Client — ${client}`, clientSig, 'client', d.client_email) +
+    row(`${roleLabel} — ${cosigner.name}`, cosignerSig, 'cosigner', cosigner.email);
 }
 
 async function resendSignatureInvite(role){
@@ -898,10 +899,27 @@ async function resendSignatureInvite(role){
   const client = inv.client || d.client || '';
   const roleLabel = cosigner.role || 'Co-Signer';
   const statusEl = document.getElementById('m-resend-status-'+role);
+  const emailInput = document.getElementById('m-resend-email-'+role);
 
-  const to = role==='client' ? (d.client_email||'') : (cosigner.email||'');
+  // Use whatever's currently in the field — Jasmine may have just corrected a wrong
+  // address before hitting Resend, so this must NOT silently fall back to the stored value.
+  const to = (emailInput ? emailInput.value : '').trim();
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if(!to || !emailRegex.test(to)){ if(statusEl) statusEl.textContent='Enter a valid email first'; return; }
+
   const firstName = role==='client' ? (client.split(' ')[0]||'there') : (cosigner.name.split(' ')[0]||'there');
-  if(!to){ if(statusEl) statusEl.textContent='No email on file'; return; }
+
+  // If it was edited, save the correction back to the invoice so future sends (and any
+  // signed-contract emails) use the fixed address too — not just this one resend.
+  const storedEmail = role==='client' ? (d.client_email||'') : (cosigner.email||'');
+  if(to !== storedEmail){
+    if(role==='client'){ d.client_email = to; }
+    else { d.cosigner = { ...cosigner, email: to }; }
+    try{
+      await _sb.from('invoices').upsert({ invnum: inv.invnum, client: inv.client, address: inv.address, invdate: inv.invdate, data: d }, { onConflict: 'invnum' });
+      inv.data = d;
+    }catch(e){ /* still send the email even if the save hiccups — don't block on it */ }
+  }
 
   const link = location.origin+'/proposal.html?inv='+encodeURIComponent(currentCardId)+'&role='+role;
   const subject = 'Please Review & Sign — '+(inv.address||d.address||'');
