@@ -360,7 +360,10 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
 <div class="today-wrap" style="background:var(--ink);padding:0 16px 16px;border-bottom:3px solid var(--gold)">
   <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0 10px">
     <div style="font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:300;color:#fff;letter-spacing:1px">Today</div>
-    <div id="today-date" style="font-size:10px;color:rgba(255,255,255,0.3);letter-spacing:1px;text-transform:uppercase"></div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <button id="check-reminders-btn" onclick="checkRemindersNow()" style="background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.6);border:none;border-radius:14px;padding:5px 10px;font-size:10px;cursor:pointer;white-space:nowrap">🔔 Check Reminders Now</button>
+      <div id="today-date" style="font-size:10px;color:rgba(255,255,255,0.3);letter-spacing:1px;text-transform:uppercase"></div>
+    </div>
   </div>
   <div class="today-items" id="today-items">
     <div style="color:rgba(255,255,255,0.4);font-size:11px;font-style:italic;padding:6px 4px">Loading...</div>
@@ -1416,6 +1419,33 @@ async function autoAdvanceStages(invoices){
     }
   }
 }
+// Manually fires the exact same daily destage-reminder check Vercel Cron runs on its own
+// schedule (see run_destage_reminders() in api/webhook.py) — lets Jasmine verify end-to-end
+// that Supabase reads, email sending, and the reminder logic itself all actually work,
+// without waiting for (or trusting) the automated 8am schedule. Safe to run any time: it's
+// idempotent against the same reminder_15_sent/reminder_7_sent flags the cron itself checks,
+// so re-running this can't send a duplicate reminder for anything already sent today.
+async function checkRemindersNow(){
+  const btn = document.getElementById('check-reminders-btn');
+  if(btn){ btn.disabled = true; btn.textContent = '🔔 Checking…'; }
+  try{
+    const r = await fetch('/api/webhook', { method: 'GET' });
+    const j = await r.json();
+    if(j.ok){
+      const sent = j.reminders_sent || [];
+      alert(sent.length
+        ? '✓ Reminder check ran — sent: ' + sent.join(', ')
+        : '✓ Reminder check ran — nothing due right now (or already sent earlier today).');
+    } else {
+      alert('Reminder check failed: ' + (j.error || ('HTTP ' + r.status)));
+    }
+  }catch(e){
+    alert('Could not reach the reminder check: ' + e.message);
+  } finally {
+    if(btn){ btn.disabled = false; btn.textContent = '🔔 Check Reminders Now'; }
+  }
+}
+
 async function loadBoard(){
   try {
     const { data, error } = await _sb
