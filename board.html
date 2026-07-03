@@ -821,6 +821,12 @@ function textMover(type){
 
   const clean = tel.replace(/\D/g,'');
   window.open(`sms:${clean}&body=${encodeURIComponent(msg)}`);
+  // Fire-and-forget, not awaited: window.open() must run synchronously in the click handler
+  // or iOS Safari can block it as no longer a direct user gesture. board.html has no
+  // auto-save, so without this, the confirmation link would point at whatever was last
+  // explicitly "Save Changes"-d rather than the date/mover just typed in — this closes that
+  // gap by saving right after the text opens, well before anyone actually taps the link.
+  persistCurrentModalFields();
 }
 
 function textPhotographer(){
@@ -833,6 +839,7 @@ function textPhotographer(){
   const msg = `Hi ${name}, photos are scheduled for ${addr} on ${fmtDate}. Please confirm here: ${link}`;
   const clean = tel.replace(/\D/g,'');
   window.open(`sms:${clean}&body=${encodeURIComponent(msg)}`);
+  persistCurrentModalFields();  // see comment in textMover() above
 }
 
 // Small status line under each mover/photographer row, populated from d.confirmations
@@ -2123,15 +2130,12 @@ async function addPastJob(){
   alert('Added ' + invnum + ' for ' + client + ' (Currently Staged) and opened it.\n\nNow fill in the rest right on the card — Address, Client email, Invoice amount, Staging date — then Save Changes.');
 }
 
-async function saveCard(){
-  if(!currentCardId){ return; }
-  const inv = CARDS[currentCardId];
-  if(!inv){ alert('Card not found'); return; }
-
-  const btn = document.querySelector('.mbtn.pri');
-  if(btn){ btn.disabled = true; btn.textContent = 'Saving...'; }
-
-  // Merge modal fields into the data blob
+// Reads every modal field into a fresh copy of the invoice's data blob. Shared by saveCard()
+// (which also closes the modal / reloads the board / shows Saving... UI) and
+// persistCurrentModalFields() (a silent version used before texting a mover/photographer,
+// so the confirmation link they get always points at what's actually on screen right now —
+// not whatever was last explicitly saved).
+function buildCardDataFromModal(inv){
   const d = { ...(inv.data || {}) };
   const _amt = parseFloat(document.getElementById('m-amount').value);
   if(!isNaN(_amt)) d.base_price = _amt;   // editable invoice amount (also drives the extension rate)
@@ -2185,6 +2189,19 @@ async function saveCard(){
     desc: p.desc, store: p.store, price: p.price, done: !!p.done
   }));
 
+  return d;
+}
+
+async function saveCard(){
+  if(!currentCardId){ return; }
+  const inv = CARDS[currentCardId];
+  if(!inv){ alert('Card not found'); return; }
+
+  const btn = document.querySelector('.mbtn.pri');
+  if(btn){ btn.disabled = true; btn.textContent = 'Saving...'; }
+
+  const d = buildCardDataFromModal(inv);
+
   try {
     const { error } = await _sb.from('invoices').upsert({
       invnum: inv.invnum,
@@ -2217,6 +2234,24 @@ async function saveCard(){
   } finally {
     if(btn){ btn.disabled = false; btn.textContent = 'Save Changes'; }
   }
+}
+
+// Silent version of saveCard() — persists current modal fields to Supabase WITHOUT closing
+// the modal or reloading the board. Used before texting a mover/photographer so the
+// confirmation link they get points at what's actually on screen, not a stale saved state
+// (board.html has no auto-save — fields only persist on an explicit "Save Changes" tap
+// otherwise, so texting before that would send a link to a not-yet-saved date/mover).
+async function persistCurrentModalFields(){
+  if(!currentCardId) return;
+  const inv = CARDS[currentCardId];
+  if(!inv) return;
+  try{
+    const d = buildCardDataFromModal(inv);
+    const { error } = await _sb.from('invoices').upsert({
+      invnum: inv.invnum, client: inv.client, address: inv.address, invdate: inv.invdate, data: d,
+    }, { onConflict: 'invnum' });
+    if(!error){ inv.data = d; CARDS[currentCardId].data = d; }
+  }catch(e){ /* best-effort — the text still sends even if this silent save hiccups */ }
 }
 
 // Initialize board on load
