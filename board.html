@@ -913,8 +913,16 @@ async function resendSignatureInvite(role){
   // signed-contract emails) use the fixed address too — not just this one resend.
   const storedEmail = role==='client' ? (d.client_email||'') : (cosigner.email||'');
   if(to !== storedEmail){
-    if(role==='client'){ d.client_email = to; }
-    else { d.cosigner = { ...cosigner, email: to }; }
+    if(role==='client'){
+      d.client_email = to;
+      // The Client & Property section has its own separate email field elsewhere in this
+      // same modal — keep it in sync so a later Save on the card can't silently overwrite
+      // this correction back to the stale value still sitting in that other input.
+      const otherField = document.getElementById('m-email-in');
+      if(otherField) otherField.value = to;
+    } else {
+      d.cosigner = { ...cosigner, email: to };
+    }
     try{
       await _sb.from('invoices').upsert({ invnum: inv.invnum, client: inv.client, address: inv.address, invdate: inv.invdate, data: d }, { onConflict: 'invnum' });
       inv.data = d;
