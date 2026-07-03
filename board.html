@@ -451,6 +451,7 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
     <div class="m-hdr">
       <div class="m-name" id="m-name"></div>
       <div class="m-addr" id="m-addr"></div>
+      <div class="m-addr" id="m-invnum" style="font-family:monospace;font-size:10px;opacity:0.6"></div>
       <div class="m-amt" id="m-amt"></div>
     </div>
 
@@ -1581,6 +1582,7 @@ function realOpenCard(invnum){
   // Header
   document.getElementById('m-name').textContent = inv.client || d.client || '';
   document.getElementById('m-addr').textContent = inv.address || d.address || '';
+  document.getElementById('m-invnum').textContent = '#' + invnum;
   document.getElementById('m-amt').textContent = fmtMoney(computeGrand(d));
   setVal('m-amount', (d.base_price != null ? d.base_price : Math.round(computeGrand(d))));
   setVal('m-address-in', inv.address || d.address || '');
