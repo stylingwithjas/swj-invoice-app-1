@@ -977,15 +977,18 @@ async function resendSignatureInvite(role){
 async function emailClientDestageReminder(kind){
   const inv = CARDS[currentCardId];
   if(!inv){ alert('Open a project first.'); return; }
-  const d = inv.data || {};
   const statusEl = document.getElementById('m-destage-email-status');
-  const clientEmail = (document.getElementById('m-email-in')?.value || d.client_email || '').trim();
+  // Read every field straight from the open modal (address, destage date, invoice amount,
+  // client email) rather than the last-saved data — same fix as texting a mover: board.html
+  // has no auto-save, so building off stale stored data could send a reminder with the
+  // wrong address/date/rate if she'd just edited something but hadn't hit Save yet.
+  const d = buildCardDataFromModal(inv);
+  const clientEmail = (d.client_email || '').trim();
   const client = inv.client || d.client || '';
   const firstName = client.split(' ')[0] || 'there';
-  const address = inv.address || d.address || '';
-  const destageDate = document.getElementById('m-ddate')?.value || d.destage_date || '';
-  const destageFmt = destageDate
-    ? new Date(destageDate+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})
+  const address = d.address || '';
+  const destageFmt = d.destage_date
+    ? new Date(d.destage_date+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})
     : 'your scheduled destage date';
 
   if(!clientEmail){ if(statusEl) statusEl.textContent='No client email on file'; return; }
@@ -1006,6 +1009,15 @@ async function emailClientDestageReminder(kind){
     const r = await fetch('/api/email', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({to:clientEmail, subject, message})});
     const j = await r.json();
     if(statusEl) statusEl.textContent = j.sent ? ('✓ Sent to '+clientEmail) : ('Error: '+(j.error||'unknown'));
+    if(j.sent){
+      // Same fields were just read to build the email — persist them too, so this action
+      // doubles as a save (matching the "Text" buttons' behavior) instead of silently
+      // leaving whatever was just typed unsaved.
+      try{
+        await _sb.from('invoices').upsert({invnum:inv.invnum, client:inv.client, address:inv.address, invdate:inv.invdate, data:d}, {onConflict:'invnum'});
+        inv.data = d; CARDS[currentCardId].data = d;
+      }catch(e){ /* email already sent either way */ }
+    }
   }catch(e){
     if(statusEl) statusEl.textContent = 'Error: '+e.message;
   }

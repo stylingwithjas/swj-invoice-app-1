@@ -261,12 +261,17 @@ def _patch_invoice_data(invnum, data):
 # DAILY DESTAGE REMINDERS (Vercel Cron — see vercel.json "crons")
 # ════════════════════════════════════════════════════════════════
 # Two fixed checkpoints, both predetermined off the already-known destage_date:
-#   15 days out — heads-up to Jasmine, mainly a staffing check (mover assigned yet?)
-#   7 days out  — heads-up to Jasmine with a ready-to-review mailto: link she can tap to
+#   15 days out — heads-up to Jasmine, mainly a staffing check (mover assigned yet?); also
+#                 auto-advances the board card from Staged into Destage Scheduled.
+#   9 days out  — heads-up to Jasmine with a ready-to-review mailto: link she can tap to
 #                 send the client a predetermined reminder — nothing emails the client
-#                 automatically, she decides.
-# reminder_15_sent / reminder_7_sent flags on the invoice make each checkpoint fire once,
-# and use <= rather than == so a missed cron run still catches up the next day.
+#                 automatically, she decides (she can also send it directly from the board's
+#                 Destage section any time via emailClientDestageReminder(), same wording).
+# reminder_15_sent / reminder_7_sent flags on the invoice make each checkpoint fire once, and
+# use <= rather than == so a missed cron run still catches up the next day. The second flag
+# is still named reminder_7_sent (not renamed to reminder_9_sent) on purpose — invoices where
+# the old 7-day checkpoint already fired must not get a duplicate reminder just because the
+# threshold moved; keeping the same key preserves that history.
 
 def supabase_list_invoices_with_destage():
     """All invoices that have a destage date set, for the daily reminder cron. Fetches a
@@ -345,7 +350,7 @@ def run_destage_reminders():
             updates['reminder_15_sent'] = True
             sent.append(f'{invnum}:15d')
 
-        if days_until <= 7 and not d.get('reminder_7_sent'):
+        if days_until <= 9 and not d.get('reminder_7_sent'):
             client_email = d.get('client_email', '')
             client_first = client.split()[0] if client else 'there'
             if client_email:
@@ -366,7 +371,7 @@ def run_destage_reminders():
             send_email(JASMINE_EMAIL, f'Destage in {days_until}d — remind {client}? ({address_short})',
                        body, html_body=notification_html(body))
             updates['reminder_7_sent'] = True
-            sent.append(f'{invnum}:7d')
+            sent.append(f'{invnum}:9d')
 
         if updates:
             try:
