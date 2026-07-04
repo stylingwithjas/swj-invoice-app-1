@@ -245,8 +245,25 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
 .m-amt { font-size:19px; font-weight:600; color:var(--green); margin-top:5px; }
 
 /* Modal sections */
-.m-sec { padding:14px 20px; border-bottom:1px solid rgba(162,156,150,0.08); }
-.m-sec-ttl { font-size:9px; font-weight:600; color:var(--taupe); text-transform:uppercase; letter-spacing:1.5px; margin-bottom:12px; }
+.m-sec { padding:14px 20px 14px 17px; border-bottom:1px solid rgba(162,156,150,0.08); border-left:3px solid transparent; }
+.m-sec-ttl { font-size:9.5px; font-weight:700; color:var(--taupe); text-transform:uppercase; letter-spacing:1.5px; margin-bottom:12px; display:flex; align-items:center; gap:6px; }
+/* Each modal section gets its own accent color + icon so movers/photography/signatures/
+   payment/destage read as distinct blocks at a glance while scrolling, instead of a wall of
+   identically-styled gray labels. */
+.m-sec[data-sec="client"]     { border-left-color:var(--taupe-lt); }
+.m-sec[data-sec="staging"]    { border-left-color:var(--gold); }
+.m-sec[data-sec="staging"]    .m-sec-ttl { color:var(--gold-dk); }
+.m-sec[data-sec="photo"]      { border-left-color:var(--rose,#b5706a); }
+.m-sec[data-sec="photo"]      .m-sec-ttl { color:var(--rose,#b5706a); }
+.m-sec[data-sec="signatures"] { border-left-color:var(--slate); }
+.m-sec[data-sec="signatures"] .m-sec-ttl { color:var(--slate); }
+.m-sec[data-sec="payment"]    { border-left-color:var(--green); }
+.m-sec[data-sec="payment"]    .m-sec-ttl { color:var(--green); }
+.m-sec[data-sec="destage"]    { border-left-color:var(--teal); }
+.m-sec[data-sec="destage"]    .m-sec-ttl { color:var(--teal-dk); }
+.m-sec[data-sec="prep"]       { border-left-color:var(--amber); }
+.m-sec[data-sec="prep"]       .m-sec-ttl { color:var(--amber); }
+.m-sec[data-sec="notes"]      { border-left-color:var(--taupe-lt); }
 .m-row { display:flex; align-items:center; justify-content:space-between; padding:8px 0; border-bottom:1px solid rgba(162,156,150,0.05); }
 .m-row:last-child { border-bottom:none; }
 .m-lbl { font-size:13px; color:var(--ink-soft); }
@@ -474,8 +491,8 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
     </div>
 
     <!-- Client details (editable) -->
-    <div class="m-sec" style="margin-top:10px">
-      <div class="m-sec-ttl">Client</div>
+    <div class="m-sec" data-sec="client" style="margin-top:10px">
+      <div class="m-sec-ttl">👤 Client</div>
       <div class="m-row">
         <span class="m-lbl">Invoice total ($)</span>
         <input class="m-input" id="m-amount" type="text" inputmode="decimal" placeholder="e.g. 3841.61" style="flex:1">
@@ -492,8 +509,8 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
     </div>
 
     <!-- Staging -->
-    <div class="m-sec" style="margin-top:10px">
-      <div class="m-sec-ttl">Staging Day</div>
+    <div class="m-sec" data-sec="staging" style="margin-top:10px">
+      <div class="m-sec-ttl">🚚 Staging Day</div>
       <div class="m-row">
         <span class="m-lbl">Staging date</span>
         <input class="m-input" id="m-sdate" type="date" >
@@ -545,8 +562,8 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
     </div>
 
     <!-- Photography -->
-    <div class="m-sec">
-      <div class="m-sec-ttl">Photography</div>
+    <div class="m-sec" data-sec="photo">
+      <div class="m-sec-ttl">📷 Photography</div>
       <div class="m-row">
         <span class="m-lbl">Photo date</span>
         <input class="m-input" id="m-photo" type="date" >
@@ -567,14 +584,14 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
     </div>
 
     <!-- Signatures (only shown when a co-signer is configured on this invoice) -->
-    <div class="m-sec" id="m-signatures-sec" style="display:none">
-      <div class="m-sec-ttl">Signatures</div>
+    <div class="m-sec" data-sec="signatures" id="m-signatures-sec" style="display:none">
+      <div class="m-sec-ttl">✍️ Signatures</div>
       <div id="m-signatures-list"></div>
     </div>
 
     <!-- Payment -->
-    <div class="m-sec">
-      <div class="m-sec-ttl">Payment</div>
+    <div class="m-sec" data-sec="payment">
+      <div class="m-sec-ttl">💳 Payment</div>
       <div class="m-row">
         <span class="m-lbl">Status</span>
         <select class="m-select" id="m-payment">
@@ -595,8 +612,8 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
     </div>
 
     <!-- Destage -->
-    <div class="m-sec">
-      <div class="m-sec-ttl">Destage</div>
+    <div class="m-sec" data-sec="destage">
+      <div class="m-sec-ttl">📤 Destage</div>
       <div class="m-row">
         <span class="m-lbl">Destage date</span>
         <input class="m-input" id="m-ddate" type="date">
@@ -635,8 +652,8 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
     </div>
 
     <!-- Prep & Shopping Checklist -->
-    <div class="m-sec">
-      <div class="m-sec-ttl">Prep & Shopping</div>
+    <div class="m-sec" data-sec="prep">
+      <div class="m-sec-ttl">🛍️ Prep & Shopping</div>
       <div id="m-prep-list"></div>
       <div class="prep-add-row">
         <input class="prep-add-input" id="prep-desc" type="text" placeholder="Item needed..." onkeydown="if(event.key==='Enter')addPrepItem()">
@@ -659,8 +676,8 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
     </div>
 
     <!-- Notes -->
-    <div class="m-sec">
-      <div class="m-sec-ttl">Notes</div>
+    <div class="m-sec" data-sec="notes">
+      <div class="m-sec-ttl">📝 Notes</div>
       <div style="padding:8px 0">
         <textarea id="m-notes" style="font-family:'Inter',sans-serif;font-size:13px;color:var(--ink);border:1.5px solid var(--taupe-lt);border-radius:10px;background:var(--cream);outline:none;resize:none;width:100%;min-height:64px;padding:10px 12px;line-height:1.5;transition:border-color 0.15s" placeholder="Any notes about this job..."></textarea>
       </div>
