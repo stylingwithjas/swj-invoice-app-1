@@ -2130,6 +2130,60 @@ async function emailBoardContribLink(){
   }catch(e){ statusEl.textContent='Error: '+e.message; statusEl.style.color='#e24b4a'; btn.disabled=false; }
 }
 
+// Custom date-picker dialog for extendRental() — replaces the old prompt() that only asked
+// "how many days," with no way to just pick the actual date the rental should run through.
+// Resolves {days, amount, newEndDate} on confirm, or null on cancel.
+function promptExtensionDate(clientName, curEndStr, defaultNewEndStr, extrate){
+  return new Promise((resolve) => {
+    const ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(26,24,20,0.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:24px;font-family:Inter,-apple-system,sans-serif';
+    ov.innerHTML =
+      '<div style="background:#fff;border-radius:16px;max-width:360px;width:100%;padding:22px">'
+      + '<div style="font-family:Georgia,serif;font-size:19px;color:#1a1814;margin-bottom:4px">Extend Rental — ' + escapeHtml(clientName) + '</div>'
+      + '<div style="font-size:12px;color:#8c847c;margin-bottom:14px">Current rental runs through ' + fmtDateShort(curEndStr) + '.</div>'
+      + '<label style="font-size:10px;font-weight:600;color:#a29c96;text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:6px">Extend through</label>'
+      + '<input type="date" id="ext-date-input" value="' + defaultNewEndStr + '" min="' + curEndStr + '" style="width:100%;font-size:16px;padding:10px 12px;border:1.5px solid #d4cfc9;border-radius:9px;margin-bottom:14px;box-sizing:border-box">'
+      + '<div id="ext-date-preview" style="font-size:13px;color:#3d3830;background:#f5f2ed;border-radius:9px;padding:10px 12px;margin-bottom:16px;min-height:20px">—</div>'
+      + '<div style="display:flex;gap:8px">'
+      + '<button id="ext-date-cancel" style="flex:1;background:#f5f2ed;color:#7a6f69;border:none;padding:12px;border-radius:10px;font-weight:600;cursor:pointer">Cancel</button>'
+      + '<button id="ext-date-confirm" style="flex:1;background:#1a1814;color:#fff;border:none;padding:12px;border-radius:10px;font-weight:600;cursor:pointer">Create Extension</button>'
+      + '</div>'
+      + '</div>';
+    document.body.appendChild(ov);
+
+    const dateInput = ov.querySelector('#ext-date-input');
+    const preview = ov.querySelector('#ext-date-preview');
+    const confirmBtn = ov.querySelector('#ext-date-confirm');
+
+    function computeDays(){
+      const val = dateInput.value;
+      if(!val) return null;
+      return Math.round((new Date(val+'T00:00:00') - new Date(curEndStr+'T00:00:00')) / 86400000);
+    }
+    function updatePreview(){
+      const days = computeDays();
+      if(days === null){ preview.textContent = 'Pick a date to see days & price.'; confirmBtn.disabled = true; return; }
+      if(days <= 0){ preview.textContent = 'Date must be after ' + fmtDateShort(curEndStr) + '.'; confirmBtn.disabled = true; return; }
+      const amount = Math.round(extrate * days / 30 * 100) / 100;
+      preview.innerHTML = days + ' days &nbsp;=&nbsp; <strong>$' + amount.toLocaleString(undefined,{minimumFractionDigits:2}) + '</strong> <span style="color:#a29c96">(at $' + extrate.toLocaleString() + ' / 30 days)</span>';
+      confirmBtn.disabled = false;
+    }
+    dateInput.addEventListener('input', updatePreview);
+    updatePreview();
+
+    function cleanup(){ ov.remove(); }
+    ov.querySelector('#ext-date-cancel').onclick = function(){ cleanup(); resolve(null); };
+    ov.addEventListener('click', function(e){ if(e.target === ov){ cleanup(); resolve(null); } });
+    confirmBtn.onclick = function(){
+      const days = computeDays();
+      if(days === null || days <= 0) return;
+      const amount = Math.round(extrate * days / 30 * 100) / 100;
+      cleanup();
+      resolve({ days, amount, newEndDate: dateInput.value });
+    };
+  });
+}
+
 async function extendRental(invnum){
   const inv = CARDS[invnum];
   if(!inv){ alert('Open a project first.'); return; }
@@ -2141,16 +2195,23 @@ async function extendRental(invnum){
   const grand = computeGrand(d);
   // Extension rate = the contract's stated rate (~1/3 of the total per 30-day period).
   const extrate = parseFloat(d.extrate) || Math.round(grand/3*100)/100;
-  const daysStr = prompt('Extend furniture rental for ' + (inv.client||'this client') + '.\n\nRate: $' + extrate.toLocaleString() + ' per 30-day period (prorated by day).\n\nExtend by how many days?  (most are 30 — edit if needed)', '30');
-  if(daysStr === null) return;
-  const days = Math.max(1, parseInt(daysStr, 10) || 0);
-  if(!days) return;
-  const amount = Math.round(extrate * days / 30 * 100) / 100;
+
+  // Current rental end date BEFORE this new extension — same formula used for "rented
+  // through" everywhere else, so the date picker's minimum/default line up with reality.
+  const _priorExtDays = (d.extensions||[]).reduce((s,e)=>s + (parseInt(e.days,10) || 30*(parseInt(e.periods,10)||1)), 0);
+  let _curEndDt = d.destage_date ? new Date(d.destage_date + 'T00:00:00')
+                : new Date((d.startdate || new Date().toISOString().split('T')[0]) + 'T00:00:00');
+  if(!d.destage_date && d.startdate) _curEndDt.setDate(_curEndDt.getDate() + 45);
+  _curEndDt.setDate(_curEndDt.getDate() + _priorExtDays);
+  const curEndStr = _curEndDt.getFullYear() + '-' + String(_curEndDt.getMonth()+1).padStart(2,'0') + '-' + String(_curEndDt.getDate()).padStart(2,'0');
+  const _defaultDt = new Date(_curEndDt); _defaultDt.setDate(_defaultDt.getDate() + 30);
+  const defaultNewEndStr = _defaultDt.getFullYear() + '-' + String(_defaultDt.getMonth()+1).padStart(2,'0') + '-' + String(_defaultDt.getDate()).padStart(2,'0');
+
+  const picked = await promptExtensionDate(inv.client||'this client', curEndStr, defaultNewEndStr, extrate);
+  if(!picked) return;   // cancelled
+  const { days, amount } = picked;
   const extNum = invnum + '-EXT' + (((d.extensions||[]).length) + 1);
   const addDays = days;
-  if(!confirm('Create ' + extNum + '?\n\n' + days + ' days  =  $' + amount.toLocaleString() +
-              '   (at $' + extrate.toLocaleString() + ' / 30 days)\n\nCreates a payment link + extension invoice PDF and pushes the rental end out ' + days +
-              ' days. No new contract — the signed original covers it.')) return;
 
   // 1) New payment link (metadata flows to the auto-receipt when they pay)
   let url = null;
