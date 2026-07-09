@@ -1811,12 +1811,15 @@ function realOpenCard(invnum){
     const el = document.getElementById('m-rental-info'); if(!el) return;
     const exts = d.extensions || [];
     const extDays = exts.reduce((s,e)=>s + (parseInt(e.days,10) || 30*(parseInt(e.periods,10)||1)), 0);
+    // Destage date is directly editable and kept in sync by extendRental() on every
+    // extension, so it's the through-date directly once set — NOT stacked with extension
+    // days on top again (that double-counts once it's already been extended at least once).
     let through = '?';
-    if(d.destage_date || d.startdate){
-      let end = d.destage_date ? new Date(d.destage_date + 'T00:00:00')
-                               : (function(){ const x = new Date(d.startdate + 'T00:00:00'); x.setDate(x.getDate()+45); return x; })();
-      end.setDate(end.getDate() + extDays);
-      through = end.getFullYear() + '-' + String(end.getMonth()+1).padStart(2,'0') + '-' + String(end.getDate()).padStart(2,'0');
+    if(d.destage_date){
+      through = d.destage_date;
+    } else if(d.startdate){
+      const x = new Date(d.startdate + 'T00:00:00'); x.setDate(x.getDate() + 45 + extDays);
+      through = x.getFullYear() + '-' + String(x.getMonth()+1).padStart(2,'0') + '-' + String(x.getDate()).padStart(2,'0');
     }
     el.textContent = 'Rental — staged ' + (d.startdate||'?') + ' · destage ' + (d.destage_date||'(not set)')
                    + ' · ' + exts.length + ' ext (' + extDays + 'd) → through ' + through;
@@ -2142,7 +2145,7 @@ function promptExtensionDate(clientName, curEndStr, defaultNewEndStr, extrate){
       + '<div style="font-family:Georgia,serif;font-size:19px;color:#1a1814;margin-bottom:4px">Extend Rental — ' + escapeHtml(clientName) + '</div>'
       + '<div style="font-size:12px;color:#8c847c;margin-bottom:14px">Current rental runs through ' + fmtDateShort(curEndStr) + '.</div>'
       + '<label style="font-size:10px;font-weight:600;color:#a29c96;text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:6px">Extend through</label>'
-      + '<input type="date" id="ext-date-input" value="' + defaultNewEndStr + '" min="' + curEndStr + '" style="width:100%;font-size:16px;padding:10px 12px;border:1.5px solid #d4cfc9;border-radius:9px;margin-bottom:14px;box-sizing:border-box">'
+      + '<input type="date" id="ext-date-input" value="' + defaultNewEndStr + '" style="width:100%;font-size:16px;padding:10px 12px;border:1.5px solid #d4cfc9;border-radius:9px;margin-bottom:14px;box-sizing:border-box">'
       + '<div id="ext-date-preview" style="font-size:13px;color:#3d3830;background:#f5f2ed;border-radius:9px;padding:10px 12px;margin-bottom:16px;min-height:20px">—</div>'
       + '<div style="display:flex;gap:8px">'
       + '<button id="ext-date-cancel" style="flex:1;background:#f5f2ed;color:#7a6f69;border:none;padding:12px;border-radius:10px;font-weight:600;cursor:pointer">Cancel</button>'
@@ -2160,12 +2163,21 @@ function promptExtensionDate(clientName, curEndStr, defaultNewEndStr, extrate){
       if(!val) return null;
       return Math.round((new Date(val+'T00:00:00') - new Date(curEndStr+'T00:00:00')) / 86400000);
     }
+    // Never hard-blocks: if the computed "current end" is wrong (e.g. this field was
+    // corrected once before and the app's math didn't account for it), Jasmine can always
+    // override and proceed — the warning stays visible so she knows to double-check, but
+    // doesn't stop her.
     function updatePreview(){
       const days = computeDays();
       if(days === null){ preview.textContent = 'Pick a date to see days & price.'; confirmBtn.disabled = true; return; }
-      if(days <= 0){ preview.textContent = 'Date must be after ' + fmtDateShort(curEndStr) + '.'; confirmBtn.disabled = true; return; }
       const amount = Math.round(extrate * days / 30 * 100) / 100;
-      preview.innerHTML = days + ' days &nbsp;=&nbsp; <strong>$' + amount.toLocaleString(undefined,{minimumFractionDigits:2}) + '</strong> <span style="color:#a29c96">(at $' + extrate.toLocaleString() + ' / 30 days)</span>';
+      if(days <= 0){
+        preview.innerHTML = '⚠ This date is on or before the current end (' + fmtDateShort(curEndStr) + '). Double-check that\'s really what you want — you can still proceed.';
+        preview.style.color = '#b53535';
+      } else {
+        preview.innerHTML = days + ' days &nbsp;=&nbsp; <strong>$' + amount.toLocaleString(undefined,{minimumFractionDigits:2}) + '</strong> <span style="color:#a29c96">(at $' + extrate.toLocaleString() + ' / 30 days)</span>';
+        preview.style.color = '';
+      }
       confirmBtn.disabled = false;
     }
     dateInput.addEventListener('input', updatePreview);
@@ -2176,7 +2188,7 @@ function promptExtensionDate(clientName, curEndStr, defaultNewEndStr, extrate){
     ov.addEventListener('click', function(e){ if(e.target === ov){ cleanup(); resolve(null); } });
     confirmBtn.onclick = function(){
       const days = computeDays();
-      if(days === null || days <= 0) return;
+      if(days === null) return;
       const amount = Math.round(extrate * days / 30 * 100) / 100;
       cleanup();
       resolve({ days, amount, newEndDate: dateInput.value });
@@ -2196,15 +2208,22 @@ async function extendRental(invnum){
   // Extension rate = the contract's stated rate (~1/3 of the total per 30-day period).
   const extrate = parseFloat(d.extrate) || Math.round(grand/3*100)/100;
 
-  // Current rental end date BEFORE this new extension — same formula used for "rented
-  // through" everywhere else, so the date picker's minimum/default line up with reality.
-  const _priorExtDays = (d.extensions||[]).reduce((s,e)=>s + (parseInt(e.days,10) || 30*(parseInt(e.periods,10)||1)), 0);
-  let _curEndDt = d.destage_date ? new Date(d.destage_date + 'T00:00:00')
-                : new Date((d.startdate || new Date().toISOString().split('T')[0]) + 'T00:00:00');
-  if(!d.destage_date && d.startdate) _curEndDt.setDate(_curEndDt.getDate() + 45);
-  _curEndDt.setDate(_curEndDt.getDate() + _priorExtDays);
-  const curEndStr = _curEndDt.getFullYear() + '-' + String(_curEndDt.getMonth()+1).padStart(2,'0') + '-' + String(_curEndDt.getDate()).padStart(2,'0');
-  const _defaultDt = new Date(_curEndDt); _defaultDt.setDate(_defaultDt.getDate() + 30);
+  // Current rental end date BEFORE this new extension. The "Destage date" field is directly
+  // editable by Jasmine elsewhere on this same card, so it's treated as authoritative when
+  // set — NOT stacked with past extension days on top, which double-counts if she's already
+  // corrected it once (extendRental keeps it in sync going forward, see below). Only estimate
+  // via startdate+45+priorExtDays when there's no destage date at all yet to anchor on.
+  let curEndStr;
+  if(d.destage_date){
+    curEndStr = d.destage_date;
+  } else {
+    const _priorExtDays = (d.extensions||[]).reduce((s,e)=>s + (parseInt(e.days,10) || 30*(parseInt(e.periods,10)||1)), 0);
+    let _curEndDt = new Date((d.startdate || new Date().toISOString().split('T')[0]) + 'T00:00:00');
+    if(d.startdate) _curEndDt.setDate(_curEndDt.getDate() + 45);
+    _curEndDt.setDate(_curEndDt.getDate() + _priorExtDays);
+    curEndStr = _curEndDt.getFullYear() + '-' + String(_curEndDt.getMonth()+1).padStart(2,'0') + '-' + String(_curEndDt.getDate()).padStart(2,'0');
+  }
+  const _defaultDt = new Date(curEndStr + 'T00:00:00'); _defaultDt.setDate(_defaultDt.getDate() + 30);
   const defaultNewEndStr = _defaultDt.getFullYear() + '-' + String(_defaultDt.getMonth()+1).padStart(2,'0') + '-' + String(_defaultDt.getDate()).padStart(2,'0');
 
   const picked = await promptExtensionDate(inv.client||'this client', curEndStr, defaultNewEndStr, extrate);
@@ -2212,10 +2231,15 @@ async function extendRental(invnum){
   const { days, amount } = picked;
   const extNum = invnum + '-EXT' + (((d.extensions||[]).length) + 1);
   const addDays = days;
+  // Keep Destage date in sync with reality so next time this dialog opens, curEndStr above
+  // reflects THIS extension too — without this, the field would silently fall behind again.
+  d.destage_date = picked.newEndDate;
 
-  // 1) New payment link (metadata flows to the auto-receipt when they pay)
+  // 1) New payment link (metadata flows to the auto-receipt when they pay) — skipped when the
+  // overridden date lands on/before the current end, since there's nothing positive to charge
+  // (this is then just a date correction, logged with no payment link).
   let url = null;
-  try {
+  if(amount > 0.009) try {
     const r = await fetch('/api/stripe', { method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ grand: amount, client: inv.client, invnum: extNum, address: inv.address, client_email: d.client_email || '' }) });
     const j = await r.json();
@@ -2231,13 +2255,9 @@ async function extendRental(invnum){
     await _sb.from('invoices').upsert({ invnum: inv.invnum, client: inv.client, address: inv.address, invdate: inv.invdate, data: d }, { onConflict: 'invnum' });
   } catch(e){}
 
-  // New rental end = (destage date, or staging + 45 if none) + all extension days — shown on the PDF.
-  const _totExtDays = d.extensions.reduce((s,e)=>s + (parseInt(e.days,10) || 30*(parseInt(e.periods,10)||1)), 0);
-  let _re = d.destage_date ? new Date(d.destage_date + 'T00:00:00')
-            : new Date((d.startdate || new Date().toISOString().split('T')[0]) + 'T00:00:00');
-  if(!d.destage_date && d.startdate) _re.setDate(_re.getDate() + 45);
-  _re.setDate(_re.getDate() + _totExtDays);
-  const rentedThrough = _re.getFullYear() + '-' + String(_re.getMonth()+1).padStart(2,'0') + '-' + String(_re.getDate()).padStart(2,'0');
+  // New rental end, shown on the PDF — this IS the date just picked (destage_date above was
+  // already updated to it), no need to re-derive by stacking extension days again.
+  const rentedThrough = picked.newEndDate;
 
   // 3) Build the extension PDF blob (do NOT auto-open — iOS blocks blob navigation in a
   //    popup after awaits, which left an about:blank tab). We hand it back as a tappable link.
