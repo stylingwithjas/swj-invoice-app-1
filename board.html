@@ -360,6 +360,7 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
         <button class="nav-btn off" onclick="window.location.href='/shop.html'">Shop</button>
         <button class="nav-btn off" onclick="window.location.href='/index.html'">Invoice</button>
         <button class="nav-btn off" onclick="window.location.href='/luxury.html'">Luxury</button>
+        <button class="nav-btn off" onclick="window.location.href='/gs-invoice.html'">GS</button>
       </div>
     </div>
   </div>
@@ -1478,8 +1479,10 @@ async function loadBoard(){
       });
       return;
     }
-    // Filter out drafts (DRAFT- prefix)
-    const invoices = (data||[]).filter(inv => !inv.invnum.startsWith('DRAFT-'));
+    // Filter out drafts (DRAFT- prefix) and GS Photography invoices (GS prefix) — GS shares
+    // this Supabase table but is a separate business with its own gs-invoice.html generator,
+    // not part of Jasmine's board.
+    const invoices = (data||[]).filter(inv => !inv.invnum.startsWith('DRAFT-') && !inv.invnum.startsWith('GS'));
 
     // Reset registry
     CARDS = {};

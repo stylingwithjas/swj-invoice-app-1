@@ -287,12 +287,124 @@ def build_balance_update_pdf(data):
     return fname
 
 
+def build_gs_invoice_pdf(data):
+    """Simple branded invoice PDF for Gabriel Santana Photography (GS) — a separate business
+    sharing this app's infrastructure. PDF-only by design: no payment link, no e-signature,
+    just an itemized invoice to download and send. Kept isolated from the SWJ invoice/proposal
+    layout above since the two businesses' documents shouldn't drift together by accident."""
+    import tempfile
+    PW, PH = letter
+    ML, MR = 50, 50
+    CW = PW - ML - MR
+    INK   = colors.HexColor('#111111')
+    GRAY  = colors.HexColor('#555555')
+    LGRAY = colors.HexColor('#cccccc')
+
+    def fmt(n): return f"${float(n):,.2f}"
+    def wrap(text, font, size, width):
+        cv.setFont(font, size); out = []; line = ''
+        for w in str(text).split():
+            t = (line + ' ' + w).strip()
+            if cv.stringWidth(t, font, size) <= width: line = t
+            else:
+                if line: out.append(line)
+                line = w
+        if line: out.append(line)
+        return out
+
+    client        = str(data.get('client', 'Client'))
+    address       = str(data.get('address', ''))
+    invnum        = str(data.get('invnum', ''))
+    invdate       = str(data.get('invdate', ''))
+    items         = data.get('items') or []
+    taxrate       = float(data.get('taxrate', 0) or 0)
+    notes         = str(data.get('notes', '') or '')
+
+    subtotal_raw = sum(float(i.get('price', 0) or 0) for i in items)
+    sub_ov, tax_ov, tot_ov = data.get('subtotal_override'), data.get('tax_override'), data.get('total_override')
+    subtotal = float(sub_ov) if sub_ov not in (None, '') else subtotal_raw
+    tax = float(tax_ov) if tax_ov not in (None, '') else subtotal * taxrate / 100
+    total = float(tot_ov) if tot_ov not in (None, '') else subtotal + tax
+
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf'); tmp.close()
+    fname = tmp.name
+    cv = canvas.Canvas(fname, pagesize=letter)
+
+    def draw_header():
+        y0 = PH - 60
+        cv.setFillColor(INK); cv.setFont('Helvetica-Bold', 22)
+        cv.drawString(ML, y0, 'GS')
+        cv.setFont('Helvetica', 7.5); cv.setFillColor(GRAY)
+        cv.drawString(ML, y0 - 13, 'GABRIEL SANTANA PHOTOGRAPHY')
+        cv.setFillColor(INK); cv.setFont('Helvetica', 9)
+        cv.drawRightString(PW - MR, y0, f'Invoice No {invnum}')
+        if invdate:
+            cv.drawRightString(PW - MR, y0 - 12, invdate)
+        y0 -= 40
+        cv.setStrokeColor(LGRAY); cv.setLineWidth(0.5); cv.line(ML, y0, PW - MR, y0)
+        return y0 - 24
+
+    y = draw_header()
+
+    cv.setFont('Helvetica', 7.5); cv.setFillColor(GRAY)
+    cv.drawString(ML, y, 'Invoice To:'); cv.drawString(ML + 230, y, 'Property / Location:')
+    y -= 12
+    cv.setFont('Helvetica', 10); cv.setFillColor(INK)
+    cv.drawString(ML, y, client)
+    for i, al in enumerate(wrap(address, 'Helvetica', 10, CW - 230)):
+        cv.drawString(ML + 230, y - (i * 12), al)
+    y -= 30
+
+    cv.setStrokeColor(INK); cv.setLineWidth(1.2); cv.line(ML, y, PW - MR, y); y -= 16
+    cv.setFont('Helvetica-Bold', 9); cv.setFillColor(INK)
+    cv.drawString(ML, y, 'Description'); cv.drawRightString(PW - MR, y, 'Amount'); y -= 14
+    cv.setStrokeColor(LGRAY); cv.setLineWidth(0.5); cv.line(ML, y, PW - MR, y); y -= 14
+
+    cv.setFont('Helvetica', 9.5); cv.setFillColor(colors.HexColor('#333333'))
+    for it in items:
+        desc = str(it.get('desc', '')); price = float(it.get('price', 0) or 0)
+        if y < 130:
+            cv.showPage(); y = draw_header()
+            cv.setFont('Helvetica', 9.5); cv.setFillColor(colors.HexColor('#333333'))
+        lines = wrap(desc, 'Helvetica', 9.5, CW - 90) or ['']
+        for j, l in enumerate(lines):
+            cv.drawString(ML, y, l)
+            if j == 0: cv.drawRightString(PW - MR, y, fmt(price))
+            y -= 13
+        y -= 3
+
+    y -= 6
+    cv.setStrokeColor(LGRAY); cv.setLineWidth(0.5); cv.line(ML, y, PW - MR, y); y -= 18
+
+    cv.setFont('Helvetica', 9.5); cv.setFillColor(GRAY)
+    cv.drawString(ML, y, 'Subtotal'); cv.drawRightString(PW - MR, y, fmt(subtotal)); y -= 14
+    cv.drawString(ML, y, f'Tax ({taxrate:.2f}%)'); cv.drawRightString(PW - MR, y, fmt(tax)); y -= 18
+    cv.setStrokeColor(INK); cv.setLineWidth(0.8); cv.line(ML, y, PW - MR, y); y -= 16
+    cv.setFont('Helvetica-Bold', 13); cv.setFillColor(INK)
+    cv.drawString(ML, y, 'Total Due'); cv.drawRightString(PW - MR, y, fmt(total)); y -= 26
+
+    if notes:
+        cv.setFont('Helvetica-Bold', 8.5); cv.setFillColor(INK)
+        cv.drawString(ML, y, 'Notes'); y -= 12
+        cv.setFont('Helvetica', 8.5); cv.setFillColor(GRAY)
+        for l in wrap(notes, 'Helvetica', 8.5, CW):
+            cv.drawString(ML, y, l); y -= 11
+
+    cv.setStrokeColor(LGRAY); cv.setLineWidth(0.4); cv.line(ML, 42, PW - MR, 42)
+    cv.setFont('Helvetica', 8); cv.setFillColor(GRAY)
+    cv.drawString(ML, 30, 'Gabriel Santana Photography')
+    cv.save()
+    return fname
+
+
 def generate_invoice_pdf(data):
     """Generate SWJ invoice PDF and return path to temp file."""
     if data.get('extension'):
         return build_extension_pdf(data)
     if data.get('balance_update'):
         return build_balance_update_pdf(data)
+    if data.get('gs_invoice'):
+        return build_gs_invoice_pdf(data)
 
     def fdate(v):
         if not v: return ''

@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="GS">
+<meta name="theme-color" content="#14171a">
+<script>if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(function(rs){rs.forEach(function(r){r.unregister();});}).catch(function(){});if('caches' in window){caches.keys().then(function(ks){ks.forEach(function(k){caches.delete(k);});}).catch(function(){});}}</script>
+<title>GS — Invoice Generator</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*, *::before, *::after { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+
+:root {
+  --ink:      #14171a;
+  --ink-soft: #33383d;
+  --cream:    #f2f3f5;
+  --warm:     #fafbfc;
+  --taupe:    #9199a3;
+  --taupe-lt: #d3d8dd;
+  --taupe-dk: #656d76;
+  --accent:   #3f7fa6;
+  --accent-lt:#e6f0f6;
+  --accent-dk:#2d5c78;
+  --green:    #4a7c50;
+  --red:      #b53535;
+}
+
+body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); color:var(--ink); min-height:100vh; font-size:16px; }
+
+.hdr { background:var(--ink); position:sticky; top:0; z-index:60; }
+.hdr-top { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; padding:12px 16px 10px; gap:8px; }
+.brand { display:flex; align-items:baseline; gap:10px; }
+.brand-name { font-family:"Cormorant Garamond",serif; font-size:24px; font-weight:300; color:#fff; letter-spacing:4px; }
+.brand-sep { width:1px; height:16px; background:rgba(255,255,255,0.18); }
+.brand-sub { font-size:10px; color:rgba(255,255,255,0.35); letter-spacing:2.5px; text-transform:uppercase; }
+.hdr-right { display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-end; gap:10px; }
+.inv-badge { font-family:"Cormorant Garamond",serif; font-size:13px; font-weight:300; color:rgba(255,255,255,0.45); letter-spacing:0.5px; padding:4px 8px; border:1px solid rgba(255,255,255,0.1); border-radius:20px; cursor:text; background:transparent; outline:none; text-align:center; width:110px; }
+.nav-sw { display:flex; gap:2px; background:rgba(255,255,255,0.07); border-radius:20px; padding:3px; }
+.nav-btn { padding:5px 12px; border-radius:16px; border:none; font-size:11px; font-weight:500; cursor:pointer; font-family:"Inter",sans-serif; transition:all 0.18s; white-space:nowrap; }
+.nav-btn.on  { background:#fff; color:var(--ink); }
+.nav-btn.off { background:transparent; color:rgba(255,255,255,0.4); }
+
+.content { padding:16px; max-width:640px; margin:0 auto; }
+
+.card { background:var(--warm); border-radius:16px; margin-bottom:12px; border:1px solid rgba(145,153,163,0.18); overflow:hidden; }
+.card-hdr { padding:14px 18px 0; display:flex; align-items:center; justify-content:space-between; }
+.sec-lbl { font-size:9px; font-weight:600; color:var(--taupe); text-transform:uppercase; letter-spacing:1.8px; }
+.sec-accent { width:20px; height:1px; background:var(--accent); opacity:0.6; }
+.card-body { padding:10px 18px 16px; }
+
+.field { padding:9px 0; border-bottom:1px solid rgba(145,153,163,0.07); }
+.field:last-child { border-bottom:none; }
+.field-lbl { font-size:10px; font-weight:500; color:var(--taupe); text-transform:uppercase; letter-spacing:1px; margin-bottom:5px; }
+.field-input { width:100%; font-family:"Inter",sans-serif; font-size:15px; font-weight:400; color:var(--ink); background:transparent; border:none; border-bottom:1.5px solid var(--taupe-lt); padding:4px 0 6px; outline:none; transition:border-color 0.18s; }
+.field-input:focus { border-bottom-color:var(--accent); }
+.field-input::placeholder { color:var(--taupe-lt); }
+.field-row { display:flex; gap:14px; }
+.field-row .field { flex:1; }
+.client-input { font-family:"Cormorant Garamond",serif !important; font-size:20px !important; font-weight:400 !important; }
+
+textarea { width:100%; font-family:"Inter",sans-serif; font-size:13px; border:1.5px solid var(--taupe-lt); border-radius:10px; padding:9px 11px; resize:none; min-height:72px; line-height:1.5; outline:none; background:var(--cream); color:var(--ink); transition:border-color 0.18s; }
+textarea:focus { border-color:var(--accent); background:var(--warm); }
+
+.item-row { border:1px solid rgba(145,153,163,0.15); border-radius:10px; padding:11px 13px; margin-bottom:8px; background:var(--cream); }
+.item-header { display:flex; gap:8px; align-items:center; }
+.item-header input[type=text] { flex:1; font-family:"Inter",sans-serif; font-size:14px; padding:8px 10px; border:1.5px solid var(--taupe-lt); border-radius:8px; outline:none; background:var(--warm); transition:border-color 0.18s; }
+.item-header input[type=text]:focus { border-color:var(--accent); }
+.item-header input[type=number] { width:96px; font-family:"Cormorant Garamond",serif; font-size:16px; padding:8px 10px; border:1.5px solid var(--taupe-lt); border-radius:8px; outline:none; background:var(--warm); text-align:right; transition:border-color 0.18s; }
+.item-header input[type=number]:focus { border-color:var(--accent); }
+.rm-btn { background:var(--cream); border:1px solid var(--taupe-lt); color:var(--taupe); cursor:pointer; font-size:16px; padding:6px 10px; border-radius:8px; transition:all 0.15s; }
+.rm-btn:hover { border-color:var(--red); color:var(--red); }
+.add-btn { font-size:12px; font-weight:500; color:var(--taupe); background:none; border:none; cursor:pointer; padding:7px 0; font-family:"Inter",sans-serif; letter-spacing:0.3px; transition:color 0.15s; display:block; }
+.add-btn:hover { color:var(--ink); }
+
+.quick-add { margin-top:12px; padding-top:12px; border-top:1px solid rgba(145,153,163,0.1); }
+.quick-add-note { font-size:10px; color:var(--taupe); margin-bottom:8px; }
+.quick-add-chips { display:flex; flex-wrap:wrap; gap:6px; }
+.qa-chip { font-size:11px; padding:7px 11px; border-radius:20px; border:1.5px solid var(--taupe-lt); background:var(--cream); color:var(--taupe-dk); cursor:pointer; font-family:"Inter",sans-serif; transition:all 0.15s; }
+.qa-chip:hover { border-color:var(--accent); color:var(--accent-dk); background:var(--accent-lt); }
+
+.summary-card { background:var(--ink); border-radius:16px; margin-bottom:12px; overflow:hidden; }
+.summary-hdr { padding:16px 20px 12px; border-bottom:1px solid rgba(255,255,255,0.06); }
+.summary-client { font-family:"Cormorant Garamond",serif; font-size:20px; font-weight:300; color:#fff; min-height:26px; }
+.summary-addr { font-size:11px; color:rgba(255,255,255,0.38); margin-top:3px; min-height:16px; }
+.summary-rows { padding:12px 20px 4px; }
+.t-row { display:flex; justify-content:space-between; padding:5px 0; font-size:13px; }
+.t-row span:first-child { color:rgba(255,255,255,0.4); }
+.t-row span:last-child { color:rgba(255,255,255,0.65); font-weight:500; }
+.t-divider { height:1px; background:rgba(255,255,255,0.07); margin:6px 0; }
+.sum-grand { display:flex; justify-content:space-between; align-items:baseline; padding:10px 20px 16px; }
+.sum-grand-lbl { font-size:10px; font-weight:500; color:rgba(255,255,255,0.35); text-transform:uppercase; letter-spacing:1.2px; }
+.sum-grand-val { font-family:"Cormorant Garamond",serif; font-size:30px; font-weight:300; color:#fff; }
+
+.gen-btn { display:block; width:calc(100% - 32px); margin:0 16px 12px; padding:14px; border:none; border-radius:11px; font-size:14px; font-weight:600; cursor:pointer; font-family:"Inter",sans-serif; letter-spacing:0.3px; transition:opacity 0.15s; background:#fff; color:var(--ink); }
+.gen-btn:active { opacity:0.8; }
+.gen-btn:disabled { opacity:0.35; }
+
+.recent-wrap { overflow-y:auto; max-height:none; }
+.ri { display:flex; justify-content:space-between; align-items:center; padding:11px 0; border-bottom:1px solid rgba(145,153,163,0.07); cursor:pointer; transition:opacity 0.12s; }
+.ri:active { opacity:0.7; }
+.ri:last-child { border-bottom:none; }
+.ri-name { font-family:"Cormorant Garamond",serif; font-size:15px; font-weight:400; color:var(--ink); }
+.ri-addr { font-size:11px; color:var(--taupe); margin-top:1px; }
+.ri-num { font-size:11px; font-weight:500; color:var(--taupe); }
+.ri-date { font-size:10px; color:var(--taupe-lt); margin-top:2px; text-align:right; }
+
+@media(min-width:600px){
+  body { padding:2rem; background:#e9ebee; }
+  .content { padding:0; }
+}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <div class="hdr-top">
+    <div class="brand">
+      <div class="brand-name">GS</div>
+      <div class="brand-sep"></div>
+      <div class="brand-sub">Photography Invoices</div>
+    </div>
+    <div class="hdr-right">
+      <input class="inv-badge" id="invnum-display" type="text" value="GS1001">
+      <div class="nav-sw">
+        <button class="nav-btn on">GS Invoice</button>
+        <button class="nav-btn off" onclick="window.location.href='index.html'">SWJ</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="content">
+
+  <!-- RECENT INVOICES -->
+  <div class="card" id="recent-card">
+    <div class="card-hdr" style="padding-bottom:12px">
+      <span class="sec-lbl">Recent Invoices</span>
+    </div>
+    <div style="padding:0 18px 14px">
+      <div id="recent-list" style="font-size:12px;color:var(--taupe)">Loading...</div>
+    </div>
+  </div>
+
+  <!-- INVOICE DETAILS -->
+  <div class="card">
+    <div class="card-hdr"><span class="sec-lbl">Invoice Details</span><div class="sec-accent"></div></div>
+    <div class="card-body">
+      <div class="field">
+        <div class="field-lbl">Invoice Date</div>
+        <input class="field-input" id="invdate" type="date">
+      </div>
+    </div>
+  </div>
+
+  <!-- CLIENT & LOCATION -->
+  <div class="card">
+    <div class="card-hdr"><span class="sec-lbl">Client & Location</span><div class="sec-accent"></div></div>
+    <div class="card-body">
+      <div class="field">
+        <div class="field-lbl">Client Name</div>
+        <input class="field-input client-input" id="client" type="text" placeholder="Jane Smith" autocomplete="name">
+      </div>
+      <div class="field">
+        <div class="field-lbl">Client Email <span style="text-transform:none;letter-spacing:0;font-weight:400;color:var(--taupe);font-size:10px">— optional, for your records only</span></div>
+        <input class="field-input" id="client_email" type="email" placeholder="client@example.com" autocomplete="email">
+      </div>
+      <div class="field">
+        <div class="field-lbl">Property / Shoot Location</div>
+        <input class="field-input" id="address" type="text" placeholder="123 Main St, Seattle WA" autocomplete="street-address">
+      </div>
+    </div>
+  </div>
+
+  <!-- SERVICES -->
+  <div class="card">
+    <div class="card-hdr"><span class="sec-lbl">Services</span><div class="sec-accent"></div></div>
+    <div class="card-body">
+      <div id="items-list"></div>
+      <button class="add-btn" onclick="addItem()">+ Add line item</button>
+      <div class="quick-add">
+        <div class="quick-add-note">Quick add (starter prices — tap to add, then edit the amount as needed)</div>
+        <div class="quick-add-chips" id="quick-add-chips"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAX -->
+  <div class="card">
+    <div class="card-hdr"><span class="sec-lbl">Tax Rate</span><div class="sec-accent"></div></div>
+    <div class="card-body">
+      <div class="field" style="max-width:160px">
+        <div class="field-lbl">Rate (%)</div>
+        <input class="field-input" id="taxrate" type="number" value="0" step="0.01" inputmode="decimal" oninput="recalc()">
+      </div>
+    </div>
+  </div>
+
+  <!-- MANUAL TOTAL OVERRIDES -->
+  <div class="card">
+    <div class="card-hdr"><span class="sec-lbl">Manual Totals (optional)</span><div class="sec-accent"></div></div>
+    <div class="card-body">
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <div class="field" style="flex:1;min-width:90px"><div class="field-lbl">Subtotal $</div><input class="field-input" id="ov-subtotal" type="number" step="0.01" inputmode="decimal" placeholder="auto" oninput="recalc()"></div>
+        <div class="field" style="flex:1;min-width:90px"><div class="field-lbl">Tax $</div><input class="field-input" id="ov-tax" type="number" step="0.01" inputmode="decimal" placeholder="auto" oninput="recalc()"></div>
+        <div class="field" style="flex:1;min-width:90px"><div class="field-lbl">Total $</div><input class="field-input" id="ov-total" type="number" step="0.01" inputmode="decimal" placeholder="auto" oninput="recalc()"></div>
+      </div>
+      <div style="font-size:10px;color:#888;margin-top:6px">Leave blank to auto-calculate. Anything you type prints exactly on the invoice.</div>
+    </div>
+  </div>
+
+  <!-- NOTES -->
+  <div class="card">
+    <div class="card-hdr"><span class="sec-lbl">Notes (optional)</span><div class="sec-accent"></div></div>
+    <div class="card-body">
+      <textarea id="notes" rows="3" placeholder="Delivery timeline, usage rights, payment terms, etc."></textarea>
+    </div>
+  </div>
+
+  <!-- SUMMARY -->
+  <div class="summary-card">
+    <div class="summary-hdr">
+      <div class="summary-client" id="sum-client">&nbsp;</div>
+      <div class="summary-addr" id="sum-addr">&nbsp;</div>
+    </div>
+    <div class="summary-rows">
+      <div class="t-row"><span>Subtotal</span><span id="t-sub">$0.00</span></div>
+      <div class="t-row"><span id="t-taxlabel">Tax (0%)</span><span id="t-tax">$0.00</span></div>
+    </div>
+    <div class="sum-grand">
+      <span class="sum-grand-lbl">Total Due</span>
+      <span class="sum-grand-val" id="t-grand">$0.00</span>
+    </div>
+    <button class="gen-btn" id="download-btn" onclick="downloadPdfNow()">⬇ Download PDF</button>
+  </div>
+
+</div>
+
+<script>
+const _sb = supabase.createClient(
+  'https://cwvdfgrjlrpsdfwduwvn.supabase.co',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN3dmRmZ3JqbHJwc2Rmd2R1d3ZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwMDcyODUsImV4cCI6MjA5MzU4MzI4NX0.zam9AnIwW91TI6eCKUcg05LhvFcRa7op4QsjRpdcrCY'
+);
+
+// GS invoices share the same Supabase "invoices" table as Styling With Jas, isolated purely
+// by invnum prefix (same pattern the app already uses for "DRAFT-" rows) — this keeps them
+// completely out of Jasmine's board/recent-invoices/reminder views without needing a new
+// table, while still getting a permanent record + Recent Invoices list here.
+const INV_PREFIX = 'GS';
+
+const QUICK_ADD = [
+  {desc:'Real Estate Photography', price:250},
+  {desc:'Aerial / Drone Photos', price:100},
+  {desc:'Twilight Photography', price:125},
+  {desc:'Virtual Staging (per photo)', price:50},
+  {desc:'Floor Plan', price:75},
+  {desc:'Video Walkthrough', price:200},
+  {desc:'Additional Edited Photo', price:10},
+];
+
+let items = [];
+
+function fmt(n){ return '$' + (parseFloat(n)||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function _ov(id){ const v = document.getElementById(id)?.value; return (v===''||v==null) ? null : parseFloat(v); }
+
+function addItem(){ items.push({id:Date.now()+Math.random(), desc:'', price:0}); renderItems(); }
+function removeItem(id){ items = items.filter(x=>x.id!==id); renderItems(); recalc(); }
+function updItem(id,k,v){ const it=items.find(x=>x.id===id); if(it){ it[k]=v; if(k==='price') recalc(); } }
+function quickAdd(desc, price){ items.push({id:Date.now()+Math.random(), desc, price}); renderItems(); recalc(); }
+
+function renderItems(){
+  const c = document.getElementById('items-list'); c.innerHTML='';
+  items.forEach(it=>{
+    const w = document.createElement('div'); w.className='item-row';
+    w.innerHTML = `<div class="item-header">
+      <input type="text" placeholder="e.g. Real Estate Photography" value="${(it.desc||'').replace(/"/g,'&quot;')}" oninput="updItem(${it.id},'desc',this.value)">
+      <input type="number" placeholder="$0" value="${it.price||''}" step="5" inputmode="decimal" oninput="updItem(${it.id},'price',parseFloat(this.value)||0)">
+      <button class="rm-btn" onclick="removeItem(${it.id})">×</button>
+    </div>`;
+    c.appendChild(w);
+  });
+  recalc();
+}
+
+function renderQuickAdd(){
+  const c = document.getElementById('quick-add-chips'); c.innerHTML='';
+  QUICK_ADD.forEach(q=>{
+    const b = document.createElement('button');
+    b.className='qa-chip';
+    b.textContent = q.desc + ' — ' + fmt(q.price);
+    b.onclick = () => quickAdd(q.desc, q.price);
+    c.appendChild(b);
+  });
+}
+
+function recalc(){
+  const sub = items.reduce((s,it)=>s+(parseFloat(it.price)||0),0);
+  const rate = parseFloat(document.getElementById('taxrate').value)||0;
+  const ovSub=_ov('ov-subtotal'), ovTax=_ov('ov-tax'), ovTot=_ov('ov-total');
+  const subShown = ovSub!==null ? ovSub : sub;
+  const taxShown = ovTax!==null ? ovTax : subShown*rate/100;
+  const grandShown = ovTot!==null ? ovTot : subShown+taxShown;
+  document.getElementById('t-sub').textContent = fmt(subShown);
+  document.getElementById('t-taxlabel').textContent = `Tax (${rate.toFixed(2)}%)`;
+  document.getElementById('t-tax').textContent = fmt(taxShown);
+  document.getElementById('t-grand').textContent = fmt(grandShown);
+}
+
+function updateSummaryHeader(){
+  document.getElementById('sum-client').textContent = document.getElementById('client').value || ' ';
+  document.getElementById('sum-addr').textContent = document.getElementById('address').value || ' ';
+}
+
+async function nextInvNum(){
+  try{
+    const { data } = await _sb.from('invoices').select('invnum').like('invnum', INV_PREFIX+'%');
+    let max = 1000;
+    (data||[]).forEach(r=>{
+      const m = String(r.invnum||'').match(/^GS(\d+)$/);
+      if(m){ const v=parseInt(m[1],10); if(v>max) max=v; }
+    });
+    document.getElementById('invnum-display').value = INV_PREFIX + (max+1);
+  }catch(e){ document.getElementById('invnum-display').value = INV_PREFIX + '1001'; }
+}
+
+async function loadRecent(){
+  try{
+    const { data, error } = await _sb.from('invoices').select('invnum,client,address,invdate,data')
+      .like('invnum', INV_PREFIX+'%').order('created_at',{ascending:false}).limit(15);
+    if(error || !data || !data.length){
+      document.getElementById('recent-list').innerHTML = '<div style="font-style:italic">No invoices yet.</div>';
+      return;
+    }
+    window._recentGS = data;
+    document.getElementById('recent-list').innerHTML = data.map((inv,i)=>`
+      <div class="ri" onclick="loadInvoice(${i})">
+        <div>
+          <div class="ri-name">${escGS(inv.client||'')}</div>
+          <div class="ri-addr">${escGS(inv.address||'')}</div>
+        </div>
+        <div>
+          <div class="ri-num">#${escGS(inv.invnum)}</div>
+          <div class="ri-date">${escGS(inv.invdate||'')}</div>
+        </div>
+      </div>
+    `).join('');
+  }catch(e){
+    document.getElementById('recent-list').textContent = 'Could not load recent invoices.';
+  }
+}
+
+function loadInvoice(idx){
+  const inv = window._recentGS[idx];
+  const d = inv.data || {};
+  document.getElementById('invnum-display').value = inv.invnum || '';
+  document.getElementById('invdate').value = d.invdate || inv.invdate || '';
+  document.getElementById('client').value = inv.client || d.client || '';
+  document.getElementById('client_email').value = d.client_email || '';
+  document.getElementById('address').value = inv.address || d.address || '';
+  document.getElementById('taxrate').value = d.taxrate || 0;
+  document.getElementById('ov-subtotal').value = d.subtotal_override!=null ? d.subtotal_override : '';
+  document.getElementById('ov-tax').value = d.tax_override!=null ? d.tax_override : '';
+  document.getElementById('ov-total').value = d.total_override!=null ? d.total_override : '';
+  document.getElementById('notes').value = d.notes || '';
+  items = (d.items||[]).map(it=>({id:Date.now()+Math.random(), desc:it.desc, price:it.price}));
+  renderItems();
+  updateSummaryHeader();
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+function escGS(s){ return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+async function downloadPdfNow(){
+  const client = document.getElementById('client').value.trim();
+  const address = document.getElementById('address').value.trim();
+  if(!client){ alert('Please enter a client name.'); document.getElementById('client').focus(); return; }
+
+  const invnum = document.getElementById('invnum-display').value.trim() || 'GS1001';
+  const data = {
+    gs_invoice: true,
+    client, address,
+    client_email: document.getElementById('client_email').value.trim(),
+    invnum, invdate: document.getElementById('invdate').value,
+    items: items.filter(it=>it.desc).map(it=>({desc:it.desc, price:parseFloat(it.price)||0})),
+    taxrate: parseFloat(document.getElementById('taxrate').value)||0,
+    subtotal_override: _ov('ov-subtotal'), tax_override: _ov('ov-tax'), total_override: _ov('ov-total'),
+    notes: document.getElementById('notes').value.trim(),
+  };
+
+  const btn = document.getElementById('download-btn');
+  btn.disabled = true; btn.textContent = 'Generating...';
+  try{
+    const response = await fetch('/api/generate', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)});
+    if(!response.ok){ const t = await response.text(); throw new Error('Server '+response.status+' — '+t.substring(0,160)); }
+    const blob = await response.blob();
+    if(!blob || blob.size<500) throw new Error('Empty file returned from server');
+    const url = URL.createObjectURL(blob);
+    const filename = `GS_${client.replace(/ /g,'_')}_${invnum}.pdf`;
+    const w = window.open(url, '_blank');
+    if(!w){
+      const a=document.createElement('a'); a.style.display='none'; a.href=url; a.download=filename; a.target='_blank';
+      document.body.appendChild(a); a.click();
+      setTimeout(()=>{document.body.removeChild(a);},4000);
+    }
+    setTimeout(()=>URL.revokeObjectURL(url),120000);
+
+    // Save the record (fire-and-forget) so it shows up in Recent Invoices next time.
+    try{
+      await _sb.from('invoices').upsert({
+        invnum, client, address, invdate: data.invdate, data,
+      }, {onConflict:'invnum'});
+      loadRecent();
+      nextInvNum();
+    }catch(e){}
+  }catch(e){
+    alert('Could not generate PDF: ' + e.message);
+  }
+  btn.disabled = false; btn.textContent = '⬇ Download PDF';
+}
+
+document.addEventListener('DOMContentLoaded', ()=>{
+  document.getElementById('invdate').value = new Date().toISOString().split('T')[0];
+  document.getElementById('client').addEventListener('input', updateSummaryHeader);
+  document.getElementById('address').addEventListener('input', updateSummaryHeader);
+  renderQuickAdd();
+  renderItems();
+  nextInvNum();
+  loadRecent();
+});
+</script>
+</body>
+</html>

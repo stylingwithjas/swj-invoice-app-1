@@ -284,6 +284,7 @@ textarea:focus { border-color:var(--gold); background:var(--warm); }
         <button class="nav-btn off" id="nav-luxury" onclick="window.location.href='luxury.html'">Luxury</button>
         <button class="nav-btn off" id="nav-board" onclick="window.location.href='board.html'">Board</button>
         <button class="nav-btn off" id="nav-shop" onclick="window.location.href='shop.html'">Shop</button>
+        <button class="nav-btn off" onclick="window.location.href='gs-invoice.html'">GS</button>
       </div>
     </div>
   </div>
@@ -725,7 +726,7 @@ async function initInvNum(){
   // Derive the next number from Supabase (persistent) — the old /tmp counter reset on every cold serverless instance.
   let next = 202093;
   try {
-    const { data } = await _sb.from('invoices').select('invnum');
+    const { data } = await _sb.from('invoices').select('invnum').not('invnum', 'like', 'GS%');
     if(data && data.length){
       let max = 0;
       data.forEach(function(r){
@@ -1210,6 +1211,7 @@ async function loadRecent(){
     const { data, error } = await _sb
       .from('invoices')
       .select('invnum,client,address,invdate,data')
+      .not('invnum', 'like', 'GS%')
       .order('created_at', { ascending: false })
       .limit(10);
     if(error||!data||data.length===0){el.textContent='No recent invoices.';return;}
