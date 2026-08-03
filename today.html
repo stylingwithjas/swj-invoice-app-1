@@ -222,6 +222,7 @@ body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var
         <button class="nav-btn off" onclick="window.location.href='/shop.html'">Shop</button>
         <button class="nav-btn off" onclick="window.location.href='/index.html'">Invoice</button>
         <button class="nav-btn off" onclick="window.location.href='/luxury.html'">Luxury</button>
+        <button class="nav-btn off" onclick="window.location.href='/gs-invoice.html'">GS</button>
       </div>
     </div>
   </div>
@@ -492,7 +493,7 @@ async function loadAll(){
   const dateStr=toISODate(viewDate);
   const [tasksRes,invRes]=await Promise.all([
     _sb.from('tasks').select('*').eq('date',dateStr).order('sort_order',{ascending:true}).order('created_at',{ascending:true}),
-    _sb.from('invoices').select('invnum,client,address,invdate,data').not('invnum','like','DRAFT-%').order('created_at',{ascending:false}).limit(100)
+    _sb.from('invoices').select('invnum,client,address,invdate,data').not('invnum','like','DRAFT-%').not('invnum','like','GS%').order('created_at',{ascending:false}).limit(100)
   ]);
   allTasks=(tasksRes.data||[]);
   allInvoices=(invRes.data||[]).filter(inv=>{const s=(inv.data&&inv.data.stage)||'proposal';return s!=='denied';});
