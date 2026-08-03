@@ -150,9 +150,15 @@ textarea:focus { border-color:var(--accent); background:var(--warm); }
   <div class="card">
     <div class="card-hdr"><span class="sec-lbl">Invoice Details</span><div class="sec-accent"></div></div>
     <div class="card-body">
-      <div class="field">
-        <div class="field-lbl">Invoice Date</div>
-        <input class="field-input" id="invdate" type="date">
+      <div class="field-row">
+        <div class="field">
+          <div class="field-lbl">Invoice Date</div>
+          <input class="field-input" id="invdate" type="date">
+        </div>
+        <div class="field">
+          <div class="field-lbl">Service Date</div>
+          <input class="field-input" id="service_date" type="date">
+        </div>
       </div>
     </div>
   </div>
@@ -164,6 +170,10 @@ textarea:focus { border-color:var(--accent); background:var(--warm); }
       <div class="field">
         <div class="field-lbl">Client Name</div>
         <input class="field-input client-input" id="client" type="text" placeholder="Jane Smith" autocomplete="name">
+      </div>
+      <div class="field">
+        <div class="field-lbl">Client Role <span style="text-transform:none;letter-spacing:0;font-weight:400;color:var(--taupe);font-size:10px">— optional, e.g. Listing Agent</span></div>
+        <input class="field-input" id="client_role" type="text" placeholder="Listing Agent">
       </div>
       <div class="field">
         <div class="field-lbl">Client Email <span style="text-transform:none;letter-spacing:0;font-weight:400;color:var(--taupe);font-size:10px">— optional, for your records only</span></div>
@@ -183,8 +193,12 @@ textarea:focus { border-color:var(--accent); background:var(--warm); }
       <div id="items-list"></div>
       <button class="add-btn" onclick="addItem()">+ Add line item</button>
       <div class="quick-add">
-        <div class="quick-add-note">Quick add (starter prices — tap to add, then edit the amount as needed)</div>
-        <div class="quick-add-chips" id="quick-add-chips"></div>
+        <div class="quick-add-note">Packages — starting-at prices; edit if the shoot needs more than the base package</div>
+        <div class="quick-add-chips" id="quick-add-packages"></div>
+      </div>
+      <div class="quick-add">
+        <div class="quick-add-note">Add-ons</div>
+        <div class="quick-add-chips" id="quick-add-addons"></div>
       </div>
     </div>
   </div>
@@ -213,11 +227,12 @@ textarea:focus { border-color:var(--accent); background:var(--warm); }
     </div>
   </div>
 
-  <!-- NOTES -->
+  <!-- PERSONAL NOTE -->
   <div class="card">
-    <div class="card-hdr"><span class="sec-lbl">Notes (optional)</span><div class="sec-accent"></div></div>
+    <div class="card-hdr"><span class="sec-lbl">Personal Note (optional)</span><div class="sec-accent"></div></div>
     <div class="card-body">
-      <textarea id="notes" rows="3" placeholder="Delivery timeline, usage rights, payment terms, etc."></textarea>
+      <textarea id="notes" rows="2" placeholder="Thank you, [Name] — it was a pleasure working with you."></textarea>
+      <button class="add-btn" onclick="fillThankYouNote()" style="margin-top:2px">✎ Auto-fill from client name</button>
     </div>
   </div>
 
@@ -252,14 +267,23 @@ const _sb = supabase.createClient(
 // table, while still getting a permanent record + Recent Invoices list here.
 const INV_PREFIX = 'GS';
 
-const QUICK_ADD = [
-  {desc:'Real Estate Photography', price:250},
-  {desc:'Aerial / Drone Photos', price:100},
-  {desc:'Twilight Photography', price:125},
-  {desc:'Virtual Staging (per photo)', price:50},
-  {desc:'Floor Plan', price:75},
-  {desc:'Video Walkthrough', price:200},
-  {desc:'Additional Edited Photo', price:10},
+// Real pricing from gabrielsantanaphotography.com (pasted directly — "starting at" prices,
+// since add'l-photo / per-unit surcharges aren't something a flat line item can capture).
+// Tap a chip to add it, then edit the price if the job needs more than the base package.
+const QUICK_ADD_PACKAGES = [
+  {desc:'HD Photography', price:225},
+  {desc:'HD + Drone Package', price:325},
+  {desc:'Luxury Collection', price:450},
+];
+const QUICK_ADD_ADDONS = [
+  {desc:'Twilight Photography', price:150},
+  {desc:'Drone Only', price:150},
+  {desc:'Drone Video', price:199},
+  {desc:'HD Video', price:350},
+  {desc:'Virtual Twilight (per photo)', price:5},
+  {desc:'Virtual Staging (per room)', price:50},
+  {desc:'Matterport 3D Tour (up to 1,500 sqft)', price:225},
+  {desc:'Additional Edited Photo', price:6},
 ];
 
 let items = [];
@@ -286,15 +310,19 @@ function renderItems(){
   recalc();
 }
 
-function renderQuickAdd(){
-  const c = document.getElementById('quick-add-chips'); c.innerHTML='';
-  QUICK_ADD.forEach(q=>{
+function renderQuickAddGroup(containerId, list){
+  const c = document.getElementById(containerId); c.innerHTML='';
+  list.forEach(q=>{
     const b = document.createElement('button');
     b.className='qa-chip';
     b.textContent = q.desc + ' — ' + fmt(q.price);
     b.onclick = () => quickAdd(q.desc, q.price);
     c.appendChild(b);
   });
+}
+function renderQuickAdd(){
+  renderQuickAddGroup('quick-add-packages', QUICK_ADD_PACKAGES);
+  renderQuickAddGroup('quick-add-addons', QUICK_ADD_ADDONS);
 }
 
 function recalc(){
@@ -315,16 +343,27 @@ function updateSummaryHeader(){
   document.getElementById('sum-addr').textContent = document.getElementById('address').value || ' ';
 }
 
+// Matches Gabriel's existing invoice numbering: GSP-2026-004, etc. — same format his real
+// invoices already use, so a new one generated here slots right into the same sequence.
+function fillThankYouNote(){
+  const client = document.getElementById('client').value.trim();
+  const first = client.split(' ')[0] || '';
+  document.getElementById('notes').value = first
+    ? `Thank you, ${first} — it was a pleasure working with you.`
+    : 'Thank you — it was a pleasure working with you.';
+}
+
 async function nextInvNum(){
+  const year = new Date().getFullYear();
   try{
-    const { data } = await _sb.from('invoices').select('invnum').like('invnum', INV_PREFIX+'%');
-    let max = 1000;
+    const { data } = await _sb.from('invoices').select('invnum').like('invnum', `${INV_PREFIX}P-${year}-%`);
+    let max = 0;
     (data||[]).forEach(r=>{
-      const m = String(r.invnum||'').match(/^GS(\d+)$/);
+      const m = String(r.invnum||'').match(new RegExp(`^GSP-${year}-(\\d+)$`));
       if(m){ const v=parseInt(m[1],10); if(v>max) max=v; }
     });
-    document.getElementById('invnum-display').value = INV_PREFIX + (max+1);
-  }catch(e){ document.getElementById('invnum-display').value = INV_PREFIX + '1001'; }
+    document.getElementById('invnum-display').value = `GSP-${year}-${String(max+1).padStart(3,'0')}`;
+  }catch(e){ document.getElementById('invnum-display').value = `GSP-${year}-001`; }
 }
 
 async function loadRecent(){
@@ -358,7 +397,9 @@ function loadInvoice(idx){
   const d = inv.data || {};
   document.getElementById('invnum-display').value = inv.invnum || '';
   document.getElementById('invdate').value = d.invdate || inv.invdate || '';
+  document.getElementById('service_date').value = d.service_date || '';
   document.getElementById('client').value = inv.client || d.client || '';
+  document.getElementById('client_role').value = d.client_role || '';
   document.getElementById('client_email').value = d.client_email || '';
   document.getElementById('address').value = inv.address || d.address || '';
   document.getElementById('taxrate').value = d.taxrate || 0;
@@ -379,12 +420,15 @@ async function downloadPdfNow(){
   const address = document.getElementById('address').value.trim();
   if(!client){ alert('Please enter a client name.'); document.getElementById('client').focus(); return; }
 
-  const invnum = document.getElementById('invnum-display').value.trim() || 'GS1001';
+  const year = new Date().getFullYear();
+  const invnum = document.getElementById('invnum-display').value.trim() || `GSP-${year}-001`;
   const data = {
     gs_invoice: true,
     client, address,
+    client_role: document.getElementById('client_role').value.trim(),
     client_email: document.getElementById('client_email').value.trim(),
     invnum, invdate: document.getElementById('invdate').value,
+    service_date: document.getElementById('service_date').value,
     items: items.filter(it=>it.desc).map(it=>({desc:it.desc, price:parseFloat(it.price)||0})),
     taxrate: parseFloat(document.getElementById('taxrate').value)||0,
     subtotal_override: _ov('ov-subtotal'), tax_override: _ov('ov-tax'), total_override: _ov('ov-total'),
@@ -423,7 +467,9 @@ async function downloadPdfNow(){
 }
 
 document.addEventListener('DOMContentLoaded', ()=>{
-  document.getElementById('invdate').value = new Date().toISOString().split('T')[0];
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('invdate').value = today;
+  document.getElementById('service_date').value = today;
   document.getElementById('client').addEventListener('input', updateSummaryHeader);
   document.getElementById('address').addEventListener('input', updateSummaryHeader);
   renderQuickAdd();

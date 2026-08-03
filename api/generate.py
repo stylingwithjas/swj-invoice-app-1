@@ -288,17 +288,19 @@ def build_balance_update_pdf(data):
 
 
 def build_gs_invoice_pdf(data):
-    """Simple branded invoice PDF for Gabriel Santana Photography (GS) — a separate business
-    sharing this app's infrastructure. PDF-only by design: no payment link, no e-signature,
-    just an itemized invoice to download and send. Kept isolated from the SWJ invoice/proposal
-    layout above since the two businesses' documents shouldn't drift together by accident."""
+    """Branded invoice PDF for Gabriel Santana Photography (GS) — a separate business sharing
+    this app's infrastructure. Matches the layout of his existing real-world invoices (letter-
+    spaced headers, Bill To / Services Delivered / Payment sections, personal thank-you note)
+    rather than reusing the SWJ layout, since the two businesses' documents are unrelated and
+    shouldn't drift together by accident. PDF-only: no payment link, no e-signature."""
     import tempfile
     PW, PH = letter
-    ML, MR = 50, 50
+    ML, MR = 54, 54
     CW = PW - ML - MR
     INK   = colors.HexColor('#111111')
-    GRAY  = colors.HexColor('#555555')
-    LGRAY = colors.HexColor('#cccccc')
+    GRAY  = colors.HexColor('#666666')
+    MUTED = colors.HexColor('#8a8a8a')
+    LGRAY = colors.HexColor('#d8d8d8')
 
     def fmt(n): return f"${float(n):,.2f}"
     def wrap(text, font, size, width):
@@ -312,13 +314,37 @@ def build_gs_invoice_pdf(data):
         if line: out.append(line)
         return out
 
+    def spaced_left(x, y0, text, font, size, gap, color):
+        cv.setFont(font, size); cv.setFillColor(color)
+        tx = x
+        for ch in text:
+            cv.drawString(tx, y0, ch)
+            tx += cv.stringWidth(ch, font, size) + gap
+        return tx - gap
+
+    def spaced_right(x_right, y0, text, font, size, gap, color):
+        w = cv.stringWidth(text, font, size) + gap * max(0, len(text) - 1)
+        spaced_left(x_right - w, y0, text, font, size, gap, color)
+
     client        = str(data.get('client', 'Client'))
+    client_role   = str(data.get('client_role', '') or '')
     address       = str(data.get('address', ''))
     invnum        = str(data.get('invnum', ''))
-    invdate       = str(data.get('invdate', ''))
+    invdate_raw   = str(data.get('invdate', ''))
+    service_date  = str(data.get('service_date', '') or '')
     items         = data.get('items') or []
     taxrate       = float(data.get('taxrate', 0) or 0)
-    notes         = str(data.get('notes', '') or '')
+    note          = str(data.get('notes', '') or '')
+
+    def fdate(v):
+        if not v: return ''
+        try:
+            import datetime as _dt
+            return _dt.datetime.strptime(v, '%Y-%m-%d').strftime('%B %-d, %Y')
+        except Exception:
+            return v
+    invdate = fdate(invdate_raw)
+    service_date_fmt = fdate(service_date)
 
     subtotal_raw = sum(float(i.get('price', 0) or 0) for i in items)
     sub_ov, tax_ov, tot_ov = data.get('subtotal_override'), data.get('tax_override'), data.get('total_override')
@@ -331,68 +357,106 @@ def build_gs_invoice_pdf(data):
     cv = canvas.Canvas(fname, pagesize=letter)
 
     def draw_header():
-        y0 = PH - 60
-        cv.setFillColor(INK); cv.setFont('Helvetica-Bold', 22)
+        y0 = PH - 64
+        cv.setFillColor(INK); cv.setFont('Helvetica-Bold', 18)
         cv.drawString(ML, y0, 'GS')
-        cv.setFont('Helvetica', 7.5); cv.setFillColor(GRAY)
-        cv.drawString(ML, y0 - 13, 'GABRIEL SANTANA PHOTOGRAPHY')
-        cv.setFillColor(INK); cv.setFont('Helvetica', 9)
-        cv.drawRightString(PW - MR, y0, f'Invoice No {invnum}')
-        if invdate:
-            cv.drawRightString(PW - MR, y0 - 12, invdate)
-        y0 -= 40
+        cv.setFont('Helvetica', 10); cv.setFillColor(GRAY)
+        cv.drawString(ML, y0 - 15, 'Photography')
+
+        spaced_right(PW - MR, y0, 'GABRIEL', 'Helvetica-Bold', 15, 2.2, INK)
+        spaced_right(PW - MR, y0 - 18, 'SANTANA', 'Helvetica-Bold', 15, 2.2, INK)
+        cv.setFont('Helvetica-Oblique', 8.5); cv.setFillColor(MUTED)
+        cv.drawRightString(PW - MR, y0 - 33, 'Real estate photography across the Pacific Northwest')
+
+        y0 -= 52
         cv.setStrokeColor(LGRAY); cv.setLineWidth(0.5); cv.line(ML, y0, PW - MR, y0)
-        return y0 - 24
+        return y0 - 34
 
     y = draw_header()
 
-    cv.setFont('Helvetica', 7.5); cv.setFillColor(GRAY)
-    cv.drawString(ML, y, 'Invoice To:'); cv.drawString(ML + 230, y, 'Property / Location:')
-    y -= 12
-    cv.setFont('Helvetica', 10); cv.setFillColor(INK)
+    spaced_left(ML, y, 'INVOICE', 'Helvetica-Bold', 22, 2.5, INK)
+    y -= 38
+
+    spaced_left(ML, y, 'INVOICE NO.', 'Helvetica-Bold', 7.5, 1.2, MUTED)
+    spaced_left(ML + 170, y, 'INVOICE DATE', 'Helvetica-Bold', 7.5, 1.2, MUTED)
+    y -= 13
+    cv.setFont('Helvetica', 10.5); cv.setFillColor(INK)
+    cv.drawString(ML, y, invnum)
+    cv.drawString(ML + 170, y, invdate)
+    y -= 26
+
+    spaced_left(ML, y, 'BILL TO', 'Helvetica-Bold', 7.5, 1.2, MUTED)
+    y -= 13
+    cv.setFont('Helvetica-Bold', 10.5); cv.setFillColor(INK)
     cv.drawString(ML, y, client)
-    for i, al in enumerate(wrap(address, 'Helvetica', 10, CW - 230)):
-        cv.drawString(ML + 230, y - (i * 12), al)
-    y -= 30
-
-    cv.setStrokeColor(INK); cv.setLineWidth(1.2); cv.line(ML, y, PW - MR, y); y -= 16
-    cv.setFont('Helvetica-Bold', 9); cv.setFillColor(INK)
-    cv.drawString(ML, y, 'Description'); cv.drawRightString(PW - MR, y, 'Amount'); y -= 14
-    cv.setStrokeColor(LGRAY); cv.setLineWidth(0.5); cv.line(ML, y, PW - MR, y); y -= 14
-
-    cv.setFont('Helvetica', 9.5); cv.setFillColor(colors.HexColor('#333333'))
-    for it in items:
-        desc = str(it.get('desc', '')); price = float(it.get('price', 0) or 0)
-        if y < 130:
-            cv.showPage(); y = draw_header()
-            cv.setFont('Helvetica', 9.5); cv.setFillColor(colors.HexColor('#333333'))
-        lines = wrap(desc, 'Helvetica', 9.5, CW - 90) or ['']
-        for j, l in enumerate(lines):
-            cv.drawString(ML, y, l)
-            if j == 0: cv.drawRightString(PW - MR, y, fmt(price))
-            y -= 13
-        y -= 3
-
-    y -= 6
-    cv.setStrokeColor(LGRAY); cv.setLineWidth(0.5); cv.line(ML, y, PW - MR, y); y -= 18
-
+    y -= 12
     cv.setFont('Helvetica', 9.5); cv.setFillColor(GRAY)
-    cv.drawString(ML, y, 'Subtotal'); cv.drawRightString(PW - MR, y, fmt(subtotal)); y -= 14
-    cv.drawString(ML, y, f'Tax ({taxrate:.2f}%)'); cv.drawRightString(PW - MR, y, fmt(tax)); y -= 18
-    cv.setStrokeColor(INK); cv.setLineWidth(0.8); cv.line(ML, y, PW - MR, y); y -= 16
-    cv.setFont('Helvetica-Bold', 13); cv.setFillColor(INK)
-    cv.drawString(ML, y, 'Total Due'); cv.drawRightString(PW - MR, y, fmt(total)); y -= 26
+    if client_role:
+        cv.drawString(ML, y, client_role); y -= 12
+    if address:
+        for al in wrap('Property: ' + address, 'Helvetica', 9.5, CW):
+            cv.drawString(ML, y, al); y -= 12
+    y -= 14
 
-    if notes:
-        cv.setFont('Helvetica-Bold', 8.5); cv.setFillColor(INK)
-        cv.drawString(ML, y, 'Notes'); y -= 12
-        cv.setFont('Helvetica', 8.5); cv.setFillColor(GRAY)
-        for l in wrap(notes, 'Helvetica', 8.5, CW):
-            cv.drawString(ML, y, l); y -= 11
+    cv.setStrokeColor(LGRAY); cv.setLineWidth(0.5); cv.line(ML, y, PW - MR, y); y -= 20
 
-    cv.setStrokeColor(LGRAY); cv.setLineWidth(0.4); cv.line(ML, 42, PW - MR, 42)
-    cv.setFont('Helvetica', 8); cv.setFillColor(GRAY)
-    cv.drawString(ML, 30, 'Gabriel Santana Photography')
+    spaced_left(ML, y, 'SERVICES DELIVERED', 'Helvetica-Bold', 7.5, 1.2, MUTED)
+    spaced_right(PW - MR, y, 'AMOUNT', 'Helvetica-Bold', 7.5, 1.2, MUTED)
+    y -= 22
+
+    for idx, it in enumerate(items):
+        desc = str(it.get('desc', '')); price = float(it.get('price', 0) or 0)
+        if y < 150:
+            cv.showPage(); y = draw_header()
+            spaced_left(ML, y, 'SERVICES DELIVERED (CONT.)', 'Helvetica-Bold', 7.5, 1.2, MUTED)
+            y -= 22
+        cv.setFont('Helvetica-Bold', 10.5); cv.setFillColor(INK)
+        cv.drawString(ML, y, desc)
+        cv.drawRightString(PW - MR, y, fmt(price))
+        y -= 13
+        if idx == 0 and service_date_fmt:
+            cv.setFont('Helvetica', 8.5); cv.setFillColor(MUTED)
+            cv.drawString(ML, y, f'Service date: {service_date_fmt}')
+            y -= 13
+        y -= 8
+
+    y -= 4
+    cv.setStrokeColor(LGRAY); cv.setLineWidth(0.5); cv.line(ML, y, PW - MR, y); y -= 20
+
+    col_lbl = PW - MR - 150
+    cv.setFont('Helvetica', 9.5); cv.setFillColor(GRAY)
+    cv.drawString(col_lbl, y, 'Subtotal'); cv.drawRightString(PW - MR, y, fmt(subtotal)); y -= 15
+    if taxrate:
+        cv.drawString(col_lbl, y, f'Tax ({taxrate:.2f}%)'); cv.drawRightString(PW - MR, y, fmt(tax)); y -= 15
+    y -= 6
+    spaced_left(col_lbl, y, 'AMOUNT DUE', 'Helvetica-Bold', 9, 1, INK)
+    cv.setFont('Helvetica-Bold', 15); cv.setFillColor(INK)
+    cv.drawRightString(PW - MR, y - 1, fmt(total))
+    y -= 40
+
+    cv.setStrokeColor(LGRAY); cv.setLineWidth(0.5); cv.line(ML, y, PW - MR, y); y -= 20
+
+    spaced_left(ML, y, 'PAYMENT', 'Helvetica-Bold', 7.5, 1.2, MUTED); y -= 14
+    cv.setFont('Helvetica', 9.5); cv.setFillColor(INK)
+    cv.drawString(ML, y, 'Venmo · Zelle · Check · Cash'); y -= 13
+    cv.setFont('Helvetica', 8.5); cv.setFillColor(GRAY)
+    cv.drawString(ML, y, 'Payment due upon receipt. Thank you for your business.'); y -= 12
+    cv.drawString(ML, y, '(253) 344-9574 · info@gabrielsantanaphotography.com'); y -= 28
+
+    if note:
+        cv.setFont('Helvetica-Oblique', 9.5); cv.setFillColor(colors.HexColor('#333333'))
+        for l in wrap(note, 'Helvetica-Oblique', 9.5, CW):
+            cv.drawString(ML, y, l); y -= 13
+        y -= 12
+
+    cv.setFont('Helvetica-Bold', 10.5); cv.setFillColor(INK)
+    cv.drawString(ML, y, 'Gabriel Santana'); y -= 12
+    spaced_left(ML, y, 'OWNER & PHOTOGRAPHER', 'Helvetica', 7.5, 1, MUTED)
+
+    cv.setStrokeColor(LGRAY); cv.setLineWidth(0.4); cv.line(ML, 46, PW - MR, 46)
+    cv.setFont('Helvetica', 8); cv.setFillColor(MUTED)
+    cv.drawCentredString(PW / 2, 32, 'gabrielsantanaphotography.com')
+    cv.drawCentredString(PW / 2, 20, 'Preferred by Redfin & HD Estates · Pacific Northwest')
     cv.save()
     return fname
 
