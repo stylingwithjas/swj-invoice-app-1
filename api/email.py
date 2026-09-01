@@ -124,6 +124,7 @@ class handler(BaseHTTPRequestHandler):
             return
 
         to_raw     = body.get('to', '')
+        cc_raw     = body.get('cc', '')
         subject    = body.get('subject', 'Your Staging Proposal — Styling With Jas')
         message    = body.get('message', '')
         pdf_base64 = body.get('pdf', '')
@@ -143,13 +144,19 @@ class handler(BaseHTTPRequestHandler):
             self._respond(400, {'error': 'At least one valid recipient email is required'})
             return
 
+        # CC recipients (e.g. a real estate agent) see the same email and attached PDF but
+        # are never a required signer — that's a separate, explicit "co-signer" concept
+        # elsewhere in the app. Invalid CC addresses are silently dropped rather than
+        # blocking the send, since CC is optional.
+        cc_list = [a.strip() for a in re.split(r'[,;]', cc_raw) if a.strip() and EMAIL_RE.match(a.strip())]
+
         try:
             msg = MIMEMultipart('mixed')
             msg['From'] = f'{FROM_NAME} <{FROM_EMAIL}>'
             msg['To'] = ', '.join(to_list)
             msg['Subject'] = subject
             msg['Reply-To'] = FROM_EMAIL
-            msg['Cc'] = FROM_EMAIL
+            msg['Cc'] = ', '.join([FROM_EMAIL] + cc_list)
 
             # alternative part: plain text + HTML
             body_part = MIMEMultipart('alternative')
@@ -169,9 +176,9 @@ class handler(BaseHTTPRequestHandler):
 
             with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=20) as server:
                 server.login(FROM_EMAIL, password)
-                server.sendmail(FROM_EMAIL, to_list + [FROM_EMAIL], msg.as_string())
+                server.sendmail(FROM_EMAIL, to_list + cc_list + [FROM_EMAIL], msg.as_string())
 
-            self._respond(200, {'sent': True, 'to': to_list, 'skipped': invalid})
+            self._respond(200, {'sent': True, 'to': to_list, 'cc': cc_list, 'skipped': invalid})
 
         except smtplib.SMTPAuthenticationError:
             self._respond(500, {'error': 'Email authentication failed — check password'})
