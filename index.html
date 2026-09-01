@@ -548,6 +548,7 @@ textarea:focus { border-color:var(--gold); background:var(--warm); }
         <div class="modal">
             <div class="modal-title">✉️ Send Proposal</div>
             <div class="modal-field"><label>To</label><input id="email-to" type="email" multiple placeholder="client@email.com, spouse@email.com"></div>
+            <div class="modal-field"><label>CC <span style="text-transform:none;letter-spacing:0;font-weight:400;color:#999;font-size:10px">— sees this email, not asked to sign (e.g. a real estate agent)</span></label><input id="email-cc" type="email" multiple placeholder="agent@example.com"></div>
             <div class="modal-field"><label>Subject</label><input id="email-subject" type="text"></div>
             <div class="modal-field"><label>Message</label><textarea id="email-body"></textarea></div>
             <div id="email-status" style="font-size:13px;color:#888;margin-top:8px;min-height:18px"></div>
@@ -1624,6 +1625,7 @@ function openEmailModal(data){
   const clientRoleParam=data.cosigner&&data.cosigner.name?"&role=client":"";
   const approveLine="\n\nTo approve this proposal, review & sign here:\n"+location.origin+"/proposal.html?inv="+(data.invnum||"")+clientRoleParam;
   document.getElementById('email-to').value='';
+  document.getElementById('email-cc').value='';
   document.getElementById('email-subject').value=`Your Staging Proposal — ${address}`;
   document.getElementById('email-body').value=`Hi ${firstName},\n\nThank you for the opportunity to work with you! I'm excited about this property and what we can create together.\n\nAttached you'll find your personalized staging proposal for ${address}. Inside you'll find the full scope of work, investment total, and payment details.\n\nA few important notes:\n• Full payment is due 48 hours before installation day\n• Once payment is received I'll lock in your staging date\n• The payment link is included in the proposal for your convenience\n\nPlease don't hesitate to reach out with any questions!\n\nLooking forward to transforming your space.${approveLine}\n\nWarmly,\nJasmine Santana\nOwner & Creative Director — Styling With Jas\n📱 206-422-5618\n📧 info@stylingwithjas.com`;
   document.getElementById('email-status').textContent='';
@@ -1668,6 +1670,7 @@ function openLastPdf(){
 
 async function sendEmail(){
   const to=document.getElementById('email-to').value.trim();
+  const cc=document.getElementById('email-cc')?.value.trim()||'';
   const subject=document.getElementById('email-subject').value.trim();
   const message=document.getElementById('email-body').value.trim();
   const statusEl=document.getElementById('email-status');
@@ -1678,17 +1681,22 @@ async function sendEmail(){
   const addrs=to.split(/[,;]/).map(a=>a.trim()).filter(Boolean);
   const bad=addrs.filter(a=>!emailRegex.test(a));
   if(!addrs.length || bad.length){statusEl.textContent=bad.length?'Invalid email: '+bad.join(', '):'Please enter a recipient email.';statusEl.style.color='#e24b4a';return;}
+  // CC is optional — someone who should see the proposal (e.g. a real estate agent) without
+  // being pulled into the signing flow at all; they're never treated as a required signer.
+  const ccAddrs=cc.split(/[,;]/).map(a=>a.trim()).filter(Boolean);
+  const ccBad=ccAddrs.filter(a=>!emailRegex.test(a));
+  if(ccBad.length){statusEl.textContent='Invalid CC email: '+ccBad.join(', ');statusEl.style.color='#e24b4a';return;}
   if(!_lastPdfBlob){statusEl.textContent='No PDF generated yet.';statusEl.style.color='#e24b4a';return;}
   sendBtn.disabled=true; sendBtn.textContent='Sending...';
   statusEl.textContent='Sending email...'; statusEl.style.color='#888';
   try{
     const ab=await _lastPdfBlob.arrayBuffer();
     const base64=btoa(String.fromCharCode(...new Uint8Array(ab)));
-    const r=await fetch('/api/email',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({to:addrs.join(', '),subject,message,pdf:base64,filename:_lastPdfFilename})});
+    const r=await fetch('/api/email',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({to:addrs.join(', '),cc:ccAddrs.join(', '),subject,message,pdf:base64,filename:_lastPdfFilename})});
     const d=await r.json();
     if(d.sent){
       const n=(d.to||[]).length;
-      let statusMsg='✓ Sent to '+(n>1?n+' recipients':'1 recipient')+(d.skipped&&d.skipped.length?' (skipped invalid: '+d.skipped.join(', ')+')':'')+'!';
+      let statusMsg='✓ Sent to '+(n>1?n+' recipients':'1 recipient')+(d.skipped&&d.skipped.length?' (skipped invalid: '+d.skipped.join(', ')+')':'')+(ccAddrs.length?' · CC\'d '+ccAddrs.length:'')+'!';
       // Co-signer gets their own tailored Approve & Sign email at the same time — signing
       // doesn't wait on the client to go first anymore, so both need their invite up front.
       const cosignerResult=await sendCosignerInviteEmail(window._lastInvoiceData, base64);
