@@ -398,6 +398,7 @@ textarea:focus { border-color:var(--gold); background:var(--warm); }
         <div class="sec-lbl" style="margin-bottom:8px">Custom Line Items</div>
         <div id="custom-addons"></div>
         <button class="add-btn" onclick="addCustom()">+ Add custom line item</button>
+        <button class="add-btn" onclick="addPetFee()">+ Add Furniture Sanitization Fee</button>
       </div>
     </div>
   </div>
@@ -835,6 +836,14 @@ function updScope(ci,val){const e=selAddons.get(`${ci}`);if(e)e.scope=val;}
 function resetScope(ci){const e=selAddons.get(`${ci}`);const sn=e?CATS[ci].sizes[e.oi].size:CATS[ci].sizes[0].size;const def=getScope(ci,sn);const ta=document.getElementById(`sc-${ci}`);if(ta)ta.value=def;if(e)e.scope=def;}
 
 function addCustom(){const id=Date.now();customs.push({id,desc:'',scope:'',price:0});renderCustoms();}
+// Pre-filled custom line item for pet households — price and scope are both editable
+// afterward via the same Custom Line Items UI, same as any other custom item.
+function addPetFee(){
+  const id=Date.now();
+  customs.push({id, desc:'Furniture Sanitization Fee', price:125,
+    scope:'A Furniture Sanitization Fee applies when pets are present in the home during the staging period. This covers deep cleaning, deodorizing, and inspection of all rented furniture and soft furnishings prior to reuse.'});
+  renderCustoms();
+}
 function removeCustom(id){customs=customs.filter(a=>a.id!==id);renderCustoms();}
 function renderCustoms(){
   const c=document.getElementById('custom-addons');c.innerHTML='';
