@@ -504,6 +504,7 @@ def generate_invoice_pdf(data):
     invdate    = fdate(data['invdate'])
     startdate  = fdate(data['startdate'])
     baserooms  = data['baserooms']
+    baseroom_scopes = data.get('baseroom_scopes') or {}
     extrate    = data['extrate']
     taxrate    = data['taxrate']
     addons     = data['addons']
@@ -946,11 +947,17 @@ def generate_invoice_pdf(data):
         cv.setFont('Helvetica-Bold', 8.5); cv.setFillColor(BLACK)
         cv.drawString(dx, ry, 'Spaces Included:'); ry -= 11
     
-        # Room list as bullets
+        # Room list as bullets, with an optional manually-written scope of work per room
         room_list = [r.strip() for r in baserooms.split(',')]
-        cv.setFont('Helvetica', 8.5); cv.setFillColor(BLACK)
+        cv.setFillColor(BLACK)
         for room in room_list:
+            scope = (baseroom_scopes.get(room) or '').strip()
+            cv.setFont('Helvetica-Bold' if scope else 'Helvetica', 8.5)
             cv.drawString(dx, ry, f'\u2022  {room}'); ry -= 11
+            if scope:
+                cv.setFont('Helvetica', 8)
+                for l in wrap(cv, scope, 'Helvetica', 8, descW - 10):
+                    cv.drawString(dx + 10, ry, l); ry -= 10
         ry -= 4
     
         # Closing line

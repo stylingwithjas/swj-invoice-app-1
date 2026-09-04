@@ -381,6 +381,7 @@ textarea:focus { border-color:var(--gold); background:var(--warm); }
       </div>
       <div class="rooms-grid" id="rooms-grid"></div>
       <div class="ferr" id="e-rooms" style="margin-top:6px">Please select at least one room</div>
+      <div id="room-scope-list"></div>
     </div>
   </div>
 
@@ -633,7 +634,7 @@ const CATS=[
   {name:'Dining room',hasBed:false,sizes:[{size:'Small',price:300},{size:'Medium',price:350},{size:'Large',price:425},{size:'Extra large',price:450}]},
 ];
 
-let selRooms=new Set(),selAddons=new Map(),bedSel=new Map(),customs=[],invNum='',extraBedrooms=[],contributions=[];
+let selRooms=new Set(),selAddons=new Map(),bedSel=new Map(),customs=[],invNum='',extraBedrooms=[],contributions=[],roomScopes=new Map();
 
 function addExtraBedroom(){
   const n = extraBedrooms.length;
@@ -761,9 +762,28 @@ function buildRooms(){
     c.onclick=()=>{
       if(selRooms.has(r)){selRooms.delete(r);c.classList.remove('sel');}
       else{selRooms.add(r);c.classList.add('sel');}
+      renderRoomScopes();
     };
     g.appendChild(c);
   });
+  renderRoomScopes();
+}
+function updRoomScope(room,val){roomScopes.set(room,val);}
+function renderRoomScopes(){
+  const c=document.getElementById('room-scope-list');
+  if(!c)return;
+  c.innerHTML='';
+  ROOMS.filter(r=>selRooms.has(r)).forEach(r=>{
+    const w=document.createElement('div');w.style.marginTop='10px';
+    const val=roomScopes.get(r)||'';
+    w.innerHTML=`<div class="scope-lbl"><span>${r} — scope of work (optional)</span></div><textarea rows="2" placeholder="Describe what's included for this space..." oninput="updRoomScope('${r}',this.value)">${val}</textarea>`;
+    c.appendChild(w);
+  });
+}
+function roomScopesObj(){
+  const o={};
+  selRooms.forEach(r=>{const v=roomScopes.get(r);if(v&&v.trim())o[r]=v.trim();});
+  return o;
 }
 
 function getScope(ci,sn){
@@ -925,6 +945,7 @@ function _ov(id){const el=document.getElementById(id);if(!el)return null;const v
 function captureState(){
   return {
     selRooms:[...selRooms],
+    roomScopes:[...roomScopes.entries()],
     selAddons:[...selAddons.values()].map(e=>({ci:e.ci,oi:e.oi,scope:document.getElementById(`sc-${e.ci}`)?.value||e.scope||''})),
     bedSel:[...bedSel.entries()],
     extraBedrooms:extraBedrooms.map(b=>({...b})),
@@ -951,6 +972,7 @@ function restoreState(state){
     _origBasePrice=parseFloat(state.base_price)||2500;
   }
   selRooms=new Set(state.selRooms||[]);
+  roomScopes=new Map(state.roomScopes||[]);
   bedSel=new Map((state.bedSel||[]).map(([k,v])=>[String(k),v]));
   selAddons=new Map();
   (state.selAddons||[]).forEach(e=>{selAddons.set(`${e.ci}`,{key:`${e.ci}-${e.oi}`,ci:e.ci,oi:e.oi,scope:e.scope||''});});
@@ -1528,7 +1550,7 @@ async function downloadPdfNow(){
   invNum=invNumFinal;
 
   const _contribList=contributions.filter(c=>c.label&&parseFloat(c.amount)>0).map(c=>({label:c.label,amount:parseFloat(c.amount)}));
-  const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:document.getElementById('startdate').value,baserooms:[...selRooms].join(', '),extrate,taxrate,base_price:base,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,state:captureState(),promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,promo4:document.getElementById('promo4').checked,payment_url:null,contributions:_contribList,cosigner:getCosigner(),cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||''};
+  const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:document.getElementById('startdate').value,baserooms:[...selRooms].join(', '),baseroom_scopes:roomScopesObj(),extrate,taxrate,base_price:base,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,state:captureState(),promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,promo4:document.getElementById('promo4').checked,payment_url:null,contributions:_contribList,cosigner:getCosigner(),cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||''};
 
   const ctrl=new AbortController();
   const to=setTimeout(()=>ctrl.abort(),90000);
@@ -1812,7 +1834,7 @@ async function generatePDF(){
 
   setSt('loading','Generating your invoice PDF...');
   const _contribList=contributions.filter(c=>c.label&&parseFloat(c.amount)>0).map(c=>({label:c.label,amount:parseFloat(c.amount)}));
-  const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:document.getElementById('startdate').value,baserooms:[...selRooms].join(', '),extrate,taxrate,base_price:base,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,state:captureState(),promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
+  const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:document.getElementById('startdate').value,baserooms:[...selRooms].join(', '),baseroom_scopes:roomScopesObj(),extrate,taxrate,base_price:base,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,state:captureState(),promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
             promo4:document.getElementById('promo4').checked,payment_url,payment_link_id,contributions:_contribList,payments:splitPayments,active_client_payment_id:activeClientPaymentId,cosigner:getCosigner(),cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||''};
 
   const _ctrl=new AbortController();
@@ -1908,7 +1930,7 @@ async function generate(){
   setSt('loading','Generating your invoice PDF...');
 
   const _contribList=contributions.filter(c=>c.label&&parseFloat(c.amount)>0).map(c=>({label:c.label,amount:parseFloat(c.amount)}));
-  const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:document.getElementById('startdate').value,baserooms:[...selRooms].join(', '),extrate,taxrate,base_price:parseFloat(document.getElementById('base_price')?.value)||2500,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,state:captureState(),promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
+  const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:document.getElementById('startdate').value,baserooms:[...selRooms].join(', '),baseroom_scopes:roomScopesObj(),extrate,taxrate,base_price:parseFloat(document.getElementById('base_price')?.value)||2500,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,state:captureState(),promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
             promo4:document.getElementById('promo4').checked,payment_url,payment_link_id,contributions:_contribList,payments:splitPayments,active_client_payment_id:activeClientPaymentId,cosigner:getCosigner(),cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||''};
 
   // Send to API and download PDF

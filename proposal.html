@@ -307,6 +307,7 @@ function renderProposal(d){
   // so a manually-set Total without a manual Tax shows the same tax figure on the proposal and the PDF.
   const tax = _ovNum(d.tax_override)!=null ? _ovNum(d.tax_override) : (_subEff*(parseFloat(d.taxrate)||0)/100);
   const rooms = (d.baserooms||'').split(', ').filter(Boolean);
+  const roomScopesMap = d.baseroom_scopes||{};
   const stagingDate = d.startdate;
   const extrate = Math.round(_grand/3*100)/100;
   const _amountPaid = computeAmountPaid(d);
@@ -377,6 +378,7 @@ function renderProposal(d){
       <div class="rooms-section">
         <div class="rooms-lbl">Rooms included</div>
         <div class="rooms-pills">${rooms.map(r=>`<span class="room-pill">${esc(r)}</span>`).join('')}</div>
+        ${rooms.filter(r=>roomScopesMap[r]).map(r=>`<div class="line-sub" style="margin-top:8px"><strong>${esc(r)}:</strong> ${esc(roomScopesMap[r])}</div>`).join('')}
       </div>`:''}
       ${stagingDate?`
       <div class="date-row">
