@@ -780,10 +780,10 @@ class handler(BaseHTTPRequestHandler):
                 try:
                     send_email(
                         JASMINE_EMAIL,
-                        f'Pet deposit received — {parent_invnum} ({client or "Client"})',
+                        f'Pet deposit received: {parent_invnum} ({client or "Client"})',
                         (f'The refundable pet deposit of {fmt_amount(amount)} for invoice '
                          f'{parent_invnum} ({client or "Client"}) has just been paid.\n\n'
-                         f'Remember: this is fully refundable — issue the refund from the '
+                         f'Remember, this is fully refundable. Issue the refund from the '
                          f'board once staging items are picked up in good condition.'),
                     )
                 except Exception as e:
