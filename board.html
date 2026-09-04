@@ -259,6 +259,8 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
 .m-sec[data-sec="signatures"] .m-sec-ttl { color:var(--slate); }
 .m-sec[data-sec="payment"]    { border-left-color:var(--green); }
 .m-sec[data-sec="payment"]    .m-sec-ttl { color:var(--green); }
+.m-sec[data-sec="pet-deposit"]{ border-left-color:var(--amber); }
+.m-sec[data-sec="pet-deposit"] .m-sec-ttl { color:var(--amber); }
 .m-sec[data-sec="destage"]    { border-left-color:var(--teal); }
 .m-sec[data-sec="destage"]    .m-sec-ttl { color:var(--teal-dk); }
 .m-sec[data-sec="prep"]       { border-left-color:var(--amber); }
@@ -612,6 +614,12 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
       <div id="m-payments-list" style="margin-top:8px"></div>
     </div>
 
+    <!-- Refundable Pet Deposit (only shown when enabled on this invoice) -->
+    <div class="m-sec" data-sec="pet-deposit" id="m-pet-deposit-sec" style="display:none">
+      <div class="m-sec-ttl">🐾 Pet Deposit</div>
+      <div id="m-pet-deposit-body"></div>
+    </div>
+
     <!-- Destage -->
     <div class="m-sec" data-sec="destage">
       <div class="m-sec-ttl">📤 Destage</div>
@@ -928,6 +936,69 @@ function renderSignaturesSection(inv, d){
   list.innerHTML =
     row(`Client — ${client}`, clientSig, 'client', d.client_email) +
     row(`${roleLabel} — ${cosigner.name}`, cosignerSig, 'cosigner', cosigner.email);
+}
+
+// Shows the refundable pet deposit's status when enabled on this invoice, with a Refund
+// button once it's been paid. The deposit is tracked entirely separately from the main
+// invoice payment (its own Stripe link, tagged "<invnum>-PETDEP") — see api/webhook.py's
+// supabase_update_pet_deposit and api/stripe.py's refund action.
+function renderPetDepositSection(inv, d){
+  const sec = document.getElementById('m-pet-deposit-sec');
+  const body = document.getElementById('m-pet-deposit-body');
+  if(!sec || !body) return;
+  const dep = d.pet_deposit || {};
+  if(!dep.enabled){ sec.style.display='none'; return; }
+  sec.style.display='';
+
+  const amount = parseFloat(dep.amount||0).toFixed(2);
+  let statusHtml, actionHtml = '';
+  if(dep.status==='paid'){
+    statusHtml = `<span style="color:#4a7c50">✓ Paid ${dep.paid_date?('· '+escapeHtml(dep.paid_date)):''}</span>`;
+    actionHtml = `<button class="m-text-btn" onclick="refundPetDeposit()">Refund Deposit</button>
+                   <div id="m-pet-deposit-status" style="font-size:11px;color:#888;margin-top:4px"></div>`;
+  } else if(dep.status==='refunded'){
+    statusHtml = `<span style="color:#888">↺ Refunded ${dep.refunded_date?('· '+escapeHtml(dep.refunded_date)):''}</span>`;
+  } else {
+    statusHtml = `<span style="color:#b8860b">Pending</span>`;
+    if(dep.payment_url){
+      actionHtml = `<div style="font-size:11px;word-break:break-all;margin-top:4px"><a href="${escapeHtml(dep.payment_url)}" target="_blank">${escapeHtml(dep.payment_url)}</a></div>`;
+    }
+  }
+
+  body.innerHTML = `
+    <div class="m-row">
+      <span class="m-lbl">Amount</span>
+      <span style="font-size:13px">$${amount}</span>
+    </div>
+    <div class="m-row">
+      <span class="m-lbl">Status</span>
+      ${statusHtml}
+    </div>
+    ${actionHtml}
+  `;
+}
+
+async function refundPetDeposit(){
+  const inv = CARDS[currentCardId];
+  if(!inv){ alert('Open a project first.'); return; }
+  const d = inv.data || {};
+  const dep = d.pet_deposit || {};
+  const statusEl = document.getElementById('m-pet-deposit-status');
+  if(!dep.payment_id){ if(statusEl) statusEl.textContent='No payment on record for this deposit.'; return; }
+  if(!confirm(`Refund the ${'$'+parseFloat(dep.amount||0).toFixed(2)} pet deposit? This issues a real refund through Stripe.`)) return;
+
+  if(statusEl) statusEl.textContent='Refunding…';
+  try{
+    const r = await fetch('/api/stripe', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({action:'refund', payment_id:dep.payment_id})});
+    const j = await r.json();
+    if(!j.ok) throw new Error(j.error||'Refund failed');
+    d.pet_deposit = { ...dep, status:'refunded', refunded_date:new Date().toISOString().split('T')[0] };
+    await _sb.from('invoices').upsert({ invnum: inv.invnum, client: inv.client, address: inv.address, invdate: inv.invdate, data: d }, { onConflict: 'invnum' });
+    inv.data = d;
+    renderPetDepositSection(inv, d);
+  }catch(e){
+    if(statusEl) statusEl.textContent = 'Error: '+e.message;
+  }
 }
 
 async function resendSignatureInvite(role){
@@ -1880,6 +1951,7 @@ function realOpenCard(invnum){
 
   renderConfirmationStatuses(d);
   renderSignaturesSection(inv, d);
+  renderPetDepositSection(inv, d);
 
   // Notes
   setVal('m-notes', d.notes || '');
