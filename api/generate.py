@@ -1169,13 +1169,14 @@ def generate_invoice_pdf(data):
         y -= 6
     
     tc_section('Production Timeline', [
-        'Installation and styling may require up to 48 hours to complete the final presentation.',
+        'Installation and styling may require up to 7 days to complete the final presentation.',
         'ETA will be provided on the day of installation if needed.',
         'Installation is scheduled within a staging window and may occur at varying times throughout the day. A defined start or completion time is not guaranteed.',
         'Final staging presentation is delivered upon completion of installation.',
     ])
     tc_section('Payment & Rental Terms', [
         'Full payment is due 48 hours prior to staging installation day.',
+        'Signed contract must be received no later than 3 days prior to the scheduled staging installation date.',
         'Staging will not be scheduled until full payment is received.',
         'Invoice covers up to 45 days of furniture rental from installation date.',
         f'After 45 days, rental may be extended at {fmt(extrate)} per additional 30-day period, billed separately.',
