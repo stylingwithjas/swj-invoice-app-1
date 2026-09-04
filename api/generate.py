@@ -1026,22 +1026,47 @@ def generate_invoice_pdf(data):
         # or just as a readable paragraph broken into bullets
         if scope_part:
             ry -= 3
-            # Split scope into bullet points by sentence or comma
             import re
-            # Split on '. ' or ', ' to create bullets
-            raw_items = re.split(r',\s*(?=[A-Z])|(?<=\.)\s+(?=[A-Z])', scope_part)
-            if len(raw_items) > 1:
-                cv.setFont('Helvetica', 8.5); cv.setFillColor(BLACK)
-                for item in raw_items:
-                    item = item.strip().rstrip('.')
-                    if item:
-                        for l in wrap(cv, '\u2022  '+item, 'Helvetica', 8.5, descW-10):
-                            cv.drawString(dx, ry, l); ry -= 11
+            # Preferred split: a room/zone written as "Label: description" (e.g. "Front Porch:
+            # Lightly staged..."), which is how multi-room scopes are typically authored. The
+            # label may be 1-4 capitalized words (with & or a parenthetical), so this looks for
+            # the whole run of capitalized words immediately before the colon rather than
+            # matching mid-label (avoids splitting "Front Porch:" into "Front" / "Porch:").
+            WORD = r'(?:[A-Z][\w/]*|&)'
+            label_re = re.compile(rf'{WORD}(?:\s+{WORD}){{0,3}}(?:\s*\([^)]*\))?:\s')
+            label_matches = list(label_re.finditer(scope_part))
+            if len(label_matches) >= 2:
+                lead = scope_part[:label_matches[0].start()].strip()
+                if lead:
+                    cv.setFont('Helvetica', 8.5); cv.setFillColor(BLACK)
+                    for l in wrap(cv, lead, 'Helvetica', 8.5, descW):
+                        cv.drawString(dx, ry, l); ry -= 11
+                    ry -= 2
+                for i, m in enumerate(label_matches):
+                    seg_end = label_matches[i+1].start() if i+1 < len(label_matches) else len(scope_part)
+                    label = m.group().strip().rstrip(':').strip()
+                    desc = scope_part[m.end():seg_end].strip().rstrip('.')
+                    cv.setFont('Helvetica-Bold', 8.5); cv.setFillColor(BLACK)
+                    cv.drawString(dx, ry, f'\u2022  {label}:'); ry -= 11
+                    if desc:
+                        cv.setFont('Helvetica', 8)
+                        for l in wrap(cv, desc, 'Helvetica', 8, descW-10):
+                            cv.drawString(dx+10, ry, l); ry -= 10
             else:
-                # Wrap as paragraph
-                cv.setFont('Helvetica', 8.5); cv.setFillColor(BLACK)
-                for l in wrap(cv, scope_part, 'Helvetica', 8.5, descW):
-                    cv.drawString(dx, ry, l); ry -= 11
+                # Fall back: split on '. ' or ', ' to create bullets
+                raw_items = re.split(r',\s*(?=[A-Z])|(?<=\.)\s+(?=[A-Z])', scope_part)
+                if len(raw_items) > 1:
+                    cv.setFont('Helvetica', 8.5); cv.setFillColor(BLACK)
+                    for item in raw_items:
+                        item = item.strip().rstrip('.')
+                        if item:
+                            for l in wrap(cv, '\u2022  '+item, 'Helvetica', 8.5, descW-10):
+                                cv.drawString(dx, ry, l); ry -= 11
+                else:
+                    # Wrap as paragraph
+                    cv.setFont('Helvetica', 8.5); cv.setFillColor(BLACK)
+                    for l in wrap(cv, scope_part, 'Helvetica', 8.5, descW):
+                        cv.drawString(dx, ry, l); ry -= 11
     
         if cost_str:
             cv.setFont('Helvetica', 9); cv.setFillColor(BLACK)
