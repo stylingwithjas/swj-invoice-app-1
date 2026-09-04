@@ -391,8 +391,8 @@ function renderProposal(d){
       </div>`:''}
       ${petDeposit.enabled?`
       <div style="padding:14px 20px;border-top:0.5px solid var(--line-soft);">
-        <div style="font-size:13px;font-weight:600;color:var(--ink);">Refundable Pet Deposit — ${fmt(parseFloat(petDeposit.amount)||0)} (billed separately, not included in Total Investment above)</div>
-        <div style="font-size:11px;color:var(--muted);margin-top:4px;line-height:1.5;">This deposit is separate from your Total Investment above and is not charged sales tax. It's paid through its own link below, and this deposit — not your invoice total — will be refunded in full once staging items are picked up in the same condition as delivered.</div>
+        <div style="font-size:13px;font-weight:600;color:var(--ink);">Refundable Pet Deposit: ${fmt(parseFloat(petDeposit.amount)||0)} (billed separately, not included in Total Investment above)</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px;line-height:1.5;">This deposit is separate from your Total Investment above and is not charged sales tax. It's paid through its own link below, and this deposit, not your invoice total, will be refunded in full once staging items are picked up in the same condition as delivered.</div>
         ${petDeposit.payment_url?`<a href="${esc(petDeposit.payment_url)}" style="display:inline-block;margin-top:10px;font-size:12px;font-weight:600;color:var(--green-dark);background:var(--green-tint);border-radius:8px;padding:8px 14px;text-decoration:none;">Pay Deposit →</a>`:''}
       </div>`:''}
     </div>
