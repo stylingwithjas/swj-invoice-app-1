@@ -1176,6 +1176,7 @@ def generate_invoice_pdf(data):
     ])
     tc_section('Payment & Rental Terms', [
         'Full payment is due 48 hours prior to staging installation day.',
+        'Signed contract must be received no later than 3 days prior to the scheduled staging installation date.',
         'Staging will not be scheduled until full payment is received.',
         'Invoice covers up to 45 days of furniture rental from installation date.',
         f'After 45 days, rental may be extended at {fmt(extrate)} per additional 30-day period, billed separately.',
