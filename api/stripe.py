@@ -46,6 +46,36 @@ class handler(BaseHTTPRequestHandler):
                     self._respond(200, {'ok': False, 'error': str(e)})
                 return
 
+            # Refund the pet deposit (or any other payment) by PaymentIntent id. Same
+            # file/function as link creation and deactivation to stay within the Hobby
+            # 12-function cap.
+            if body.get('action') == 'refund':
+                payment_id = str(body.get('payment_id', '')).strip()
+                if not payment_id:
+                    self._respond(400, {'error': 'Missing payment_id'})
+                    return
+                try:
+                    req = urllib.request.Request(
+                        'https://api.stripe.com/v1/refunds',
+                        data=urllib.parse.urlencode({'payment_intent': payment_id}).encode('utf-8'),
+                        method='POST',
+                    )
+                    req.add_header('Authorization', f'Bearer {secret_key}')
+                    req.add_header('Content-Type', 'application/x-www-form-urlencoded')
+                    with urllib.request.urlopen(req, timeout=15) as r:
+                        resp = json.loads(r.read())
+                    self._respond(200, {'ok': True, 'refund_id': resp.get('id', '')})
+                except urllib.error.HTTPError as e:
+                    try:
+                        err_body = json.loads(e.read())
+                        msg = err_body.get('error', {}).get('message', str(e))
+                    except Exception:
+                        msg = str(e)
+                    self._respond(500, {'error': f'Stripe refund error: {msg}'})
+                except Exception as e:
+                    self._respond(500, {'error': str(e)})
+                return
+
             grand   = float(body.get('grand', 0))
             client  = str(body.get('client', 'Client'))
             invnum  = str(body.get('invnum', ''))

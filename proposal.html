@@ -308,6 +308,7 @@ function renderProposal(d){
   const tax = _ovNum(d.tax_override)!=null ? _ovNum(d.tax_override) : (_subEff*(parseFloat(d.taxrate)||0)/100);
   const rooms = (d.baserooms||'').split(', ').filter(Boolean);
   const roomScopesMap = d.baseroom_scopes||{};
+  const petDeposit = d.pet_deposit||{};
   const stagingDate = d.startdate;
   const extrate = Math.round(_grand/3*100)/100;
   const _amountPaid = computeAmountPaid(d);
@@ -387,6 +388,12 @@ function renderProposal(d){
           <div class="date-lbl">Staging date</div>
           <div class="date-val">${fmtDate(stagingDate)}</div>
         </div>
+      </div>`:''}
+      ${petDeposit.enabled?`
+      <div style="padding:14px 20px;border-top:0.5px solid var(--line-soft);">
+        <div style="font-size:13px;font-weight:600;color:var(--ink);">Refundable Pet Deposit — ${fmt(parseFloat(petDeposit.amount)||0)}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px;line-height:1.5;">Fully refundable and not subject to sales tax. Collected via a separate payment link, refunded in full after staging items are picked up in the same condition as delivered.</div>
+        ${petDeposit.payment_url?`<a href="${esc(petDeposit.payment_url)}" style="display:inline-block;margin-top:10px;font-size:12px;font-weight:600;color:var(--green-dark);background:var(--green-tint);border-radius:8px;padding:8px 14px;text-decoration:none;">Pay Deposit →</a>`:''}
       </div>`:''}
     </div>
 

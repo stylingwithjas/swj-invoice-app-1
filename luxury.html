@@ -572,6 +572,24 @@ body { background:#eceff3; color:var(--ink); }
     </div>
   </div>
 
+  <!-- PET DEPOSIT -->
+  <div class="card">
+    <div class="card-hdr"><span class="sec-lbl">Refundable Pet Deposit (optional)</span><div class="sec-accent"></div></div>
+    <div class="card-body">
+      <div class="toggle-row">
+        <input type="checkbox" id="pet-deposit-enabled" onchange="togglePetDeposit()">
+        <label for="pet-deposit-enabled">Collect a fully refundable pet deposit — billed separately from the invoice, not taxed</label>
+      </div>
+      <div id="pet-deposit-amount-wrap" style="display:none;margin-top:10px">
+        <div class="field" style="max-width:160px">
+          <div class="field-lbl">Deposit amount $</div>
+          <input class="field-input" id="pet-deposit-amount" type="number" value="500" step="25" inputmode="decimal">
+        </div>
+        <div style="font-size:10px;color:var(--taupe);margin-top:6px;max-width:420px">Shown on the invoice as fully refundable and excluded from tax. A separate payment link is created and sent to the client alongside the main invoice.</div>
+      </div>
+    </div>
+  </div>
+
   <!-- CO-SIGNER -->
   <div class="card">
     <div class="card-hdr"><span class="sec-lbl">Co-Signer (optional)</span><div class="sec-accent"></div></div>
@@ -1251,6 +1269,27 @@ async function createPaymentLinksForInvoice(grand, client, invnum, address, clie
   return {payment_url:clientUrl, payment_link_id:clientLinkId, payments, active_client_payment_id:activeId};
 }
 
+// Refundable pet deposit — billed separately from the invoice (not taxed, not counted toward
+// the invoice's paid/balance math). A dedicated Stripe payment link, tagged "<invnum>-PETDEP"
+// so the webhook can recognize it and update pet_deposit.status without touching amount_paid.
+function togglePetDeposit(){
+  const w=document.getElementById('pet-deposit-amount-wrap');
+  if(w) w.style.display=document.getElementById('pet-deposit-enabled')?.checked?'block':'none';
+}
+function petDepositBase(){
+  return {
+    enabled: document.getElementById('pet-deposit-enabled')?.checked||false,
+    amount: parseFloat(document.getElementById('pet-deposit-amount')?.value)||500,
+    payment_url:null, payment_link_id:null, status:null, payment_id:null, paid_date:null, refunded_date:null
+  };
+}
+async function petDepositWithLink(client, invnum, address, client_email){
+  const base=petDepositBase();
+  if(!base.enabled) return base;
+  const url=await createPaymentLink(base.amount, client, invnum+'-PETDEP', address, client_email, 'Refundable Pet Deposit');
+  return {...base, payment_url:url, payment_link_id:_lastPaymentLinkId, status:'pending'};
+}
+
 
 // Live, address-accurate WA sales-tax lookup via the official Department of Revenue API
 // (server-proxied at /api/taxrate). Uses the full street address + ZIP so the EXACT
@@ -1734,6 +1773,10 @@ function loadInvoiceData(d){
     if(document.getElementById('cosigner-name')) document.getElementById('cosigner-name').value = _cs.name||'';
     if(document.getElementById('cosigner-email')) document.getElementById('cosigner-email').value = _cs.email||'';
     if(document.getElementById('cosigner-joint')) document.getElementById('cosigner-joint').checked = _cs.joint||false;
+    const _pd = d.pet_deposit||{};
+    if(document.getElementById('pet-deposit-enabled')) document.getElementById('pet-deposit-enabled').checked = _pd.enabled||false;
+    if(document.getElementById('pet-deposit-amount')) document.getElementById('pet-deposit-amount').value = _pd.amount||500;
+    togglePetDeposit();
 
     // Prefer exact structured restore for records saved with full state.
     if(d.state){
@@ -1979,7 +2022,7 @@ async function downloadPdfNow(){
   const invNumFinal=document.getElementById('invnum-display').value.trim()||'202093';
 
   const _contribList=contributions.filter(c=>c.label&&parseFloat(c.amount)>0).map(c=>({label:c.label,amount:parseFloat(c.amount)}));
-  const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:document.getElementById('startdate').value,baserooms:[...selRooms].join(', '),baseroom_scopes:roomScopesObj(),extrate,taxrate,base_price:base,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,state:captureState(),home_value:homeValue,home_sqft:homeSqft,tier:selTier,scope:selScope,promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,promo4:document.getElementById('promo4')?.checked||false,payment_url:null,contributions:_contribList,cosigner:getCosigner(),cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||''};
+  const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:document.getElementById('startdate').value,baserooms:[...selRooms].join(', '),baseroom_scopes:roomScopesObj(),extrate,taxrate,base_price:base,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,state:captureState(),home_value:homeValue,home_sqft:homeSqft,tier:selTier,scope:selScope,promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,promo4:document.getElementById('promo4')?.checked||false,payment_url:null,contributions:_contribList,cosigner:getCosigner(),cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||'',pet_deposit:petDepositBase()};
 
   const ctrl=new AbortController();
   const to=setTimeout(()=>ctrl.abort(),90000);
@@ -2277,11 +2320,12 @@ async function generatePDF(){
     const _pl=await createPaymentLinksForInvoice(grand,client,invNumFinal,address,clientEmail,contributions);
     payment_url=_pl.payment_url; payment_link_id=_pl.payment_link_id; splitPayments=_pl.payments; activeClientPaymentId=_pl.active_client_payment_id;
   }catch(e){setSt('err','Stripe error — continuing without payment link');}
+  const petDeposit=await petDepositWithLink(client,invNumFinal,address,clientEmail);
 
   setSt('loading','Generating your invoice PDF...');
   const _contribList=contributions.filter(c=>c.label&&parseFloat(c.amount)>0).map(c=>({label:c.label,amount:parseFloat(c.amount)}));
   const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:document.getElementById('startdate').value,baserooms:[...selRooms].join(', '),baseroom_scopes:roomScopesObj(),extrate,taxrate,base_price:base,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,state:captureState(),home_value:homeValue,home_sqft:homeSqft,tier:selTier,scope:selScope,promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
-            promo4:document.getElementById('promo4').checked,payment_url,payment_link_id,contributions:_contribList,payments:splitPayments,active_client_payment_id:activeClientPaymentId,cosigner:getCosigner(),cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||''};
+            promo4:document.getElementById('promo4').checked,payment_url,payment_link_id,contributions:_contribList,payments:splitPayments,active_client_payment_id:activeClientPaymentId,pet_deposit:petDeposit,cosigner:getCosigner(),cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||''};
 
   const _ctrl=new AbortController();
   const _to=setTimeout(()=>_ctrl.abort(),90000);   // never spin forever
@@ -2373,12 +2417,13 @@ async function generate(){
   }catch(e){
     setSt('err','Stripe error — generating invoice without payment link');
   }
+  const petDeposit=await petDepositWithLink(client,invNumFinal,address,clientEmail);
   btn.textContent='Generating PDF...';
   setSt('loading','Generating your invoice PDF...');
 
   const _contribList=contributions.filter(c=>c.label&&parseFloat(c.amount)>0).map(c=>({label:c.label,amount:parseFloat(c.amount)}));
   const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:document.getElementById('startdate').value,baserooms:[...selRooms].join(', '),baseroom_scopes:roomScopesObj(),extrate,taxrate,base_price:parseFloat(document.getElementById('base_price')?.value)||2500,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,state:captureState(),home_value:homeValue,home_sqft:homeSqft,tier:selTier,scope:selScope,promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
-            promo4:document.getElementById('promo4').checked,payment_url,payment_link_id,contributions:_contribList,payments:splitPayments,active_client_payment_id:activeClientPaymentId,cosigner:getCosigner(),cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||''};
+            promo4:document.getElementById('promo4').checked,payment_url,payment_link_id,contributions:_contribList,payments:splitPayments,active_client_payment_id:activeClientPaymentId,pet_deposit:petDeposit,cosigner:getCosigner(),cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||''};
 
   // Send to API and download PDF
   try {

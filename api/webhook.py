@@ -227,6 +227,10 @@ def supabase_get_by_amount(amount_cents):
 # handling (unchanged) can never collide with this.
 SPLIT_PAY_RE = re.compile(r'^(.+)-PAY(\d+)$')
 
+# Matches the refundable pet deposit's payment link, e.g. "202092-PETDEP". Handled entirely
+# separately from the invoice's own paid/balance math — see supabase_update_pet_deposit.
+DEPOSIT_PAY_RE = re.compile(r'^(.+)-PETDEP$')
+
 
 def compute_grand(data):
     """Same Subtotal/Tax/Total-with-overrides formula used by api/generate.py and the
@@ -438,6 +442,38 @@ def supabase_update_split_payment(parent_invnum, pay_id, payment_info):
         return _patch_invoice_data(parent_invnum, current_data)
     except Exception as e:
         print(f'Split payment update error: {e}')
+        return False
+
+
+def supabase_update_pet_deposit(parent_invnum, payment_info):
+    """The refundable pet deposit link (id like '202092-PETDEP') got paid. Marks
+    data.pet_deposit as paid on the PARENT invoice — never touches amount_paid/paid/grand,
+    since the deposit was always kept out of that math (not taxed, not counted as revenue)."""
+    try:
+        key = os.environ.get('SUPABASE_KEY', '')
+        req = urllib.request.Request(
+            f'{SUPABASE_URL}/rest/v1/invoices?invnum=eq.{urllib.parse.quote(parent_invnum)}&select=data',
+            headers={'apikey': key, 'Authorization': f'Bearer {key}'}
+        )
+        with urllib.request.urlopen(req, timeout=10) as r:
+            rows = json.loads(r.read())
+        if not rows:
+            return False
+        current_data = rows[0].get('data', {}) or {}
+        pet_deposit = current_data.get('pet_deposit') or {}
+
+        # Idempotent against Stripe webhook redelivery.
+        if pet_deposit.get('status') == 'paid' and pet_deposit.get('payment_id') == payment_info.get('payment_id'):
+            return True
+
+        pet_deposit['status'] = 'paid'
+        pet_deposit['payment_id'] = payment_info.get('payment_id', '')
+        pet_deposit['paid_date'] = payment_info.get('paid_date', '')
+        pet_deposit['amount'] = payment_info.get('amount', pet_deposit.get('amount', 0))
+        current_data['pet_deposit'] = pet_deposit
+        return _patch_invoice_data(parent_invnum, current_data)
+    except Exception as e:
+        print(f'Pet deposit update error: {e}')
         return False
 
 
@@ -728,6 +764,32 @@ class handler(BaseHTTPRequestHandler):
             client = metadata.get('client', '').strip()
             address = metadata.get('address', '').strip()
             payment_id = obj.get('id', '')
+
+            # Refundable pet deposit link — handled entirely separately from the normal
+            # receipt/thank-you flow below (it's not a staging payment, so a formal
+            # invoice receipt would be confusing). Just mark it paid and let Jasmine know.
+            dep_match = DEPOSIT_PAY_RE.match(invnum)
+            if dep_match:
+                parent_invnum = dep_match.group(1)
+                payment_info = {
+                    'payment_id': payment_id,
+                    'amount': amount / 100,
+                    'paid_date': paid_date_iso,
+                }
+                supabase_update_pet_deposit(parent_invnum, payment_info)
+                try:
+                    send_email(
+                        JASMINE_EMAIL,
+                        f'Pet deposit received — {parent_invnum} ({client or "Client"})',
+                        (f'The refundable pet deposit of {fmt_amount(amount)} for invoice '
+                         f'{parent_invnum} ({client or "Client"}) has just been paid.\n\n'
+                         f'Remember: this is fully refundable — issue the refund from the '
+                         f'board once staging items are picked up in good condition.'),
+                    )
+                except Exception as e:
+                    print(f'Pet deposit notify error: {e}')
+                self._respond(200, {'ok': True})
+                return
 
             # Payment method (last 4 digits)
             payment_method = 'Credit Card'
