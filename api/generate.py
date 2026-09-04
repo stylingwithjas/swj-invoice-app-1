@@ -1137,11 +1137,12 @@ def generate_invoice_pdf(data):
         dep_amount = float(pet_deposit.get('amount', 0) or 0)
         box_top = y
         cv.setFont('Helvetica-Bold', 9.5); cv.setFillColor(BLACK)
-        cv.drawString(ML, y, f'Refundable Pet Deposit — {fmt(dep_amount)}'); y -= 13
+        cv.drawString(ML, y, f'Refundable Pet Deposit — {fmt(dep_amount)} (billed separately, not included above)'); y -= 13
         cv.setFont('Helvetica', 8); cv.setFillColor(GRAY)
-        dep_note = ("Fully refundable and not subject to sales tax. Collected via a separate "
-                    "payment link, refunded in full after staging items are picked up in the "
-                    "same condition as delivered.")
+        dep_note = (f"This {fmt(dep_amount)} deposit is separate from the Grand Total above and is not "
+                    f"charged sales tax. It is paid through its own payment link, and this {fmt(dep_amount)} "
+                    f"deposit — not the invoice total — will be refunded in full once staging items are "
+                    f"picked up in the same condition as delivered.")
         for l in wrap(cv, dep_note, 'Helvetica', 8, CW - 20):
             cv.drawString(ML, y, l); y -= 10
         dep_url = pet_deposit.get('payment_url')
