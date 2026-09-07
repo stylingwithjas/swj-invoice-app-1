@@ -58,8 +58,8 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
 .emp-row:last-child { border-bottom:none; }
 .emp-name.inactive { color:var(--taupe); text-decoration:line-through; }
 .emp-toggle { font-size:11px; padding:4px 10px; border-radius:14px; border:0.5px solid var(--taupe-lt); background:var(--warm); cursor:pointer; color:var(--ink-soft); }
-.add-emp-row { display:flex; gap:8px; margin-top:12px; }
-.add-emp-row input { flex:1; padding:9px 12px; border:0.5px solid var(--taupe-lt); border-radius:8px; font-size:13px; outline:none; }
+.add-emp-row { display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; }
+.add-emp-row input { flex:1; min-width:140px; padding:9px 12px; border:0.5px solid var(--taupe-lt); border-radius:8px; font-size:13px; outline:none; }
 .add-emp-row button { padding:9px 16px; border:none; border-radius:8px; background:var(--ink); color:#fff; font-size:13px; cursor:pointer; }
 
 /* Filters */
@@ -118,9 +118,10 @@ tr.paid-row { opacity:0.55; }
     <div id="employees-list"></div>
     <div class="add-emp-row">
       <input type="text" id="new-emp-name" placeholder="Employee name">
+      <input type="password" id="new-emp-password" placeholder="Set a login password">
       <button onclick="addEmployee()">+ Add</button>
     </div>
-    <div style="font-size:10px;color:var(--taupe);margin-top:8px">Employees clock their own hours in at <strong>/hours.html</strong> — share that link with the team.</div>
+    <div style="font-size:10px;color:var(--taupe);margin-top:8px">Employees log in with their name + this password at <strong>/hours.html</strong> — share that link with the team, and give each person their password separately.</div>
   </div>
 
   <div class="card">
@@ -197,6 +198,12 @@ let _entries = [];
 
 function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function fmtMoney(n){return '$'+Number(n||0).toFixed(2);}
+// Employee passwords are stored as a SHA-256 hash (never the raw password), checked the
+// same way at login on hours.html.
+async function sha256Hex(str){
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('');
+}
 function fmtDateTime(iso){ if(!iso) return '—'; const d=new Date(iso); return d.toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}); }
 function fmtDate(iso){ if(!iso) return '—'; const d=new Date(iso); return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'}); }
 
@@ -208,8 +215,11 @@ async function loadEmployees(){
   const emps = data||[];
   list.innerHTML = emps.length ? emps.map(e=>`
     <div class="emp-row">
-      <span class="emp-name ${e.active?'':'inactive'}">${esc(e.name)}</span>
-      <button class="emp-toggle" onclick="toggleEmployee('${e.id}',${!e.active})">${e.active?'Deactivate':'Reactivate'}</button>
+      <span class="emp-name ${e.active?'':'inactive'}">${esc(e.name)}${e.password_hash?'':' <em style="color:var(--red);font-style:normal">(no password set)</em>'}</span>
+      <span style="display:inline-flex;gap:6px">
+        <button class="emp-toggle" onclick="resetPassword('${e.id}','${esc(e.name)}')">${e.password_hash?'Reset Password':'Set Password'}</button>
+        <button class="emp-toggle" onclick="toggleEmployee('${e.id}',${!e.active})">${e.active?'Deactivate':'Reactivate'}</button>
+      </span>
     </div>
   `).join('') : '<div class="empty-note">No employees yet — add one below.</div>';
 
@@ -246,12 +256,26 @@ async function loadProjects(){
 }
 
 async function addEmployee(){
-  const input = document.getElementById('new-emp-name');
-  const name = input.value.trim();
+  const nameInput = document.getElementById('new-emp-name');
+  const pwInput = document.getElementById('new-emp-password');
+  const name = nameInput.value.trim();
+  const password = pwInput.value;
   if(!name) return;
-  const {error} = await _sb.from('employees').insert({name, active:true});
+  if(!password || password.length < 4){ alert('Set a login password for this employee (at least 4 characters).'); return; }
+  const password_hash = await sha256Hex(password);
+  const {error} = await _sb.from('employees').insert({name, active:true, password_hash});
   if(error){ alert('Could not add employee: '+error.message); return; }
-  input.value = '';
+  nameInput.value = ''; pwInput.value = '';
+  loadEmployees();
+}
+
+async function resetPassword(id, name){
+  const password = prompt(`Set a new login password for ${name}:`);
+  if(password===null) return;
+  if(password.length < 4){ alert('Password must be at least 4 characters.'); return; }
+  const password_hash = await sha256Hex(password);
+  const {error} = await _sb.from('employees').update({password_hash}).eq('id', id);
+  if(error){ alert('Could not set password: '+error.message); return; }
   loadEmployees();
 }
 
