@@ -39,6 +39,7 @@
     { "source": "/gs-invoice.html", "destination": "/gs-invoice.html" },
     { "source": "/hours.html", "destination": "/hours.html" },
     { "source": "/payroll.html", "destination": "/payroll.html" },
+    { "source": "/approve-hours.html", "destination": "/approve-hours.html" },
     { "source": "/sw.js", "destination": "/sw.js" },
     { "source": "/manifest.webmanifest", "destination": "/manifest.webmanifest" },
     { "source": "/assets/:path*", "destination": "/assets/:path*" },
