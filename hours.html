@@ -114,6 +114,11 @@ let _jobs = [];
 
 function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function fmtMoney(n){return '$'+Number(n||0).toFixed(2);}
+function sumTotals(entries){
+  const hours = entries.reduce((s,e)=>s+(parseFloat(e.hours)||0),0);
+  const amount = entries.reduce((s,e)=>s+(parseFloat(e.amount)||0),0);
+  return { hours: Math.round(hours*100)/100, amount: Math.round(amount*100)/100 };
+}
 function fmtTime(iso){ return new Date(iso).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}); }
 function findJobLabel(invnum){
   if(!invnum) return null;
@@ -204,10 +209,15 @@ async function renderTodayTimeline(name){
       <div class="recent-amt">${e.hours!=null?e.hours+'h':''}</div>
     </div>`;
   }).join('');
+  const {hours, amount} = sumTotals(data);
   document.getElementById('work-area').insertAdjacentHTML('beforeend', `
     <div class="card recent">
       <div class="recent-hdr">Today's Activity</div>
       ${rows}
+      <div class="recent-row" style="border-top:1.5px solid var(--line);margin-top:2px;padding-top:12px;font-weight:700">
+        <div>Total So Far</div>
+        <div class="recent-amt">${hours}h · ${fmtMoney(amount)}</div>
+      </div>
     </div>
   `);
 }
@@ -486,11 +496,53 @@ async function clockOut(id, name){
     }).eq('id', id);
     if(updErr) throw updErr;
     clearInterval(_tickTimer);
-    onEmployeeChange();
+    await showShiftEndSummary(name);
   }catch(e){
     msg.textContent = 'Error: '+e.message; msg.classList.add('err');
     btn.disabled = false; btn.textContent = 'Clock Out';
   }
+}
+
+// A clear, unmistakable "your shift just ended" screen — shows every block worked today
+// plus the day's total hours AND total payout, so there's no ambiguity that clocking out
+// closed the whole shift (not just the current activity).
+async function showShiftEndSummary(name){
+  const startOfDay = new Date(); startOfDay.setHours(0,0,0,0);
+  const {data} = await _sb.from('time_entries').select('*')
+    .eq('employee_name', name).gte('clock_in', startOfDay.toISOString()).not('amount','is',null)
+    .order('clock_in',{ascending:true});
+  const entries = data || [];
+  const {hours, amount} = sumTotals(entries);
+  const rows = entries.map(e=>{
+    const range = e.clock_out ? `${fmtTime(e.clock_in)} – ${fmtTime(e.clock_out)}` : '';
+    return `<div class="recent-row">
+      <div>
+        <div>${esc(LABEL_BY_KEY[e.work_type]||e.work_type)}</div>
+        <div class="recent-date">${range}${e.job_label?' · '+esc(e.job_label):''}</div>
+      </div>
+      <div class="recent-amt">${e.hours}h · ${fmtMoney(e.amount)}</div>
+    </div>`;
+  }).join('');
+  document.getElementById('work-area').innerHTML = `
+    <div class="card">
+      <span class="status-pill" style="background:var(--red-tint);color:var(--red)">Shift Ended</span>
+      <div class="clocked-name">${esc(name)}</div>
+      <div class="clocked-sub">Your shift is fully clocked out.</div>
+      <div class="since-row">
+        <div class="since-lbl">Today's Total</div>
+        <div class="since-val" style="font-size:22px;font-family:'Cormorant Garamond',serif">${hours}h &nbsp;·&nbsp; ${fmtMoney(amount)}</div>
+      </div>
+      <button class="btn btn-in" onclick="onEmployeeChange()">Start a New Shift</button>
+    </div>
+    <div class="card recent">
+      <div class="recent-hdr">Today's Activity</div>
+      ${rows}
+      <div class="recent-row" style="border-top:1.5px solid var(--line);margin-top:2px;padding-top:12px;font-weight:700">
+        <div>Total</div>
+        <div class="recent-amt">${hours}h · ${fmtMoney(amount)}</div>
+      </div>
+    </div>
+  `;
 }
 
 async function renderRecent(name){
@@ -501,10 +553,14 @@ async function renderRecent(name){
   const rows = data.map(e=>{
     const d = new Date(e.clock_in);
     const dateStr = d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+    const approvalTag = e.approved
+      ? `<span style="color:var(--green-dark)">✓ Approved by Jasmine</span>`
+      : `<span style="color:var(--muted-soft)">Pending approval</span>`;
     return `<div class="recent-row">
       <div>
         <div>${esc(LABEL_BY_KEY[e.work_type]||e.work_type)}</div>
         <div class="recent-date">${dateStr}${e.job_label?' · '+esc(e.job_label):''}</div>
+        <div class="recent-date">${approvalTag}</div>
       </div>
       <div class="recent-amt">${e.hours}h · ${fmtMoney(e.amount)}</div>
     </div>`;
