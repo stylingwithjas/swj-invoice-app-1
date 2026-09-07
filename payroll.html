@@ -150,8 +150,17 @@ tr.paid-row { opacity:0.55; }
           <option value="paid">Paid only</option>
         </select>
       </div>
+      <div class="filter-field">
+        <label>Approval</label>
+        <select id="f-approved">
+          <option value="">All</option>
+          <option value="pending">Pending only</option>
+          <option value="approved">Approved only</option>
+        </select>
+      </div>
       <button class="filter-btn primary" onclick="loadEntries()">Apply</button>
       <button class="filter-btn" onclick="exportCsv()">⬇ Export CSV</button>
+      <button class="filter-btn" onclick="approveFilteredEntries()">Approve All Shown</button>
       <button class="filter-btn" onclick="markFilteredPaid()">Mark All Shown as Paid</button>
     </div>
     <div class="totals-row">
@@ -166,7 +175,7 @@ tr.paid-row { opacity:0.55; }
     <div class="tbl-scroll">
       <table>
         <thead>
-          <tr><th>Date</th><th>Employee</th><th>Type</th><th>Job</th><th>In</th><th>Out</th><th>Hrs</th><th>Rate</th><th>Amount</th><th>Status</th></tr>
+          <tr><th>Date</th><th>Employee</th><th>Type</th><th>Job</th><th>In</th><th>Out</th><th>Hrs</th><th>Rate</th><th>Amount</th><th>Approved</th><th>Paid</th></tr>
         </thead>
         <tbody id="entries-body"></tbody>
       </table>
@@ -257,6 +266,7 @@ async function loadEntries(){
   const from = document.getElementById('f-from').value;
   const to = document.getElementById('f-to').value;
   const status = document.getElementById('f-status').value;
+  const approval = document.getElementById('f-approved').value;
 
   let q = _sb.from('time_entries').select('*').order('clock_in',{ascending:false}).limit(500);
   if(employee) q = q.eq('employee_name', employee);
@@ -265,6 +275,8 @@ async function loadEntries(){
   if(to) q = q.lte('clock_in', to+'T23:59:59');
   if(status==='paid') q = q.eq('paid', true);
   if(status==='unpaid') q = q.eq('paid', false);
+  if(approval==='approved') q = q.eq('approved', true);
+  if(approval==='pending') q = q.eq('approved', false);
 
   const {data,error} = await q;
   if(error){ document.getElementById('entries-empty').textContent = 'Could not load entries — make sure the `time_entries` table exists in Supabase.'; document.getElementById('entries-empty').style.display='block'; return; }
@@ -292,6 +304,7 @@ function renderEntries(){
         <td>${e.hours!=null?e.hours:'—'}</td>
         <td>${fmtMoney(e.rate)}</td>
         <td>${e.amount!=null?fmtMoney(e.amount):'—'}</td>
+        <td>${e.approved?'✓ Approved':(e.amount!=null?`<button class="mini-btn" onclick="approveEntry('${e.id}')">Approve</button>`:'—')}</td>
         <td>${e.paid?'✓ Paid':(e.amount!=null?`<button class="mini-btn" onclick="markPaid('${e.id}')">Mark Paid</button>`:'—')}</td>
       </tr>
     `).join('');
@@ -303,6 +316,19 @@ function renderEntries(){
   document.getElementById('tot-count').textContent = count;
   document.getElementById('tot-hours').textContent = Math.round(hours*100)/100;
   document.getElementById('tot-amount').textContent = fmtMoney(amount);
+}
+
+async function approveEntry(id){
+  await _sb.from('time_entries').update({approved:true, approved_at:new Date().toISOString()}).eq('id', id);
+  loadEntries();
+}
+
+async function approveFilteredEntries(){
+  const pendingIds = _entries.filter(e=>!e.approved && e.amount!=null).map(e=>e.id);
+  if(!pendingIds.length){ alert('Nothing pending approval in the current results.'); return; }
+  if(!confirm(`Approve ${pendingIds.length} entries? Employees will see these as approved.`)) return;
+  await _sb.from('time_entries').update({approved:true, approved_at:new Date().toISOString()}).in('id', pendingIds);
+  loadEntries();
 }
 
 async function markPaid(id){
@@ -320,10 +346,10 @@ async function markFilteredPaid(){
 
 function exportCsv(){
   if(!_entries.length){ alert('Nothing to export — adjust your filters first.'); return; }
-  const header = ['Date','Employee','Type','Job','Clock In','Clock Out','Hours','Rate','Amount','Paid','Source'];
+  const header = ['Date','Employee','Type','Job','Clock In','Clock Out','Hours','Rate','Amount','Approved','Paid','Source'];
   const rows = _entries.map(e=>[
     fmtDate(e.clock_in), e.employee_name, LABEL_BY_KEY[e.work_type]||e.work_type, e.job_label||'',
-    e.source==='manual'?'':(e.clock_in||''), e.clock_out||'', e.hours!=null?e.hours:'', e.rate, e.amount!=null?e.amount:'', e.paid?'Yes':'No', e.source||'clock'
+    e.source==='manual'?'':(e.clock_in||''), e.clock_out||'', e.hours!=null?e.hours:'', e.rate, e.amount!=null?e.amount:'', e.approved?'Yes':'No', e.paid?'Yes':'No', e.source||'clock'
   ]);
   const csv = [header, ...rows].map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\r\n');
   const blob = new Blob([csv], {type:'text/csv'});
