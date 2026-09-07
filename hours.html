@@ -36,7 +36,7 @@ body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var
 .field{margin-bottom:14px;}
 .field:last-child{margin-bottom:0;}
 .field-lbl{font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;}
-select,input[type=text]{width:100%;font-family:'Inter',sans-serif;font-size:15px;padding:12px 14px;border:0.5px solid var(--line);border-radius:10px;outline:none;background:var(--bg);color:var(--ink);appearance:none;}
+select,input[type=text],input[type=date],input[type=time],input[type=number],input[type=password]{width:100%;font-family:'Inter',sans-serif;font-size:15px;padding:12px 14px;border:0.5px solid var(--line);border-radius:10px;outline:none;background:var(--bg);color:var(--ink);appearance:none;}
 select:focus,input:focus{border-color:var(--gold);}
 .type-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
 .type-chip{border:1.5px solid var(--line);border-radius:10px;padding:12px 10px;text-align:center;cursor:pointer;background:var(--bg);transition:all .15s;}
@@ -63,6 +63,9 @@ select:focus,input:focus{border-color:var(--gold);}
 .msg.err{color:var(--red);}
 .hint{font-size:11px;color:var(--muted-soft);margin-top:8px;line-height:1.5;}
 .manual-toggle{font-size:13px;color:var(--olive-dark);cursor:pointer;text-align:center;font-weight:500;}
+.manual-seg{margin-bottom:14px;}
+.manual-remove{color:var(--red);font-weight:400;text-transform:none;letter-spacing:0;cursor:pointer;font-size:11px;}
+.manual-add-row{font-size:12px;color:var(--olive-dark);cursor:pointer;font-weight:500;text-align:center;padding:8px 0;border:1px dashed var(--olive);border-radius:8px;margin-bottom:14px;}
 </style>
 </head>
 <body>
@@ -76,9 +79,15 @@ select:focus,input:focus{border-color:var(--gold);}
   <div class="card">
     <div class="field">
       <div class="field-lbl">Your Name</div>
-      <select id="employee-select" onchange="onEmployeeChange()">
+      <select id="employee-select" onchange="onEmployeeSelected()">
         <option value="">Select your name…</option>
       </select>
+    </div>
+    <div class="field" id="password-field-wrap" style="display:none">
+      <div class="field-lbl">Password</div>
+      <input type="password" id="employee-password" placeholder="Enter your password" onkeydown="if(event.key==='Enter')attemptLogin()">
+      <button class="btn btn-in" onclick="attemptLogin()">Log In</button>
+      <div class="msg" id="login-msg"></div>
     </div>
   </div>
   <div id="work-area"></div>
@@ -128,24 +137,77 @@ function findJobLabel(invnum){
   return job ? jobLabel(job) : null;
 }
 
+// Employee passwords are stored as a SHA-256 hash (never the raw password) — set/reset by
+// Jasmine on payroll.html, checked here at login the same way.
+async function sha256Hex(str){
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+let _employeesCache = [];
+
 async function loadEmployees(){
   const sel = document.getElementById('employee-select');
   try{
-    const {data,error} = await _sb.from('employees').select('name').eq('active',true).order('name');
+    const {data,error} = await _sb.from('employees').select('name,password_hash').eq('active',true).order('name');
     if(error) throw error;
-    (data||[]).forEach(e=>{
+    _employeesCache = data||[];
+    _employeesCache.forEach(e=>{
       const opt = document.createElement('option');
       opt.value = e.name; opt.textContent = e.name;
       sel.appendChild(opt);
     });
     const remembered = localStorage.getItem('swj_hours_employee');
-    if(remembered && [...sel.options].some(o=>o.value===remembered)){
+    if(remembered && _employeesCache.some(e=>e.name===remembered)){
       sel.value = remembered;
-      onEmployeeChange();
+      onEmployeeSelected();
     }
   }catch(e){
     document.getElementById('work-area').innerHTML = `<div class="card"><div class="msg err">Could not load the team list. Please contact Jasmine.</div></div>`;
   }
+}
+
+// Picking a name only reveals the password box — it does NOT log in automatically, even
+// if this name was remembered from last time, so a shared/left-open device can't be used
+// to clock in as someone else without their password.
+function onEmployeeSelected(){
+  const pwWrap = document.getElementById('password-field-wrap');
+  const pwInput = document.getElementById('employee-password');
+  const msg = document.getElementById('login-msg');
+  document.getElementById('work-area').innerHTML = '';
+  msg.textContent = ''; msg.classList.remove('err');
+  pwInput.value = '';
+  const name = document.getElementById('employee-select').value;
+  if(!name){ pwWrap.style.display = 'none'; return; }
+  pwWrap.style.display = 'block';
+  pwInput.focus();
+}
+
+async function attemptLogin(){
+  const name = document.getElementById('employee-select').value;
+  const pwInput = document.getElementById('employee-password');
+  const msg = document.getElementById('login-msg');
+  msg.classList.remove('err');
+  if(!name) return;
+  const emp = _employeesCache.find(e=>e.name===name);
+  if(!emp || !emp.password_hash){
+    msg.textContent = 'No password set for this account yet — ask Jasmine to set one in Payroll.';
+    msg.classList.add('err');
+    return;
+  }
+  msg.textContent = 'Checking…';
+  const hash = await sha256Hex(pwInput.value);
+  if(hash !== emp.password_hash){
+    msg.textContent = 'Incorrect password.';
+    msg.classList.add('err');
+    pwInput.value = '';
+    pwInput.focus();
+    return;
+  }
+  msg.textContent = '';
+  localStorage.setItem('swj_hours_employee', name);
+  document.getElementById('password-field-wrap').style.display = 'none';
+  onEmployeeChange();
 }
 
 const STAGE_LABEL = { proposal:'Proposal', confirmed:'Confirmed', staged:'Staged', destage:'Destage', done:'Done' };
@@ -269,76 +331,127 @@ function updateClockInBtn(){
   );
 }
 
+// Manual logging models the same "checkpoints" a real shift has: a clock-in time+type,
+// zero or more switch times+types, and a final clock-out time. e.g. "10am Warehouse, 2pm
+// On-Site, 8pm Clock Out" becomes two segments (Warehouse 10am-2pm, On-Site 2pm-8pm) —
+// matching exactly how the live clock in/switch/out flow records real shifts, instead of
+// a single flattened "hours worked" number with no breakdown.
+let _manualSegments = [];
+let _manualClockOutTime = '';
+
 function showManualForm(name){
   document.getElementById('manual-toggle').style.display = 'none';
+  _manualSegments = [{ time:'', type:'', invnum:'' }];
+  _manualClockOutTime = '';
+  renderManualForm(name);
+}
+
+function syncManualSegmentsFromDom(){
+  document.querySelectorAll('.manual-seg').forEach((row, idx)=>{
+    if(!_manualSegments[idx]) return;
+    _manualSegments[idx].time = row.querySelector('.ms-time').value;
+    _manualSegments[idx].type = row.querySelector('.ms-type').value;
+    _manualSegments[idx].invnum = row.querySelector('.ms-job').value;
+  });
+  const coEl = document.getElementById('manual-clockout-time');
+  if(coEl) _manualClockOutTime = coEl.value;
+}
+
+function addManualSegment(name){
+  syncManualSegmentsFromDom();
+  _manualSegments.push({ time:'', type:'', invnum:'' });
+  renderManualForm(name);
+}
+
+function removeManualSegment(name, idx){
+  syncManualSegmentsFromDom();
+  _manualSegments.splice(idx, 1);
+  renderManualForm(name);
+}
+
+function renderManualForm(name){
   const today = new Date().toISOString().split('T')[0];
+  const dateVal = document.getElementById('manual-date')?.value || today;
+  const typeOptions = seg => `<option value="">Type…</option>` + WORK_TYPES.map(t=>
+    `<option value="${t.key}" ${seg.type===t.key?'selected':''}>${esc(t.label)} ($${t.rate}/hr)</option>`
+  ).join('');
+
+  const segRows = _manualSegments.map((seg, idx)=>`
+    <div class="manual-seg">
+      <div class="field-lbl">${idx===0?'Clock In':'Switch To'}${_manualSegments.length>1 && idx>0?` <span class="manual-remove" onclick="removeManualSegment('${esc(name)}',${idx})">Remove</span>`:''}</div>
+      <div style="display:flex;gap:8px">
+        <input type="time" class="ms-time" value="${esc(seg.time)}" style="flex:1">
+        <select class="ms-type" style="flex:1.4">${typeOptions(seg)}</select>
+      </div>
+      <select class="ms-job" style="margin-top:6px">${jobOptionsHtml(seg.invnum)}</select>
+    </div>
+  `).join('');
+
   document.getElementById('manual-form-wrap').innerHTML = `
     <div class="field" style="margin-top:14px">
       <div class="field-lbl">Date</div>
-      <input type="date" id="manual-date" value="${today}" max="${today}">
+      <input type="date" id="manual-date" value="${dateVal}" max="${today}">
     </div>
-    <div class="field">
-      <div class="field-lbl">Type of Work</div>
-      <div class="type-grid" id="manual-type-grid">
-        ${WORK_TYPES.map(t=>`<div class="type-chip" id="mchip-${t.key}" onclick="selectManualType('${t.key}')">
-          <div class="type-name">${esc(t.label)}</div>
-          <div class="type-rate">$${t.rate}/hr</div>
-        </div>`).join('')}
-      </div>
-    </div>
-    <div class="field">
-      <div class="field-lbl">Job</div>
-      <select id="manual-job-select">
-        ${jobOptionsHtml(null)}
-      </select>
-    </div>
-    <div class="field">
-      <div class="field-lbl">Hours Worked</div>
-      <input type="number" id="manual-hours" step="0.25" min="0.25" placeholder="e.g. 6.5">
+    ${segRows}
+    <div class="manual-add-row" onclick="addManualSegment('${esc(name)}')">+ Add Another Activity (Switch)</div>
+    <div class="manual-clockout-row" style="border-top:1px dashed var(--line);padding-top:12px;margin-top:12px;margin-bottom:14px">
+      <div class="field-lbl">Clock Out Time (end of shift)</div>
+      <input type="time" id="manual-clockout-time" value="${esc(_manualClockOutTime)}">
     </div>
     <div class="field">
       <div class="field-lbl">Note (optional)</div>
-      <input type="text" id="manual-note" placeholder="e.g. Forgot to clock out">
+      <input type="text" id="manual-note" placeholder="e.g. Forgot to clock in/out">
     </div>
     <button class="btn btn-in" id="manual-submit-btn" onclick="submitManual('${esc(name)}')">Log Hours</button>
     <div class="msg" id="manual-msg"></div>
   `;
 }
 
-let _manualType = null;
-function selectManualType(key){
-  _manualType = key;
-  WORK_TYPES.forEach(t=>document.getElementById('mchip-'+t.key).classList.toggle('sel', t.key===key));
-}
-
 async function submitManual(name){
+  syncManualSegmentsFromDom();
   const msg = document.getElementById('manual-msg');
   const dateVal = document.getElementById('manual-date').value;
-  const hoursVal = parseFloat(document.getElementById('manual-hours').value);
-  const jobSel = document.getElementById('manual-job-select');
-  const invnum = jobSel.value || null;
-  if(!_manualType){ msg.textContent = 'Pick a type of work first.'; msg.classList.add('err'); return; }
-  if(!invnum){ msg.textContent = 'Pick a job.'; msg.classList.add('err'); return; }
+  const note = document.getElementById('manual-note').value.trim() || null;
+
   if(!dateVal){ msg.textContent = 'Pick a date.'; msg.classList.add('err'); return; }
-  if(!hoursVal || hoursVal <= 0){ msg.textContent = 'Enter how many hours you worked.'; msg.classList.add('err'); return; }
+  for(const seg of _manualSegments){
+    if(!seg.time || !seg.type || !seg.invnum){
+      msg.textContent = 'Fill in the time, type, and job for every activity.'; msg.classList.add('err'); return;
+    }
+  }
+  if(!_manualClockOutTime){ msg.textContent = 'Enter the clock-out time for the end of the shift.'; msg.classList.add('err'); return; }
+
+  // Build one row per segment: this checkpoint's time -> the next checkpoint's time (or
+  // the final clock-out time for the last one). Times must be strictly increasing.
+  const checkpoints = [..._manualSegments.map(s=>s.time), _manualClockOutTime];
+  for(let i=1;i<checkpoints.length;i++){
+    if(checkpoints[i] <= checkpoints[i-1]){
+      msg.textContent = 'Each time must be later than the one before it.'; msg.classList.add('err'); return;
+    }
+  }
 
   const btn = document.getElementById('manual-submit-btn');
   btn.disabled = true; btn.textContent = 'Logging…';
-  const job_label = findJobLabel(invnum);
-  const note = document.getElementById('manual-note').value.trim() || null;
-  const rate = RATE_BY_KEY[_manualType];
-  const amount = Math.round(hoursVal * rate * 100) / 100;
+
+  const rows = _manualSegments.map((seg, i)=>{
+    const startIso = `${dateVal}T${seg.time}:00`;
+    const endIso = `${dateVal}T${checkpoints[i+1]}:00`;
+    const hours = Math.round(((new Date(endIso) - new Date(startIso)) / 3600000) * 100) / 100;
+    const rate = RATE_BY_KEY[seg.type];
+    const amount = Math.round(hours * rate * 100) / 100;
+    return {
+      employee_name: name,
+      work_type: seg.type,
+      rate, invnum: seg.invnum, job_label: findJobLabel(seg.invnum), note,
+      source: 'manual',
+      clock_in: startIso,
+      clock_out: endIso,
+      hours, amount,
+    };
+  });
 
   try{
-    const {error} = await _sb.from('time_entries').insert({
-      employee_name: name,
-      work_type: _manualType,
-      rate, invnum, job_label, note,
-      source: 'manual',
-      clock_in: dateVal + 'T12:00:00',
-      hours: hoursVal,
-      amount,
-    });
+    const {error} = await _sb.from('time_entries').insert(rows);
     if(error) throw error;
     onEmployeeChange();
   }catch(e){
