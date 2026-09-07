@@ -62,6 +62,7 @@ select:focus,input:focus{border-color:var(--gold);}
 .msg{font-size:12px;color:var(--muted);text-align:center;margin-top:10px;min-height:16px;}
 .msg.err{color:var(--red);}
 .hint{font-size:11px;color:var(--muted-soft);margin-top:8px;line-height:1.5;}
+.manual-toggle{font-size:13px;color:var(--olive-dark);cursor:pointer;text-align:center;font-weight:500;}
 </style>
 </head>
 <body>
@@ -127,13 +128,22 @@ async function loadEmployees(){
   }
 }
 
+const STAGE_LABEL = { proposal:'Proposal', confirmed:'Confirmed', staged:'Staged', destage:'Destage', done:'Done' };
+
+// Pulls the same active board list Jasmine sees on board.html (excludes drafts, the
+// separate GS Photography business, and denied jobs) so employees pick from real,
+// currently-relevant projects instead of every invoice ever created.
 async function loadJobs(){
   try{
-    const {data} = await _sb.from('invoices').select('invnum,client,address,invdate')
+    const {data} = await _sb.from('invoices').select('invnum,client,address,invdate,data')
       .not('invnum','like','DRAFT-%').not('invnum','like','GS%')
-      .order('invdate',{ascending:false}).limit(30);
-    _jobs = data||[];
+      .order('invdate',{ascending:false}).limit(50);
+    _jobs = (data||[]).filter(j => ((j.data||{}).stage||'proposal') !== 'denied');
   }catch(e){ _jobs = []; }
+}
+function jobLabel(j){
+  const stage = STAGE_LABEL[(j.data||{}).stage||'proposal'] || '';
+  return `${j.client||'Client'} — ${j.address||''}${stage?' ('+stage+')':''}`;
 }
 
 async function onEmployeeChange(){
@@ -143,8 +153,11 @@ async function onEmployeeChange(){
   document.getElementById('work-area').innerHTML = `<div class="card"><div class="msg">Loading…</div></div>`;
   await loadJobs();
 
+  // "Still on the clock" means a live clock-in with no hours computed yet — checking
+  // hours (not just clock_out) keeps manual entries (which never have a clock_out but
+  // DO have hours filled in immediately) from being mistaken for an active shift.
   const {data,error} = await _sb.from('time_entries').select('*')
-    .eq('employee_name', name).is('clock_out', null)
+    .eq('employee_name', name).is('clock_out', null).is('hours', null)
     .order('clock_in',{ascending:false}).limit(1);
 
   if(!error && data && data[0]){
@@ -155,9 +168,12 @@ async function onEmployeeChange(){
   renderRecent(name);
 }
 
+function jobOptionsHtml(selected){
+  return _jobs.map(j=>`<option value="${esc(j.invnum)}" ${j.invnum===selected?'selected':''}>${esc(jobLabel(j))}</option>`).join('');
+}
+
 function renderClockIn(name){
   _selectedType = null;
-  const jobOptions = _jobs.map(j=>`<option value="${esc(j.invnum)}">${esc(j.client||'Client')} — ${esc(j.address||'')}</option>`).join('');
   document.getElementById('work-area').innerHTML = `
     <div class="card">
       <div class="field">
@@ -173,13 +189,96 @@ function renderClockIn(name){
         <div class="field-lbl">Job (optional)</div>
         <select id="job-select">
           <option value="">No specific job (e.g. warehouse)</option>
-          ${jobOptions}
+          ${jobOptionsHtml(null)}
         </select>
       </div>
       <button class="btn btn-in" id="clockin-btn" onclick="clockIn('${esc(name)}')" disabled>Select a work type to clock in</button>
       <div class="msg" id="clockin-msg"></div>
     </div>
+    <div class="card">
+      <div class="manual-toggle" id="manual-toggle" onclick="showManualForm('${esc(name)}')">Forgot to clock in or out? Log hours manually →</div>
+      <div id="manual-form-wrap"></div>
+    </div>
   `;
+}
+
+function showManualForm(name){
+  document.getElementById('manual-toggle').style.display = 'none';
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('manual-form-wrap').innerHTML = `
+    <div class="field" style="margin-top:14px">
+      <div class="field-lbl">Date</div>
+      <input type="date" id="manual-date" value="${today}" max="${today}">
+    </div>
+    <div class="field">
+      <div class="field-lbl">Type of Work</div>
+      <div class="type-grid" id="manual-type-grid">
+        ${WORK_TYPES.map(t=>`<div class="type-chip" id="mchip-${t.key}" onclick="selectManualType('${t.key}')">
+          <div class="type-name">${esc(t.label)}</div>
+          <div class="type-rate">$${t.rate}/hr</div>
+        </div>`).join('')}
+      </div>
+    </div>
+    <div class="field">
+      <div class="field-lbl">Job (optional)</div>
+      <select id="manual-job-select">
+        <option value="">No specific job (e.g. warehouse)</option>
+        ${jobOptionsHtml(null)}
+      </select>
+    </div>
+    <div class="field">
+      <div class="field-lbl">Hours Worked</div>
+      <input type="number" id="manual-hours" step="0.25" min="0.25" placeholder="e.g. 6.5">
+    </div>
+    <div class="field">
+      <div class="field-lbl">Note (optional)</div>
+      <input type="text" id="manual-note" placeholder="e.g. Forgot to clock out">
+    </div>
+    <button class="btn btn-in" id="manual-submit-btn" onclick="submitManual('${esc(name)}')">Log Hours</button>
+    <div class="msg" id="manual-msg"></div>
+  `;
+}
+
+let _manualType = null;
+function selectManualType(key){
+  _manualType = key;
+  WORK_TYPES.forEach(t=>document.getElementById('mchip-'+t.key).classList.toggle('sel', t.key===key));
+}
+
+async function submitManual(name){
+  const msg = document.getElementById('manual-msg');
+  const dateVal = document.getElementById('manual-date').value;
+  const hoursVal = parseFloat(document.getElementById('manual-hours').value);
+  if(!_manualType){ msg.textContent = 'Pick a type of work first.'; msg.classList.add('err'); return; }
+  if(!dateVal){ msg.textContent = 'Pick a date.'; msg.classList.add('err'); return; }
+  if(!hoursVal || hoursVal <= 0){ msg.textContent = 'Enter how many hours you worked.'; msg.classList.add('err'); return; }
+
+  const btn = document.getElementById('manual-submit-btn');
+  btn.disabled = true; btn.textContent = 'Logging…';
+  const jobSel = document.getElementById('manual-job-select');
+  const invnum = jobSel.value || null;
+  const job = _jobs.find(j=>j.invnum===invnum);
+  const job_label = job ? jobLabel(job) : null;
+  const note = document.getElementById('manual-note').value.trim() || null;
+  const rate = RATE_BY_KEY[_manualType];
+  const amount = Math.round(hoursVal * rate * 100) / 100;
+
+  try{
+    const {error} = await _sb.from('time_entries').insert({
+      employee_name: name,
+      work_type: _manualType,
+      rate, invnum, job_label, note,
+      source: 'manual',
+      clock_in: dateVal + 'T12:00:00',
+      hours: hoursVal,
+      amount,
+    });
+    if(error) throw error;
+    onEmployeeChange();
+  }catch(e){
+    msg.textContent = 'Error: '+e.message; msg.classList.add('err');
+    btn.disabled = false; btn.textContent = 'Log Hours';
+  }
 }
 
 function selectType(key){
@@ -198,7 +297,7 @@ async function clockIn(name){
   const jobSel = document.getElementById('job-select');
   const invnum = jobSel.value || null;
   const job = _jobs.find(j=>j.invnum===invnum);
-  const job_label = job ? `${job.client||'Client'} — ${job.address||''}` : null;
+  const job_label = job ? jobLabel(job) : null;
 
   try{
     const {error} = await _sb.from('time_entries').insert({
@@ -206,6 +305,7 @@ async function clockIn(name){
       work_type: _selectedType,
       rate: RATE_BY_KEY[_selectedType],
       invnum, job_label,
+      source: 'clock',
       clock_in: new Date().toISOString(),
     });
     if(error) throw error;
@@ -269,7 +369,7 @@ async function clockOut(id, name){
 
 async function renderRecent(name){
   const {data} = await _sb.from('time_entries').select('*')
-    .eq('employee_name', name).not('clock_out','is',null)
+    .eq('employee_name', name).not('amount','is',null)
     .order('clock_in',{ascending:false}).limit(6);
   if(!data || !data.length) return;
   const rows = data.map(e=>{
