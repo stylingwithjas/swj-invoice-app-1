@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="SWJ Hours">
+<meta name="theme-color" content="#1a1814">
+<link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="512x512" href="/assets/icon-512.png">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>SWJ — Team Hours</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Cormorant+Garamond:wght@300;400;500;600&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg:#fcfaf7;--bg-soft:#ffffff;
+  --ink:#2c2926;--ink-soft:#3d3833;--muted:#8c847c;--muted-soft:#b8ada1;
+  --line:#e7e1d9;--line-soft:#ede8e0;
+  --olive:#7a8574;--olive-dark:#5f685a;--olive-tint:#eef1ea;
+  --green:#6f8a72;--green-tint:#edf4ee;--green-dark:#4a6b4e;
+  --gold:#b89a63;--gold-soft:#f6f1e7;
+  --red:#9a5a4a;--red-tint:#f8ece8;
+  --cta:#2c2926;
+}
+body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var(--ink);min-height:100vh;}
+.hdr{background:var(--cta);padding:20px 24px 18px;}
+.hdr-inner{max-width:520px;margin:0 auto;}
+.brand{font-family:'Cormorant Garamond',serif;font-size:11px;letter-spacing:3px;color:rgba(255,255,255,0.5);text-transform:uppercase;}
+.hdr-title{font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:400;color:#f0ebe3;margin-top:3px;}
+.content{max-width:520px;margin:0 auto;padding:24px 24px 60px;}
+.card{background:var(--bg-soft);border:0.5px solid var(--line);border-radius:14px;padding:20px;margin-top:16px;}
+.field{margin-bottom:14px;}
+.field:last-child{margin-bottom:0;}
+.field-lbl{font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;}
+select,input[type=text]{width:100%;font-family:'Inter',sans-serif;font-size:15px;padding:12px 14px;border:0.5px solid var(--line);border-radius:10px;outline:none;background:var(--bg);color:var(--ink);appearance:none;}
+select:focus,input:focus{border-color:var(--gold);}
+.type-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.type-chip{border:1.5px solid var(--line);border-radius:10px;padding:12px 10px;text-align:center;cursor:pointer;background:var(--bg);transition:all .15s;}
+.type-chip.sel{border-color:var(--olive);background:var(--olive-tint);}
+.type-name{font-size:13px;font-weight:600;color:var(--ink);}
+.type-rate{font-size:11px;color:var(--muted);margin-top:2px;}
+.btn{display:block;width:100%;padding:15px;border:none;border-radius:12px;font-size:15px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;margin-top:18px;}
+.btn-in{background:var(--olive);color:#fff;}
+.btn-out{background:var(--red);color:#fff;}
+.btn:disabled{opacity:0.5;}
+.status-pill{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;padding:4px 10px;border-radius:20px;background:var(--green-tint);color:var(--green-dark);}
+.clocked-name{font-family:'Cormorant Garamond',serif;font-size:24px;margin:10px 0 2px;}
+.clocked-sub{font-size:13px;color:var(--muted);}
+.since-row{margin-top:16px;padding-top:14px;border-top:0.5px solid var(--line-soft);}
+.since-lbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;}
+.since-val{font-size:14px;font-weight:500;margin-top:2px;}
+.recent{margin-top:16px;}
+.recent-hdr{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;}
+.recent-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:0.5px solid var(--line-soft);font-size:13px;}
+.recent-row:last-child{border-bottom:none;}
+.recent-date{color:var(--muted);font-size:11px;}
+.recent-amt{font-weight:600;}
+.msg{font-size:12px;color:var(--muted);text-align:center;margin-top:10px;min-height:16px;}
+.msg.err{color:var(--red);}
+.hint{font-size:11px;color:var(--muted-soft);margin-top:8px;line-height:1.5;}
+</style>
+</head>
+<body>
+
+<div class="hdr"><div class="hdr-inner">
+  <div class="brand">Styling With Jas</div>
+  <div class="hdr-title">Team Hours</div>
+</div></div>
+
+<div class="content" id="main-content">
+  <div class="card">
+    <div class="field">
+      <div class="field-lbl">Your Name</div>
+      <select id="employee-select" onchange="onEmployeeChange()">
+        <option value="">Select your name…</option>
+      </select>
+    </div>
+  </div>
+  <div id="work-area"></div>
+</div>
+
+<script>
+const _sb = supabase.createClient(
+  'https://cwvdfgrjlrpsdfwduwvn.supabase.co',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN3dmRmZ3JqbHJwc2Rmd2R1d3ZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwMDcyODUsImV4cCI6MjA5MzU4MzI4NX0.zam9AnIwW91TI6eCKUcg05LhvFcRa7op4QsjRpdcrCY'
+);
+
+// Rate table Jasmine gave us: on-site staging pays a premium; every other work type
+// (destage, warehouse, travel) is the base rate. Snapshotted onto the row at clock-in so a
+// future rate change never rewrites already-worked hours.
+const WORK_TYPES = [
+  { key:'staging',  label:'Staging (On-Site)', rate:35 },
+  { key:'destage',  label:'Destage',           rate:25 },
+  { key:'warehouse',label:'Warehouse',         rate:25 },
+  { key:'travel',   label:'Travel',            rate:25 },
+];
+const RATE_BY_KEY = Object.fromEntries(WORK_TYPES.map(t=>[t.key,t.rate]));
+const LABEL_BY_KEY = Object.fromEntries(WORK_TYPES.map(t=>[t.key,t.label]));
+
+let _selectedType = null;
+let _jobs = [];
+
+function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function fmtMoney(n){return '$'+Number(n||0).toFixed(2);}
+
+async function loadEmployees(){
+  const sel = document.getElementById('employee-select');
+  try{
+    const {data,error} = await _sb.from('employees').select('name').eq('active',true).order('name');
+    if(error) throw error;
+    (data||[]).forEach(e=>{
+      const opt = document.createElement('option');
+      opt.value = e.name; opt.textContent = e.name;
+      sel.appendChild(opt);
+    });
+    const remembered = localStorage.getItem('swj_hours_employee');
+    if(remembered && [...sel.options].some(o=>o.value===remembered)){
+      sel.value = remembered;
+      onEmployeeChange();
+    }
+  }catch(e){
+    document.getElementById('work-area').innerHTML = `<div class="card"><div class="msg err">Could not load the team list. Please contact Jasmine.</div></div>`;
+  }
+}
+
+async function loadJobs(){
+  try{
+    const {data} = await _sb.from('invoices').select('invnum,client,address,invdate')
+      .not('invnum','like','DRAFT-%').not('invnum','like','GS%')
+      .order('invdate',{ascending:false}).limit(30);
+    _jobs = data||[];
+  }catch(e){ _jobs = []; }
+}
+
+async function onEmployeeChange(){
+  const name = document.getElementById('employee-select').value;
+  if(!name){ document.getElementById('work-area').innerHTML=''; return; }
+  localStorage.setItem('swj_hours_employee', name);
+  document.getElementById('work-area').innerHTML = `<div class="card"><div class="msg">Loading…</div></div>`;
+  await loadJobs();
+
+  const {data,error} = await _sb.from('time_entries').select('*')
+    .eq('employee_name', name).is('clock_out', null)
+    .order('clock_in',{ascending:false}).limit(1);
+
+  if(!error && data && data[0]){
+    renderClockedIn(name, data[0]);
+  } else {
+    renderClockIn(name);
+  }
+  renderRecent(name);
+}
+
+function renderClockIn(name){
+  _selectedType = null;
+  const jobOptions = _jobs.map(j=>`<option value="${esc(j.invnum)}">${esc(j.client||'Client')} — ${esc(j.address||'')}</option>`).join('');
+  document.getElementById('work-area').innerHTML = `
+    <div class="card">
+      <div class="field">
+        <div class="field-lbl">Type of Work</div>
+        <div class="type-grid" id="type-grid">
+          ${WORK_TYPES.map(t=>`<div class="type-chip" id="chip-${t.key}" onclick="selectType('${t.key}')">
+            <div class="type-name">${esc(t.label)}</div>
+            <div class="type-rate">$${t.rate}/hr</div>
+          </div>`).join('')}
+        </div>
+      </div>
+      <div class="field">
+        <div class="field-lbl">Job (optional)</div>
+        <select id="job-select">
+          <option value="">No specific job (e.g. warehouse)</option>
+          ${jobOptions}
+        </select>
+      </div>
+      <button class="btn btn-in" id="clockin-btn" onclick="clockIn('${esc(name)}')" disabled>Select a work type to clock in</button>
+      <div class="msg" id="clockin-msg"></div>
+    </div>
+  `;
+}
+
+function selectType(key){
+  _selectedType = key;
+  WORK_TYPES.forEach(t=>document.getElementById('chip-'+t.key).classList.toggle('sel', t.key===key));
+  const btn = document.getElementById('clockin-btn');
+  btn.disabled = false;
+  btn.textContent = `Clock In — ${LABEL_BY_KEY[key]}`;
+}
+
+async function clockIn(name){
+  if(!_selectedType) return;
+  const btn = document.getElementById('clockin-btn');
+  const msg = document.getElementById('clockin-msg');
+  btn.disabled = true; btn.textContent = 'Clocking in…';
+  const jobSel = document.getElementById('job-select');
+  const invnum = jobSel.value || null;
+  const job = _jobs.find(j=>j.invnum===invnum);
+  const job_label = job ? `${job.client||'Client'} — ${job.address||''}` : null;
+
+  try{
+    const {error} = await _sb.from('time_entries').insert({
+      employee_name: name,
+      work_type: _selectedType,
+      rate: RATE_BY_KEY[_selectedType],
+      invnum, job_label,
+      clock_in: new Date().toISOString(),
+    });
+    if(error) throw error;
+    onEmployeeChange();
+  }catch(e){
+    msg.textContent = 'Error: '+e.message; msg.classList.add('err');
+    btn.disabled = false; btn.textContent = `Clock In — ${LABEL_BY_KEY[_selectedType]}`;
+  }
+}
+
+function elapsedStr(startIso){
+  const ms = Date.now() - new Date(startIso).getTime();
+  const h = Math.floor(ms/3600000), m = Math.floor((ms%3600000)/60000);
+  return `${h}h ${m}m`;
+}
+
+let _tickTimer = null;
+function renderClockedIn(name, entry){
+  clearInterval(_tickTimer);
+  document.getElementById('work-area').innerHTML = `
+    <div class="card">
+      <span class="status-pill">Clocked In</span>
+      <div class="clocked-name">${esc(name)}</div>
+      <div class="clocked-sub">${esc(LABEL_BY_KEY[entry.work_type]||entry.work_type)} · $${entry.rate}/hr${entry.job_label?' · '+esc(entry.job_label):''}</div>
+      <div class="since-row">
+        <div class="since-lbl">Time on the clock</div>
+        <div class="since-val" id="elapsed-val">${elapsedStr(entry.clock_in)}</div>
+      </div>
+      <button class="btn btn-out" id="clockout-btn" onclick="clockOut('${entry.id}','${esc(name)}')">Clock Out</button>
+      <div class="msg" id="clockout-msg"></div>
+    </div>
+  `;
+  _tickTimer = setInterval(()=>{
+    const el = document.getElementById('elapsed-val');
+    if(el) el.textContent = elapsedStr(entry.clock_in);
+  }, 30000);
+}
+
+async function clockOut(id, name){
+  const btn = document.getElementById('clockout-btn');
+  const msg = document.getElementById('clockout-msg');
+  btn.disabled = true; btn.textContent = 'Clocking out…';
+  try{
+    const {data,error} = await _sb.from('time_entries').select('*').eq('id', id).limit(1);
+    if(error || !data || !data[0]) throw new Error('Entry not found');
+    const entry = data[0];
+    const clockOutIso = new Date().toISOString();
+    const hours = Math.round(((new Date(clockOutIso) - new Date(entry.clock_in)) / 3600000) * 100) / 100;
+    const amount = Math.round(hours * entry.rate * 100) / 100;
+    const {error:updErr} = await _sb.from('time_entries').update({
+      clock_out: clockOutIso, hours, amount,
+    }).eq('id', id);
+    if(updErr) throw updErr;
+    clearInterval(_tickTimer);
+    onEmployeeChange();
+  }catch(e){
+    msg.textContent = 'Error: '+e.message; msg.classList.add('err');
+    btn.disabled = false; btn.textContent = 'Clock Out';
+  }
+}
+
+async function renderRecent(name){
+  const {data} = await _sb.from('time_entries').select('*')
+    .eq('employee_name', name).not('clock_out','is',null)
+    .order('clock_in',{ascending:false}).limit(6);
+  if(!data || !data.length) return;
+  const rows = data.map(e=>{
+    const d = new Date(e.clock_in);
+    const dateStr = d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+    return `<div class="recent-row">
+      <div>
+        <div>${esc(LABEL_BY_KEY[e.work_type]||e.work_type)}</div>
+        <div class="recent-date">${dateStr}${e.job_label?' · '+esc(e.job_label):''}</div>
+      </div>
+      <div class="recent-amt">${e.hours}h · ${fmtMoney(e.amount)}</div>
+    </div>`;
+  }).join('');
+  document.getElementById('work-area').insertAdjacentHTML('beforeend', `
+    <div class="card recent">
+      <div class="recent-hdr">Recent Entries</div>
+      ${rows}
+    </div>
+  `);
+}
+
+document.addEventListener('DOMContentLoaded', loadEmployees);
+</script>
+</body>
+</html>
