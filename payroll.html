@@ -343,7 +343,8 @@ function renderEntries(){
 }
 
 async function approveEntry(id){
-  await _sb.from('time_entries').update({approved:true, approved_at:new Date().toISOString()}).eq('id', id);
+  const {error} = await _sb.from('time_entries').update({approved:true, approved_at:new Date().toISOString()}).eq('id', id);
+  if(error){ alert('Could not approve — '+error.message+'\n\nMake sure the `approved` column exists on time_entries in Supabase.'); return; }
   loadEntries();
 }
 
@@ -351,12 +352,14 @@ async function approveFilteredEntries(){
   const pendingIds = _entries.filter(e=>!e.approved && e.amount!=null).map(e=>e.id);
   if(!pendingIds.length){ alert('Nothing pending approval in the current results.'); return; }
   if(!confirm(`Approve ${pendingIds.length} entries? Employees will see these as approved.`)) return;
-  await _sb.from('time_entries').update({approved:true, approved_at:new Date().toISOString()}).in('id', pendingIds);
+  const {error} = await _sb.from('time_entries').update({approved:true, approved_at:new Date().toISOString()}).in('id', pendingIds);
+  if(error){ alert('Could not approve — '+error.message+'\n\nMake sure the `approved` column exists on time_entries in Supabase.'); return; }
   loadEntries();
 }
 
 async function markPaid(id){
-  await _sb.from('time_entries').update({paid:true}).eq('id', id);
+  const {error} = await _sb.from('time_entries').update({paid:true}).eq('id', id);
+  if(error){ alert('Could not mark paid — '+error.message); return; }
   loadEntries();
 }
 
@@ -364,7 +367,8 @@ async function markFilteredPaid(){
   const unpaidIds = _entries.filter(e=>!e.paid && e.amount!=null).map(e=>e.id);
   if(!unpaidIds.length){ alert('Nothing unpaid in the current results.'); return; }
   if(!confirm(`Mark ${unpaidIds.length} entries as paid?`)) return;
-  await _sb.from('time_entries').update({paid:true}).in('id', unpaidIds);
+  const {error} = await _sb.from('time_entries').update({paid:true}).in('id', unpaidIds);
+  if(error){ alert('Could not mark paid — '+error.message); return; }
   loadEntries();
 }
 

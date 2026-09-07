@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="SWJ">
+<meta name="theme-color" content="#1a1814">
+<link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="512x512" href="/assets/icon-512.png">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>SWJ — Approve Hours</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Cormorant+Garamond:wght@300;400;500;600&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg:#fcfaf7;--bg-soft:#ffffff;
+  --ink:#2c2926;--ink-soft:#3d3833;--muted:#8c847c;--muted-soft:#b8ada1;
+  --line:#e7e1d9;--line-soft:#ede8e0;
+  --olive:#7a8574;--olive-dark:#5f685a;--olive-tint:#eef1ea;
+  --green:#6f8a72;--green-tint:#edf4ee;--green-dark:#4a6b4e;
+  --gold:#b89a63;--gold-soft:#f6f1e7;
+  --red:#9a5a4a;--red-tint:#f8ece8;
+  --cta:#2c2926;
+}
+body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var(--ink);min-height:100vh;}
+.hdr{background:var(--cta);padding:20px 24px 18px;}
+.hdr-inner{max-width:520px;margin:0 auto;}
+.brand{font-family:'Cormorant Garamond',serif;font-size:11px;letter-spacing:3px;color:rgba(255,255,255,0.5);text-transform:uppercase;}
+.hdr-title{font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:400;color:#f0ebe3;margin-top:3px;}
+.content{max-width:520px;margin:0 auto;padding:24px 24px 60px;}
+.loading{text-align:center;padding:60px 20px;color:var(--muted);}
+.loading-spin{font-size:24px;animation:spin 1s linear infinite;display:inline-block;margin-bottom:12px;}
+@keyframes spin{to{transform:rotate(360deg)}}
+.error-box{background:var(--red-tint);border:0.5px solid var(--red);border-radius:12px;padding:20px;text-align:center;margin-top:24px;color:var(--red);font-size:14px;}
+.card{background:var(--bg-soft);border:0.5px solid var(--line);border-radius:14px;padding:20px;margin-top:16px;}
+.clocked-name{font-family:'Cormorant Garamond',serif;font-size:24px;margin-bottom:2px;}
+.clocked-sub{font-size:13px;color:var(--muted);}
+.recent-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:0.5px solid var(--line-soft);font-size:13px;}
+.recent-row:last-child{border-bottom:none;}
+.recent-date{color:var(--muted);font-size:11px;}
+.recent-amt{font-weight:600;}
+.since-row{margin-top:16px;padding-top:14px;border-top:0.5px solid var(--line-soft);}
+.since-lbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;}
+.since-val{font-size:22px;font-family:'Cormorant Garamond',serif;margin-top:2px;}
+.btn{display:block;width:100%;padding:15px;border:none;border-radius:12px;font-size:15px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;margin-top:18px;}
+.btn-in{background:var(--olive);color:#fff;}
+.btn:disabled{opacity:0.5;}
+.status-pill{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;padding:4px 10px;border-radius:20px;background:var(--gold-soft);color:#8c6a2e;}
+.status-pill.done{background:var(--green-tint);color:var(--green-dark);}
+.msg{font-size:12px;color:var(--muted);text-align:center;margin-top:10px;min-height:16px;}
+.msg.err{color:var(--red);}
+</style>
+</head>
+<body>
+
+<div class="hdr"><div class="hdr-inner">
+  <div class="brand">Styling With Jas</div>
+  <div class="hdr-title">Approve Hours</div>
+</div></div>
+
+<div class="content" id="main-content">
+  <div class="loading"><div class="loading-spin">⟳</div><div>Loading hours…</div></div>
+</div>
+
+<script>
+const _sb = supabase.createClient(
+  'https://cwvdfgrjlrpsdfwduwvn.supabase.co',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN3dmRmZ3JqbHJwc2Rmd2R1d3ZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwMDcyODUsImV4cCI6MjA5MzU4MzI4NX0.zam9AnIwW91TI6eCKUcg05LhvFcRa7op4QsjRpdcrCY'
+);
+
+const LABEL_BY_KEY = { staging:'Staging (On-Site)', destage:'Destage', warehouse:'Warehouse', travel:'Travel' };
+
+let _ids = [];
+
+function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function fmtMoney(n){return '$'+Number(n||0).toFixed(2);}
+function fmtTime(iso){ return new Date(iso).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}); }
+
+async function load(){
+  const params = new URLSearchParams(window.location.search);
+  const idsParam = params.get('ids') || '';
+  _ids = idsParam.split(',').map(s=>s.trim()).filter(Boolean);
+  if(!_ids.length){
+    showError('This approval link looks incomplete.');
+    return;
+  }
+  try{
+    const {data,error} = await _sb.from('time_entries').select('*').in('id', _ids).order('clock_in',{ascending:true});
+    if(error || !data || !data.length){
+      showError('Could not find these hours — they may have been removed.');
+      return;
+    }
+    render(data);
+  }catch(e){
+    showError('Could not load these hours: '+e.message);
+  }
+}
+
+function render(entries){
+  const name = entries[0].employee_name;
+  const dateStr = new Date(entries[0].clock_in).toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
+  const hours = Math.round(entries.reduce((s,e)=>s+(parseFloat(e.hours)||0),0)*100)/100;
+  const amount = Math.round(entries.reduce((s,e)=>s+(parseFloat(e.amount)||0),0)*100)/100;
+  const allApproved = entries.every(e=>e.approved);
+
+  const rows = entries.map(e=>{
+    const range = e.clock_out ? `${fmtTime(e.clock_in)} – ${fmtTime(e.clock_out)}` : '';
+    return `<div class="recent-row">
+      <div>
+        <div>${esc(LABEL_BY_KEY[e.work_type]||e.work_type)}</div>
+        <div class="recent-date">${range}${e.job_label?' · '+esc(e.job_label):''}</div>
+      </div>
+      <div class="recent-amt">${e.hours}h · ${fmtMoney(e.amount)}</div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('main-content').innerHTML = `
+    <div class="card">
+      <span class="status-pill ${allApproved?'done':''}">${allApproved?'Already Approved':'Pending Approval'}</span>
+      <div class="clocked-name" style="margin-top:10px">${esc(name)}</div>
+      <div class="clocked-sub">${esc(dateStr)}</div>
+      <div class="since-row">
+        <div class="since-lbl">Total</div>
+        <div class="since-val">${hours}h &nbsp;·&nbsp; ${fmtMoney(amount)}</div>
+      </div>
+    </div>
+    <div class="card">
+      ${rows}
+    </div>
+    ${allApproved
+      ? `<div class="msg">✓ These hours are already approved.</div>`
+      : `<button class="btn btn-in" id="approve-btn" onclick="approveAll('${esc(name)}')">Approve These Hours</button>
+         <div class="msg" id="approve-msg"></div>`
+    }
+  `;
+}
+
+async function approveAll(name){
+  const btn = document.getElementById('approve-btn');
+  const msg = document.getElementById('approve-msg');
+  btn.disabled = true; btn.textContent = 'Approving…';
+  try{
+    const {error} = await _sb.from('time_entries').update({
+      approved: true, approved_at: new Date().toISOString(),
+    }).in('id', _ids);
+    if(error) throw error;
+    document.getElementById('main-content').innerHTML = `
+      <div class="card" style="text-align:center">
+        <div style="font-size:36px;margin-bottom:10px">✅</div>
+        <div class="clocked-name">Hours Approved</div>
+        <div class="clocked-sub">${esc(name)}'s hours for this shift are now approved.</div>
+      </div>
+    `;
+  }catch(e){
+    msg.textContent = 'Error: '+e.message; msg.classList.add('err');
+    btn.disabled = false; btn.textContent = 'Approve These Hours';
+  }
+}
+
+function showError(text){
+  document.getElementById('main-content').innerHTML = `<div class="error-box">${esc(text)}</div>`;
+}
+
+document.addEventListener('DOMContentLoaded', load);
+</script>
+</body>
+</html>

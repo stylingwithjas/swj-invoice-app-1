@@ -656,6 +656,31 @@ async function showShiftEndSummary(name){
       </div>
     </div>
   `;
+  notifyJasmineShiftEnded(name, entries, hours, amount);
+}
+
+// Fire-and-forget notification so Jasmine can approve straight from her inbox — a second
+// route into the same approval, alongside the Approve button on payroll.html. The link
+// points at approve-hours.html (no login needed, same low-friction pattern as the
+// signature/confirm links) with every entry id from today's shift.
+function notifyJasmineShiftEnded(name, entries, hours, amount){
+  if(!entries.length) return;
+  const dateStr = new Date(entries[0].clock_in).toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
+  const lines = entries.map(e=>{
+    const range = e.clock_out ? `${fmtTime(e.clock_in)}–${fmtTime(e.clock_out)}` : '';
+    return `- ${LABEL_BY_KEY[e.work_type]||e.work_type} ${range}${e.job_label?' · '+e.job_label:''} · ${e.hours}h · ${fmtMoney(e.amount)}`;
+  }).join('\n');
+  const ids = entries.map(e=>e.id).join(',');
+  const approveLink = location.origin + '/approve-hours.html?ids=' + encodeURIComponent(ids);
+  const message = `${name} just clocked out for ${dateStr}.\n\nActivity breakdown:\n${lines}\n\nTotal: ${hours}h · ${fmtMoney(amount)}\n\nApprove these hours:\n${approveLink}`;
+  fetch('/api/email', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      to: 'info@stylingwithjas.com',
+      subject: `Shift ended — ${name} — ${hours}h · ${fmtMoney(amount)}`,
+      message,
+    })
+  }).catch(()=>{});
 }
 
 async function renderRecent(name){
