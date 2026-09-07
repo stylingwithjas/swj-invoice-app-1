@@ -131,6 +131,10 @@ tr.paid-row { opacity:0.55; }
         <select id="f-employee"><option value="">All</option></select>
       </div>
       <div class="filter-field">
+        <label>Project</label>
+        <select id="f-project"><option value="">All</option></select>
+      </div>
+      <div class="filter-field">
         <label>From</label>
         <input type="date" id="f-from">
       </div>
@@ -203,6 +207,25 @@ async function loadEmployees(){
   filterSel.innerHTML = '<option value="">All</option>' + emps.map(e=>`<option value="${esc(e.name)}">${esc(e.name)}</option>`).join('');
 }
 
+const STAGE_LABEL = { proposal:'Proposal', confirmed:'Confirmed', staged:'Staged', destage:'Destage', done:'Done' };
+
+// Same active-board source hours.html uses for its Job picker, so the Project filter here
+// lines up with what employees actually selected when they clocked in.
+async function loadProjects(){
+  const projSel = document.getElementById('f-project');
+  try{
+    const {data} = await _sb.from('invoices').select('invnum,client,address,invdate,data')
+      .not('invnum','like','DRAFT-%').not('invnum','like','GS%')
+      .order('invdate',{ascending:false}).limit(50);
+    const jobs = (data||[]).filter(j => ((j.data||{}).stage||'proposal') !== 'denied');
+    projSel.innerHTML = '<option value="">All</option>' + jobs.map(j=>{
+      const stage = STAGE_LABEL[(j.data||{}).stage||'proposal'] || '';
+      const label = `${j.client||'Client'} — ${j.address||''}${stage?' ('+stage+')':''}`;
+      return `<option value="${esc(j.invnum)}">${esc(label)}</option>`;
+    }).join('');
+  }catch(e){ /* project filter just stays at "All" */ }
+}
+
 async function addEmployee(){
   const input = document.getElementById('new-emp-name');
   const name = input.value.trim();
@@ -220,12 +243,14 @@ async function toggleEmployee(id, newActive){
 
 async function loadEntries(){
   const employee = document.getElementById('f-employee').value;
+  const project = document.getElementById('f-project').value;
   const from = document.getElementById('f-from').value;
   const to = document.getElementById('f-to').value;
   const status = document.getElementById('f-status').value;
 
   let q = _sb.from('time_entries').select('*').order('clock_in',{ascending:false}).limit(500);
   if(employee) q = q.eq('employee_name', employee);
+  if(project) q = q.eq('invnum', project);
   if(from) q = q.gte('clock_in', from+'T00:00:00');
   if(to) q = q.lte('clock_in', to+'T23:59:59');
   if(status==='paid') q = q.eq('paid', true);
@@ -252,12 +277,12 @@ function renderEntries(){
         <td>${esc(e.employee_name)}</td>
         <td><span class="pill ${esc(e.work_type)}">${esc(LABEL_BY_KEY[e.work_type]||e.work_type)}</span></td>
         <td>${esc(e.job_label||'—')}</td>
-        <td>${fmtDateTime(e.clock_in)}</td>
-        <td>${e.clock_out?fmtDateTime(e.clock_out):'<em>active</em>'}</td>
+        <td>${e.source==='manual'?'<em>manual entry</em>':fmtDateTime(e.clock_in)}</td>
+        <td>${e.source==='manual'?'—':(e.clock_out?fmtDateTime(e.clock_out):'<em>active</em>')}</td>
         <td>${e.hours!=null?e.hours:'—'}</td>
         <td>${fmtMoney(e.rate)}</td>
         <td>${e.amount!=null?fmtMoney(e.amount):'—'}</td>
-        <td>${e.paid?'✓ Paid':(e.clock_out?`<button class="mini-btn" onclick="markPaid('${e.id}')">Mark Paid</button>`:'—')}</td>
+        <td>${e.paid?'✓ Paid':(e.amount!=null?`<button class="mini-btn" onclick="markPaid('${e.id}')">Mark Paid</button>`:'—')}</td>
       </tr>
     `).join('');
   }
@@ -276,7 +301,7 @@ async function markPaid(id){
 }
 
 async function markFilteredPaid(){
-  const unpaidIds = _entries.filter(e=>!e.paid && e.clock_out).map(e=>e.id);
+  const unpaidIds = _entries.filter(e=>!e.paid && e.amount!=null).map(e=>e.id);
   if(!unpaidIds.length){ alert('Nothing unpaid in the current results.'); return; }
   if(!confirm(`Mark ${unpaidIds.length} entries as paid?`)) return;
   await _sb.from('time_entries').update({paid:true}).in('id', unpaidIds);
@@ -285,10 +310,10 @@ async function markFilteredPaid(){
 
 function exportCsv(){
   if(!_entries.length){ alert('Nothing to export — adjust your filters first.'); return; }
-  const header = ['Date','Employee','Type','Job','Clock In','Clock Out','Hours','Rate','Amount','Paid'];
+  const header = ['Date','Employee','Type','Job','Clock In','Clock Out','Hours','Rate','Amount','Paid','Source'];
   const rows = _entries.map(e=>[
     fmtDate(e.clock_in), e.employee_name, LABEL_BY_KEY[e.work_type]||e.work_type, e.job_label||'',
-    e.clock_in||'', e.clock_out||'', e.hours!=null?e.hours:'', e.rate, e.amount!=null?e.amount:'', e.paid?'Yes':'No'
+    e.source==='manual'?'':(e.clock_in||''), e.clock_out||'', e.hours!=null?e.hours:'', e.rate, e.amount!=null?e.amount:'', e.paid?'Yes':'No', e.source||'clock'
   ]);
   const csv = [header, ...rows].map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\r\n');
   const blob = new Blob([csv], {type:'text/csv'});
@@ -301,6 +326,7 @@ function exportCsv(){
 
 document.addEventListener('DOMContentLoaded', async ()=>{
   await loadEmployees();
+  await loadProjects();
   await loadEntries();
 });
 </script>
