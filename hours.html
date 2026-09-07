@@ -102,11 +102,26 @@ const WORK_TYPES = [
 const RATE_BY_KEY = Object.fromEntries(WORK_TYPES.map(t=>[t.key,t.rate]));
 const LABEL_BY_KEY = Object.fromEntries(WORK_TYPES.map(t=>[t.key,t.label]));
 
+// Non-client work still needs a job to attach hours to, now that Job is required —
+// these aren't real invoices, just fixed internal buckets. Add more here if Jasmine
+// needs another non-billable category later.
+const INTERNAL_JOBS = [
+  { invnum:'WAREHOUSE-ORG', label:'Warehouse — Organizing Inventory' },
+];
+
 let _selectedType = null;
 let _jobs = [];
 
 function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function fmtMoney(n){return '$'+Number(n||0).toFixed(2);}
+function fmtTime(iso){ return new Date(iso).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}); }
+function findJobLabel(invnum){
+  if(!invnum) return null;
+  const internal = INTERNAL_JOBS.find(j=>j.invnum===invnum);
+  if(internal) return internal.label;
+  const job = _jobs.find(j=>j.invnum===invnum);
+  return job ? jobLabel(job) : null;
+}
 
 async function loadEmployees(){
   const sel = document.getElementById('employee-select');
@@ -165,11 +180,43 @@ async function onEmployeeChange(){
   } else {
     renderClockIn(name);
   }
+  await renderTodayTimeline(name);
   renderRecent(name);
 }
 
+// Shows every segment worked today as one continuous shift (e.g. Travel 10:50-11:30am,
+// Staging 11:30am-1pm, Travel 1-1:30pm) instead of a single clock-in/out block — only
+// appears once there's more than one segment today, since the "Clocked In" card above
+// already covers the single-segment case.
+async function renderTodayTimeline(name){
+  const startOfDay = new Date(); startOfDay.setHours(0,0,0,0);
+  const {data} = await _sb.from('time_entries').select('*')
+    .eq('employee_name', name).gte('clock_in', startOfDay.toISOString())
+    .order('clock_in', {ascending:true});
+  if(!data || data.length < 2) return;
+  const rows = data.map(e=>{
+    const range = e.clock_out ? `${fmtTime(e.clock_in)} – ${fmtTime(e.clock_out)}` : `${fmtTime(e.clock_in)} – ongoing`;
+    return `<div class="recent-row">
+      <div>
+        <div>${esc(LABEL_BY_KEY[e.work_type]||e.work_type)}</div>
+        <div class="recent-date">${range}${e.job_label?' · '+esc(e.job_label):''}</div>
+      </div>
+      <div class="recent-amt">${e.hours!=null?e.hours+'h':''}</div>
+    </div>`;
+  }).join('');
+  document.getElementById('work-area').insertAdjacentHTML('beforeend', `
+    <div class="card recent">
+      <div class="recent-hdr">Today's Activity</div>
+      ${rows}
+    </div>
+  `);
+}
+
 function jobOptionsHtml(selected){
-  return _jobs.map(j=>`<option value="${esc(j.invnum)}" ${j.invnum===selected?'selected':''}>${esc(jobLabel(j))}</option>`).join('');
+  const internalOpts = INTERNAL_JOBS.map(j=>`<option value="${esc(j.invnum)}" ${j.invnum===selected?'selected':''}>${esc(j.label)}</option>`).join('');
+  const jobOpts = _jobs.map(j=>`<option value="${esc(j.invnum)}" ${j.invnum===selected?'selected':''}>${esc(jobLabel(j))}</option>`).join('');
+  const placeholder = `<option value="" disabled ${selected?'':'selected'}>Select a job…</option>`;
+  return placeholder + internalOpts + jobOpts;
 }
 
 function renderClockIn(name){
@@ -186,13 +233,12 @@ function renderClockIn(name){
         </div>
       </div>
       <div class="field">
-        <div class="field-lbl">Job (optional)</div>
-        <select id="job-select">
-          <option value="">No specific job (e.g. warehouse)</option>
+        <div class="field-lbl">Job</div>
+        <select id="job-select" onchange="updateClockInBtn()">
           ${jobOptionsHtml(null)}
         </select>
       </div>
-      <button class="btn btn-in" id="clockin-btn" onclick="clockIn('${esc(name)}')" disabled>Select a work type to clock in</button>
+      <button class="btn btn-in" id="clockin-btn" onclick="clockIn('${esc(name)}')" disabled>Select a work type and job to clock in</button>
       <div class="msg" id="clockin-msg"></div>
     </div>
     <div class="card">
@@ -200,6 +246,17 @@ function renderClockIn(name){
       <div id="manual-form-wrap"></div>
     </div>
   `;
+}
+
+function updateClockInBtn(){
+  const btn = document.getElementById('clockin-btn');
+  if(!btn) return;
+  const jobVal = document.getElementById('job-select')?.value;
+  const ready = _selectedType && jobVal;
+  btn.disabled = !ready;
+  btn.textContent = ready ? `Clock In — ${LABEL_BY_KEY[_selectedType]}` : (
+    !_selectedType ? 'Select a work type and job to clock in' : 'Select a job to clock in'
+  );
 }
 
 function showManualForm(name){
@@ -220,9 +277,8 @@ function showManualForm(name){
       </div>
     </div>
     <div class="field">
-      <div class="field-lbl">Job (optional)</div>
+      <div class="field-lbl">Job</div>
       <select id="manual-job-select">
-        <option value="">No specific job (e.g. warehouse)</option>
         ${jobOptionsHtml(null)}
       </select>
     </div>
@@ -249,16 +305,16 @@ async function submitManual(name){
   const msg = document.getElementById('manual-msg');
   const dateVal = document.getElementById('manual-date').value;
   const hoursVal = parseFloat(document.getElementById('manual-hours').value);
+  const jobSel = document.getElementById('manual-job-select');
+  const invnum = jobSel.value || null;
   if(!_manualType){ msg.textContent = 'Pick a type of work first.'; msg.classList.add('err'); return; }
+  if(!invnum){ msg.textContent = 'Pick a job.'; msg.classList.add('err'); return; }
   if(!dateVal){ msg.textContent = 'Pick a date.'; msg.classList.add('err'); return; }
   if(!hoursVal || hoursVal <= 0){ msg.textContent = 'Enter how many hours you worked.'; msg.classList.add('err'); return; }
 
   const btn = document.getElementById('manual-submit-btn');
   btn.disabled = true; btn.textContent = 'Logging…';
-  const jobSel = document.getElementById('manual-job-select');
-  const invnum = jobSel.value || null;
-  const job = _jobs.find(j=>j.invnum===invnum);
-  const job_label = job ? jobLabel(job) : null;
+  const job_label = findJobLabel(invnum);
   const note = document.getElementById('manual-note').value.trim() || null;
   const rate = RATE_BY_KEY[_manualType];
   const amount = Math.round(hoursVal * rate * 100) / 100;
@@ -284,20 +340,17 @@ async function submitManual(name){
 function selectType(key){
   _selectedType = key;
   WORK_TYPES.forEach(t=>document.getElementById('chip-'+t.key).classList.toggle('sel', t.key===key));
-  const btn = document.getElementById('clockin-btn');
-  btn.disabled = false;
-  btn.textContent = `Clock In — ${LABEL_BY_KEY[key]}`;
+  updateClockInBtn();
 }
 
 async function clockIn(name){
-  if(!_selectedType) return;
+  const jobSel = document.getElementById('job-select');
+  const invnum = jobSel.value || null;
+  if(!_selectedType || !invnum) return;
   const btn = document.getElementById('clockin-btn');
   const msg = document.getElementById('clockin-msg');
   btn.disabled = true; btn.textContent = 'Clocking in…';
-  const jobSel = document.getElementById('job-select');
-  const invnum = jobSel.value || null;
-  const job = _jobs.find(j=>j.invnum===invnum);
-  const job_label = job ? jobLabel(job) : null;
+  const job_label = findJobLabel(invnum);
 
   try{
     const {error} = await _sb.from('time_entries').insert({
@@ -312,7 +365,7 @@ async function clockIn(name){
     onEmployeeChange();
   }catch(e){
     msg.textContent = 'Error: '+e.message; msg.classList.add('err');
-    btn.disabled = false; btn.textContent = `Clock In — ${LABEL_BY_KEY[_selectedType]}`;
+    btn.disabled = false; updateClockInBtn();
   }
 }
 
@@ -331,17 +384,90 @@ function renderClockedIn(name, entry){
       <div class="clocked-name">${esc(name)}</div>
       <div class="clocked-sub">${esc(LABEL_BY_KEY[entry.work_type]||entry.work_type)} · $${entry.rate}/hr${entry.job_label?' · '+esc(entry.job_label):''}</div>
       <div class="since-row">
-        <div class="since-lbl">Time on the clock</div>
-        <div class="since-val" id="elapsed-val">${elapsedStr(entry.clock_in)}</div>
+        <div class="since-lbl">Since ${fmtTime(entry.clock_in)}</div>
+        <div class="since-val" id="elapsed-val">${elapsedStr(entry.clock_in)} on this activity</div>
       </div>
-      <button class="btn btn-out" id="clockout-btn" onclick="clockOut('${entry.id}','${esc(name)}')">Clock Out</button>
+      <button class="btn btn-in" id="switch-btn" onclick="showSwitchForm('${entry.id}','${esc(name)}')">Switch Activity</button>
+      <button class="btn btn-out" id="clockout-btn" onclick="clockOut('${entry.id}','${esc(name)}')">Clock Out — End Shift</button>
       <div class="msg" id="clockout-msg"></div>
+      <div id="switch-form-wrap"></div>
     </div>
   `;
   _tickTimer = setInterval(()=>{
     const el = document.getElementById('elapsed-val');
-    if(el) el.textContent = elapsedStr(entry.clock_in);
+    if(el) el.textContent = elapsedStr(entry.clock_in)+' on this activity';
   }, 30000);
+}
+
+// Switching activity closes the current segment (clock_out = now) and immediately opens a
+// new one with the new type/job at the same instant — one continuous shift made of multiple
+// timed blocks, instead of forcing a full clock-out/clock-in for every change of activity.
+let _switchType = null;
+function showSwitchForm(entryId, name){
+  document.getElementById('switch-btn').style.display = 'none';
+  document.getElementById('clockout-btn').style.display = 'none';
+  _switchType = null;
+  document.getElementById('switch-form-wrap').innerHTML = `
+    <div class="field" style="margin-top:14px">
+      <div class="field-lbl">Switching To</div>
+      <div class="type-grid" id="switch-type-grid">
+        ${WORK_TYPES.map(t=>`<div class="type-chip" id="schip-${t.key}" onclick="selectSwitchType('${t.key}')">
+          <div class="type-name">${esc(t.label)}</div>
+          <div class="type-rate">$${t.rate}/hr</div>
+        </div>`).join('')}
+      </div>
+    </div>
+    <div class="field">
+      <div class="field-lbl">Job</div>
+      <select id="switch-job-select" onchange="updateSwitchBtn()">
+        ${jobOptionsHtml(null)}
+      </select>
+    </div>
+    <button class="btn btn-in" id="switch-confirm-btn" onclick="switchActivity('${entryId}','${esc(name)}')" disabled>Select a work type and job to switch</button>
+    <button class="btn" style="background:var(--line-soft);color:var(--ink-soft);margin-top:8px" onclick="onEmployeeChange()">Cancel</button>
+    <div class="msg" id="switch-msg"></div>
+  `;
+}
+function selectSwitchType(key){
+  _switchType = key;
+  WORK_TYPES.forEach(t=>document.getElementById('schip-'+t.key).classList.toggle('sel', t.key===key));
+  updateSwitchBtn();
+}
+function updateSwitchBtn(){
+  const btn = document.getElementById('switch-confirm-btn');
+  if(!btn) return;
+  const jobVal = document.getElementById('switch-job-select')?.value;
+  const ready = _switchType && jobVal;
+  btn.disabled = !ready;
+  btn.textContent = ready ? `Switch to ${LABEL_BY_KEY[_switchType]}` : 'Select a work type and job to switch';
+}
+async function switchActivity(entryId, name){
+  const jobSel = document.getElementById('switch-job-select');
+  const invnum = jobSel.value || null;
+  if(!_switchType || !invnum) return;
+  const btn = document.getElementById('switch-confirm-btn');
+  const msg = document.getElementById('switch-msg');
+  btn.disabled = true; btn.textContent = 'Switching…';
+  try{
+    const {data,error} = await _sb.from('time_entries').select('*').eq('id', entryId).limit(1);
+    if(error || !data || !data[0]) throw new Error('Entry not found');
+    const entry = data[0];
+    const nowIso = new Date().toISOString();
+    const hours = Math.round(((new Date(nowIso) - new Date(entry.clock_in)) / 3600000) * 100) / 100;
+    const amount = Math.round(hours * entry.rate * 100) / 100;
+    const {error:closeErr} = await _sb.from('time_entries').update({clock_out: nowIso, hours, amount}).eq('id', entryId);
+    if(closeErr) throw closeErr;
+    const job_label = findJobLabel(invnum);
+    const {error:openErr} = await _sb.from('time_entries').insert({
+      employee_name: name, work_type: _switchType, rate: RATE_BY_KEY[_switchType],
+      invnum, job_label, source:'clock', clock_in: nowIso,
+    });
+    if(openErr) throw openErr;
+    onEmployeeChange();
+  }catch(e){
+    msg.textContent = 'Error: '+e.message; msg.classList.add('err');
+    btn.disabled = false; updateSwitchBtn();
+  }
 }
 
 async function clockOut(id, name){

@@ -211,19 +211,29 @@ const STAGE_LABEL = { proposal:'Proposal', confirmed:'Confirmed', staged:'Staged
 
 // Same active-board source hours.html uses for its Job picker, so the Project filter here
 // lines up with what employees actually selected when they clocked in.
+// Same non-client internal job buckets hours.html offers (Job is now required there) —
+// kept in sync so entries logged against these still show up when filtering here.
+const INTERNAL_JOBS = [
+  { invnum:'WAREHOUSE-ORG', label:'Warehouse — Organizing Inventory' },
+];
+
 async function loadProjects(){
   const projSel = document.getElementById('f-project');
+  const internalOpts = INTERNAL_JOBS.map(j=>`<option value="${esc(j.invnum)}">${esc(j.label)}</option>`).join('');
   try{
     const {data} = await _sb.from('invoices').select('invnum,client,address,invdate,data')
       .not('invnum','like','DRAFT-%').not('invnum','like','GS%')
       .order('invdate',{ascending:false}).limit(50);
     const jobs = (data||[]).filter(j => ((j.data||{}).stage||'proposal') !== 'denied');
-    projSel.innerHTML = '<option value="">All</option>' + jobs.map(j=>{
+    const jobOpts = jobs.map(j=>{
       const stage = STAGE_LABEL[(j.data||{}).stage||'proposal'] || '';
       const label = `${j.client||'Client'} — ${j.address||''}${stage?' ('+stage+')':''}`;
       return `<option value="${esc(j.invnum)}">${esc(label)}</option>`;
     }).join('');
-  }catch(e){ /* project filter just stays at "All" */ }
+    projSel.innerHTML = '<option value="">All</option>' + internalOpts + jobOpts;
+  }catch(e){
+    projSel.innerHTML = '<option value="">All</option>' + internalOpts;
+  }
 }
 
 async function addEmployee(){
