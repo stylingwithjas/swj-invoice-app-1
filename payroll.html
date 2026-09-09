@@ -88,6 +88,22 @@ tr.paid-row { opacity:0.55; }
 .mini-btn { font-size:11px; padding:3px 9px; border-radius:10px; border:0.5px solid var(--taupe-lt); background:var(--warm); cursor:pointer; }
 .empty-note { color:var(--taupe); font-size:13px; padding:20px 0; text-align:center; }
 .tbl-scroll { overflow-x:auto; }
+
+/* Edit modal */
+.modal-overlay { display:none; position:fixed; inset:0; background:rgba(26,24,20,0.45); z-index:200; align-items:center; justify-content:center; padding:20px; }
+.modal-card { background:#fff; border-radius:14px; padding:22px; max-width:420px; width:100%; max-height:90vh; overflow-y:auto; }
+.modal-hdr { font-size:15px; font-weight:600; margin-bottom:16px; }
+.modal-field { margin-bottom:12px; }
+.modal-field label { display:block; font-size:10px; color:var(--taupe-dk); text-transform:uppercase; letter-spacing:0.6px; margin-bottom:4px; }
+.modal-field input, .modal-field select { width:100%; padding:9px 10px; border:0.5px solid var(--taupe-lt); border-radius:8px; font-size:13px; font-family:inherit; }
+.modal-field-row { display:flex; gap:10px; }
+.modal-field-row .modal-field { flex:1; }
+.modal-actions { display:flex; gap:8px; margin-top:16px; }
+.modal-actions button { flex:1; padding:11px; border-radius:8px; font-size:13px; cursor:pointer; }
+.modal-actions .cancel-btn { border:0.5px solid var(--taupe-lt); background:var(--warm); }
+.modal-actions .save-btn { border:none; background:var(--ink); color:#fff; }
+.msg { font-size:12px; color:var(--taupe); text-align:center; margin-top:8px; min-height:14px; }
+.msg.err { color:var(--red); }
 </style>
 </head>
 <body>
@@ -176,7 +192,7 @@ tr.paid-row { opacity:0.55; }
     <div class="tbl-scroll">
       <table>
         <thead>
-          <tr><th>Date</th><th>Employee</th><th>Type</th><th>Job</th><th>In</th><th>Out</th><th>Hrs</th><th>Rate</th><th>Amount</th><th>Approved</th><th>Paid</th></tr>
+          <tr><th>Date</th><th>Employee</th><th>Type</th><th>Job</th><th>In</th><th>Out</th><th>Hrs</th><th>Rate</th><th>Amount</th><th>Approved</th><th>Paid</th><th>Actions</th></tr>
         </thead>
         <tbody id="entries-body"></tbody>
       </table>
@@ -186,15 +202,34 @@ tr.paid-row { opacity:0.55; }
 
 </div>
 
+<div class="modal-overlay" id="edit-modal-overlay">
+  <div class="modal-card">
+    <div class="modal-hdr">Edit Time Entry</div>
+    <div id="edit-modal-body"></div>
+    <div class="modal-actions">
+      <button class="cancel-btn" onclick="closeEditModal()">Cancel</button>
+      <button class="save-btn" onclick="saveEditEntry()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const _sb = supabase.createClient(
   'https://cwvdfgrjlrpsdfwduwvn.supabase.co',
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN3dmRmZ3JqbHJwc2Rmd2R1d3ZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwMDcyODUsImV4cCI6MjA5MzU4MzI4NX0.zam9AnIwW91TI6eCKUcg05LhvFcRa7op4QsjRpdcrCY'
 );
 
-const LABEL_BY_KEY = { staging:'Staging (On-Site)', destage:'Destage', warehouse:'Warehouse', travel:'Travel' };
+const WORK_TYPES = [
+  { key:'staging',  label:'Staging (On-Site)', rate:35 },
+  { key:'destage',  label:'Destage',           rate:25 },
+  { key:'warehouse',label:'Warehouse',         rate:25 },
+  { key:'travel',   label:'Travel',            rate:25 },
+];
+const RATE_BY_KEY = Object.fromEntries(WORK_TYPES.map(t=>[t.key,t.rate]));
+const LABEL_BY_KEY = Object.fromEntries(WORK_TYPES.map(t=>[t.key,t.label]));
 
 let _entries = [];
+let _projectsCache = [];
 
 function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function fmtMoney(n){return '$'+Number(n||0).toFixed(2);}
@@ -206,6 +241,16 @@ async function sha256Hex(str){
 }
 function fmtDateTime(iso){ if(!iso) return '—'; const d=new Date(iso); return d.toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}); }
 function fmtDate(iso){ if(!iso) return '—'; const d=new Date(iso); return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'}); }
+// For pre-filling <input type=date>/<input type=time> — must use local getters, not a raw
+// slice of the stored UTC ISO string, or the edit form would show the wrong hour.
+function localDateInput(iso){
+  const d = new Date(iso);
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function localTimeInput(iso){
+  const d = new Date(iso);
+  return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+}
 
 async function loadEmployees(){
   const {data,error} = await _sb.from('employees').select('*').order('name');
@@ -216,9 +261,10 @@ async function loadEmployees(){
   list.innerHTML = emps.length ? emps.map(e=>`
     <div class="emp-row">
       <span class="emp-name ${e.active?'':'inactive'}">${esc(e.name)}${e.password_hash?'':' <em style="color:var(--red);font-style:normal">(no password set)</em>'}</span>
-      <span style="display:inline-flex;gap:6px">
+      <span style="display:inline-flex;gap:6px;flex-wrap:wrap">
         <button class="emp-toggle" onclick="resetPassword('${e.id}','${esc(e.name)}')">${e.password_hash?'Reset Password':'Set Password'}</button>
         <button class="emp-toggle" onclick="toggleEmployee('${e.id}',${!e.active})">${e.active?'Deactivate':'Reactivate'}</button>
+        <button class="emp-toggle" style="color:var(--red);border-color:var(--red-lt)" onclick="deleteEmployee('${e.id}','${esc(e.name)}')">Delete</button>
       </span>
     </div>
   `).join('') : '<div class="empty-note">No employees yet — add one below.</div>';
@@ -236,6 +282,25 @@ const INTERNAL_JOBS = [
   { invnum:'WAREHOUSE-ORG', label:'Warehouse — Organizing Inventory' },
 ];
 
+function jobLabelFor(j){
+  const stage = STAGE_LABEL[(j.data||{}).stage||'proposal'] || '';
+  return `${j.client||'Client'} — ${j.address||''}${stage?' ('+stage+')':''}`;
+}
+function findJobLabel(invnum){
+  if(!invnum) return null;
+  const internal = INTERNAL_JOBS.find(j=>j.invnum===invnum);
+  if(internal) return internal.label;
+  const job = _projectsCache.find(j=>j.invnum===invnum);
+  return job ? jobLabelFor(job) : null;
+}
+// Options for the Edit-entry modal's Job field — same internal + board-sourced list as the
+// Project filter, but as a reusable <option> builder rather than baked straight into one select.
+function jobOptionsHtml(selected){
+  const internalOpts = INTERNAL_JOBS.map(j=>`<option value="${esc(j.invnum)}" ${j.invnum===selected?'selected':''}>${esc(j.label)}</option>`).join('');
+  const jobOpts = _projectsCache.map(j=>`<option value="${esc(j.invnum)}" ${j.invnum===selected?'selected':''}>${esc(jobLabelFor(j))}</option>`).join('');
+  return `<option value="">No job</option>` + internalOpts + jobOpts;
+}
+
 async function loadProjects(){
   const projSel = document.getElementById('f-project');
   const internalOpts = INTERNAL_JOBS.map(j=>`<option value="${esc(j.invnum)}">${esc(j.label)}</option>`).join('');
@@ -243,12 +308,8 @@ async function loadProjects(){
     const {data} = await _sb.from('invoices').select('invnum,client,address,invdate,data')
       .not('invnum','like','DRAFT-%').not('invnum','like','GS%')
       .order('invdate',{ascending:false}).limit(50);
-    const jobs = (data||[]).filter(j => ((j.data||{}).stage||'proposal') !== 'denied');
-    const jobOpts = jobs.map(j=>{
-      const stage = STAGE_LABEL[(j.data||{}).stage||'proposal'] || '';
-      const label = `${j.client||'Client'} — ${j.address||''}${stage?' ('+stage+')':''}`;
-      return `<option value="${esc(j.invnum)}">${esc(label)}</option>`;
-    }).join('');
+    _projectsCache = (data||[]).filter(j => ((j.data||{}).stage||'proposal') !== 'denied');
+    const jobOpts = _projectsCache.map(j=>`<option value="${esc(j.invnum)}">${esc(jobLabelFor(j))}</option>`).join('');
     projSel.innerHTML = '<option value="">All</option>' + internalOpts + jobOpts;
   }catch(e){
     projSel.innerHTML = '<option value="">All</option>' + internalOpts;
@@ -281,6 +342,16 @@ async function resetPassword(id, name){
 
 async function toggleEmployee(id, newActive){
   await _sb.from('employees').update({active:newActive}).eq('id', id);
+  loadEmployees();
+}
+
+// Deleting the employee record only removes them from the Team list/login — their
+// time_entries rows key off the name (not a foreign key), so past hours and payroll
+// history are untouched.
+async function deleteEmployee(id, name){
+  if(!confirm(`Delete ${name}? They'll no longer be able to log in at /hours.html. Their past logged hours are kept.`)) return;
+  const {error} = await _sb.from('employees').delete().eq('id', id);
+  if(error){ alert('Could not delete employee: '+error.message); return; }
   loadEmployees();
 }
 
@@ -330,6 +401,10 @@ function renderEntries(){
         <td>${e.amount!=null?fmtMoney(e.amount):'—'}</td>
         <td>${e.approved?'✓ Approved':(e.amount!=null?`<button class="mini-btn" onclick="approveEntry('${e.id}')">Approve</button>`:'—')}</td>
         <td>${e.paid?'✓ Paid':(e.amount!=null?`<button class="mini-btn" onclick="markPaid('${e.id}')">Mark Paid</button>`:'—')}</td>
+        <td style="white-space:nowrap">
+          <button class="mini-btn" onclick="openEditModal('${e.id}')">Edit</button>
+          <button class="mini-btn" style="color:var(--red);border-color:var(--red-lt)" onclick="deleteEntry('${e.id}')">Delete</button>
+        </td>
       </tr>
     `).join('');
   }
@@ -369,6 +444,80 @@ async function markFilteredPaid(){
   if(!confirm(`Mark ${unpaidIds.length} entries as paid?`)) return;
   const {error} = await _sb.from('time_entries').update({paid:true}).in('id', unpaidIds);
   if(error){ alert('Could not mark paid — '+error.message); return; }
+  loadEntries();
+}
+
+async function deleteEntry(id){
+  const entry = _entries.find(e=>e.id===id);
+  const warn = entry && (entry.approved || entry.paid) ? '\n\nThis entry is already '+(entry.paid?'paid':'approved')+' — deleting it will remove that record entirely.' : '';
+  if(!confirm('Delete this time entry? This cannot be undone.'+warn)) return;
+  const {error} = await _sb.from('time_entries').delete().eq('id', id);
+  if(error){ alert('Could not delete entry: '+error.message); return; }
+  loadEntries();
+}
+
+// Editing an already-approved or already-paid entry is allowed but confirmed separately,
+// since changing the numbers after the fact could contradict a payment that already went
+// out or an approval an employee already saw as final.
+function openEditModal(id){
+  const entry = _entries.find(e=>e.id===id);
+  if(!entry) return;
+  if((entry.approved || entry.paid) && !confirm(`This entry is already ${entry.paid?'paid':'approved'}. Edit it anyway?`)) return;
+
+  const clockInDate = entry.clock_in ? localDateInput(entry.clock_in) : '';
+  const clockInTime = entry.clock_in ? localTimeInput(entry.clock_in) : '';
+  const clockOutTime = entry.clock_out ? localTimeInput(entry.clock_out) : '';
+  const typeOptions = WORK_TYPES.map(t=>`<option value="${t.key}" ${entry.work_type===t.key?'selected':''}>${esc(t.label)} ($${t.rate}/hr)</option>`).join('');
+
+  document.getElementById('edit-modal-body').innerHTML = `
+    <input type="hidden" id="edit-id" value="${esc(id)}">
+    <div class="modal-field"><label>Employee</label><input type="text" value="${esc(entry.employee_name)}" disabled></div>
+    <div class="modal-field"><label>Date</label><input type="date" id="edit-date" value="${clockInDate}"></div>
+    <div class="modal-field-row">
+      <div class="modal-field"><label>Clock In</label><input type="time" id="edit-clockin" value="${clockInTime}"></div>
+      <div class="modal-field"><label>Clock Out</label><input type="time" id="edit-clockout" value="${clockOutTime}"></div>
+    </div>
+    <div class="modal-field"><label>Type of Work</label><select id="edit-type">${typeOptions}</select></div>
+    <div class="modal-field"><label>Job</label><select id="edit-job">${jobOptionsHtml(entry.invnum)}</select></div>
+    <div class="modal-field"><label>Note</label><input type="text" id="edit-note" value="${esc(entry.note||'')}"></div>
+    <div class="msg" id="edit-msg"></div>
+  `;
+  document.getElementById('edit-modal-overlay').style.display = 'flex';
+}
+
+function closeEditModal(){
+  document.getElementById('edit-modal-overlay').style.display = 'none';
+}
+
+async function saveEditEntry(){
+  const id = document.getElementById('edit-id').value;
+  const dateVal = document.getElementById('edit-date').value;
+  const inTime = document.getElementById('edit-clockin').value;
+  const outTime = document.getElementById('edit-clockout').value;
+  const type = document.getElementById('edit-type').value;
+  const invnum = document.getElementById('edit-job').value || null;
+  const note = document.getElementById('edit-note').value.trim() || null;
+  const msg = document.getElementById('edit-msg');
+
+  if(!dateVal || !inTime || !outTime){ msg.textContent = 'Date, clock in, and clock out are all required.'; msg.classList.add('err'); return; }
+  // Parsed as local time (no timezone suffix = browser-local per the JS spec), then stored
+  // as a proper UTC instant via toISOString() — same convention hours.html already uses,
+  // so times entered/shown here match what the employee actually saw on their clock.
+  const clockInDateObj = new Date(`${dateVal}T${inTime}:00`);
+  const clockOutDateObj = new Date(`${dateVal}T${outTime}:00`);
+  if(clockOutDateObj <= clockInDateObj){ msg.textContent = 'Clock out must be after clock in.'; msg.classList.add('err'); return; }
+
+  const rate = RATE_BY_KEY[type];
+  const hours = Math.round(((clockOutDateObj - clockInDateObj) / 3600000) * 100) / 100;
+  const amount = Math.round(hours * rate * 100) / 100;
+  const job_label = findJobLabel(invnum);
+
+  const {error} = await _sb.from('time_entries').update({
+    clock_in: clockInDateObj.toISOString(), clock_out: clockOutDateObj.toISOString(),
+    work_type: type, rate, invnum, job_label, note, hours, amount,
+  }).eq('id', id);
+  if(error){ msg.textContent = 'Error: '+error.message; msg.classList.add('err'); return; }
+  closeEditModal();
   loadEntries();
 }
 

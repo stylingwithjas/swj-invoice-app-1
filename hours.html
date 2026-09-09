@@ -433,10 +433,14 @@ async function submitManual(name){
   const btn = document.getElementById('manual-submit-btn');
   btn.disabled = true; btn.textContent = 'Logging…';
 
+  // Parsed as local time (no timezone suffix = browser-local per the JS spec) then stored
+  // as a proper UTC instant via toISOString() — matching how a real clock-in is stored
+  // (new Date().toISOString()), so a manually-logged "10am" lands on the same UTC instant
+  // a live clock-in at 10am would, instead of drifting by the local UTC offset.
   const rows = _manualSegments.map((seg, i)=>{
-    const startIso = `${dateVal}T${seg.time}:00`;
-    const endIso = `${dateVal}T${checkpoints[i+1]}:00`;
-    const hours = Math.round(((new Date(endIso) - new Date(startIso)) / 3600000) * 100) / 100;
+    const startDateObj = new Date(`${dateVal}T${seg.time}:00`);
+    const endDateObj = new Date(`${dateVal}T${checkpoints[i+1]}:00`);
+    const hours = Math.round(((endDateObj - startDateObj) / 3600000) * 100) / 100;
     const rate = RATE_BY_KEY[seg.type];
     const amount = Math.round(hours * rate * 100) / 100;
     return {
@@ -444,8 +448,8 @@ async function submitManual(name){
       work_type: seg.type,
       rate, invnum: seg.invnum, job_label: findJobLabel(seg.invnum), note,
       source: 'manual',
-      clock_in: startIso,
-      clock_out: endIso,
+      clock_in: startDateObj.toISOString(),
+      clock_out: endDateObj.toISOString(),
       hours, amount,
     };
   });
