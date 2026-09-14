@@ -138,6 +138,29 @@ function computeGrand(d){
 // No row cap (unlike the board's active-pipeline Kanban, which only fetches the 200 most
 // recently created invoices) — this is meant to be the permanent, searchable record of
 // every invoice ever created, including ones that fell off the board entirely.
+// Old contract_url links can be expired signed-URL tokens (they used to only last 30 days —
+// see CONTRACT_LINK_TTL in api/sign.py), so always ask for a fresh one instead of trusting
+// whatever's stored. Opens the blank tab BEFORE the await so iOS Safari's popup blocker
+// doesn't treat this as a non-user-initiated navigation.
+async function downloadSignedContract(invnum, btn){
+  let win = null;
+  try{ win = window.open('', '_blank'); }catch(e){}
+  const orig = btn.textContent;
+  btn.textContent = 'Preparing…'; btn.disabled = true;
+  try{
+    const r = await fetch('/api/sign', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({action:'refresh_link', invnum})});
+    const j = await r.json();
+    if(!j.contract_url) throw new Error(j.error || 'No link returned');
+    if(win) win.location.href = j.contract_url;
+    else window.open(j.contract_url, '_blank');
+  }catch(e){
+    if(win) win.close();
+    alert('Could not open the contract: '+e.message);
+  }finally{
+    btn.textContent = orig; btn.disabled = false;
+  }
+}
+
 async function loadAll(){
   try{
     const {data,error} = await _sb.from('invoices').select('invnum,client,address,invdate,created_at,data')
@@ -214,7 +237,7 @@ function renderList(){
         </div>
         <div class="arc-actions">
           <a href="/proposal.html?inv=${encodeURIComponent(inv.invnum)}" target="_blank">View Details</a>
-          ${isSigned?`<a class="primary" href="${esc(d.contract_url)}" target="_blank">Download Signed PDF</a>`:''}
+          ${isSigned?`<button class="primary" onclick="downloadSignedContract('${esc(inv.invnum)}', this)">Download Signed PDF</button>`:''}
         </div>
       </div>
     `;

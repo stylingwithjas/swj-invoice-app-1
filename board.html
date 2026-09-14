@@ -721,7 +721,7 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
       <div class="m-sec-ttl" style="color:var(--green)">✓ Signed Contract</div>
       <div style="padding:8px 0;display:flex;align-items:center;gap:10px">
         <span id="contract-signed-by" style="font-size:12px;color:var(--ink-soft)"></span>
-        <a id="contract-link" href="#" target="_blank" style="font-size:11px;color:var(--olive);font-weight:500;text-decoration:none;border:0.5px solid var(--olive-line);padding:5px 12px;border-radius:7px;background:var(--olive-tint);white-space:nowrap">Download PDF</a>
+        <button id="contract-link" onclick="downloadSignedContract(this.dataset.invnum, this)" style="font-size:11px;color:var(--olive);font-weight:500;border:0.5px solid var(--olive-line);padding:5px 12px;border-radius:7px;background:var(--olive-tint);white-space:nowrap;cursor:pointer">Download PDF</button>
       </div>
     </div>
 
@@ -1959,6 +1959,29 @@ async function hardDeleteCard(){
 // ─────────────────────────────────────────────────────────────
 // MODAL — hydrate from Supabase + save back
 // ─────────────────────────────────────────────────────────────
+// Old contract_url links can be expired signed-URL tokens (they used to only last 30 days —
+// see CONTRACT_LINK_TTL in api/sign.py), so always ask for a fresh one instead of trusting
+// whatever's stored. Opens the blank tab BEFORE the await so iOS Safari's popup blocker
+// doesn't treat this as a non-user-initiated navigation.
+async function downloadSignedContract(invnum, btn){
+  let win = null;
+  try{ win = window.open('', '_blank'); }catch(e){}
+  const orig = btn.textContent;
+  btn.textContent = 'Preparing…'; btn.disabled = true;
+  try{
+    const r = await fetch('/api/sign', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({action:'refresh_link', invnum})});
+    const j = await r.json();
+    if(!j.contract_url) throw new Error(j.error || 'No link returned');
+    if(win) win.location.href = j.contract_url;
+    else window.open(j.contract_url, '_blank');
+  }catch(e){
+    if(win) win.close();
+    alert('Could not open the contract: '+e.message);
+  }finally{
+    btn.textContent = orig; btn.disabled = false;
+  }
+}
+
 function realOpenCard(invnum){
   currentCardId = invnum;
   const inv = CARDS[invnum];
@@ -2066,7 +2089,7 @@ function realOpenCard(invnum){
   if(contractRow){
     if(d.signed && d.contract_url){
       contractRow.style.display = 'block';
-      if(contractLink) contractLink.href = d.contract_url;
+      if(contractLink) contractLink.dataset.invnum = invnum;
       if(contractSignedBy) contractSignedBy.textContent = `Signed by ${d.signed_by||''}${d.signed_date?' on '+d.signed_date:''}`;
     } else {
       contractRow.style.display = 'none';
