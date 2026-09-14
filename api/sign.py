@@ -61,9 +61,49 @@ def supabase_update_invoice(invnum, updates):
         raise Exception(f'[update_invoice] HTTP {e.code}: {err_body[:200]}')
 
 
+# Signed-contract links are meant to be permanent archive links (the Archive page and old
+# emails point at them indefinitely), not short-lived download tokens — 10 years so they
+# effectively never expire in practice, unlike the previous 30-day default that was silently
+# breaking every contract link older than a month with an "InvalidJWT / exp claim" error.
+CONTRACT_LINK_TTL = 315360000  # 10 years, in seconds
+
+
+def _sign_contract_url(invnum, expires_in=CONTRACT_LINK_TTL):
+    """Ask Supabase Storage for a fresh signed URL to an already-uploaded contract PDF.
+    Returns None if the key is missing or the file/sign call fails."""
+    key = get_supabase_key()
+    if not key:
+        return None
+    filename = f'{invnum}-signed.pdf'
+    sign_url_endpoint = f'{SUPABASE_URL}/storage/v1/object/sign/signed-contracts/{filename}'
+    sign_req = urllib.request.Request(
+        sign_url_endpoint,
+        data=json.dumps({'expiresIn': expires_in}).encode(),
+        method='POST'
+    )
+    sign_req.add_header('apikey', key)
+    sign_req.add_header('Authorization', f'Bearer {key}')
+    sign_req.add_header('Content-Type', 'application/json')
+    try:
+        with urllib.request.urlopen(sign_req, timeout=15) as r:
+            sign_resp = json.loads(r.read())
+        signed_path = sign_resp.get('signedURL', '') or sign_resp.get('signedUrl', '')
+        if signed_path:
+            # signed_path looks like "/object/sign/signed-contracts/202092-signed.pdf?token=..."
+            if signed_path.startswith('/'):
+                return f'{SUPABASE_URL}/storage/v1{signed_path}'
+            return f'{SUPABASE_URL}/storage/v1/{signed_path.lstrip("/")}'
+    except urllib.error.HTTPError as e:
+        err_body = e.read().decode('utf-8', errors='ignore')
+        print(f'[sign_url] HTTP {e.code}: {err_body[:300]}')
+    except Exception as e:
+        print(f'[sign_url] error: {e}')
+    return None
+
+
 def supabase_upload_pdf(invnum, pdf_bytes):
     """Upload signed PDF to Supabase Storage bucket 'signed-contracts'.
-    Returns a signed URL (valid for 30 days) for client download.
+    Returns a long-lived signed URL for client download.
     """
     key = get_supabase_key()
     if not key:
@@ -89,30 +129,10 @@ def supabase_upload_pdf(invnum, pdf_bytes):
         print(f'[upload_pdf] upload error: {e}')
         return None
 
-    # Step 2: Generate a signed URL valid for 30 days (2,592,000 seconds)
-    sign_url_endpoint = f'{SUPABASE_URL}/storage/v1/object/sign/signed-contracts/{filename}'
-    sign_req = urllib.request.Request(
-        sign_url_endpoint,
-        data=json.dumps({'expiresIn': 2592000}).encode(),
-        method='POST'
-    )
-    sign_req.add_header('apikey', key)
-    sign_req.add_header('Authorization', f'Bearer {key}')
-    sign_req.add_header('Content-Type', 'application/json')
-    try:
-        with urllib.request.urlopen(sign_req, timeout=15) as r:
-            sign_resp = json.loads(r.read())
-        signed_path = sign_resp.get('signedURL', '') or sign_resp.get('signedUrl', '')
-        if signed_path:
-            # signed_path looks like "/object/sign/signed-contracts/202092-signed.pdf?token=..."
-            if signed_path.startswith('/'):
-                return f'{SUPABASE_URL}/storage/v1{signed_path}'
-            return f'{SUPABASE_URL}/storage/v1/{signed_path.lstrip("/")}'
-    except urllib.error.HTTPError as e:
-        err_body = e.read().decode('utf-8', errors='ignore')
-        print(f'[upload_pdf] sign URL HTTP {e.code}: {err_body[:300]}')
-    except Exception as e:
-        print(f'[upload_pdf] sign URL error: {e}')
+    # Step 2: Generate a long-lived signed URL
+    url = _sign_contract_url(invnum)
+    if url:
+        return url
 
     # Fallback: return public URL (works only if bucket is public)
     return f'{SUPABASE_URL}/storage/v1/object/public/signed-contracts/{filename}'
@@ -567,6 +587,30 @@ class handler(BaseHTTPRequestHandler):
             body = json.loads(self.rfile.read(length))
         except Exception as e:
             self._respond(400, {'error': f'Invalid request: {e}'})
+            return
+
+        # Re-issues a fresh signed URL for an already-signed contract whose stored link
+        # expired (old links were only valid 30 days — see CONTRACT_LINK_TTL). The
+        # underlying PDF is untouched in storage; only the URL/token needed refreshing.
+        # Self-heals by saving the new link back onto the invoice so this only has to
+        # run once per stale contract.
+        if body.get('action') == 'refresh_link':
+            refresh_invnum = body.get('invnum', '').strip()
+            if not refresh_invnum:
+                self._respond(400, {'error': 'Missing invnum'})
+                return
+            fresh_url = _sign_contract_url(refresh_invnum)
+            if not fresh_url:
+                self._respond(500, {'error': 'Could not refresh this link — the signed PDF may be missing from storage.'})
+                return
+            try:
+                inv = supabase_get_invoice(refresh_invnum)
+                if inv:
+                    d = inv.get('data', {}) or {}
+                    supabase_update_invoice(refresh_invnum, {'data': {**d, 'contract_url': fresh_url}})
+            except Exception as e:
+                print(f'[refresh_link] could not save fresh URL: {e}')
+            self._respond(200, {'contract_url': fresh_url})
             return
 
         invnum = body.get('invnum', '').strip()
