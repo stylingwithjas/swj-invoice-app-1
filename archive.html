@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="/auth.js"></script>
+<meta charset="UTF-8">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="SWJ">
+<meta name="theme-color" content="#1a1814">
+<link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="512x512" href="/assets/icon-512.png">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>SWJ — Archive</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+:root {
+  --ink:        #1a1814;
+  --ink-soft:   #3d3830;
+  --cream:      #f5f2ed;
+  --warm:       #faf8f5;
+  --taupe:      #a29c96;
+  --taupe-lt:   #d4cfc9;
+  --taupe-dk:   #7a6f69;
+  --gold:       #c9a96e;
+  --gold-lt:    #f5ead8;
+  --gold-dk:    #9d7a44;
+  --green:      #4a7c50;
+  --green-lt:   #edf4ed;
+  --amber:      #c97c2e;
+  --amber-lt:   #fdf0e0;
+  --red:        #b53535;
+  --red-lt:     #fef0f0;
+}
+
+body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); color:var(--ink); min-height:100vh; }
+
+.hdr { background:var(--ink); position:sticky; top:0; z-index:60; }
+.hdr-top { display:flex; align-items:center; justify-content:space-between; padding:14px 20px 10px; flex-wrap:wrap; gap:10px; }
+.brand { display:flex; align-items:baseline; gap:10px; }
+.brand-name { font-family:'Cormorant Garamond',serif; font-size:24px; font-weight:300; color:#fff; letter-spacing:4px; }
+.brand-sep { width:1px; height:16px; background:rgba(255,255,255,0.18); }
+.brand-sub { font-size:10px; color:rgba(255,255,255,0.35); letter-spacing:2.5px; text-transform:uppercase; }
+.nav-sw { display:flex; gap:2px; background:rgba(255,255,255,0.07); border-radius:20px; padding:3px; flex-wrap:wrap; }
+.nav-btn { padding:5px 14px; border-radius:16px; border:none; font-size:11px; font-weight:500; cursor:pointer; font-family:'Inter',sans-serif; transition:all 0.18s; }
+.nav-btn.on { background:#fff; color:var(--ink); }
+.nav-btn.off { background:transparent; color:rgba(255,255,255,0.4); }
+
+.wrap { max-width:900px; margin:0 auto; padding:20px; }
+
+.tabs { display:flex; gap:2px; background:var(--warm); border-radius:12px; padding:3px; margin-bottom:16px; }
+.tab-btn { flex:1; padding:10px; border:none; border-radius:9px; background:transparent; color:var(--taupe-dk); font-size:13px; font-weight:600; cursor:pointer; font-family:inherit; }
+.tab-btn.on { background:#fff; color:var(--ink); box-shadow:0 1px 3px rgba(0,0,0,0.06); }
+
+.search-row { margin-bottom:16px; }
+.search-row input { width:100%; padding:11px 14px; border:0.5px solid var(--taupe-lt); border-radius:10px; font-size:14px; font-family:inherit; background:#fff; }
+
+.summary-note { font-size:11px; color:var(--taupe-dk); margin-bottom:12px; }
+
+.arc-card { background:#fff; border:0.5px solid var(--taupe-lt); border-radius:12px; padding:14px 16px; margin-bottom:10px; }
+.arc-top { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; }
+.arc-name { font-family:'Cormorant Garamond',serif; font-size:19px; }
+.arc-addr { font-size:12px; color:var(--taupe-dk); margin-top:2px; }
+.arc-amt { font-family:'Cormorant Garamond',serif; font-size:19px; white-space:nowrap; }
+.arc-meta { display:flex; gap:10px; flex-wrap:wrap; margin-top:8px; font-size:11px; color:var(--taupe-dk); }
+.arc-badge { display:inline-block; font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.6px; padding:3px 9px; border-radius:10px; }
+.arc-badge.signed { background:var(--green-lt); color:var(--green); }
+.arc-badge.stage { background:var(--gold-lt); color:var(--gold-dk); }
+.arc-actions { display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
+.arc-actions a, .arc-actions button { font-size:11px; font-weight:600; padding:6px 12px; border-radius:8px; text-decoration:none; cursor:pointer; font-family:inherit; border:0.5px solid var(--taupe-lt); background:var(--warm); color:var(--ink-soft); }
+.arc-actions a.primary { background:var(--ink); color:#fff; border:none; }
+.empty-note { color:var(--taupe); font-size:13px; padding:30px 0; text-align:center; }
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <div class="hdr-top">
+    <div class="brand">
+      <div class="brand-name">SWJ</div>
+      <div class="brand-sep"></div>
+      <div class="brand-sub">Archive</div>
+    </div>
+    <div class="nav-sw">
+      <button class="nav-btn off" onclick="window.location.href='/today.html'">Today</button>
+      <button class="nav-btn off" onclick="window.location.href='/board.html'">Board</button>
+      <button class="nav-btn off" onclick="window.location.href='/shop.html'">Shop</button>
+      <button class="nav-btn off" onclick="window.location.href='/index.html'">Invoice</button>
+      <button class="nav-btn off" onclick="window.location.href='/luxury.html'">Luxury</button>
+      <button class="nav-btn off" onclick="window.location.href='/gs-invoice.html'">GS</button>
+      <button class="nav-btn off" onclick="window.location.href='/payroll.html'">Payroll</button>
+      <button class="nav-btn on">Archive</button>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+  <div class="tabs">
+    <button class="tab-btn on" id="tab-signed" onclick="switchTab('signed')">✓ Signed Contracts</button>
+    <button class="tab-btn" id="tab-quoted" onclick="switchTab('quoted')">Quoted</button>
+  </div>
+  <div class="search-row">
+    <input type="text" id="search-input" placeholder="Search by client, address, or invoice number…" oninput="renderList()">
+  </div>
+  <div class="summary-note" id="summary-note">Loading…</div>
+  <div id="list-body"></div>
+</div>
+
+<script>
+const _sb = supabase.createClient(
+  'https://cwvdfgrjlrpsdfwduwvn.supabase.co',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN3dmRmZ3JqbHJwc2Rmd2R1d3ZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwMDcyODUsImV4cCI6MjA5MzU4MzI4NX0.zam9AnIwW91TI6eCKUcg05LhvFcRa7op4QsjRpdcrCY'
+);
+
+const STAGE_LABEL = { proposal:'Proposal', confirmed:'Confirmed', staged:'Staged', destage:'Destage', done:'Done', denied:'Declined' };
+
+let _allInvoices = [];
+let _activeTab = 'signed';
+
+function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function fmtMoney(n){ return '$' + Math.round(n||0).toLocaleString(); }
+function fmtDate(iso){ if(!iso) return ''; if(iso==='TBD') return 'TBD'; const d=new Date(iso+'T00:00:00'); return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}); }
+
+function computeGrand(d){
+  const _ov=v=>(v!=null&&v!=='')?parseFloat(v):null;
+  const tot=_ov(d.total_override); if(tot!=null) return tot;
+  const base = parseFloat(d.base_price) || 2500;
+  const addonsTotal = (d.addons||[]).reduce((s,a)=>s+(parseFloat(a.price)||0),0);
+  const taxrate = parseFloat(d.taxrate) || 0;
+  const sub=_ov(d.subtotal_override); const subEff=sub!=null?sub:(base+addonsTotal);
+  const tax=_ov(d.tax_override); const taxEff=tax!=null?tax:subEff*taxrate/100;
+  return subEff+taxEff;
+}
+
+// No row cap (unlike the board's active-pipeline Kanban, which only fetches the 200 most
+// recently created invoices) — this is meant to be the permanent, searchable record of
+// every invoice ever created, including ones that fell off the board entirely.
+async function loadAll(){
+  try{
+    const {data,error} = await _sb.from('invoices').select('invnum,client,address,invdate,created_at,data')
+      .not('invnum','like','DRAFT-%').not('invnum','like','GS%')
+      .order('created_at',{ascending:false}).limit(1000);
+    if(error) throw error;
+    _allInvoices = data||[];
+  }catch(e){
+    document.getElementById('list-body').innerHTML = `<div class="empty-note">Could not load the archive: ${esc(e.message)}</div>`;
+    document.getElementById('summary-note').textContent = '';
+    return;
+  }
+  renderList();
+}
+
+function switchTab(tab){
+  _activeTab = tab;
+  document.getElementById('tab-signed').classList.toggle('on', tab==='signed');
+  document.getElementById('tab-quoted').classList.toggle('on', tab==='quoted');
+  renderList();
+}
+
+function renderList(){
+  const q = document.getElementById('search-input').value.trim().toLowerCase();
+  const body = document.getElementById('list-body');
+  const note = document.getElementById('summary-note');
+
+  let rows = _allInvoices.filter(inv=>{
+    const d = inv.data||{};
+    const isSigned = !!(d.signed && d.contract_url);
+    return _activeTab==='signed' ? isSigned : !isSigned;
+  });
+
+  if(q){
+    rows = rows.filter(inv=>{
+      const d = inv.data||{};
+      return (inv.client||d.client||'').toLowerCase().includes(q)
+        || (inv.address||d.address||'').toLowerCase().includes(q)
+        || String(inv.invnum||'').toLowerCase().includes(q);
+    });
+  }
+
+  note.textContent = `${rows.length} ${_activeTab==='signed'?'signed contract':'quoted invoice'}${rows.length===1?'':'s'}`;
+
+  if(!rows.length){
+    body.innerHTML = `<div class="empty-note">Nothing here yet.</div>`;
+    return;
+  }
+
+  body.innerHTML = rows.map(inv=>{
+    const d = inv.data||{};
+    const client = inv.client || d.client || 'Client';
+    const address = inv.address || d.address || '';
+    const grand = computeGrand(d);
+    const stage = d.stage || 'proposal';
+    const isSigned = !!(d.signed && d.contract_url);
+    const badge = isSigned
+      ? `<span class="arc-badge signed">✓ Signed</span>`
+      : `<span class="arc-badge stage">${esc(STAGE_LABEL[stage]||stage)}</span>`;
+    return `
+      <div class="arc-card">
+        <div class="arc-top">
+          <div>
+            <div class="arc-name">${esc(client)}</div>
+            <div class="arc-addr">${esc(address)}</div>
+          </div>
+          <div class="arc-amt">${fmtMoney(grand)}</div>
+        </div>
+        <div class="arc-meta">
+          ${badge}
+          <span>#${esc(inv.invnum)}</span>
+          <span>${esc(fmtDate(d.startdate)||'Staging date TBD')}</span>
+          ${isSigned && d.signed_by?`<span>Signed by ${esc(d.signed_by)}${d.signed_date?' on '+esc(d.signed_date):''}</span>`:''}
+        </div>
+        <div class="arc-actions">
+          <a href="/proposal.html?inv=${encodeURIComponent(inv.invnum)}" target="_blank">View Details</a>
+          ${isSigned?`<a class="primary" href="${esc(d.contract_url)}" target="_blank">Download Signed PDF</a>`:''}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+document.addEventListener('DOMContentLoaded', loadAll);
+</script>
+</body>
+</html>
