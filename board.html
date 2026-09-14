@@ -1405,6 +1405,7 @@ function shortAddr(addr){
 
 function fmtDateShort(iso){
   if(!iso) return '';
+  if(iso === 'TBD') return 'TBD';
   const d = new Date(iso + 'T00:00:00');
   return d.toLocaleDateString('en-US', {month:'short', day:'numeric'});
 }
@@ -1429,7 +1430,7 @@ function buildCardHTML(inv){
   // Tags based on stage + status
   const tags = [];
   if(d.startdate) tags.push({text:'Staging ' + fmtDateShort(d.startdate)});
-  if(stage==='staged' && d.startdate){
+  if(stage==='staged' && (d.destage_date || (d.startdate && d.startdate!=='TBD'))){
     const _t0 = new Date(); _t0.setHours(0,0,0,0);
     const _extDays = (d.extensions||[]).reduce((s,e)=>s + (parseInt(e.days,10) || 30*(parseInt(e.periods,10)||1)), 0);
     // Rental end = the scheduled destage date (or staging + 45 if none is set), plus any extension days.
@@ -2491,7 +2492,7 @@ async function saveCard(){
     CARDS[currentCardId].data = d;
 
     // Auto-create truck reminder if staging date was just set
-    if(d.startdate && !d.truck_booked){
+    if(d.startdate && d.startdate!=='TBD' && !d.truck_booked){
       await autoCreateTruckReminder(inv.client||'', d.startdate, inv.invnum);
     }
 

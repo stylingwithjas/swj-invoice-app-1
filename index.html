@@ -337,6 +337,10 @@ textarea:focus { border-color:var(--gold); background:var(--warm); }
         <div class="field" id="f-startdate">
           <div class="field-lbl">Start Date</div>
           <input class="field-input" id="startdate" type="date">
+          <div class="toggle-row" style="padding-top:6px">
+            <input type="checkbox" id="startdate-tbd" onchange="toggleStartDateTBD()">
+            <label for="startdate-tbd" style="font-size:11px">TBD — not confirmed yet</label>
+          </div>
         </div>
       </div>
     </div>
@@ -744,6 +748,29 @@ function renderExtraBedrooms(){
 
 
 function pad2(n){return String(n).padStart(2,'0');}
+
+// Start date can be left "TBD" (job confirmed, exact date not yet nailed down) instead of
+// forcing a real calendar date. The literal string "TBD" is what actually gets stored/sent
+// as startdate — every downstream reader (PDF, board, proposal, confirm pages) already
+// treats a non-parseable date string gracefully, so nothing else needs a schema change.
+function toggleStartDateTBD(){
+  const tbd = document.getElementById('startdate-tbd').checked;
+  const inp = document.getElementById('startdate');
+  inp.disabled = tbd;
+  if(tbd){ inp.dataset.prevValue = inp.value; inp.value=''; }
+  else if(inp.dataset.prevValue){ inp.value = inp.dataset.prevValue; }
+}
+function getStartDateValue(){
+  return document.getElementById('startdate-tbd')?.checked ? 'TBD' : document.getElementById('startdate').value;
+}
+function setStartDateFromData(v){
+  const tbd = v==='TBD';
+  const chk = document.getElementById('startdate-tbd');
+  const inp = document.getElementById('startdate');
+  if(chk) chk.checked = tbd;
+  inp.disabled = tbd;
+  inp.value = tbd ? '' : (v||'');
+}
 async function initInvNum(){
   // Derive the next number from Supabase (persistent) — the old /tmp counter reset on every cold serverless instance.
   let next = 202093;
@@ -1326,7 +1353,7 @@ function loadInvoiceData(d){
     document.getElementById('address').value = d.address||'';
     document.getElementById('zipcode').value = '';
     document.getElementById('invdate').value = d.invdate||'';
-    document.getElementById('startdate').value = d.startdate||'';
+    setStartDateFromData(d.startdate);
     document.getElementById('invnum-display').value = d.invnum||'';   // keep the same number so editing + regenerating UPDATES this invoice (and its Approve/Sign link)
     document.getElementById('taxrate').value = d.taxrate||10.25;
     document.getElementById('base_price').value = d.base_price||2500;
@@ -1473,7 +1500,7 @@ async function saveDraft(silent){
     invnum: invnum||'DRAFT',
     client, address,
     invdate: document.getElementById('invdate').value,
-    startdate: document.getElementById('startdate').value,
+    startdate: getStartDateValue(),
     baserooms: [...selRooms].join(', '),
     extrate: Math.round(grand/3*100)/100,
     taxrate,
@@ -1555,7 +1582,7 @@ async function downloadPdfNow(){
   let valid=true;
   [['f-client','e-client','client'],['f-address','e-address','address'],['f-invdate','e-invdate','invdate'],['f-startdate','e-startdate','startdate']].forEach(([fid,eid,iid])=>{
     const inp=document.getElementById(iid);
-    if(!inp || !inp.value.trim()){if(inp)inp.classList.add('err');document.getElementById(eid)?.classList.add('show');valid=false;}
+    if(!inp || (!inp.value.trim() && !(iid==='startdate' && document.getElementById('startdate-tbd')?.checked))){if(inp)inp.classList.add('err');document.getElementById(eid)?.classList.add('show');valid=false;}
     else{inp.classList.remove('err');document.getElementById(eid)?.classList.remove('show');}
   });
   if(selRooms.size===0){document.getElementById('rooms-grid').classList.add('err');document.getElementById('e-rooms').classList.add('show');valid=false;}
@@ -1594,7 +1621,7 @@ async function downloadPdfNow(){
   invNum=invNumFinal;
 
   const _contribList=contributions.filter(c=>c.label&&parseFloat(c.amount)>0).map(c=>({label:c.label,amount:parseFloat(c.amount)}));
-  const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:document.getElementById('startdate').value,baserooms:[...selRooms].join(', '),baseroom_scopes:roomScopesObj(),extrate,taxrate,base_price:base,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,state:captureState(),promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,promo4:document.getElementById('promo4').checked,payment_url:null,contributions:_contribList,pet_deposit:petDepositBase(),cosigner:getCosigner(),cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||''};
+  const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:getStartDateValue(),baserooms:[...selRooms].join(', '),baseroom_scopes:roomScopesObj(),extrate,taxrate,base_price:base,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,state:captureState(),promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,promo4:document.getElementById('promo4').checked,payment_url:null,contributions:_contribList,pet_deposit:petDepositBase(),cosigner:getCosigner(),cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||''};
 
   const ctrl=new AbortController();
   const to=setTimeout(()=>ctrl.abort(),90000);
@@ -1818,7 +1845,7 @@ async function generatePDF(){
   let valid=true;
   [['f-client','e-client','client'],['f-address','e-address','address'],['f-invdate','e-invdate','invdate'],['f-startdate','e-startdate','startdate']].forEach(([fid,eid,iid])=>{
     const inp=document.getElementById(iid);
-    if(!inp || !inp.value.trim()){if(inp)inp.classList.add('err');document.getElementById(eid)?.classList.add('show');valid=false;}
+    if(!inp || (!inp.value.trim() && !(iid==='startdate' && document.getElementById('startdate-tbd')?.checked))){if(inp)inp.classList.add('err');document.getElementById(eid)?.classList.add('show');valid=false;}
     else{inp.classList.remove('err');document.getElementById(eid)?.classList.remove('show');}
   });
   if(selRooms.size===0){document.getElementById('rooms-grid').classList.add('err');document.getElementById('e-rooms').classList.add('show');valid=false;}
@@ -1879,7 +1906,7 @@ async function generatePDF(){
 
   setSt('loading','Generating your invoice PDF...');
   const _contribList=contributions.filter(c=>c.label&&parseFloat(c.amount)>0).map(c=>({label:c.label,amount:parseFloat(c.amount)}));
-  const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:document.getElementById('startdate').value,baserooms:[...selRooms].join(', '),baseroom_scopes:roomScopesObj(),extrate,taxrate,base_price:base,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,state:captureState(),promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
+  const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:getStartDateValue(),baserooms:[...selRooms].join(', '),baseroom_scopes:roomScopesObj(),extrate,taxrate,base_price:base,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,state:captureState(),promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
             promo4:document.getElementById('promo4').checked,payment_url,payment_link_id,contributions:_contribList,payments:splitPayments,active_client_payment_id:activeClientPaymentId,pet_deposit:petDeposit,cosigner:getCosigner(),cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||''};
 
   const _ctrl=new AbortController();
@@ -1909,7 +1936,7 @@ async function generate(){
   let valid=true;
   [['f-client','e-client','client'],['f-address','e-address','address'],['f-invdate','e-invdate','invdate'],['f-startdate','e-startdate','startdate']].forEach(([fid,eid,iid])=>{
     const inp=document.getElementById(iid);
-    if(!inp || !inp.value.trim()){if(inp)inp.classList.add('err');document.getElementById(eid)?.classList.add('show');valid=false;}
+    if(!inp || (!inp.value.trim() && !(iid==='startdate' && document.getElementById('startdate-tbd')?.checked))){if(inp)inp.classList.add('err');document.getElementById(eid)?.classList.add('show');valid=false;}
     else{inp.classList.remove('err');document.getElementById(eid)?.classList.remove('show');}
   });
   if(selRooms.size===0){document.getElementById('rooms-grid').classList.add('err');document.getElementById('e-rooms').classList.add('show');valid=false;}
@@ -1976,7 +2003,7 @@ async function generate(){
   setSt('loading','Generating your invoice PDF...');
 
   const _contribList=contributions.filter(c=>c.label&&parseFloat(c.amount)>0).map(c=>({label:c.label,amount:parseFloat(c.amount)}));
-  const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:document.getElementById('startdate').value,baserooms:[...selRooms].join(', '),baseroom_scopes:roomScopesObj(),extrate,taxrate,base_price:parseFloat(document.getElementById('base_price')?.value)||2500,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,state:captureState(),promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
+  const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:getStartDateValue(),baserooms:[...selRooms].join(', '),baseroom_scopes:roomScopesObj(),extrate,taxrate,base_price:parseFloat(document.getElementById('base_price')?.value)||2500,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,state:captureState(),promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
             promo4:document.getElementById('promo4').checked,payment_url,payment_link_id,contributions:_contribList,payments:splitPayments,active_client_payment_id:activeClientPaymentId,pet_deposit:petDeposit,cosigner:getCosigner(),cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||''};
 
   // Send to API and download PDF
