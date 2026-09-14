@@ -250,6 +250,8 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
 /* Each modal section gets its own accent color + icon so movers/photography/signatures/
    payment/destage read as distinct blocks at a glance while scrolling, instead of a wall of
    identically-styled gray labels. */
+.m-sec[data-sec="pricing"]    { border-left-color:var(--gold-dk); }
+.m-sec[data-sec="pricing"]    .m-sec-ttl { color:var(--gold-dk); }
 .m-sec[data-sec="client"]     { border-left-color:var(--taupe-lt); }
 .m-sec[data-sec="staging"]    { border-left-color:var(--gold); }
 .m-sec[data-sec="staging"]    .m-sec-ttl { color:var(--gold-dk); }
@@ -268,6 +270,19 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
 .m-sec[data-sec="notes"]      { border-left-color:var(--taupe-lt); }
 .m-row { display:flex; align-items:center; justify-content:space-between; padding:8px 0; border-bottom:1px solid rgba(162,156,150,0.05); }
 .m-row:last-child { border-bottom:none; }
+.pricing-sub-hdr { font-size:10px; font-weight:700; color:var(--taupe-dk); text-transform:uppercase; letter-spacing:0.8px; margin:12px 0 6px; }
+.pricing-sub-hdr:first-child { margin-top:0; }
+.pricing-room { padding:4px 0; }
+.pricing-room-name { font-size:13px; color:var(--ink-soft); }
+.pricing-room-scope { font-size:11px; color:var(--taupe); margin:2px 0 4px 14px; line-height:1.4; }
+.pricing-row { display:flex; justify-content:space-between; gap:10px; padding:5px 0; font-size:13px; color:var(--ink-soft); border-bottom:1px solid rgba(162,156,150,0.05); }
+.pricing-row:last-child { border-bottom:none; }
+.pricing-row-desc { flex:1; white-space:pre-wrap; }
+.pricing-row-amt { white-space:nowrap; font-weight:500; }
+.pricing-promo { font-size:12px; color:var(--green); padding:3px 0; }
+.pricing-totals { margin-top:10px; padding-top:8px; border-top:1px solid var(--taupe-lt); }
+.pricing-grand { font-weight:700; color:var(--ink); font-size:14px; }
+.pricing-empty { font-size:12px; color:var(--taupe); font-style:italic; }
 .m-lbl { font-size:13px; color:var(--ink-soft); }
 .m-input { font-family:'Inter',sans-serif; font-size:13px; font-weight:500; color:var(--ink); border:none; border-bottom:1.5px solid var(--taupe-lt); background:transparent; text-align:right; outline:none; padding:2px 4px; min-width:130px; transition:border-color 0.15s; }
 .m-input:focus { border-bottom-color:var(--gold); }
@@ -587,6 +602,13 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
       </div>
     </div>
 
+    <!-- Pricing & Rooms (read-only summary of what's actually in this invoice — pulls
+         straight from the same data that generated the PDF, so it's always in sync) -->
+    <div class="m-sec" data-sec="pricing">
+      <div class="m-sec-ttl">💵 Pricing &amp; Rooms</div>
+      <div id="m-pricing-body"></div>
+    </div>
+
     <!-- Signatures (only shown when a co-signer is configured on this invoice) -->
     <div class="m-sec" data-sec="signatures" id="m-signatures-sec" style="display:none">
       <div class="m-sec-ttl">✍️ Signatures</div>
@@ -902,6 +924,77 @@ function renderConfirmationStatuses(d){
       el.textContent = '';
     }
   });
+}
+
+// Read-only "what's actually in this invoice" summary — pulls straight from the same data
+// object that generated the PDF (base package + rooms, add-ons, promos, contributions, pet
+// deposit, totals), so there's nothing new to keep in sync and no need to download the PDF
+// just to see the pricing breakdown at a glance.
+const PRICING_PROMO_LABELS = {
+  promo1: 'Monthly Special — complimentary staging for Kitchen & all Bathrooms',
+  promo2: 'First-Time Client Bonus — 25 complimentary professional photos',
+  promo3: 'Photography Package — up to 25 professional photos included',
+  promo4: 'Drone Photography — up to 5 aerial photos included',
+};
+function renderPricingSection(inv, d){
+  const body = document.getElementById('m-pricing-body');
+  if(!body) return;
+
+  const base = parseFloat(d.base_price) || 2500;
+  const rooms = (d.baserooms||'').split(',').map(r=>r.trim()).filter(Boolean);
+  const roomScopes = d.baseroom_scopes || {};
+  const addons = d.addons || [];
+  const addonsTotal = addons.reduce((s,a)=>s+(parseFloat(a.price)||0),0);
+  const taxrate = parseFloat(d.taxrate) || 0;
+  const _ov = v => (v!=null && v!=='') ? parseFloat(v) : null;
+  const subOv = _ov(d.subtotal_override), taxOv = _ov(d.tax_override), totOv = _ov(d.total_override);
+  const subtotal = subOv!=null ? subOv : (base + addonsTotal);
+  const tax = taxOv!=null ? taxOv : subtotal*taxrate/100;
+  const grand = totOv!=null ? totOv : subtotal+tax;
+  const contributions = (d.contributions||[]).filter(c=>c.label && parseFloat(c.amount)>0);
+  const contribTotal = contributions.reduce((s,c)=>s+parseFloat(c.amount),0);
+  const petDeposit = d.pet_deposit || {};
+
+  const roomsHtml = rooms.length ? rooms.map(r=>{
+    const scope = roomScopes[r];
+    return `<div class="pricing-room"><div class="pricing-room-name">• ${escapeHtml(r)}</div>${scope?`<div class="pricing-room-scope">${escapeHtml(scope)}</div>`:''}</div>`;
+  }).join('') : '<div class="pricing-empty">No rooms selected</div>';
+
+  const addonsHtml = addons.length ? addons.map(a=>`
+    <div class="pricing-row">
+      <div class="pricing-row-desc">${escapeHtml(a.desc||'')}</div>
+      <div class="pricing-row-amt">${fmtMoney(parseFloat(a.price)||0)}</div>
+    </div>
+  `).join('') : '';
+
+  const activePromos = ['promo1','promo2','promo3','promo4'].filter(k=>d[k]);
+  const promosHtml = activePromos.length ? `
+    <div class="pricing-sub-hdr">Promotions Applied</div>
+    ${activePromos.map(k=>`<div class="pricing-promo">✓ ${escapeHtml(PRICING_PROMO_LABELS[k])}</div>`).join('')}
+  ` : '';
+
+  const contribHtml = contributions.length ? `
+    <div class="pricing-row"><div class="pricing-row-desc">Less: ${escapeHtml(contributions.map(c=>c.label).join(', '))}</div><div class="pricing-row-amt">-${fmtMoney(contribTotal)}</div></div>
+  ` : '';
+
+  const depositHtml = petDeposit.enabled ? `
+    <div class="pricing-sub-hdr">Refundable Pet Deposit</div>
+    <div class="pricing-row"><div class="pricing-row-desc">Billed separately, not taxed${petDeposit.status?' · '+escapeHtml(petDeposit.status):''}</div><div class="pricing-row-amt">${fmtMoney(parseFloat(petDeposit.amount)||0)}</div></div>
+  ` : '';
+
+  body.innerHTML = `
+    <div class="pricing-sub-hdr">Base Package — ${fmtMoney(base)}</div>
+    ${roomsHtml}
+    ${addons.length?`<div class="pricing-sub-hdr">Add-ons</div>${addonsHtml}`:''}
+    ${promosHtml}
+    <div class="pricing-totals">
+      <div class="pricing-row"><div>Subtotal</div><div>${fmtMoney(subtotal)}</div></div>
+      <div class="pricing-row"><div>Tax (${taxrate}%)</div><div>${fmtMoney(tax)}</div></div>
+      ${contribHtml}
+      <div class="pricing-row pricing-grand"><div>${contributions.length?'Balance Due':'Grand Total'}</div><div>${fmtMoney(contributions.length?grand-contribTotal:grand)}</div></div>
+    </div>
+    ${depositHtml}
+  `;
 }
 
 // Shows client + co-signer signing status when this invoice has a co-signer configured,
@@ -1952,6 +2045,7 @@ function realOpenCard(invnum){
   setVal('m-dtime', d.destage_time || '');
 
   renderConfirmationStatuses(d);
+  renderPricingSection(inv, d);
   renderSignaturesSection(inv, d);
   renderPetDepositSection(inv, d);
 
