@@ -118,9 +118,12 @@ td { padding:8px 6px; border-bottom:0.5px solid var(--warm); vertical-align:top;
       <button class="period-btn primary" onclick="runReport()">Run Report</button>
       <button class="period-btn" onclick="exportSummaryCsv()">⬇ Summary CSV</button>
       <button class="period-btn" onclick="exportDetailCsv()">⬇ Invoice Detail CSV</button>
+      <button class="period-btn" id="test-email-btn" onclick="sendTestEmail()">✉ Send Last Month's Report by Email</button>
     </div>
     <div class="disclaimer">
       Basis: <strong>cash</strong> — revenue and tax are attributed to the month payment was actually received, not the invoice date. Only <strong>signed/approved</strong> invoices are included (unsigned quotes and declined proposals are excluded). Styling With Jas invoices only — GS Photography has its own separate numbering and isn't included here. Category tags (Retailing vs. Service &amp; Other) are a best-effort heuristic based on line-item wording, not a certified B&amp;O classification — please have this reviewed before filing. Card processing fees aren't tracked in this app — see your Stripe dashboard for those.
+      <br><br>
+      This report is also emailed automatically to info@stylingwithjas.com on the 1st of every month, covering the month that just ended. The button above triggers that exact same email on demand, for testing.
     </div>
   </div>
 
@@ -487,6 +490,25 @@ function exportDetailCsv(){
     r.received!=null?r.received.toFixed(2):'', r.method, r.showTotalsOnce?'Not tracked':'',
   ]);
   downloadCsv(toCsv(header, rows), `SWJ_Tax_Invoice_Detail_${_lastSummary.period.replace(' ','_')}.csv`);
+}
+
+// Fires the exact same job the monthly cron runs — reports on whatever month just ended,
+// not necessarily the month currently selected above. Useful to confirm the automated
+// email actually works without waiting for the 1st of the month to roll around.
+async function sendTestEmail(){
+  const btn = document.getElementById('test-email-btn');
+  const orig = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Sending…';
+  try{
+    const r = await fetch('/api/webhook?job=monthly_tax_report');
+    const j = await r.json();
+    if(!r.ok) throw new Error(j.error || `Server error ${r.status}`);
+    alert(j.emailed ? `Sent! Check info@stylingwithjas.com for the ${j.period} report.` : `The report ran but the email failed to send — check that EMAIL_PASSWORD is configured.`);
+  }catch(e){
+    alert('Could not send the test email: '+e.message);
+  }finally{
+    btn.disabled = false; btn.textContent = orig;
+  }
 }
 
 document.addEventListener('DOMContentLoaded', ()=>{
