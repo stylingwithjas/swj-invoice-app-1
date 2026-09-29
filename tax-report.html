@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="/auth.js"></script>
+<meta charset="UTF-8">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="SWJ">
+<meta name="theme-color" content="#1a1814">
+<link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="512x512" href="/assets/icon-512.png">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>SWJ — Tax Report</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+:root {
+  --ink:        #1a1814;
+  --ink-soft:   #3d3830;
+  --cream:      #f5f2ed;
+  --warm:       #faf8f5;
+  --taupe:      #a29c96;
+  --taupe-lt:   #d4cfc9;
+  --taupe-dk:   #7a6f69;
+  --gold:       #c9a96e;
+  --gold-lt:    #f5ead8;
+  --gold-dk:    #9d7a44;
+  --green:      #4a7c50;
+  --green-lt:   #edf4ed;
+  --amber:      #c97c2e;
+  --amber-lt:   #fdf0e0;
+  --red:        #b53535;
+  --red-lt:     #fef0f0;
+}
+
+body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); color:var(--ink); min-height:100vh; }
+
+.hdr { background:var(--ink); position:sticky; top:0; z-index:60; }
+.hdr-top { display:flex; align-items:center; justify-content:space-between; padding:14px 20px 10px; flex-wrap:wrap; gap:10px; }
+.brand { display:flex; align-items:baseline; gap:10px; }
+.brand-name { font-family:'Cormorant Garamond',serif; font-size:24px; font-weight:300; color:#fff; letter-spacing:4px; }
+.brand-sep { width:1px; height:16px; background:rgba(255,255,255,0.18); }
+.brand-sub { font-size:10px; color:rgba(255,255,255,0.35); letter-spacing:2.5px; text-transform:uppercase; }
+.nav-sw { display:flex; gap:2px; background:rgba(255,255,255,0.07); border-radius:20px; padding:3px; flex-wrap:wrap; }
+.nav-btn { padding:5px 14px; border-radius:16px; border:none; font-size:11px; font-weight:500; cursor:pointer; font-family:'Inter',sans-serif; transition:all 0.18s; }
+.nav-btn.on { background:#fff; color:var(--ink); }
+.nav-btn.off { background:transparent; color:rgba(255,255,255,0.4); }
+
+.wrap { max-width:1100px; margin:0 auto; padding:20px; }
+.card { background:#fff; border:0.5px solid var(--taupe-lt); border-radius:14px; padding:18px 20px; margin-bottom:18px; }
+.card-hdr { font-size:11px; font-weight:600; color:var(--taupe-dk); text-transform:uppercase; letter-spacing:1.2px; margin-bottom:14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; }
+
+.period-row { display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; }
+.period-field { display:flex; flex-direction:column; gap:4px; }
+.period-field label { font-size:10px; color:var(--taupe-dk); text-transform:uppercase; letter-spacing:0.6px; }
+.period-field select, .period-field input { padding:8px 10px; border:0.5px solid var(--taupe-lt); border-radius:8px; font-size:13px; font-family:inherit; }
+.period-btn { padding:8px 14px; border:0.5px solid var(--taupe-lt); border-radius:8px; background:var(--warm); font-size:13px; cursor:pointer; }
+.period-btn.primary { background:var(--ink); color:#fff; border:none; }
+
+.disclaimer { font-size:10.5px; color:var(--taupe-dk); line-height:1.6; background:var(--warm); border-radius:8px; padding:10px 12px; margin-top:12px; }
+
+.stat-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:14px; margin-top:6px; }
+.stat-item .lbl { font-size:10px; color:var(--taupe-dk); text-transform:uppercase; letter-spacing:0.6px; }
+.stat-item .val { font-family:'Cormorant Garamond',serif; font-size:24px; margin-top:2px; }
+
+table { width:100%; border-collapse:collapse; font-size:12.5px; margin-top:6px; }
+th { text-align:left; font-size:9.5px; color:var(--taupe-dk); text-transform:uppercase; letter-spacing:0.5px; padding:7px 6px; border-bottom:1px solid var(--taupe-lt); white-space:nowrap; }
+td { padding:8px 6px; border-bottom:0.5px solid var(--warm); vertical-align:top; }
+.tbl-scroll { overflow-x:auto; }
+.sub-hdr { font-size:11px; font-weight:700; color:var(--taupe-dk); text-transform:uppercase; letter-spacing:0.6px; margin:14px 0 6px; }
+.sub-hdr:first-child { margin-top:0; }
+.empty-note { color:var(--taupe); font-size:13px; padding:20px 0; text-align:center; }
+.pill { font-size:9.5px; font-weight:600; padding:2px 7px; border-radius:10px; white-space:nowrap; }
+.pill.retailing { background:var(--gold-lt); color:var(--gold-dk); }
+.pill.service { background:#edf0f6; color:#4a5e82; }
+.flag { color:var(--red); font-weight:600; }
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <div class="hdr-top">
+    <div class="brand">
+      <div class="brand-name">SWJ</div>
+      <div class="brand-sep"></div>
+      <div class="brand-sub">Tax Report</div>
+    </div>
+    <div class="nav-sw">
+      <button class="nav-btn off" onclick="window.location.href='/today.html'">Today</button>
+      <button class="nav-btn off" onclick="window.location.href='/board.html'">Board</button>
+      <button class="nav-btn off" onclick="window.location.href='/shop.html'">Shop</button>
+      <button class="nav-btn off" onclick="window.location.href='/index.html'">Invoice</button>
+      <button class="nav-btn off" onclick="window.location.href='/luxury.html'">Luxury</button>
+      <button class="nav-btn off" onclick="window.location.href='/gs-invoice.html'">GS</button>
+      <button class="nav-btn off" onclick="window.location.href='/payroll.html'">Payroll</button>
+      <button class="nav-btn off" onclick="window.location.href='/archive.html'">Archive</button>
+      <button class="nav-btn on">Tax Report</button>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <div class="card">
+    <div class="card-hdr">Reporting Period</div>
+    <div class="period-row">
+      <div class="period-field">
+        <label>Month</label>
+        <select id="f-month"></select>
+      </div>
+      <div class="period-field">
+        <label>Year</label>
+        <select id="f-year"></select>
+      </div>
+      <button class="period-btn primary" onclick="runReport()">Run Report</button>
+      <button class="period-btn" onclick="exportSummaryCsv()">⬇ Summary CSV</button>
+      <button class="period-btn" onclick="exportDetailCsv()">⬇ Invoice Detail CSV</button>
+    </div>
+    <div class="disclaimer">
+      Basis: <strong>cash</strong> — revenue and tax are attributed to the month payment was actually received, not the invoice date. Only <strong>signed/approved</strong> invoices are included (unsigned quotes and declined proposals are excluded). Styling With Jas invoices only — GS Photography has its own separate numbering and isn't included here. Category tags (Retailing vs. Service &amp; Other) are a best-effort heuristic based on line-item wording, not a certified B&amp;O classification — please have this reviewed before filing. Card processing fees aren't tracked in this app — see your Stripe dashboard for those.
+    </div>
+  </div>
+
+  <div class="card" id="summary-card" style="display:none">
+    <div class="card-hdr">Monthly Summary — <span id="summary-period"></span></div>
+    <div class="stat-grid">
+      <div class="stat-item"><div class="lbl">Gross Receipts</div><div class="val" id="s-gross">$0</div></div>
+      <div class="stat-item"><div class="lbl">Sales Tax Collected</div><div class="val" id="s-tax">$0</div></div>
+      <div class="stat-item"><div class="lbl">Retailing (Rental)</div><div class="val" id="s-retail">$0</div></div>
+      <div class="stat-item"><div class="lbl">Service &amp; Other</div><div class="val" id="s-service">$0</div></div>
+    </div>
+
+    <div class="sub-hdr">Sales Tax Collected by City</div>
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr><th>City</th><th>Rate(s)</th><th>Taxable Sales</th><th>Tax Collected</th></tr></thead>
+        <tbody id="city-body"></tbody>
+      </table>
+      <div class="empty-note" id="city-empty" style="display:none">No receipts this period.</div>
+    </div>
+
+    <div class="sub-hdr">Exempt Sales</div>
+    <div id="exempt-note" class="empty-note" style="padding:10px 0">None this period — no exemption-tracking exists in the system yet.</div>
+
+    <div id="unparsed-note" style="display:none" class="disclaimer" style="margin-top:14px"></div>
+  </div>
+
+  <div class="card" id="detail-card" style="display:none">
+    <div class="card-hdr">Invoice Detail — invoices with a payment received this period</div>
+    <div class="tbl-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Invoice #</th><th>Inv. Date</th><th>Due Date</th><th>Customer</th><th>City</th><th>Zip</th>
+            <th>Line Item</th><th>Category</th><th>Item Amt</th><th>Taxable</th><th>Exemption</th>
+            <th>Tax Rate</th><th>Tax Total</th><th>Subtotal</th><th>Grand Total</th>
+            <th>Received This Period</th><th>Payment Method</th><th>Processing Fee</th>
+          </tr>
+        </thead>
+        <tbody id="detail-body"></tbody>
+      </table>
+      <div class="empty-note" id="detail-empty" style="display:none">No invoices with activity this period.</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const _sb = supabase.createClient(
+  'https://cwvdfgrjlrpsdfwduwvn.supabase.co',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN3dmRmZ3JqbHJwc2Rmd2R1d3ZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwMDcyODUsImV4cCI6MjA5MzU4MzI4NX0.zam9AnIwW91TI6eCKUcg05LhvFcRa7op4QsjRpdcrCY'
+);
+
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function fmtMoney(n){return '$'+Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function pad2(n){return String(n).padStart(2,'0');}
+
+function initPeriodPickers(){
+  const mSel = document.getElementById('f-month');
+  const ySel = document.getElementById('f-year');
+  MONTHS.forEach((m,i)=>{
+    const opt = document.createElement('option'); opt.value=i+1; opt.textContent=m; mSel.appendChild(opt);
+  });
+  const now = new Date();
+  const thisYear = now.getFullYear();
+  for(let y=thisYear; y>=thisYear-5; y--){
+    const opt = document.createElement('option'); opt.value=y; opt.textContent=y; ySel.appendChild(opt);
+  }
+  // Default to last month (the month most likely being filed for right now)
+  const last = new Date(now.getFullYear(), now.getMonth()-1, 1);
+  mSel.value = last.getMonth()+1;
+  ySel.value = last.getFullYear();
+}
+
+// Best-effort city extraction from a free-text address like "5015 128th St E, Tacoma, WA 98446" —
+// there's no structured city field anywhere in the app, so this is a heuristic, not a guarantee.
+// Returns {city, zip, ok} — ok:false means it couldn't confidently parse and should be reviewed.
+function parseAddress(address){
+  const addr = (address||'').trim();
+  if(!addr) return {city:'', zip:'', ok:false};
+  const zipMatch = addr.match(/\b(\d{5})(-\d{4})?\b/);
+  const zip = zipMatch ? zipMatch[1] : '';
+  const cityMatch = addr.match(/,\s*([A-Za-z .'-]+?)[, ]+WA\b/i);
+  if(cityMatch) return {city:cityMatch[1].trim(), zip, ok:true};
+  // Fallback: "Street, City" with no state/zip captured on the same segment
+  const parts = addr.split(',').map(s=>s.trim()).filter(Boolean);
+  if(parts.length>=2) return {city:parts[1].replace(/\s+WA.*$/i,'').trim(), zip, ok: !!zip};
+  return {city:'', zip, ok:false};
+}
+
+// Heuristic B&O category per line item — NOT a certified classification. Everything defaults
+// to Retailing (furniture rental, the core of this business) except line items that read like
+// a pure service (photography, consulting, etc.).
+function categorize(desc){
+  const s = (desc||'').toLowerCase();
+  if(s.includes('photo') || s.includes('consult') || s.includes('design fee')) return 'service';
+  return 'retailing';
+}
+
+function computeGrand(d){
+  const _ov=v=>(v!=null&&v!=='')?parseFloat(v):null;
+  const tot=_ov(d.total_override); if(tot!=null) return tot;
+  const base = parseFloat(d.base_price) || 2500;
+  const addonsTotal = (d.addons||[]).reduce((s,a)=>s+(parseFloat(a.price)||0),0);
+  const taxrate = parseFloat(d.taxrate) || 0;
+  const sub=_ov(d.subtotal_override); const subEff=sub!=null?sub:(base+addonsTotal);
+  const tax=_ov(d.tax_override); const taxEff=tax!=null?tax:subEff*taxrate/100;
+  return subEff+taxEff;
+}
+function computeSubtotal(d){
+  const _ov=v=>(v!=null&&v!=='')?parseFloat(v):null;
+  const base = parseFloat(d.base_price) || 2500;
+  const addonsTotal = (d.addons||[]).reduce((s,a)=>s+(parseFloat(a.price)||0),0);
+  const sub=_ov(d.subtotal_override);
+  return sub!=null?sub:(base+addonsTotal);
+}
+function computeTax(d){
+  const _ov=v=>(v!=null&&v!=='')?parseFloat(v):null;
+  const taxOv=_ov(d.tax_override); if(taxOv!=null) return taxOv;
+  const subtotal = computeSubtotal(d);
+  const taxrate = parseFloat(d.taxrate) || 0;
+  return subtotal*taxrate/100;
+}
+
+// Due date = 48 hours before staging (matches the standard contract terms). Blank when the
+// start date itself is TBD.
+function computeDueDate(d){
+  if(!d.startdate || d.startdate==='TBD') return 'TBD';
+  const sd = new Date(d.startdate+'T00:00:00');
+  sd.setDate(sd.getDate()-2);
+  return sd.toISOString().split('T')[0];
+}
+
+// Every payment EVENT for this invoice that actually cleared, each tagged with the date it
+// was received — this is what cash-basis reporting keys off of, not the invoice date.
+function paymentEvents(d){
+  const events = [];
+  const splits = d.payments || [];
+  if(splits.length){
+    splits.filter(p=>p.status==='paid' && p.paid_date).forEach(p=>{
+      events.push({
+        date: p.paid_date,
+        amount: parseFloat(p.amount)||0,
+        method: p.payment_id ? 'Stripe (Card)' : 'Other/Manual',
+        label: p.label || 'Payment',
+      });
+    });
+  } else if(d.paid && d.paid_date){
+    events.push({
+      date: d.paid_date,
+      amount: parseFloat(d.amount_paid ?? d.stripe_amount ?? computeGrand(d)) || 0,
+      method: d.stripe_payment_id ? 'Stripe (Card)' : 'Other/Manual',
+      label: 'Full Payment',
+    });
+  }
+  return events;
+}
+
+let _lastSummary = null, _lastDetail = null;
+
+async function runReport(){
+  const month = parseInt(document.getElementById('f-month').value, 10);
+  const year = parseInt(document.getElementById('f-year').value, 10);
+  const periodStart = `${year}-${pad2(month)}-01`;
+  const lastDay = new Date(year, month, 0).getDate();
+  const periodEnd = `${year}-${pad2(month)}-${pad2(lastDay)}`;
+  document.getElementById('summary-period').textContent = `${MONTHS[month-1]} ${year}`;
+
+  let invoices = [];
+  try{
+    const {data,error} = await _sb.from('invoices').select('invnum,client,address,invdate,data')
+      .not('invnum','like','DRAFT-%').not('invnum','like','GS%')
+      .order('created_at',{ascending:false}).limit(1000);
+    if(error) throw error;
+    invoices = (data||[]).filter(inv => (inv.data||{}).signed === true);
+  }catch(e){
+    alert('Could not load invoices: '+e.message);
+    return;
+  }
+
+  // City -> {rates:Set, taxable:0, tax:0}
+  const cityMap = {};
+  let grossReceipts = 0, taxCollected = 0, retailTotal = 0, serviceTotal = 0;
+  const detailRows = [];
+  const unparsedAddrs = [];
+
+  invoices.forEach(inv=>{
+    const d = inv.data || {};
+    const events = paymentEvents(d).filter(e => e.date >= periodStart && e.date <= periodEnd);
+    if(!events.length) return;
+
+    const grand = computeGrand(d);
+    const taxTotal = computeTax(d);
+    const subtotal = computeSubtotal(d);
+    const taxRate = parseFloat(d.taxrate) || 0;
+    const taxFraction = grand > 0.009 ? taxTotal/grand : 0;
+
+    const {city, zip, ok} = parseAddress(inv.address || d.address || '');
+    if(!ok) unparsedAddrs.push(`#${inv.invnum} — ${inv.address||d.address||'(no address)'}`);
+    const cityKey = city || '(Unparsed)';
+
+    const periodReceived = events.reduce((s,e)=>s+e.amount,0);
+    const periodTax = periodReceived * taxFraction;
+    grossReceipts += periodReceived;
+    taxCollected += periodTax;
+
+    if(!cityMap[cityKey]) cityMap[cityKey] = {rates:new Set(), taxable:0, tax:0};
+    cityMap[cityKey].rates.add(taxRate.toFixed(2)+'%');
+    cityMap[cityKey].taxable += (periodReceived - periodTax);
+    cityMap[cityKey].tax += periodTax;
+
+    // B&O split (Retailing vs Service & Other), proportional to how this invoice's own
+    // subtotal breaks down, applied to what was actually received this period (net of tax).
+    const base = parseFloat(d.base_price) || 2500;
+    const addons = d.addons || [];
+    let svc = 0, ret = base;
+    addons.forEach(a=>{ const amt=parseFloat(a.price)||0; if(categorize(a.desc)==='service') svc+=amt; else ret+=amt; });
+    const lineTotal = svc+ret;
+    const svcFraction = lineTotal>0 ? svc/lineTotal : 0;
+    const netReceived = periodReceived - periodTax;
+    serviceTotal += netReceived*svcFraction;
+    retailTotal += netReceived*(1-svcFraction);
+
+    const client = inv.client || d.client || 'Client';
+    const dueDate = computeDueDate(d);
+    const methods = [...new Set(events.map(e=>e.method))].join(', ');
+
+    const lineItems = [
+      { desc: `Base Package (${(d.baserooms||'').split(',').filter(Boolean).length || 0} rooms)`, price: base },
+      ...addons.map(a=>({desc:a.desc||'', price:parseFloat(a.price)||0})),
+    ];
+    lineItems.forEach((li,i)=>{
+      detailRows.push({
+        invnum: inv.invnum, invdate: d.invdate||inv.invdate||'', dueDate, client, city, zip,
+        desc: li.desc, category: categorize(li.desc), amount: li.price, taxable: 'Yes', exemption: '',
+        taxRate, taxTotal, subtotal, grand,
+        received: i===0?periodReceived:null, method: i===0?methods:'',
+        showTotalsOnce: i===0,
+      });
+    });
+    if(d.pet_deposit && d.pet_deposit.enabled){
+      detailRows.push({
+        invnum: inv.invnum, invdate: d.invdate||inv.invdate||'', dueDate, client, city, zip,
+        desc: 'Refundable Pet Deposit', category: 'deposit (not revenue)', amount: parseFloat(d.pet_deposit.amount)||0,
+        taxable: 'No', exemption: 'Refundable deposit — not a sale',
+        taxRate: 0, taxTotal: 0, subtotal: 0, grand: 0, received: null, method: '', showTotalsOnce:false,
+      });
+    }
+  });
+
+  _lastSummary = {
+    period: `${MONTHS[month-1]} ${year}`, grossReceipts, taxCollected, retailTotal, serviceTotal,
+    cityMap, unparsedAddrs,
+  };
+  _lastDetail = detailRows;
+
+  renderSummary();
+  renderDetail();
+}
+
+function renderSummary(){
+  const s = _lastSummary;
+  document.getElementById('summary-card').style.display = 'block';
+  document.getElementById('s-gross').textContent = fmtMoney(s.grossReceipts);
+  document.getElementById('s-tax').textContent = fmtMoney(s.taxCollected);
+  document.getElementById('s-retail').textContent = fmtMoney(s.retailTotal);
+  document.getElementById('s-service').textContent = fmtMoney(s.serviceTotal);
+
+  const cities = Object.keys(s.cityMap).sort();
+  const cityBody = document.getElementById('city-body');
+  const cityEmpty = document.getElementById('city-empty');
+  if(!cities.length){
+    cityBody.innerHTML = ''; cityEmpty.style.display = 'block';
+  } else {
+    cityEmpty.style.display = 'none';
+    cityBody.innerHTML = cities.map(c=>{
+      const row = s.cityMap[c];
+      return `<tr>
+        <td>${esc(c)}${c==='(Unparsed)'?' <span class="flag">⚠</span>':''}</td>
+        <td>${esc([...row.rates].join(', '))}</td>
+        <td>${fmtMoney(row.taxable)}</td>
+        <td>${fmtMoney(row.tax)}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  const unparsedNote = document.getElementById('unparsed-note');
+  if(s.unparsedAddrs.length){
+    unparsedNote.style.display = 'block';
+    unparsedNote.innerHTML = `<strong>⚠ ${s.unparsedAddrs.length} address(es) couldn't be confidently parsed for city</strong> — grouped under "(Unparsed)" above. Please review and correct manually:<br>${s.unparsedAddrs.map(esc).join('<br>')}`;
+  } else {
+    unparsedNote.style.display = 'none';
+  }
+}
+
+function renderDetail(){
+  const rows = _lastDetail;
+  document.getElementById('detail-card').style.display = 'block';
+  const body = document.getElementById('detail-body');
+  const empty = document.getElementById('detail-empty');
+  if(!rows.length){
+    body.innerHTML = ''; empty.style.display = 'block'; return;
+  }
+  empty.style.display = 'none';
+  body.innerHTML = rows.map(r=>`
+    <tr>
+      <td>#${esc(r.invnum)}</td>
+      <td>${esc(r.invdate)}</td>
+      <td>${esc(r.dueDate)}</td>
+      <td>${esc(r.client)}</td>
+      <td>${esc(r.city)||'<span class="flag">?</span>'}</td>
+      <td>${esc(r.zip)}</td>
+      <td>${esc(r.desc)}</td>
+      <td><span class="pill ${r.category==='service'?'service':(r.category.startsWith('deposit')?'':'retailing')}">${esc(r.category)}</span></td>
+      <td>${fmtMoney(r.amount)}</td>
+      <td>${esc(r.taxable)}</td>
+      <td>${esc(r.exemption)}</td>
+      <td>${r.showTotalsOnce?r.taxRate.toFixed(2)+'%':''}</td>
+      <td>${r.showTotalsOnce?fmtMoney(r.taxTotal):''}</td>
+      <td>${r.showTotalsOnce?fmtMoney(r.subtotal):''}</td>
+      <td>${r.showTotalsOnce?fmtMoney(r.grand):''}</td>
+      <td>${r.received!=null?fmtMoney(r.received):''}</td>
+      <td>${esc(r.method)}</td>
+      <td>${r.showTotalsOnce?'Not tracked':''}</td>
+    </tr>
+  `).join('');
+}
+
+function toCsv(header, rows){
+  return [header, ...rows].map(r=>r.map(v=>`"${String(v==null?'':v).replace(/"/g,'""')}"`).join(',')).join('\r\n');
+}
+function downloadCsv(csv, filename){
+  const blob = new Blob([csv], {type:'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url), 30000);
+}
+
+function exportSummaryCsv(){
+  if(!_lastSummary){ alert('Run the report first.'); return; }
+  const s = _lastSummary;
+  const header = ['City','Tax Rate(s)','Taxable Sales','Tax Collected'];
+  const rows = Object.keys(s.cityMap).sort().map(c=>[c, [...s.cityMap[c].rates].join('; '), s.cityMap[c].taxable.toFixed(2), s.cityMap[c].tax.toFixed(2)]);
+  rows.push([]);
+  rows.push(['Period', s.period]);
+  rows.push(['Gross Receipts', s.grossReceipts.toFixed(2)]);
+  rows.push(['Total Sales Tax Collected', s.taxCollected.toFixed(2)]);
+  rows.push(['Retailing (Rental) Receipts', s.retailTotal.toFixed(2)]);
+  rows.push(['Service & Other Receipts', s.serviceTotal.toFixed(2)]);
+  rows.push(['Exempt Sales', 'None this period']);
+  downloadCsv(toCsv(header, rows), `SWJ_Tax_Summary_${s.period.replace(' ','_')}.csv`);
+}
+
+function exportDetailCsv(){
+  if(!_lastDetail){ alert('Run the report first.'); return; }
+  const header = ['Invoice #','Invoice Date','Due Date','Customer','City','Zip','Line Item','Category','Item Amount','Taxable','Exemption Reason','Tax Rate','Invoice Tax Total','Invoice Subtotal','Invoice Grand Total','Received This Period','Payment Method','Processing Fee'];
+  const rows = _lastDetail.map(r=>[
+    r.invnum, r.invdate, r.dueDate, r.client, r.city, r.zip, r.desc, r.category, r.amount.toFixed(2), r.taxable, r.exemption,
+    r.showTotalsOnce?r.taxRate.toFixed(2)+'%':'', r.showTotalsOnce?r.taxTotal.toFixed(2):'', r.showTotalsOnce?r.subtotal.toFixed(2):'', r.showTotalsOnce?r.grand.toFixed(2):'',
+    r.received!=null?r.received.toFixed(2):'', r.method, r.showTotalsOnce?'Not tracked':'',
+  ]);
+  downloadCsv(toCsv(header, rows), `SWJ_Tax_Invoice_Detail_${_lastSummary.period.replace(' ','_')}.csv`);
+}
+
+document.addEventListener('DOMContentLoaded', ()=>{
+  initPeriodPickers();
+  runReport();
+});
+</script>
+</body>
+</html>
