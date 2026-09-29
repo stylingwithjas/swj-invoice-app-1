@@ -49,6 +49,7 @@
     { "source": "/((?!api/).*)", "destination": "/today.html" }
   ],
   "crons": [
-    { "path": "/api/webhook", "schedule": "0 15 * * *" }
+    { "path": "/api/webhook", "schedule": "0 15 * * *" },
+    { "path": "/api/webhook?job=monthly_tax_report", "schedule": "0 15 1 * *" }
   ]
 }

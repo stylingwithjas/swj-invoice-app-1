@@ -19,6 +19,9 @@ Required env vars (all already set in Vercel):
 import json
 import os
 import re
+import csv
+import io
+import calendar
 import hashlib
 import hmac
 import smtplib
@@ -705,6 +708,302 @@ def get_client_email_from_stripe(payment_intent_id):
 
 
 # ════════════════════════════════════════════════════════════════
+# MONTHLY TAX REPORT (Vercel Cron — see vercel.json)
+# ════════════════════════════════════════════════════════════════
+# Fires on the 1st of each month and emails Jasmine the prior month's report as two CSV
+# attachments. This is a server-side Python port of tax-report.html's client-side JS — kept
+# as faithful to it as possible, but it IS a separate copy (same tradeoff as index.html vs.
+# luxury.html elsewhere in this app), so a change to one should be mirrored in the other.
+
+MONTH_NAMES = ['January','February','March','April','May','June','July','August',
+               'September','October','November','December']
+
+
+def _tax_ov(v):
+    return float(v) if v not in (None, '') else None
+
+
+def tax_compute_subtotal(d):
+    base = float(d.get('base_price', 2500) or 2500)
+    addons_total = sum(float(a.get('price', 0) or 0) for a in (d.get('addons') or []))
+    sub_ov = _tax_ov(d.get('subtotal_override'))
+    return sub_ov if sub_ov is not None else (base + addons_total)
+
+
+def tax_compute_tax(d):
+    tax_ov = _tax_ov(d.get('tax_override'))
+    if tax_ov is not None:
+        return tax_ov
+    subtotal = tax_compute_subtotal(d)
+    taxrate = float(d.get('taxrate', 0) or 0)
+    return subtotal * taxrate / 100
+
+
+def tax_compute_grand(d):
+    tot_ov = _tax_ov(d.get('total_override'))
+    if tot_ov is not None:
+        return tot_ov
+    return tax_compute_subtotal(d) + tax_compute_tax(d)
+
+
+def tax_compute_due_date(d):
+    startdate = d.get('startdate')
+    if not startdate or startdate == 'TBD':
+        return 'TBD'
+    try:
+        sd = datetime.datetime.strptime(startdate, '%Y-%m-%d') - datetime.timedelta(days=2)
+        return sd.strftime('%Y-%m-%d')
+    except Exception:
+        return 'TBD'
+
+
+# Same best-effort regex approach as the client-side version — no structured city field
+# exists anywhere in this app, so this is a heuristic, not a guarantee. ok=False means it
+# should be reviewed by hand rather than trusted.
+def tax_parse_address(address):
+    addr = (address or '').strip()
+    if not addr:
+        return {'city': '', 'zip': '', 'ok': False}
+    zip_match = re.search(r'\b(\d{5})(-\d{4})?\b', addr)
+    zip_code = zip_match.group(1) if zip_match else ''
+    city_match = re.search(r",\s*([A-Za-z .'-]+?)[, ]+WA\b", addr, re.IGNORECASE)
+    if city_match:
+        return {'city': city_match.group(1).strip(), 'zip': zip_code, 'ok': True}
+    parts = [p.strip() for p in addr.split(',') if p.strip()]
+    if len(parts) >= 2:
+        city = re.sub(r'\s+WA.*$', '', parts[1], flags=re.IGNORECASE).strip()
+        return {'city': city, 'zip': zip_code, 'ok': bool(zip_code)}
+    return {'city': '', 'zip': zip_code, 'ok': False}
+
+
+def tax_categorize(desc):
+    s = (desc or '').lower()
+    if 'photo' in s or 'consult' in s or 'design fee' in s:
+        return 'service'
+    return 'retailing'
+
+
+def tax_payment_events(d):
+    """Every payment EVENT that actually cleared, each tagged with the date received —
+    cash-basis reporting keys off this, not the invoice date."""
+    events = []
+    splits = d.get('payments') or []
+    if splits:
+        for p in splits:
+            if p.get('status') == 'paid' and p.get('paid_date'):
+                events.append({
+                    'date': p['paid_date'],
+                    'amount': float(p.get('amount', 0) or 0),
+                    'method': 'Stripe (Card)' if p.get('payment_id') else 'Other/Manual',
+                })
+    elif d.get('paid') and d.get('paid_date'):
+        amount = d.get('amount_paid')
+        if amount is None:
+            amount = d.get('stripe_amount')
+        if amount is None:
+            amount = tax_compute_grand(d)
+        events.append({
+            'date': d['paid_date'],
+            'amount': float(amount or 0),
+            'method': 'Stripe (Card)' if d.get('stripe_payment_id') else 'Other/Manual',
+        })
+    return events
+
+
+def _tax_list_signed_invoices():
+    key = os.environ.get('SUPABASE_KEY', '')
+    req = urllib.request.Request(
+        f'{SUPABASE_URL}/rest/v1/invoices?select=invnum,client,address,data&order=created_at.desc&limit=1000',
+        headers={'apikey': key, 'Authorization': f'Bearer {key}'}
+    )
+    with urllib.request.urlopen(req, timeout=20) as r:
+        invoices = json.loads(r.read())
+    out = []
+    for inv in invoices:
+        invnum = str(inv.get('invnum', ''))
+        if invnum.startswith('DRAFT-') or invnum.startswith('GS'):
+            continue
+        if (inv.get('data') or {}).get('signed') is True:
+            out.append(inv)
+    return out
+
+
+def build_monthly_tax_report(year, month):
+    """Returns (summary_csv_bytes, detail_csv_bytes, stats_dict) for the given year/month,
+    same cash-basis / signed-only / SWJ-only rules as tax-report.html."""
+    period_start = f'{year:04d}-{month:02d}-01'
+    last_day = calendar.monthrange(year, month)[1]
+    period_end = f'{year:04d}-{month:02d}-{last_day:02d}'
+    period_label = f'{MONTH_NAMES[month-1]} {year}'
+
+    invoices = _tax_list_signed_invoices()
+
+    city_map = {}  # city -> {rates:set, taxable:float, tax:float}
+    gross_receipts = tax_collected = retail_total = service_total = 0.0
+    detail_rows = []
+    unparsed = []
+
+    for inv in invoices:
+        d = inv.get('data') or {}
+        events = [e for e in tax_payment_events(d) if period_start <= e['date'] <= period_end]
+        if not events:
+            continue
+
+        grand = tax_compute_grand(d)
+        tax_total = tax_compute_tax(d)
+        subtotal = tax_compute_subtotal(d)
+        tax_rate = float(d.get('taxrate', 0) or 0)
+        tax_fraction = (tax_total / grand) if grand > 0.009 else 0.0
+
+        addr = inv.get('address') or d.get('address') or ''
+        parsed = tax_parse_address(addr)
+        city_key = parsed['city'] or '(Unparsed)'
+        if not parsed['ok']:
+            unparsed.append(f"#{inv.get('invnum')} — {addr or '(no address)'}")
+
+        period_received = sum(e['amount'] for e in events)
+        period_tax = period_received * tax_fraction
+        gross_receipts += period_received
+        tax_collected += period_tax
+
+        bucket = city_map.setdefault(city_key, {'rates': set(), 'taxable': 0.0, 'tax': 0.0})
+        bucket['rates'].add(f'{tax_rate:.2f}%')
+        bucket['taxable'] += (period_received - period_tax)
+        bucket['tax'] += period_tax
+
+        base = float(d.get('base_price', 2500) or 2500)
+        addons = d.get('addons') or []
+        svc = 0.0
+        ret = base
+        for a in addons:
+            amt = float(a.get('price', 0) or 0)
+            if tax_categorize(a.get('desc')) == 'service':
+                svc += amt
+            else:
+                ret += amt
+        line_total = svc + ret
+        svc_fraction = (svc / line_total) if line_total > 0 else 0.0
+        net_received = period_received - period_tax
+        service_total += net_received * svc_fraction
+        retail_total += net_received * (1 - svc_fraction)
+
+        client = inv.get('client') or d.get('client') or 'Client'
+        due_date = tax_compute_due_date(d)
+        methods = ', '.join(sorted(set(e['method'] for e in events)))
+        rooms_n = len([r for r in (d.get('baserooms') or '').split(',') if r.strip()])
+
+        line_items = [{'desc': f'Base Package ({rooms_n} rooms)', 'price': base}]
+        line_items += [{'desc': a.get('desc', ''), 'price': float(a.get('price', 0) or 0)} for a in addons]
+
+        for i, li in enumerate(line_items):
+            detail_rows.append([
+                inv.get('invnum'), d.get('invdate', inv.get('invdate', '')), due_date, client,
+                parsed['city'], parsed['zip'], li['desc'], tax_categorize(li['desc']),
+                f"{li['price']:.2f}", 'Yes', '',
+                f'{tax_rate:.2f}%' if i == 0 else '', f'{tax_total:.2f}' if i == 0 else '',
+                f'{subtotal:.2f}' if i == 0 else '', f'{grand:.2f}' if i == 0 else '',
+                f'{period_received:.2f}' if i == 0 else '', methods if i == 0 else '',
+                'Not tracked' if i == 0 else '',
+            ])
+
+        pet_deposit = d.get('pet_deposit') or {}
+        if pet_deposit.get('enabled'):
+            detail_rows.append([
+                inv.get('invnum'), d.get('invdate', inv.get('invdate', '')), due_date, client,
+                parsed['city'], parsed['zip'], 'Refundable Pet Deposit', 'deposit (not revenue)',
+                f"{float(pet_deposit.get('amount', 0) or 0):.2f}", 'No', 'Refundable deposit — not a sale',
+                '', '', '', '', '', '', '',
+            ])
+
+    # Summary CSV
+    summary_buf = io.StringIO()
+    w = csv.writer(summary_buf)
+    w.writerow(['City', 'Tax Rate(s)', 'Taxable Sales', 'Tax Collected'])
+    for city in sorted(city_map.keys()):
+        b = city_map[city]
+        w.writerow([city, '; '.join(sorted(b['rates'])), f"{b['taxable']:.2f}", f"{b['tax']:.2f}"])
+    w.writerow([])
+    w.writerow(['Period', period_label])
+    w.writerow(['Gross Receipts', f'{gross_receipts:.2f}'])
+    w.writerow(['Total Sales Tax Collected', f'{tax_collected:.2f}'])
+    w.writerow(['Retailing (Rental) Receipts', f'{retail_total:.2f}'])
+    w.writerow(['Service & Other Receipts', f'{service_total:.2f}'])
+    w.writerow(['Exempt Sales', 'None this period'])
+
+    # Detail CSV
+    detail_buf = io.StringIO()
+    w2 = csv.writer(detail_buf)
+    w2.writerow(['Invoice #', 'Invoice Date', 'Due Date', 'Customer', 'City', 'Zip', 'Line Item',
+                 'Category', 'Item Amount', 'Taxable', 'Exemption Reason', 'Tax Rate',
+                 'Invoice Tax Total', 'Invoice Subtotal', 'Invoice Grand Total',
+                 'Received This Period', 'Payment Method', 'Processing Fee'])
+    w2.writerows(detail_rows)
+
+    stats = {
+        'period_label': period_label, 'gross_receipts': gross_receipts, 'tax_collected': tax_collected,
+        'retail_total': retail_total, 'service_total': service_total,
+        'invoice_count': len({r[0] for r in detail_rows}), 'unparsed': unparsed,
+    }
+    return summary_buf.getvalue().encode(), detail_buf.getvalue().encode(), stats
+
+
+def send_monthly_tax_report_email(summary_csv, detail_csv, stats):
+    password = os.environ.get('EMAIL_PASSWORD', '')
+    if not password:
+        print('[tax_report] EMAIL_PASSWORD not set')
+        return False
+    try:
+        msg = MIMEMultipart('mixed')
+        msg['From'] = FROM_EMAIL
+        msg['To'] = JASMINE_EMAIL
+        msg['Subject'] = f"Monthly Tax Report — {stats['period_label']}"
+
+        unparsed_note = ''
+        if stats['unparsed']:
+            unparsed_note = ("\n\n⚠ " + str(len(stats['unparsed'])) + " address(es) couldn't be "
+                              "confidently parsed for city — check the (Unparsed) row in the summary "
+                              "and review these manually:\n" + '\n'.join(stats['unparsed']))
+        body = (
+            f"Monthly tax report for {stats['period_label']} (cash basis — signed invoices only, "
+            f"Styling With Jas only).\n\n"
+            f"Gross Receipts: ${stats['gross_receipts']:,.2f}\n"
+            f"Sales Tax Collected: ${stats['tax_collected']:,.2f}\n"
+            f"Retailing (Rental): ${stats['retail_total']:,.2f}\n"
+            f"Service & Other: ${stats['service_total']:,.2f}\n"
+            f"Invoices with activity this period: {stats['invoice_count']}\n\n"
+            f"Full breakdown attached as CSV. Category tags are a best-effort heuristic — "
+            f"have this reviewed before filing."
+            f"{unparsed_note}\n\n"
+            f"See the full interactive report anytime at /tax-report.html."
+        )
+        msg.attach(MIMEText(body, 'plain'))
+
+        for content, filename in (
+            (summary_csv, f"SWJ_Tax_Summary_{stats['period_label'].replace(' ', '_')}.csv"),
+            (detail_csv, f"SWJ_Tax_Invoice_Detail_{stats['period_label'].replace(' ', '_')}.csv"),
+        ):
+            att = MIMEApplication(content, _subtype='csv')
+            att.add_header('Content-Disposition', 'attachment', filename=filename)
+            msg.attach(att)
+
+        with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=20) as server:
+            server.login(FROM_EMAIL, password)
+            server.sendmail(FROM_EMAIL, [JASMINE_EMAIL], msg.as_string())
+        return True
+    except Exception as e:
+        print(f'[tax_report] send error: {e}')
+        return False
+
+
+def run_monthly_tax_report():
+    """Reports on the month that JUST ENDED, since this fires on the 1st of the new month."""
+    today = datetime.date.today()
+    prev_last_day = today.replace(day=1) - datetime.timedelta(days=1)
+    summary_csv, detail_csv, stats = build_monthly_tax_report(prev_last_day.year, prev_last_day.month)
+    return send_monthly_tax_report_email(summary_csv, detail_csv, stats), stats
+
+
+# ════════════════════════════════════════════════════════════════
 # WEBHOOK HANDLER
 # ════════════════════════════════════════════════════════════════
 
@@ -715,15 +1014,22 @@ class handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
-        # Vercel Cron Jobs hit this via GET once daily (see vercel.json). Guarded by
-        # CRON_SECRET if it's set — Vercel auto-sends it as a Bearer token when the env var
-        # exists. Worst case without it is Jasmine getting an extra reminder email, not data
-        # loss, so this doesn't hard-fail while the secret isn't configured yet.
+        # Vercel Cron Jobs hit this via GET (see vercel.json — two schedules share this same
+        # path/handler: the daily destage-reminder job, and the monthly tax-report job
+        # distinguished by a ?job= query param). Guarded by CRON_SECRET if it's set — Vercel
+        # auto-sends it as a Bearer token when the env var exists. Worst case without it is
+        # an extra email, not data loss, so this doesn't hard-fail while unconfigured.
         secret = os.environ.get('CRON_SECRET', '')
         if secret and self.headers.get('Authorization', '') != f'Bearer {secret}':
             self._respond(401, {'error': 'Unauthorized'})
             return
+        query = urllib.parse.urlparse(self.path).query
+        job = urllib.parse.parse_qs(query).get('job', [''])[0]
         try:
+            if job == 'monthly_tax_report':
+                sent, stats = run_monthly_tax_report()
+                self._respond(200, {'ok': True, 'emailed': sent, 'period': stats['period_label']})
+                return
             sent = run_destage_reminders()
             self._respond(200, {'ok': True, 'reminders_sent': sent})
         except Exception as e:
