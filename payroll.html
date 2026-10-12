@@ -98,6 +98,10 @@ tr.paid-row { opacity:0.55; }
 .modal-field input, .modal-field select { width:100%; padding:9px 10px; border:0.5px solid var(--taupe-lt); border-radius:8px; font-size:13px; font-family:inherit; }
 .modal-field-row { display:flex; gap:10px; }
 .modal-field-row .modal-field { flex:1; }
+.manual-add-row { font-size:12px; color:var(--green); cursor:pointer; font-weight:600; text-align:center; padding:9px 0; border:1px dashed var(--green); border-radius:8px; margin-bottom:14px; }
+.ms-seg { border-bottom:0.5px solid var(--warm); padding-bottom:10px; margin-bottom:10px; }
+.ms-seg-hdr { display:flex; justify-content:space-between; align-items:center; font-size:10px; font-weight:700; color:var(--taupe-dk); text-transform:uppercase; letter-spacing:0.6px; margin-bottom:6px; }
+.ms-seg-remove { font-size:11px; color:var(--red); cursor:pointer; font-weight:400; text-transform:none; letter-spacing:0; }
 .modal-actions { display:flex; gap:8px; margin-top:16px; }
 .modal-actions button { flex:1; padding:11px; border-radius:8px; font-size:13px; cursor:pointer; }
 .modal-actions .cancel-btn { border:0.5px solid var(--taupe-lt); background:var(--warm); }
@@ -140,6 +144,31 @@ tr.paid-row { opacity:0.55; }
       <button onclick="addEmployee()">+ Add</button>
     </div>
     <div style="font-size:10px;color:var(--taupe);margin-top:8px">Employees log in with their name + this password at <strong>/hours.html</strong> — share that link with the team, and give each person their password separately.</div>
+  </div>
+
+  <div class="card">
+    <div class="card-hdr">Create a Day's Pay Schedule</div>
+    <div style="font-size:11px;color:var(--taupe);margin-bottom:12px">For entering a full day's hours yourself — covers the same shift-with-switches model employees use on /hours.html (clock in, any number of activity switches, clock out). Entries created here are approved automatically, since you're entering them directly.</div>
+    <div class="modal-field">
+      <label>Employee</label>
+      <select id="ms-employee"><option value="">Select an employee…</option></select>
+    </div>
+    <div class="modal-field">
+      <label>Date</label>
+      <input type="date" id="ms-date">
+    </div>
+    <div id="ms-segments"></div>
+    <div class="manual-add-row" onclick="addScheduleSegment()">+ Add Another Activity (Switch)</div>
+    <div class="modal-field" style="border-top:1px dashed var(--taupe-lt);padding-top:12px">
+      <label>Clock Out Time (end of shift)</label>
+      <input type="time" id="ms-clockout">
+    </div>
+    <div class="modal-field">
+      <label>Note (optional)</label>
+      <input type="text" id="ms-note">
+    </div>
+    <button class="filter-btn primary" id="ms-submit-btn" onclick="submitScheduleDay()">Create Schedule</button>
+    <div class="msg" id="ms-msg"></div>
   </div>
 
   <div class="card">
@@ -232,6 +261,7 @@ const LABEL_BY_KEY = Object.fromEntries(WORK_TYPES.map(t=>[t.key,t.label]));
 
 let _entries = [];
 let _projectsCache = [];
+let _employeesCache = [];
 
 function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function fmtMoney(n){return '$'+Number(n||0).toFixed(2);}
@@ -260,6 +290,7 @@ async function loadEmployees(){
   const filterSel = document.getElementById('f-employee');
   if(error){ list.innerHTML = '<div class="empty-note">Could not load employees — make sure the `employees` table exists in Supabase.</div>'; return; }
   const emps = data||[];
+  _employeesCache = emps;
   list.innerHTML = emps.length ? emps.map(e=>`
     <div class="emp-row">
       <span class="emp-name ${e.active?'':'inactive'}">${esc(e.name)}${e.password_hash?'':' <em style="color:var(--red);font-style:normal">(no password set)</em>'}</span>
@@ -272,6 +303,8 @@ async function loadEmployees(){
   `).join('') : '<div class="empty-note">No employees yet — add one below.</div>';
 
   filterSel.innerHTML = '<option value="">All</option>' + emps.map(e=>`<option value="${esc(e.name)}">${esc(e.name)}</option>`).join('');
+  const schedSel = document.getElementById('ms-employee');
+  if(schedSel) schedSel.innerHTML = '<option value="">Select an employee…</option>' + emps.filter(e=>e.active).map(e=>`<option value="${esc(e.name)}">${esc(e.name)}</option>`).join('');
 }
 
 const STAGE_LABEL = { proposal:'Proposal', confirmed:'Confirmed', staged:'Staged', destage:'Destage', done:'Done' };
@@ -523,6 +556,112 @@ async function saveEditEntry(){
   loadEntries();
 }
 
+// Lets Jasmine build out a whole day's shift herself — same checkpoint model as hours.html
+// (clock in, any number of "switch to" activities, clock out), just with an employee picker
+// since this isn't tied to a logged-in session. Entries created here are approved on the
+// spot, since she's the one approving hours in the first place.
+let _scheduleSegments = [{ time:'', type:'staging', invnum:'' }];
+
+function renderScheduleForm(){
+  const segsHtml = _scheduleSegments.map((seg,idx)=>`
+    <div class="ms-seg">
+      <div class="ms-seg-hdr">
+        <span>${idx===0?'Clock In':'Switch To'}</span>
+        ${_scheduleSegments.length>1 && idx>0?`<span class="ms-seg-remove" onclick="removeScheduleSegment(${idx})">Remove</span>`:''}
+      </div>
+      <div class="modal-field-row">
+        <div class="modal-field"><label>Time</label><input type="time" class="ms-time" value="${esc(seg.time)}"></div>
+        <div class="modal-field"><label>Type</label><select class="ms-type">${WORK_TYPES.map(t=>`<option value="${t.key}" ${seg.type===t.key?'selected':''}>${esc(t.label)} ($${t.rate}/hr)</option>`).join('')}</select></div>
+      </div>
+      <div class="modal-field"><label>Job</label><select class="ms-job">${jobOptionsHtml(seg.invnum)}</select></div>
+    </div>
+  `).join('');
+  document.getElementById('ms-segments').innerHTML = segsHtml;
+}
+
+function syncScheduleSegmentsFromDom(){
+  document.querySelectorAll('.ms-seg').forEach((row, idx)=>{
+    if(!_scheduleSegments[idx]) return;
+    _scheduleSegments[idx].time = row.querySelector('.ms-time').value;
+    _scheduleSegments[idx].type = row.querySelector('.ms-type').value;
+    _scheduleSegments[idx].invnum = row.querySelector('.ms-job').value;
+  });
+}
+
+function addScheduleSegment(){
+  syncScheduleSegmentsFromDom();
+  _scheduleSegments.push({ time:'', type:'staging', invnum:'' });
+  renderScheduleForm();
+}
+
+function removeScheduleSegment(idx){
+  syncScheduleSegmentsFromDom();
+  _scheduleSegments.splice(idx, 1);
+  renderScheduleForm();
+}
+
+async function submitScheduleDay(){
+  syncScheduleSegmentsFromDom();
+  const msg = document.getElementById('ms-msg');
+  msg.textContent = ''; msg.classList.remove('err');
+
+  const employee = document.getElementById('ms-employee').value;
+  const dateVal = document.getElementById('ms-date').value;
+  const clockOutTime = document.getElementById('ms-clockout').value;
+  const note = document.getElementById('ms-note').value.trim() || null;
+
+  if(!employee){ msg.textContent = 'Pick an employee.'; msg.classList.add('err'); return; }
+  if(!dateVal){ msg.textContent = 'Pick a date.'; msg.classList.add('err'); return; }
+  for(const seg of _scheduleSegments){
+    if(!seg.time || !seg.type || !seg.invnum){
+      msg.textContent = 'Fill in the time, type, and job for every activity.'; msg.classList.add('err'); return;
+    }
+  }
+  if(!clockOutTime){ msg.textContent = 'Enter the clock-out time for the end of the shift.'; msg.classList.add('err'); return; }
+
+  const checkpoints = [..._scheduleSegments.map(s=>s.time), clockOutTime];
+  for(let i=1;i<checkpoints.length;i++){
+    if(checkpoints[i] <= checkpoints[i-1]){
+      msg.textContent = 'Each time must be later than the one before it.'; msg.classList.add('err'); return;
+    }
+  }
+
+  const btn = document.getElementById('ms-submit-btn');
+  btn.disabled = true; btn.textContent = 'Creating…';
+
+  // Same local-time-parsed-then-toISOString() convention as the live clock and the Edit
+  // modal, so these entries display at the right hour instead of drifting by the UTC offset.
+  const nowIso = new Date().toISOString();
+  const rows = _scheduleSegments.map((seg, i)=>{
+    const startDateObj = new Date(`${dateVal}T${seg.time}:00`);
+    const endDateObj = new Date(`${dateVal}T${checkpoints[i+1]}:00`);
+    const hours = Math.round(((endDateObj - startDateObj) / 3600000) * 100) / 100;
+    const rate = RATE_BY_KEY[seg.type];
+    const amount = Math.round(hours * rate * 100) / 100;
+    return {
+      employee_name: employee, work_type: seg.type, rate,
+      invnum: seg.invnum, job_label: findJobLabel(seg.invnum), note,
+      source: 'manual', clock_in: startDateObj.toISOString(), clock_out: endDateObj.toISOString(),
+      hours, amount, approved: true, approved_at: nowIso,
+    };
+  });
+
+  try{
+    const {error} = await _sb.from('time_entries').insert(rows);
+    if(error) throw error;
+    msg.textContent = `✓ Created ${rows.length} entr${rows.length===1?'y':'ies'} for ${employee} — already approved.`;
+    _scheduleSegments = [{ time:'', type:'staging', invnum:'' }];
+    document.getElementById('ms-clockout').value = '';
+    document.getElementById('ms-note').value = '';
+    renderScheduleForm();
+    loadEntries();
+  }catch(e){
+    msg.textContent = 'Error: '+e.message; msg.classList.add('err');
+  }finally{
+    btn.disabled = false; btn.textContent = 'Create Schedule';
+  }
+}
+
 function exportCsv(){
   if(!_entries.length){ alert('Nothing to export — adjust your filters first.'); return; }
   const header = ['Date','Employee','Type','Job','Clock In','Clock Out','Hours','Rate','Amount','Approved','Paid','Source'];
@@ -543,6 +682,8 @@ document.addEventListener('DOMContentLoaded', async ()=>{
   await loadEmployees();
   await loadProjects();
   await loadEntries();
+  document.getElementById('ms-date').value = new Date().toISOString().split('T')[0];
+  renderScheduleForm();
 });
 </script>
 </body>
