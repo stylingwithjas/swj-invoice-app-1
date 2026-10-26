@@ -223,6 +223,7 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
 .card.staged    .c-amt { color:var(--teal-dk); }
 .card.destage   .c-amt { color:var(--slate); }
 .c-addr { font-size:11px; color:var(--taupe); margin-bottom:8px; line-height:1.35; }
+.c-invnum { font-family:monospace; font-size:9.5px; color:var(--taupe); opacity:0.7; margin:-5px 0 6px; }
 
 .tags { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:6px; }
 .tag { font-size:10px; font-weight:500; padding:3px 8px; border-radius:20px; letter-spacing:0.2px; }
@@ -323,6 +324,9 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
 .pricing-row:last-child { border-bottom:none; }
 .pricing-row-desc { flex:1; white-space:pre-wrap; }
 .pricing-row-amt { white-space:nowrap; font-weight:500; }
+.pricing-type-pill { display:inline-block; font-size:8.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.4px; padding:1px 6px; border-radius:8px; margin-left:4px; vertical-align:1px; background:rgba(74,124,80,0.1); color:var(--green); }
+.pricing-type-pill.service { background:rgba(74,94,130,0.1); color:var(--slate); }
+.pricing-type-pill.extension { background:rgba(201,124,46,0.1); color:var(--amber); }
 .pricing-promo { font-size:12px; color:var(--green); padding:3px 0; }
 .pricing-totals { margin-top:10px; padding-top:8px; border-top:1px solid var(--taupe-lt); }
 .pricing-grand { font-weight:700; color:var(--ink); font-size:14px; }
@@ -356,7 +360,14 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
 .ps-arrow { font-size:16px; color:var(--taupe); }
 
 /* Modal actions */
-.m-btns { display:flex; gap:10px; padding:14px 20px 0; align-items:center; }
+.m-btns { display:flex; gap:10px; padding:14px 20px; align-items:center; flex-wrap:wrap; }
+/* Without wrap, this row (Payment Link / Extend Rental / Reset ext. / Void / Remove /
+   Delete / spacer / Cancel / Save Changes) overflowed a phone-width drawer with no way to
+   scroll to it — Save Changes, being last, was simply off-screen and invisible (audit
+   finding, reported by Gabe from the real mobile app). */
+.m-btns .mbtn.pri, .m-btns .mbtn.sec { flex:1 1 auto; min-width:120px; }
+.m-unsaved-note { font-size:11px; color:var(--amber,#c97c2e); text-align:center; padding:0 20px; font-weight:600; display:none; }
+.m-unsaved-note.show { display:block; }
 .mbtn { padding:13px; border-radius:11px; border:none; font-size:14px; font-weight:600; cursor:pointer; font-family:'Inter',sans-serif; transition:opacity 0.15s; }
 .mbtn:active { opacity:0.8; }
 .mbtn.pri { background:var(--ink); color:#fff; flex:1; }
@@ -609,6 +620,7 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
         <span class="m-lbl">Address</span>
         <input class="m-input" id="m-address-in" type="text" placeholder="Property address" style="flex:1">
       </div>
+      <div id="m-city-row" style="font-size:11px;color:#a29c96;padding:0 2px 6px"></div>
       <div class="m-row">
         <span class="m-lbl">Client email</span>
         <input class="m-input" id="m-email-in" type="email" placeholder="client@example.com" style="flex:1">
@@ -849,6 +861,7 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
       </div>
     </div>
 
+    <div class="m-unsaved-note" id="m-unsaved-note">● Unsaved changes — tap Save Changes below</div>
     <div class="m-btns">
       <button class="mbtn" onclick="createSplitPayment(currentCardId)" style="background:#e8f3e9;color:#2d6a0a" title="Create a payment link for part of the total (deposit, balance, or a third party like an agent)">💳 Payment Link</button>
       <button class="mbtn" onclick="extendRental(currentCardId)" style="background:#f5ead8;color:#9d7a44" title="Extend the furniture rental and bill it">⏱ Extend Rental</button>
@@ -981,6 +994,7 @@ function filter(stage, btn){
 function openCard(id){ realOpenCard(id); }
 function closeModal(){
   document.getElementById('overlay').classList.remove('on');
+  setUnsavedChanges(false);
 }
 function bgClose(e){
   if(e.target===document.getElementById('overlay')) closeModal();
@@ -988,6 +1002,10 @@ function bgClose(e){
 function setStage(s, el){
   document.querySelectorAll('.move-opt').forEach(o=>o.classList.remove('cur'));
   el.classList.add('cur');
+  // Picking a stage here is a click, not an input/change event, so the delegated listener
+  // never sees it — flag it directly, or a stage pick with no Save press would go right on
+  // showing no warning at all (exactly the audit's reported scenario).
+  setUnsavedChanges(true);
 }
 
 // In-app confirmation dialog (Promise<boolean>) — used in place of the native confirm()
@@ -1024,13 +1042,23 @@ async function markClosedLost(){
   if(!inv) return;
   const ok = await customConfirm('Mark this quote Closed — Lost?\n\nIt will drop off the active board but stay fully searchable in Archive. This can be undone later from Archive\'s "Reactivate" button.', { confirmLabel: 'Mark Closed — Lost', danger: true });
   if(!ok) return;
+  const targetInvnum = inv.invnum;
   try{
     const d = { ...(inv.data||{}), stage: 'closed_lost' };
     const { error } = await _sb.from('invoices').upsert({
-      invnum: inv.invnum, client: inv.client, address: inv.address, invdate: inv.invdate, data: d,
+      invnum: targetInvnum, client: inv.client, address: inv.address, invdate: inv.invdate, data: d,
     }, { onConflict: 'invnum' });
     if(error){ alert('Could not save: ' + error.message); return; }
-    inv.data = d; CARDS[currentCardId].data = d;
+    // This exact transition has repeatedly been reported as silently not sticking, with no
+    // error from the upsert itself — read the row back instead of trusting a successful
+    // response alone, so a real failure is loud instead of invisible.
+    const { data: check, error: checkErr } = await _sb.from('invoices').select('data').eq('invnum', targetInvnum).single();
+    if(checkErr || !check || (check.data||{}).stage !== 'closed_lost'){
+      alert('Saved, but re-reading the record shows the stage did not actually update (now reads "'+((check&&check.data&&check.data.stage)||'unknown — '+(checkErr?checkErr.message:'no row'))+'"). Please try again, and report this if it keeps happening.');
+      loadBoard();
+      return;
+    }
+    inv.data = d; CARDS[targetInvnum].data = d;
     closeModal();
     loadBoard();
   }catch(e){ alert('Could not save: ' + e.message); }
@@ -1123,13 +1151,9 @@ function renderPricingSection(inv, d){
   const rooms = (d.baserooms||'').split(',').map(r=>r.trim()).filter(Boolean);
   const roomScopes = d.baseroom_scopes || {};
   const addons = d.addons || [];
-  const addonsTotal = addons.reduce((s,a)=>s+(parseFloat(a.price)||0),0);
   const taxrate = parseFloat(d.taxrate) || 0;
-  const _ov = v => (v!=null && v!=='') ? parseFloat(v) : null;
-  const subOv = _ov(d.subtotal_override), taxOv = _ov(d.tax_override), totOv = _ov(d.total_override);
-  const subtotal = subOv!=null ? subOv : (base + addonsTotal);
-  const tax = taxOv!=null ? taxOv : subtotal*taxrate/100;
-  const grand = totOv!=null ? totOv : subtotal+tax;
+  const _split = boardInvoiceSplit(d);
+  const subtotal = _split.subtotal, tax = _split.tax, grand = _split.grand;
   const contributions = (d.contributions||[]).filter(c=>c.label && parseFloat(c.amount)>0);
   const contribTotal = contributions.reduce((s,c)=>s+parseFloat(c.amount),0);
   const petDeposit = d.pet_deposit || {};
@@ -1139,12 +1163,16 @@ function renderPricingSection(inv, d){
     return `<div class="pricing-room"><div class="pricing-room-name">• ${escapeHtml(r)}</div>${scope?`<div class="pricing-room-scope">${escapeHtml(scope)}</div>`:''}</div>`;
   }).join('') : '<div class="pricing-empty">No rooms selected</div>';
 
-  const addonsHtml = addons.length ? addons.map(a=>`
-    <div class="pricing-row">
-      <div class="pricing-row-desc">${escapeHtml(a.desc||'')}</div>
+  // Line-type tags (Phase 5.1) — these were computed correctly all along but never shown
+  // anywhere (audit finding: "only the math proves tagging works").
+  const addonsHtml = addons.length ? addons.map(a=>{
+    const type = a.type || boardAddonType(a.desc);
+    const typeLabel = type==='service' ? 'Service' : (type==='extension' ? 'Extension' : 'Rental');
+    return `<div class="pricing-row">
+      <div class="pricing-row-desc">${escapeHtml(a.desc||'')}<span class="pricing-type-pill ${type}">${typeLabel}</span></div>
       <div class="pricing-row-amt">${fmtMoney(parseFloat(a.price)||0)}</div>
-    </div>
-  `).join('') : '';
+    </div>`;
+  }).join('') : '';
 
   const activePromos = ['promo1','promo2','promo3','promo4'].filter(k=>d[k]);
   const promosHtml = activePromos.length ? `
@@ -1161,8 +1189,9 @@ function renderPricingSection(inv, d){
     <div class="pricing-row"><div class="pricing-row-desc">Billed separately, not taxed${petDeposit.status?' · '+escapeHtml(petDeposit.status):''}</div><div class="pricing-row-amt">${fmtMoney(parseFloat(petDeposit.amount)||0)}</div></div>
   ` : '';
 
+  const rentalSharePct = d.price_led_tax ? Math.round((parseFloat(d.rental_share_base)||0.5)*100) : null;
   body.innerHTML = `
-    <div class="pricing-sub-hdr">Base Package — ${fmtMoney(base)}</div>
+    <div class="pricing-sub-hdr">Base Package — ${fmtMoney(base)}${rentalSharePct!=null?`<span class="pricing-type-pill">${rentalSharePct}% Rental</span><span class="pricing-type-pill service">${100-rentalSharePct}% Service</span>`:''}</div>
     ${roomsHtml}
     ${addons.length?`<div class="pricing-sub-hdr">Add-ons</div>${addonsHtml}`:''}
     ${promosHtml}
@@ -1839,6 +1868,37 @@ function computeGrand(d){
   return subEff+taxEff;
 }
 
+// Phase 5.2 price-led split — must mirror invoiceTaxSplit() in tax-report.html and
+// priceLedTax() in index.html/luxury.html exactly, or the drawer disagrees with the client
+// PDF on the Subtotal/Tax breakdown (audit finding: drawer showed the old flat split).
+// computeGrand() above is unaffected and needs no change — the GRAND total is defined to be
+// the same number either way; only how much of it counts as tax vs. revenue changes.
+function boardAddonType(desc){
+  const s=(desc||'').toLowerCase();
+  return (s.includes('photo')||s.includes('consult')||s.includes('design fee')) ? 'service' : 'rental';
+}
+function boardInvoiceSplit(d){
+  const _ov=v=>(v!=null&&v!=='')?parseFloat(v):null;
+  const hasOverride = _ov(d.subtotal_override)!=null || _ov(d.tax_override)!=null || _ov(d.total_override)!=null;
+  const base = parseFloat(d.base_price) || 2500;
+  const addons = d.addons || [];
+  const addonTotal = addons.reduce((s,a)=>s+(parseFloat(a.price)||0),0);
+  const rate = parseFloat(d.taxrate) || 0;
+  const grand = computeGrand(d);
+  if(hasOverride || !d.price_led_tax){
+    const subtotal = _ov(d.subtotal_override) ?? (base+addonTotal);
+    const tax = _ov(d.tax_override) ?? (subtotal*rate/100);
+    return { subtotal, tax, grand };
+  }
+  const rsb = parseFloat(d.rental_share_base); const rentalShareBase = isNaN(rsb) ? 0.5 : rsb;
+  const rentalDollars = base*rentalShareBase + addons.filter(a=>a.type!=='service').reduce((s,a)=>s+(parseFloat(a.price)||0),0);
+  const allDollars = base+addonTotal;
+  const rentalShare = allDollars>0.009 ? rentalDollars/allDollars : 1;
+  const r = rate/100;
+  const subtotal = r>0 ? grand/(1+r*rentalShare) : grand;
+  return { subtotal, tax: grand-subtotal, grand };
+}
+
 function fmtMoney(n){ return '$' + Math.round(n).toLocaleString(); }
 
 function shortAddr(addr){
@@ -1986,6 +2046,7 @@ function buildCardHTML(inv){
         <div class="c-amt">${fmtMoney(grand)}</div>
       </div>
       <div class="c-addr">${escapeHtml(addr)}</div>
+      <div class="c-invnum">#${escapeHtml(inv.invnum)}</div>
       ${tagHTML ? `<div class="tags">${tagHTML}</div>` : ''}
       ${noteHTML}
     </div>
@@ -2206,17 +2267,16 @@ function updatePipelineStats(grouped){
     }
   });
   document.getElementById('stat-mtd-total').textContent = fmtMoney(mtdTotal);
-  document.getElementById('stat-mtd-count').textContent = mtdCount + ' completed';
+  // This counts every PAID job this month regardless of board stage (a "confirmed" or
+  // "staged" job that's already paid still counts toward revenue) — it's a different
+  // dimension from the Completed STAGE column, which only counts stage==='done'. The two
+  // were never meant to match; "completed" here was misleading wording (audit finding).
+  document.getElementById('stat-mtd-count').textContent = mtdCount + ' paid';
 
-  // Needs Attention: count of CARDS (not tags — a card with 3 urgent tags still counts once)
-  // that have at least one urgent/warning tag. Counting tags instead of cards was inflating
-  // this relative to the Today strip's per-job count (Build 2 audit finding).
-  const attentionCards = new Set();
-  document.querySelectorAll('.card .tag.a, .card .tag.w').forEach(tagEl => {
-    const card = tagEl.closest('.card');
-    if(card) attentionCards.add(card);
-  });
-  document.getElementById('stat-attention-count').textContent = attentionCards.size;
+  // Needs Attention tile: set inside updateTodayStrip(), from the SAME items list the strip
+  // itself renders — counting rendered card tags here was a SEPARATE, disagreeing
+  // computation (Build 2 AND Item #6 audit findings: tile vs strip never matched). One
+  // definition, one place it's computed, used by both.
 }
 
 function updateTodayStrip(invoices){
@@ -2285,6 +2345,13 @@ function updateTodayStrip(invoices){
   });
 
   items.sort((a,b) => b.sortKey - a.sortKey);
+
+  // Needs Attention tile — the SAME distinct-job count the strip itself is built from (one
+  // job can produce more than one item here, e.g. both "Payment overdue" and "Find mover";
+  // the tile counts the JOB once). One shared definition instead of two that disagree.
+  const attentionTile = document.getElementById('stat-attention-count');
+  if(attentionTile) attentionTile.textContent = new Set(items.map(it=>it.invnum)).size;
+
   if(items.length === 0){
     stripEl.innerHTML = '<div style="color:rgba(255,255,255,0.4);font-size:11px;font-style:italic;padding:6px 4px">Nothing urgent today.</div>';
     return;
@@ -2452,6 +2519,33 @@ function customPromptDate(message, defaultVal){
     ov.querySelector('#cpd-cancel').onclick = ()=>cleanup(null);
     ov.querySelector('#cpd-ok').onclick = ()=>cleanup(document.getElementById('cpd-input').value || null);
     ov.addEventListener('click', e=>{ if(e.target===ov) cleanup(null); });
+  });
+}
+
+// In-app text/number prompt (Promise<string|null>) — same reasoning as customConfirm and
+// customPromptDate: native prompt() is unreliable inside an installed PWA and can return
+// null immediately with no dialog shown at all, which looks exactly like "no visible
+// feedback" on a button press (audit finding on the Needs Action Link button, which used
+// to call createSplitPayment()'s two native prompt() calls below).
+function customPromptText(message, defaultVal, inputType){
+  return new Promise(resolve=>{
+    const ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(26,24,20,0.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:24px;font-family:Inter,-apple-system,sans-serif';
+    const safeMsg = String(message||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+    ov.innerHTML = '<div style="background:#fff;border-radius:16px;max-width:360px;width:100%;padding:22px">'
+      + '<div style="font-size:14px;color:#3d3830;line-height:1.5;margin-bottom:14px">' + safeMsg + '</div>'
+      + '<input type="' + (inputType||'text') + '" id="cpt-input" value="' + String(defaultVal||'').replace(/"/g,'&quot;') + '" inputmode="' + (inputType==='number'?'decimal':'text') + '" style="width:100%;padding:10px;border:1px solid #d4cfc9;border-radius:8px;font-size:14px;margin-bottom:14px;font-family:inherit">'
+      + '<div style="display:flex;gap:8px">'
+      + '<button id="cpt-cancel" style="flex:1;padding:12px;border-radius:9px;border:1px solid #d4cfc9;background:#faf8f5;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit">Cancel</button>'
+      + '<button id="cpt-ok" style="flex:1;padding:12px;border-radius:9px;border:none;background:#1a1814;color:#fff;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit">OK</button>'
+      + '</div></div>';
+    document.body.appendChild(ov);
+    const input = ov.querySelector('#cpt-input');
+    const cleanup = (v)=>{ ov.remove(); resolve(v); };
+    ov.querySelector('#cpt-cancel').onclick = ()=>cleanup(null);
+    ov.querySelector('#cpt-ok').onclick = ()=>cleanup(input.value);
+    ov.addEventListener('click', e=>{ if(e.target===ov) cleanup(null); });
+    setTimeout(()=>{ try{ input.focus(); input.select(); }catch(e){} }, 50);
   });
 }
 
@@ -2649,6 +2743,7 @@ function realOpenCard(invnum){
     console.warn('Card not found:', invnum);
     return;
   }
+  setUnsavedChanges(false);
   const d = inv.data || {};
   const stage = d.stage || 'proposal';
 
@@ -2674,6 +2769,13 @@ function realOpenCard(invnum){
   document.getElementById('m-amt').textContent = fmtMoney(computeGrand(d));
   setVal('m-amount', (d.base_price != null ? d.base_price : Math.round(computeGrand(d))));
   setVal('m-address-in', inv.address || d.address || '');
+  // Structured city/ZIP (Phase 5.1) only exist on invoices created after that change — the
+  // address field above stays the free-text display; this is just surfacing what's captured
+  // separately for tax reporting, which had nowhere to show at all before (audit finding).
+  (function(){
+    const el = document.getElementById('m-city-row'); if(!el) return;
+    el.textContent = (d.city || d.zip) ? ('City/ZIP on file: ' + (d.city||'(no city)') + (d.zip?' '+d.zip:'')) : '';
+  })();
   setVal('m-email-in', d.client_email || '');
   (function(){
     const el = document.getElementById('m-rental-info'); if(!el) return;
@@ -2863,12 +2965,13 @@ async function createSplitPayment(invnum){
   const paid=computeAmountPaid(d);
   const remaining=Math.max(0, grand-paid);
 
-  const amountStr=prompt('Create a payment link for part of the total.\n\nInvoice total: $'+grand.toLocaleString(undefined,{minimumFractionDigits:2})+'\nAlready paid: $'+paid.toLocaleString(undefined,{minimumFractionDigits:2})+'\nRemaining: $'+remaining.toLocaleString(undefined,{minimumFractionDigits:2})+'\n\nAmount for this link:', remaining>0?remaining.toFixed(2):'');
+  const amountStr=await customPromptText('Create a payment link for part of the total.\n\nInvoice total: $'+grand.toLocaleString(undefined,{minimumFractionDigits:2})+'\nAlready paid: $'+paid.toLocaleString(undefined,{minimumFractionDigits:2})+'\nRemaining: $'+remaining.toLocaleString(undefined,{minimumFractionDigits:2})+'\n\nAmount for this link:', remaining>0?remaining.toFixed(2):'', 'number');
   if(amountStr===null) return;
   const amount=parseFloat(amountStr);
   if(!amount||amount<=0){ alert('Enter a valid amount.'); return; }
 
-  const label=(prompt('Label for this link (shown on the board & the Stripe receipt) — e.g. "Deposit", "Balance", "Agent contribution":', '')||'').trim();
+  const labelRaw=await customPromptText('Label for this link (shown on the board & the Stripe receipt) — e.g. "Deposit", "Balance", "Agent contribution":', '');
+  const label=(labelRaw||'').trim();
 
   const forClient=await customConfirm('Is this link for '+(inv.client||'the client')+' to pay?\n\nYes = this becomes the payment button on their Approve & Sign page (replaces whatever was there).\nNo = this is for someone else (e.g. a referring agent). It will NOT appear on the client\'s page; you send this link to them directly.', { confirmLabel: 'Yes — for the client', cancelLabel: 'No — someone else' });
 
@@ -3092,8 +3195,12 @@ async function extendRental(invnum){
     curEndStr = d.destage_date;
   } else {
     const _priorExtDays = (d.extensions||[]).reduce((s,e)=>s + (parseInt(e.days,10) || 30*(parseInt(e.periods,10)||1)), 0);
-    let _curEndDt = new Date((d.startdate || new Date().toISOString().split('T')[0]) + 'T00:00:00');
-    if(d.startdate) _curEndDt.setDate(_curEndDt.getDate() + 45);
+    // d.startdate can be the literal string 'TBD' (truthy!) for a not-yet-scheduled job —
+    // that must NOT reach new Date(), or it's an Invalid Date and everything downstream
+    // (days/amount in the extension dialog) comes out NaN (audit finding).
+    const _hasRealStart = d.startdate && d.startdate !== 'TBD';
+    let _curEndDt = new Date((_hasRealStart ? d.startdate : new Date().toISOString().split('T')[0]) + 'T00:00:00');
+    if(_hasRealStart) _curEndDt.setDate(_curEndDt.getDate() + 45);
     _curEndDt.setDate(_curEndDt.getDate() + _priorExtDays);
     curEndStr = _curEndDt.getFullYear() + '-' + String(_curEndDt.getMonth()+1).padStart(2,'0') + '-' + String(_curEndDt.getDate()).padStart(2,'0');
   }
@@ -3299,6 +3406,15 @@ function buildCardDataFromModal(inv){
   return d;
 }
 
+// Unsaved-changes indicator (Phase 7 audit fix: no visible Save button on a phone-width
+// drawer meant a stage pick with no Save press silently did nothing, with no warning at
+// all). Set on any input/change inside the drawer, cleared when a card opens or Save
+// succeeds — see the delegated listener set up once in the DOMContentLoaded handler below.
+function setUnsavedChanges(dirty){
+  const note = document.getElementById('m-unsaved-note');
+  if(note) note.classList.toggle('show', !!dirty);
+}
+
 async function saveCard(){
   if(!currentCardId){ return; }
   const inv = CARDS[currentCardId];
@@ -3393,6 +3509,11 @@ async function autoCreateTruckReminder(client, stagingDate, invnum){
     console.log('[Truck reminder] Failed:', e.message);
   }
 }
+
+// Delegated so it's set up once, not per card-open — any input/change inside the drawer
+// (move-grid clicks don't fire these, so setStage() also flags it directly) marks unsaved.
+document.getElementById('overlay')?.addEventListener('input', ()=>setUnsavedChanges(true));
+document.getElementById('overlay')?.addEventListener('change', ()=>setUnsavedChanges(true));
 
 document.addEventListener('DOMContentLoaded', ()=>{
   renderShoppingConsolidator();

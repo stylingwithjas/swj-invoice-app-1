@@ -1417,7 +1417,22 @@ function loadInvoice(idx){
   }catch(e){console.log('Load error:',e);}
 }
 
+// The full record as loaded, kept so a later save can restore whatever this generator has
+// no form field for (destage_date, extensions[], stage, signed, confirmations, payments,
+// send_log, etc. — all board-managed). Without this, regenerating an already-staged
+// invoice's PDF would silently wipe all of that: saveInvoice()'s upsert replaces the WHOLE
+// data column, and the generator only ever rebuilds the fields it knows about (confirmed
+// real-world data loss, audit finding on #2020130/#2020131).
+let _loadedInvoiceData = null;
+function preserveBoardFields(data, invNumFinal){
+  if(_loadedInvoiceData && _loadedInvoiceData.invnum === invNumFinal){
+    Object.keys(_loadedInvoiceData).forEach(k=>{ if(!(k in data)) data[k] = _loadedInvoiceData[k]; });
+  }
+  return data;
+}
+
 function loadInvoiceData(d){
+  _loadedInvoiceData = d;
   try{
     // Fill form fields
     document.getElementById('client').value = d.client||'';
@@ -1702,12 +1717,20 @@ async function downloadPdfNow(){
   const clientEmail=document.getElementById('client_email')?.value.trim()||'';
   const addressBase=document.getElementById('address').value.trim();
   const zipVal=document.getElementById('zipcode')?.value.trim()||'';
-  const address=zipVal&&!addressBase.includes(zipVal)?addressBase+' '+zipVal:addressBase;
+  // City (Phase 5.1) is stored as its own structured field for tax reporting, but the
+  // client-facing property address shown on the PDF/proposal still needs it too (audit
+  // finding: "client PDFs omit the city") — appended here only if not already typed into
+  // the free-text address above.
+  const cityVal=document.getElementById('city')?.value.trim()||'';
+  let address=addressBase;
+  if(cityVal && !address.toLowerCase().includes(cityVal.toLowerCase())) address += (address?', ':'')+cityVal;
+  if(zipVal && !address.includes(zipVal)) address += ' '+zipVal;
   const invNumFinal=document.getElementById('invnum-display').value.trim()||'202093';
   invNum=invNumFinal;
 
   const _contribList=contributions.filter(c=>c.label&&parseFloat(c.amount)>0).map(c=>({label:c.label,amount:parseFloat(c.amount)}));
   const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:getStartDateValue(),baserooms:[...selRooms].join(', '),baseroom_scopes:roomScopesObj(),extrate,taxrate,base_price:base,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,city:document.getElementById('city')?.value.trim()||'',zip:zipVal,property_state:'WA',rental_share_base:BASE_RENTAL_SHARE,price_led_tax:!_hasOverride,state:captureState(),promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,promo4:document.getElementById('promo4').checked,payment_url:null,contributions:_contribList,pet_deposit:petDepositBase(),cosigner:getCosigner(),cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||'',payer_unknown:!!payerUnknown};
+  preserveBoardFields(data, invNumFinal);
 
   const ctrl=new AbortController();
   const to=setTimeout(()=>ctrl.abort(),90000);
@@ -1978,7 +2001,14 @@ async function generatePDF(){
   const clientEmail=document.getElementById('client_email')?.value.trim()||'';
   const addressBase=document.getElementById('address').value.trim();
   const zipVal=document.getElementById('zipcode')?.value.trim()||'';
-  const address=zipVal&&!addressBase.includes(zipVal)?addressBase+' '+zipVal:addressBase;
+  // City (Phase 5.1) is stored as its own structured field for tax reporting, but the
+  // client-facing property address shown on the PDF/proposal still needs it too (audit
+  // finding: "client PDFs omit the city") — appended here only if not already typed into
+  // the free-text address above.
+  const cityVal=document.getElementById('city')?.value.trim()||'';
+  let address=addressBase;
+  if(cityVal && !address.toLowerCase().includes(cityVal.toLowerCase())) address += (address?', ':'')+cityVal;
+  if(zipVal && !address.includes(zipVal)) address += ' '+zipVal;
   const invNumFinal=document.getElementById('invnum-display').value.trim()||'202093';
   invNum=invNumFinal;
 
@@ -2013,6 +2043,7 @@ async function generatePDF(){
   const _contribList=contributions.filter(c=>c.label&&parseFloat(c.amount)>0).map(c=>({label:c.label,amount:parseFloat(c.amount)}));
   const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:getStartDateValue(),baserooms:[...selRooms].join(', '),baseroom_scopes:roomScopesObj(),extrate,taxrate,base_price:base,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,city:document.getElementById('city')?.value.trim()||'',zip:zipVal,property_state:'WA',rental_share_base:BASE_RENTAL_SHARE,price_led_tax:!_hasOverride,state:captureState(),promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
             promo4:document.getElementById('promo4').checked,payment_url,payment_link_id,contributions:_contribList,payments:splitPayments,active_client_payment_id:activeClientPaymentId,pet_deposit:petDeposit,cosigner:getCosigner(),cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||'',payer_unknown:!!payerUnknown};
+  preserveBoardFields(data, invNumFinal);
 
   const _ctrl=new AbortController();
   const _to=setTimeout(()=>_ctrl.abort(),90000);   // never spin forever
@@ -2072,7 +2103,14 @@ async function generate(){
   const clientEmail=document.getElementById('client_email')?.value.trim()||'';
   const addressBase=document.getElementById('address').value.trim();
   const zipVal=document.getElementById('zipcode')?.value.trim()||'';
-  const address=zipVal&&!addressBase.includes(zipVal)?addressBase+' '+zipVal:addressBase;
+  // City (Phase 5.1) is stored as its own structured field for tax reporting, but the
+  // client-facing property address shown on the PDF/proposal still needs it too (audit
+  // finding: "client PDFs omit the city") — appended here only if not already typed into
+  // the free-text address above.
+  const cityVal=document.getElementById('city')?.value.trim()||'';
+  let address=addressBase;
+  if(cityVal && !address.toLowerCase().includes(cityVal.toLowerCase())) address += (address?', ':'')+cityVal;
+  if(zipVal && !address.includes(zipVal)) address += ' '+zipVal;
 
   // Read invoice number from editable field
   const invNumFinal = document.getElementById('invnum-display').value.trim() || '202093';
@@ -2112,6 +2150,7 @@ async function generate(){
   const _contribList=contributions.filter(c=>c.label&&parseFloat(c.amount)>0).map(c=>({label:c.label,amount:parseFloat(c.amount)}));
   const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:getStartDateValue(),baserooms:[...selRooms].join(', '),baseroom_scopes:roomScopesObj(),extrate,taxrate,base_price:parseFloat(document.getElementById('base_price')?.value)||2500,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,city:document.getElementById('city')?.value.trim()||'',zip:zipVal,property_state:'WA',rental_share_base:BASE_RENTAL_SHARE,price_led_tax:!_hasOverride,state:captureState(),promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
             promo4:document.getElementById('promo4').checked,payment_url,payment_link_id,contributions:_contribList,payments:splitPayments,active_client_payment_id:activeClientPaymentId,pet_deposit:petDeposit,cosigner:getCosigner(),cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||'',payer_unknown:!!payerUnknown};
+  preserveBoardFields(data, invNumFinal);
 
   // Send to API and download PDF
   try {

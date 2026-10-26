@@ -228,6 +228,31 @@ function computeGrand(d){
   return subEff+taxEff;
 }
 
+// Phase 5.2 price-led split — must mirror priceLedTax() in index.html/luxury.html exactly,
+// or the client sees a DIFFERENT Subtotal/Tax breakdown here than on the PDF they're
+// actually signing for (audit finding: proposal page showed the old flat split). computeGrand()
+// above needs no change — the total is the same number either way.
+function invoiceSplit(d){
+  const hasOverride = _ovNum(d.subtotal_override)!=null || _ovNum(d.tax_override)!=null || _ovNum(d.total_override)!=null;
+  const base = parseFloat(d.base_price) || 2500;
+  const addons = d.addons || [];
+  const addonTotal = addons.reduce((s,a)=>s+(parseFloat(a.price)||0),0);
+  const rate = parseFloat(d.taxrate) || 0;
+  const grand = computeGrand(d);
+  if(hasOverride || !d.price_led_tax){
+    const subtotal = _ovNum(d.subtotal_override) ?? (base+addonTotal);
+    const tax = _ovNum(d.tax_override) ?? (subtotal*rate/100);
+    return { subtotal, tax, grand };
+  }
+  const rsb = parseFloat(d.rental_share_base); const rentalShareBase = isNaN(rsb) ? 0.5 : rsb;
+  const rentalDollars = base*rentalShareBase + addons.filter(a=>a.type!=='service').reduce((s,a)=>s+(parseFloat(a.price)||0),0);
+  const allDollars = base+addonTotal;
+  const rentalShare = allDollars>0.009 ? rentalDollars/allDollars : 1;
+  const r = rate/100;
+  const subtotal = r>0 ? grand/(1+r*rentalShare) : grand;
+  return { subtotal, tax: grand-subtotal, grand };
+}
+
 async function loadProposal(){
   const params = new URLSearchParams(window.location.search);
   const invnum = params.get('inv');
@@ -302,10 +327,11 @@ function renderProposal(d){
   const addr = _inv.address||d.address||'';
   const base = parseFloat(d.base_price)||2500;
   const addons = d.addons||[];
-  const _subEff = _ovNum(d.subtotal_override)!=null ? _ovNum(d.subtotal_override) : (base + addons.reduce((s,a)=>s+(parseFloat(a.price)||0),0));
-  // Tax line must match the invoice PDF exactly: blank tax auto-calculates as subtotal × rate (NOT grand − subtotal),
-  // so a manually-set Total without a manual Tax shows the same tax figure on the proposal and the PDF.
-  const tax = _ovNum(d.tax_override)!=null ? _ovNum(d.tax_override) : (_subEff*(parseFloat(d.taxrate)||0)/100);
+  // Tax line must match the invoice PDF exactly — price-led split (Phase 5.2) when the
+  // invoice is flagged for it, the old flat method otherwise (manual overrides always win).
+  const _split = invoiceSplit(d);
+  const _subEff = _split.subtotal;
+  const tax = _split.tax;
   const rooms = (d.baserooms||'').split(', ').filter(Boolean);
   const roomScopesMap = d.baseroom_scopes||{};
   const petDeposit = d.pet_deposit||{};

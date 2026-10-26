@@ -867,10 +867,17 @@ function finPaymentEvents(d){
       events.push({ date:p.paid_date, amount:parseFloat(p.amount)||0, method:p.payment_id?'Stripe (Card)':'Other/Manual' });
     });
   } else if(d.paid && d.paid_date){
-    events.push({ date:d.paid_date, amount:parseFloat(d.amount_paid ?? d.stripe_amount ?? 0)||0, method:d.stripe_payment_id?'Stripe (Card)':'Other/Manual' });
+    // Falls back to the invoice's own total when neither amount_paid nor stripe_amount is
+    // recorded (the common case for a manually-marked-paid invoice, e.g. cash/check/Venmo) —
+    // this app's $0 revenue bug (audit finding) was exactly this falling back to 0 instead,
+    // unlike tax-report.html's paymentEvents(), which has always used this fallback.
+    events.push({ date:d.paid_date, amount:parseFloat(d.amount_paid ?? d.stripe_amount ?? finComputeGrandForEvents(d)) || 0, method:d.stripe_payment_id?'Stripe (Card)':'Other/Manual' });
   }
   return events;
 }
+// finInvoiceSplit(d) needs `d`'s own price-led flags, which is already in scope wherever
+// finPaymentEvents is called with the right `d` — just needs the grand total here.
+function finComputeGrandForEvents(d){ return finInvoiceSplit(d).grand; }
 
 async function loadFinanceInvoices(){
   try{
@@ -900,7 +907,10 @@ async function runFinanceView(){
   const periodEnd = `${year}-${String(month).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`;
   document.getElementById('fin-period').textContent = `${MONTH_NAMES[month-1]} ${year}`;
 
-  if(!_financeInvoices.length) await loadFinanceInvoices();
+  // Always refetch on Run — a lazy "only if empty" cache here meant the calculators never
+  // reacted to a new or just-changed job within the same page session (audit finding:
+  // "Pipeline stayed 0 quotes after reload" — reload didn't mean a fresh fetch).
+  await loadFinanceInvoices();
   const signed = _financeInvoices.filter(inv => (inv.data||{}).signed === true);
 
   // Revenue + sales-tax collected + B&O (same cash-basis method as the Tax Report).
@@ -1004,6 +1014,12 @@ function renderFinanceCashBreakdown(){
 function renderFinanceCalculators(periodStart, periodEnd){
   const el = document.getElementById('fin-calculators');
   const warehouse = FINANCE_CONFIG.warehouse_monthly;
+  // Mover cost for pipeline/realistic projections — this period's actual mover-pay-to-
+  // revenue ratio, applied forward (never a hardcoded %); 0 when there's no actual data yet
+  // to derive a ratio from. Audit finding: calculator margins were excluding mover pay
+  // entirely, while the drawer's per-job profit always subtracts it.
+  const s = _lastFinanceSummary;
+  const moverRatio = (s && s.revenue>0.009) ? s.moverCost/s.revenue : 0;
 
   // Pipeline: ALL quotes (not yet paid) staged this month — proposal/future_hold/confirmed.
   const pipelineJobs = _financeInvoices.filter(inv=>{
@@ -1012,8 +1028,9 @@ function renderFinanceCalculators(periodStart, periodEnd){
   });
   const pipelineCount = pipelineJobs.length || 1;
   const pipelineWarehousePerJob = warehouse/pipelineCount;
-  const pipelineAvgRevenue = pipelineJobs.length ? pipelineJobs.reduce((s,inv)=>s+computeGrandFin(inv.data||{}),0)/pipelineJobs.length : FINANCE_CONFIG.avg_job_revenue;
-  const pipelineMargin = pipelineAvgRevenue - truckCostPerJob() - pipelineWarehousePerJob;
+  const pipelineAvgRevenue = pipelineJobs.length ? pipelineJobs.reduce((s2,inv)=>s2+computeGrandFin(inv.data||{}),0)/pipelineJobs.length : FINANCE_CONFIG.avg_job_revenue;
+  const pipelineMoverCost = pipelineAvgRevenue*moverRatio;
+  const pipelineMargin = pipelineAvgRevenue - truckCostPerJob() - pipelineWarehousePerJob - pipelineMoverCost;
 
   // Realistic: confirmed+ (signed/committed) jobs staged this month.
   const realisticJobs = _financeInvoices.filter(inv=>{
@@ -1022,12 +1039,14 @@ function renderFinanceCalculators(periodStart, periodEnd){
   });
   const realisticCount = realisticJobs.length || 1;
   const realisticWarehousePerJob = warehouse/realisticCount;
-  const realisticAvgRevenue = realisticJobs.length ? realisticJobs.reduce((s,inv)=>s+computeGrandFin(inv.data||{}),0)/realisticJobs.length : FINANCE_CONFIG.avg_job_revenue;
-  const realisticMargin = realisticAvgRevenue - truckCostPerJob() - realisticWarehousePerJob;
+  const realisticAvgRevenue = realisticJobs.length ? realisticJobs.reduce((s2,inv)=>s2+computeGrandFin(inv.data||{}),0)/realisticJobs.length : FINANCE_CONFIG.avg_job_revenue;
+  const realisticMoverCost = realisticAvgRevenue*moverRatio;
+  const realisticMargin = realisticAvgRevenue - truckCostPerJob() - realisticWarehousePerJob - realisticMoverCost;
 
   // Floor: single job, warehouse in FULL (not split) — the worst-case/breakeven check.
   const floorRevenue = FINANCE_CONFIG.avg_job_revenue;
-  const floorCosts = truckCostPerJob() + warehouse;
+  const floorMoverCost = floorRevenue*moverRatio;
+  const floorCosts = truckCostPerJob() + warehouse + floorMoverCost;
   const floorProfitAtBenchmark = floorRevenue - floorCosts;
   const floorMarginAtBenchmark = floorRevenue>0 ? floorProfitAtBenchmark/floorRevenue*100 : 0;
   const floorCashToAllocate = floorRevenue - floorCosts;
@@ -1038,6 +1057,7 @@ function renderFinanceCalculators(periodStart, periodEnd){
     <div class="calc-card">
       <div class="calc-ttl">Pipeline — ${pipelineJobs.length} quote(s) this month</div>
       <div class="calc-row"><span>Avg. job revenue</span><span>${finMoney(pipelineAvgRevenue)}</span></div>
+      <div class="calc-row"><span>Mover pay (at this period's actual ratio)</span><span>-${finMoney(pipelineMoverCost)}</span></div>
       <div class="calc-row"><span>Truck (per job)</span><span>-${finMoney(truckCostPerJob())}</span></div>
       <div class="calc-row"><span>Warehouse (split ÷${pipelineCount})</span><span>-${finMoney(pipelineWarehousePerJob)}</span></div>
       <div class="calc-row total"><span>Projected margin per job</span><span>${finMoney(pipelineMargin)}</span></div>
@@ -1045,13 +1065,15 @@ function renderFinanceCalculators(periodStart, periodEnd){
     <div class="calc-card">
       <div class="calc-ttl">Realistic — ${realisticJobs.length} confirmed job(s) this month</div>
       <div class="calc-row"><span>Avg. job revenue</span><span>${finMoney(realisticAvgRevenue)}</span></div>
+      <div class="calc-row"><span>Mover pay (at this period's actual ratio)</span><span>-${finMoney(realisticMoverCost)}</span></div>
       <div class="calc-row"><span>Truck (per job)</span><span>-${finMoney(truckCostPerJob())}</span></div>
       <div class="calc-row"><span>Warehouse (split ÷${realisticCount})</span><span>-${finMoney(realisticWarehousePerJob)}</span></div>
       <div class="calc-row total"><span>Committed margin per job</span><span>${finMoney(realisticMargin)}</span></div>
     </div>
     <div class="calc-card">
       <div class="calc-ttl">Floor — one average job (${finMoney(floorRevenue)}), warehouse in full</div>
-      <div class="calc-row"><span>Truck + warehouse (full, not split)</span><span>-${finMoney(floorCosts)}</span></div>
+      <div class="calc-row"><span>Mover pay (at this period's actual ratio)</span><span>-${finMoney(floorMoverCost)}</span></div>
+      <div class="calc-row"><span>Truck + warehouse (full, not split)</span><span>-${finMoney(truckCostPerJob()+warehouse)}</span></div>
       <div class="calc-row total"><span>Profit at benchmark costs</span><span>${finMoney(floorProfitAtBenchmark)} (${floorMarginAtBenchmark.toFixed(1)}%)</span></div>
       <div class="calc-row" style="margin-top:8px"><span>Cash to allocate</span><span>${finMoney(floorCashToAllocate)}</span></div>
       <div class="calc-row"><span>&nbsp;↳ Profit kept at ${FINANCE_CONFIG.profit_target_pct}% target</span><span>-${finMoney(floorProfitAtTarget)}</span></div>

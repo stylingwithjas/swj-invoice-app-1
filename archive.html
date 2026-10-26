@@ -250,7 +250,11 @@ function renderCleanupReport(){
   // supposed to find.
   const dollarOne = rows.filter(inv=>{
     const d = inv.data||{};
-    return !!d.signed && computeGrand(d) <= 1;
+    // <= 1.01, not <= 1 — a strict $1 boundary can miss a real $1 test record by a fraction
+    // of a cent from floating-point rounding in computeGrand() (audit finding: this kept
+    // reading 0 against a known $1 signed record even after the contract_url requirement
+    // was dropped).
+    return !!d.signed && computeGrand(d) <= 1.01;
   });
 
   // 4) Never emailed to a client at all (no send_log, not signed, not a draft/system row) —
@@ -296,7 +300,7 @@ function renderCleanupReport(){
   const section = (title, html)=> html ? `<h3 style="margin:20px 0 8px;font-size:14px;color:var(--taupe-dk)">${esc(title)}</h3>${html}` : '';
 
   body.innerHTML = `
-    <div class="empty-note" style="margin-bottom:12px;">This is a dry-run review only — nothing here has been deleted. Each section below lists candidates with the reason they were flagged. Have Gabe/Jasmine confirm before anything is removed.</div>
+    <div class="empty-note" style="margin-bottom:12px;">This is a dry-run review only — nothing here has been deleted. Each section below lists candidates with the reason they were flagged. Have Gabe/Jasmine confirm before anything is removed. Deleting a confirmed record is intentionally only possible from its card in the board drawer (Remove from Board / Delete) — Archive has no delete path by design, so nothing can be removed from here by accident.</div>
     ${section(`Versioned or duplicate-named (${versionFlagged.length})`, versionFlagged.map(inv=>rowHtml(inv,'invoice # looks like a duplicate/version/test')).join(''))}
     ${section(`Same client+address+date entered more than once (${dupGroups.length} group${dupGroups.length===1?'':'s'})`, dupGroups.map(g=>g.map(inv=>rowHtml(inv,'duplicate of '+g.length+' matching rows')).join('')).join(''))}
     ${section(`Signed contracts totaling $1 or less (${dollarOne.length})`, dollarOne.map(inv=>rowHtml(inv,'signed, total ≤ $1 — likely a test signature')).join(''))}
