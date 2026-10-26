@@ -355,6 +355,22 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
 .shop-send-btn:active { opacity:0.8; }
 .shop-empty { font-size:12px; color:var(--taupe); font-style:italic; text-align:center; padding:8px 0; }
 
+/* Send Preview — the mandatory stop before any client-facing email leaves the app */
+.spv-overlay { display:none; position:fixed; inset:0; background:rgba(26,24,20,0.5); z-index:300; align-items:center; justify-content:center; padding:20px; }
+.spv-card { background:#fff; border-radius:16px; padding:22px; max-width:440px; width:100%; max-height:88vh; overflow-y:auto; }
+.spv-hdr { font-family:'Cormorant Garamond',serif; font-size:20px; margin-bottom:4px; }
+.spv-meta { font-size:11px; color:var(--taupe-dk); margin-bottom:16px; padding-bottom:14px; border-bottom:1px solid var(--warm); }
+.spv-field { margin-bottom:12px; }
+.spv-field-lbl { font-size:9.5px; font-weight:700; color:var(--taupe-dk); text-transform:uppercase; letter-spacing:0.8px; margin-bottom:4px; }
+.spv-field-val { font-size:13px; color:var(--ink); background:var(--warm); border-radius:8px; padding:9px 11px; white-space:pre-wrap; line-height:1.5; }
+.spv-to { font-weight:600; }
+.spv-actions { display:flex; gap:8px; margin-top:16px; }
+.spv-actions button { flex:1; padding:12px; border-radius:9px; font-size:13px; font-weight:600; cursor:pointer; font-family:'Inter',sans-serif; border:none; }
+.spv-cancel { background:var(--warm); color:var(--ink-soft); border:0.5px solid var(--taupe-lt) !important; }
+.spv-send { background:var(--ink); color:#fff; }
+.spv-send:disabled { opacity:0.6; cursor:default; }
+.spv-status { font-size:12px; text-align:center; margin-top:10px; min-height:16px; }
+
 </style>
 </head>
 <body>
@@ -617,6 +633,13 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
       <div id="m-signatures-list"></div>
     </div>
 
+    <!-- Recent Sends — makes every client email traceable from the record itself, so a
+         mistaken send is visible immediately, not just stored invisibly. -->
+    <div class="m-sec" data-sec="signatures" id="m-sendlog-sec" style="display:none">
+      <div class="m-sec-ttl">📧 Recent Sends</div>
+      <div id="m-sendlog-list"></div>
+    </div>
+
     <!-- Payment -->
     <div class="m-sec" data-sec="payment">
       <div class="m-sec-ttl">💳 Payment</div>
@@ -678,8 +701,8 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
       <div class="m-row" style="flex-direction:column;align-items:stretch;gap:6px">
         <span class="m-lbl">Client reminder</span>
         <div style="display:flex;gap:8px">
-          <button class="m-text-btn" style="flex:1;background:var(--teal,#2f8f6f)" onclick="emailClientDestageReminder('pickup')">Email: Pickup Reminder</button>
-          <button class="m-text-btn" style="flex:1;background:var(--slate)" onclick="emailClientDestageReminder('extend')">Email: Offer Extension</button>
+          <button class="m-text-btn" style="flex:1;background:var(--teal,#2f8f6f)" onclick="emailClientDestageReminder('pickup')">Preview &amp; Send: Pickup Reminder</button>
+          <button class="m-text-btn" style="flex:1;background:var(--slate)" onclick="emailClientDestageReminder('extend')">Preview &amp; Send: Offer Extension</button>
         </div>
         <div id="m-destage-email-status" style="font-size:11px;color:#888;text-align:right"></div>
       </div>
@@ -1024,7 +1047,7 @@ function renderSignaturesSection(inv, d){
     </div>
     ${!sig?`<div style="display:flex;gap:8px;margin:-4px 0 4px;align-items:center">
       <input type="email" id="m-resend-email-${role}" class="m-tel-input" value="${escapeHtml(email||'')}" placeholder="email@example.com" style="flex:1">
-      <button class="m-text-btn" onclick="resendSignatureInvite('${role}')">Resend</button>
+      <button class="m-text-btn" onclick="resendSignatureInvite('${role}')">Preview &amp; Resend</button>
     </div>
     <div id="m-resend-status-${role}" style="font-size:11px;color:#888;text-align:right;margin:0 0 8px"></div>`:''}
   `;
@@ -1097,6 +1120,88 @@ async function refundPetDeposit(){
   }
 }
 
+// ════════════════════════════════════════════════════════════════
+// SEND PREVIEW — mandatory stop before any client-facing email leaves the app
+// ════════════════════════════════════════════════════════════════
+// Every client-send path builds its {to, subject, message} exactly as before, but instead
+// of fetching /api/email directly, it calls showSendPreview() — nothing goes out until the
+// person reviews the exact recipient/content here and presses Send on the preview itself.
+// Cancelling (or tapping outside the card) closes this and sends/changes nothing.
+let _pendingSend = null;
+
+function showSendPreview({ to, subject, message, meta, invnum, extra, onSent }){
+  document.getElementById('spv-meta').textContent = meta || '';
+  document.getElementById('spv-to').textContent = to;
+  document.getElementById('spv-subject').textContent = subject;
+  document.getElementById('spv-message').textContent = message;
+  document.getElementById('spv-status').textContent = '';
+  const btn = document.getElementById('spv-send-btn');
+  btn.disabled = false; btn.textContent = 'Send';
+  _pendingSend = { to, subject, message, invnum, extra, onSent };
+  document.getElementById('spv-overlay').style.display = 'flex';
+}
+
+function closeSendPreview(){
+  document.getElementById('spv-overlay').style.display = 'none';
+  _pendingSend = null;
+}
+
+async function confirmSendPreview(){
+  if(!_pendingSend) return;
+  const { to, subject, message, invnum, extra, onSent } = _pendingSend;
+  const btn = document.getElementById('spv-send-btn');
+  const statusEl = document.getElementById('spv-status');
+  btn.disabled = true; btn.textContent = 'Sending…';
+  try{
+    const r = await fetch('/api/email', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ to, subject, message, ...(extra||{}) }) });
+    const j = await r.json();
+    if(!j.sent) throw new Error(j.error || 'Send failed');
+    const sentAt = new Date();
+    statusEl.textContent = `✓ Sent to ${to} at ${sentAt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}`;
+    statusEl.style.color = 'var(--green)';
+    btn.textContent = 'Sent ✓';
+    await logSend(invnum, { to, subject, timestamp: sentAt.toISOString() });
+    if(onSent) onSent();
+    setTimeout(closeSendPreview, 1600);
+  }catch(e){
+    statusEl.textContent = 'Error: '+e.message;
+    statusEl.style.color = 'var(--red)';
+    btn.disabled = false; btn.textContent = 'Send';
+  }
+}
+
+// Minimal send log (full activity log is Phase 3.2) — enough for right now to answer "what
+// got sent, to whom, when" straight from the record itself.
+async function logSend(invnum, entry){
+  if(!invnum) return;
+  try{
+    const inv = CARDS[invnum];
+    if(!inv) return;
+    const d = inv.data || {};
+    const send_log = [...(d.send_log || []), { ...entry, type:'email' }];
+    const updated = { ...d, send_log };
+    await _sb.from('invoices').upsert({ invnum, client: inv.client, address: inv.address, invdate: inv.invdate, data: updated }, { onConflict:'invnum' });
+    inv.data = updated;
+    if(invnum === currentCardId) renderSendLog(updated);
+  }catch(e){ console.log('[send log] failed', e); }
+}
+
+function renderSendLog(d){
+  const sec = document.getElementById('m-sendlog-sec');
+  const list = document.getElementById('m-sendlog-list');
+  if(!sec || !list) return;
+  const log = (d.send_log || []).slice(-5).reverse();
+  if(!log.length){ sec.style.display = 'none'; return; }
+  sec.style.display = '';
+  list.innerHTML = log.map(e=>{
+    const when = e.timestamp ? new Date(e.timestamp).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) : '';
+    return `<div class="m-row">
+      <span class="m-lbl">${escapeHtml(e.subject||'Email')}</span>
+      <span style="font-size:11px;color:var(--taupe)">${escapeHtml(e.to||'')} · ${escapeHtml(when)}</span>
+    </div>`;
+  }).join('');
+}
+
 async function resendSignatureInvite(role){
   const inv = CARDS[currentCardId];
   if(!inv){ alert('Open a project first.'); return; }
@@ -1147,14 +1252,14 @@ async function resendSignatureInvite(role){
   }
   const message = 'Hi '+firstName+',\n\n'+intro+'\n\nTo review and sign, please visit:\n'+link+'\n\nQuestions? Call or text Jasmine at 206-422-5618.\n\nWarmly,\nJasmine Santana\nOwner & Creative Director — Styling With Jas\n📱 206-422-5618\n📧 info@stylingwithjas.com';
 
-  if(statusEl) statusEl.textContent='Sending…';
-  try{
-    const r = await fetch('/api/email', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({to, subject, message, proposal_link:link, client_first_name:firstName})});
-    const j = await r.json();
-    if(statusEl) statusEl.textContent = j.sent ? '✓ Sent' : ('Error: '+(j.error||'unknown'));
-  }catch(e){
-    if(statusEl) statusEl.textContent = 'Error: '+e.message;
-  }
+  if(statusEl) statusEl.textContent='';
+  showSendPreview({
+    to, subject, message,
+    meta: 'Signature invite · '+(inv.address||d.address||'')+' · #'+currentCardId,
+    invnum: currentCardId,
+    extra: { proposal_link: link, client_first_name: firstName },
+    onSent: ()=>{ if(statusEl) statusEl.textContent = '✓ Sent'; },
+  });
 }
 
 // Sends the client a destage reminder directly from the board's Destage section — same
@@ -1192,12 +1297,13 @@ async function emailClientDestageReminder(kind){
     message = 'Hi '+firstName+',\n\nYour staging rental at '+address+' is scheduled to wrap up on '+destageFmt+'.\n\nIf you\'d like more time, we\'re happy to extend — additional 30-day periods are $'+extrate.toLocaleString(undefined,{minimumFractionDigits:2})+' (prorated by day if needed).\n\nJust reply and let us know, or give us a call!\n\nThank you!\nJasmine Santana\nStyling With Jas\n206-422-5618';
   }
 
-  if(statusEl) statusEl.textContent='Sending…';
-  try{
-    const r = await fetch('/api/email', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({to:clientEmail, subject, message})});
-    const j = await r.json();
-    if(statusEl) statusEl.textContent = j.sent ? ('✓ Sent to '+clientEmail) : ('Error: '+(j.error||'unknown'));
-    if(j.sent){
+  if(statusEl) statusEl.textContent='';
+  showSendPreview({
+    to: clientEmail, subject, message,
+    meta: (kind==='pickup'?'Pickup reminder':'Extension offer')+' · '+address+' · wraps up '+destageFmt,
+    invnum: currentCardId,
+    onSent: async ()=>{
+      if(statusEl) statusEl.textContent = '✓ Sent to '+clientEmail;
       // Same fields were just read to build the email — persist them too, so this action
       // doubles as a save (matching the "Text" buttons' behavior) instead of silently
       // leaving whatever was just typed unsaved.
@@ -1205,10 +1311,8 @@ async function emailClientDestageReminder(kind){
         await _sb.from('invoices').upsert({invnum:inv.invnum, client:inv.client, address:inv.address, invdate:inv.invdate, data:d}, {onConflict:'invnum'});
         inv.data = d; CARDS[currentCardId].data = d;
       }catch(e){ /* email already sent either way */ }
-    }
-  }catch(e){
-    if(statusEl) statusEl.textContent = 'Error: '+e.message;
-  }
+    },
+  });
 }
 
 function addToCalendar(type){
@@ -1475,6 +1579,16 @@ const _sb = supabase.createClient(
 // In-memory registry of all loaded invoices, keyed by invnum
 let CARDS = {};
 
+// The one shared filter every staging-business list/picker on this board should apply:
+// excludes drafts, the internal system/config records (PRICING_DEFAULTS, TIER_PRICING —
+// fake "invoice" rows used to persist app settings, not real jobs), and GS Photography
+// (Gabe's separate business, which must never mix into Jasmine's staging numbers).
+const SYSTEM_INVNUMS = ['PRICING_DEFAULTS', 'TIER_PRICING'];
+function isStagingEligible(invnum){
+  invnum = String(invnum||'');
+  return !invnum.startsWith('DRAFT-') && !invnum.startsWith('GS') && !SYSTEM_INVNUMS.includes(invnum);
+}
+
 // Compute grand total from saved data blob
 function computeGrand(d){
   // Manual total overrides take precedence (Fully manual); blank fields auto-calculate.
@@ -1650,7 +1764,7 @@ async function loadBoard(){
     // Filter out drafts (DRAFT- prefix) and GS Photography invoices (GS prefix) — GS shares
     // this Supabase table but is a separate business with its own gs-invoice.html generator,
     // not part of Jasmine's board.
-    const invoices = (data||[]).filter(inv => !inv.invnum.startsWith('DRAFT-') && !inv.invnum.startsWith('GS'));
+    const invoices = (data||[]).filter(inv => isStagingEligible(inv.invnum));
 
     // Reset registry
     CARDS = {};
@@ -1833,7 +1947,7 @@ async function moveToStagePrompt(targetStage){
     if(error){ alert('Could not load invoices: ' + error.message); return; }
 
     const candidates = (data||[])
-      .filter(inv => !inv.invnum.startsWith('DRAFT-'))
+      .filter(inv => isStagingEligible(inv.invnum))
       .filter(inv => {
         const curStage = (inv.data && inv.data.stage) || 'proposal';
         return curStage !== targetStage && curStage !== 'denied';
@@ -2072,6 +2186,7 @@ function realOpenCard(invnum){
   renderConfirmationStatuses(d);
   renderPricingSection(inv, d);
   renderSignaturesSection(inv, d);
+  renderSendLog(d);
   renderPetDepositSection(inv, d);
 
   // Notes
@@ -2291,7 +2406,7 @@ async function createSplitPayment(invnum){
     +'<a href="'+url+'" target="_blank" style="display:block;background:#1a1814;color:#fff;text-decoration:none;padding:13px;border-radius:11px;font-weight:600;margin-bottom:8px">💳 Open this link</a>'
     +(!forClient?('<div style="display:flex;gap:6px;margin-bottom:4px;text-align:left">'
       +'<input type="email" multiple id="board-contrib-email" placeholder="their email(s), comma separated" style="flex:1;font-size:12.5px;padding:9px 10px;border:1px solid #ddd;border-radius:8px;font-family:inherit">'
-      +'<button onclick="emailBoardContribLink()" id="board-contrib-send" style="background:#1a1814;color:#fff;border:none;border-radius:8px;padding:9px 14px;font-size:12.5px;font-weight:600;cursor:pointer">Send</button>'
+      +'<button onclick="emailBoardContribLink()" id="board-contrib-send" style="background:#1a1814;color:#fff;border:none;border-radius:8px;padding:9px 14px;font-size:12.5px;font-weight:600;cursor:pointer">Preview &amp; Send</button>'
       +'</div><div id="board-contrib-status" style="font-size:11px;text-align:left;margin-bottom:10px;min-height:14px"></div>') : '')
     +(secondUrl?('<div style="font-size:12px;color:#2d6a0a;margin:14px 0 6px;border-top:1px solid #eee;padding-top:12px">Client\'s balance auto-updated to $'+secondAmount.toLocaleString(undefined,{minimumFractionDigits:2})+' — their old link is retired.</div>'
       +'<a href="'+secondUrl+'" target="_blank" style="display:block;background:#f5ead8;color:#9d7a44;text-decoration:none;padding:12px;border-radius:11px;font-weight:600;margin-bottom:6px">💳 Open client\'s new link</a>')
@@ -2311,22 +2426,21 @@ async function emailBoardContribLink(){
   if(!p) return;
   const emailInput=document.getElementById('board-contrib-email');
   const statusEl=document.getElementById('board-contrib-status');
-  const btn=document.getElementById('board-contrib-send');
   const raw=emailInput.value.trim();
   const emailRegex=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   const addrs=raw.split(/[,;]/).map(a=>a.trim()).filter(Boolean);
   const bad=addrs.filter(a=>!emailRegex.test(a));
   if(!addrs.length || bad.length){ statusEl.textContent=bad.length?'Invalid email: '+bad.join(', '):'Enter a valid email address'; statusEl.style.color='#e24b4a'; return; }
-  btn.disabled=true; statusEl.textContent='Sending…'; statusEl.style.color='#888';
+  statusEl.textContent=''; statusEl.style.color='#888';
   const amt='$'+parseFloat(p.amount).toLocaleString(undefined,{minimumFractionDigits:2});
   const subject='Payment Request — '+(p.label||'Payment');
   const message='Hi,\n\nJasmine Santana with Styling With Jas is requesting '+amt+' for: '+(p.label||'this payment')+'.\n\nYou can pay securely here:\n'+p.url+'\n\nThank you!\n\nJasmine Santana\nOwner & Creative Director — Styling With Jas\n206-422-5618\ninfo@stylingwithjas.com';
-  try{
-    const r=await fetch('/api/email',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({to:addrs.join(', '),subject,message})});
-    const d=await r.json();
-    if(d.sent){ const n=(d.to||[]).length; statusEl.textContent='✓ Sent to '+(n>1?n+' recipients':addrs[0]); statusEl.style.color='#22c55e'; }
-    else{ statusEl.textContent='Error: '+(d.error||'Unknown'); statusEl.style.color='#e24b4a'; btn.disabled=false; }
-  }catch(e){ statusEl.textContent='Error: '+e.message; statusEl.style.color='#e24b4a'; btn.disabled=false; }
+  showSendPreview({
+    to: addrs.join(', '), subject, message,
+    meta: 'Payment request · '+amt+' · '+(p.label||'Payment'),
+    invnum: currentCardId,
+    onSent: ()=>{ statusEl.textContent='✓ Sent to '+(addrs.length>1?addrs.length+' recipients':addrs[0]); statusEl.style.color='#22c55e'; },
+  });
 }
 
 // Custom date-picker dialog for extendRental() — replaces the old prompt() that only asked
@@ -2735,6 +2849,33 @@ function showCardProfitability(){
     <div style="display:flex;gap:8px;margin-top:12px">
       <button onclick="sendShoppingList()" style="flex:1;padding:11px;background:var(--ink);color:#fff;border:none;border-radius:10px;font-size:12px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif">Send All to Phone</button>
     </div>
+  </div>
+</div>
+
+<!-- Send Preview — every client-facing email routes through this before it actually sends.
+     Shows the exact recipient + content, requires an explicit second press, and logs the
+     send onto the invoice once confirmed. Cancelling closes this and sends/changes nothing. -->
+<div class="spv-overlay" id="spv-overlay" onclick="if(event.target===this)closeSendPreview()">
+  <div class="spv-card">
+    <div class="spv-hdr">Preview &amp; Send</div>
+    <div class="spv-meta" id="spv-meta"></div>
+    <div class="spv-field">
+      <div class="spv-field-lbl">To</div>
+      <div class="spv-field-val spv-to" id="spv-to"></div>
+    </div>
+    <div class="spv-field">
+      <div class="spv-field-lbl">Subject</div>
+      <div class="spv-field-val" id="spv-subject"></div>
+    </div>
+    <div class="spv-field">
+      <div class="spv-field-lbl">Message</div>
+      <div class="spv-field-val" id="spv-message"></div>
+    </div>
+    <div class="spv-actions">
+      <button class="spv-cancel" onclick="closeSendPreview()">Cancel</button>
+      <button class="spv-send" id="spv-send-btn" onclick="confirmSendPreview()">Send</button>
+    </div>
+    <div class="spv-status" id="spv-status"></div>
   </div>
 </div>
 </body>

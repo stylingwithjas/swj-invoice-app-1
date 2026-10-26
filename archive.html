@@ -102,6 +102,7 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
   <div class="tabs">
     <button class="tab-btn on" id="tab-signed" onclick="switchTab('signed')">✓ Signed Contracts</button>
     <button class="tab-btn" id="tab-quoted" onclick="switchTab('quoted')">Quoted</button>
+    <button class="tab-btn" id="tab-cleanup" onclick="switchTab('cleanup')">🧹 Cleanup Review</button>
   </div>
   <div class="search-row">
     <input type="text" id="search-input" placeholder="Search by client, address, or invoice number…" oninput="renderList()">
@@ -165,7 +166,7 @@ async function downloadSignedContract(invnum, btn){
 async function loadAll(){
   try{
     const {data,error} = await _sb.from('invoices').select('invnum,client,address,invdate,created_at,data')
-      .not('invnum','like','DRAFT-%').not('invnum','like','GS%')
+      .not('invnum','like','DRAFT-%').not('invnum','like','GS%').neq('invnum','PRICING_DEFAULTS').neq('invnum','TIER_PRICING')
       .order('created_at',{ascending:false}).limit(1000);
     if(error) throw error;
     _allInvoices = data||[];
@@ -181,7 +182,105 @@ function switchTab(tab){
   _activeTab = tab;
   document.getElementById('tab-signed').classList.toggle('on', tab==='signed');
   document.getElementById('tab-quoted').classList.toggle('on', tab==='quoted');
-  renderList();
+  document.getElementById('tab-cleanup').classList.toggle('on', tab==='cleanup');
+  document.getElementById('search-input').closest('.search-row').style.display = tab==='cleanup' ? 'none' : '';
+  if(tab==='cleanup') loadCleanupCandidates();
+  else renderList();
+}
+
+// --- Cleanup Review: a read-only dry-run report surfacing likely test/duplicate/abandoned
+// records for Gabe/Jasmine to look over. It NEVER deletes anything — it only lists candidates
+// with the reason each was flagged, so a human decides what (if anything) gets removed.
+let _cleanupLoaded = false;
+let _cleanupAll = [];
+
+function versionBaseKey(invnum){
+  return String(invnum||'').replace(/[-_.\s]*\(?(copy|dup(?:licate)?|test|v\d{1,2})\)?\s*$/i, '').trim().toLowerCase();
+}
+
+async function loadCleanupCandidates(){
+  const body = document.getElementById('list-body');
+  const note = document.getElementById('summary-note');
+  if(_cleanupLoaded){ renderCleanupReport(); return; }
+  note.textContent = 'Loading…';
+  body.innerHTML = '';
+  try{
+    // Unlike the normal archive tabs, this pulls EVERY row with no exclusions at all —
+    // test/duplicate/system records are exactly what we're hunting for here.
+    const {data,error} = await _sb.from('invoices').select('invnum,client,address,invdate,created_at,data')
+      .order('created_at',{ascending:false}).limit(2000);
+    if(error) throw error;
+    _cleanupAll = data||[];
+    _cleanupLoaded = true;
+  }catch(e){
+    body.innerHTML = `<div class="empty-note">Could not load cleanup candidates: ${esc(e.message)}</div>`;
+    note.textContent = '';
+    return;
+  }
+  renderCleanupReport();
+}
+
+function renderCleanupReport(){
+  const body = document.getElementById('list-body');
+  const note = document.getElementById('summary-note');
+  const rows = _cleanupAll;
+
+  // 1) Versioned/duplicate-looking invnums (e.g. "...-v2", "...(copy)", "...-test").
+  const versionFlagged = rows.filter(inv => /[-_.\s]\(?(copy|dup(?:licate)?|test|v\d{1,2})\)?\s*$/i.test(String(inv.invnum||'')));
+
+  // 2) Exact client+address+invdate duplicates (same job entered more than once).
+  const groups = {};
+  rows.forEach(inv=>{
+    const d = inv.data||{};
+    const client = (inv.client||d.client||'').trim().toLowerCase();
+    const address = (inv.address||d.address||'').trim().toLowerCase();
+    if(!client && !address) return;
+    const key = client+'|'+address+'|'+(inv.invdate||'');
+    (groups[key]=groups[key]||[]).push(inv);
+  });
+  const dupGroups = Object.values(groups).filter(g=>g.length>1);
+
+  // 3) Signed contracts totaling $1 or less (known test-signature pattern).
+  const dollarOne = rows.filter(inv=>{
+    const d = inv.data||{};
+    return !!(d.signed && d.contract_url) && computeGrand(d) <= 1;
+  });
+
+  // 4) Never emailed to a client at all (no send_log, not signed, not a draft/system row) —
+  // informational only: send_log is new, so older legitimate invoices will also show up here.
+  const SYSTEM = ['PRICING_DEFAULTS','TIER_PRICING'];
+  const neverSent = rows.filter(inv=>{
+    const d = inv.data||{};
+    if(SYSTEM.includes(inv.invnum)) return false;
+    if(String(inv.invnum||'').startsWith('DRAFT-')) return false;
+    if(d.signed) return false;
+    return !(d.send_log && d.send_log.length);
+  });
+
+  note.textContent = `${versionFlagged.length} versioned/duplicate-named, ${dupGroups.length} duplicate group(s), ${dollarOne.length} $1-or-less signed, ${neverSent.length} never emailed — nothing deleted`;
+
+  const rowHtml = (inv, reason)=>{
+    const d = inv.data||{};
+    const client = inv.client || d.client || 'Client';
+    return `<div class="arc-card">
+      <div class="arc-top">
+        <div><div class="arc-name">${esc(client)}</div><div class="arc-addr">${esc(inv.address||d.address||'')}</div></div>
+        <div class="arc-amt">${fmtMoney(computeGrand(d))}</div>
+      </div>
+      <div class="arc-meta"><span>#${esc(inv.invnum)}</span><span>${esc(inv.invdate||'')}</span><span>${esc(reason)}</span></div>
+      <div class="arc-actions"><a href="/proposal.html?inv=${encodeURIComponent(inv.invnum)}" target="_blank">View Details</a></div>
+    </div>`;
+  };
+
+  const section = (title, html)=> html ? `<h3 style="margin:20px 0 8px;font-size:14px;color:var(--taupe-dk)">${esc(title)}</h3>${html}` : '';
+
+  body.innerHTML = `
+    <div class="empty-note" style="margin-bottom:12px;">This is a dry-run review only — nothing here has been deleted. Each section below lists candidates with the reason they were flagged. Have Gabe/Jasmine confirm before anything is removed.</div>
+    ${section(`Versioned or duplicate-named (${versionFlagged.length})`, versionFlagged.map(inv=>rowHtml(inv,'invoice # looks like a duplicate/version/test')).join(''))}
+    ${section(`Same client+address+date entered more than once (${dupGroups.length} group${dupGroups.length===1?'':'s'})`, dupGroups.map(g=>g.map(inv=>rowHtml(inv,'duplicate of '+g.length+' matching rows')).join('')).join(''))}
+    ${section(`Signed contracts totaling $1 or less (${dollarOne.length})`, dollarOne.map(inv=>rowHtml(inv,'signed, total ≤ $1 — likely a test signature')).join(''))}
+    ${section(`Never emailed to a client (${neverSent.length})`, neverSent.map(inv=>rowHtml(inv,'no send_log entry on record')).join(''))}
+  ` || `<div class="empty-note">No cleanup candidates found.</div>`;
 }
 
 function renderList(){

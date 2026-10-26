@@ -689,6 +689,7 @@ body { background:#eceff3; color:var(--ink); }
             <div class="modal-field"><label>CC <span style="text-transform:none;letter-spacing:0;font-weight:400;color:#999;font-size:10px">— sees this email, not asked to sign (e.g. a real estate agent)</span></label><input id="email-cc" type="email" multiple placeholder="agent@example.com"></div>
             <div class="modal-field"><label>Subject</label><input id="email-subject" type="text"></div>
             <div class="modal-field"><label>Message</label><textarea id="email-body"></textarea></div>
+            <div id="email-cosigner-notice" style="display:none;font-size:12px;color:#5f685a;background:#eef1ea;border-radius:8px;padding:9px 11px;margin-top:8px;line-height:1.5"></div>
             <div id="email-status" style="font-size:13px;color:#888;margin-top:8px;min-height:18px"></div>
             <button class="modal-send-btn" id="email-send-btn" onclick="sendEmail()" style="width:100%;margin-bottom:8px">Send Email</button>
             <div class="modal-btns">
@@ -1729,6 +1730,9 @@ async function loadRecent(){
       .from('invoices')
       .select('invnum,client,address,invdate,data')
       .not('invnum', 'like', 'GS%')
+      .not('invnum', 'like', 'DRAFT-%')
+      .neq('invnum', 'PRICING_DEFAULTS')
+      .neq('invnum', 'TIER_PRICING')
       .order('created_at', { ascending: false })
       .limit(10);
     if(error||!data||data.length===0){el.textContent='No recent invoices.';return;}
@@ -2175,6 +2179,16 @@ function openEmailModal(data){
     document.getElementById("email-subject").value="Your Staging Proposal — "+address;
     document.getElementById("email-body").value="Hi "+firstName+",\n\nThank you for the opportunity to work with you! I'm excited about this property and what we can create together.\n\nAttached you'll find your personalized staging proposal for "+address+". Inside you'll find the full scope of work, investment total, and payment details.\n\nA few important notes:\n• Full payment is due 48 hours before installation day\n• Once payment is received I'll lock in your staging date\n• The payment link is included in the proposal for your convenience\n\nPlease don't hesitate to reach out with any questions!\n\nLooking forward to transforming your space."+approveLine+"\n\nWarmly,\nJasmine Santana\nOwner & Creative Director — Styling With Jas\n📱 206-422-5618\n📧 info@stylingwithjas.com";
   }
+  // Sending this invites the co-signer automatically in the same action (see
+  // sendCosignerInviteEmail) — disclosed here so nothing sends invisibly as a side effect.
+  const cosignerNotice = document.getElementById("email-cosigner-notice");
+  const cs = data.cosigner;
+  if(cs && cs.name && cs.email){
+    cosignerNotice.style.display = "block";
+    cosignerNotice.textContent = "Sending this will also invite "+cs.name+" <"+cs.email+"> to review and sign as "+(cs.role||"co-signer")+".";
+  } else {
+    cosignerNotice.style.display = "none";
+  }
   document.getElementById("email-status").textContent="";
   document.getElementById("email-modal").classList.add("show");
   setTimeout(()=>document.getElementById("email-to").focus(),100);
@@ -2511,15 +2525,17 @@ async function generate(){
 
 
 
-document.addEventListener('DOMContentLoaded', function(){
+document.addEventListener('DOMContentLoaded', async function(){
   try {
     document.getElementById('invdate').value=new Date().toISOString().split('T')[0];
     const bp=document.getElementById('base_price');
     if(bp){bp.addEventListener('input',recalc);bp.addEventListener('change',recalc);}
     buildRooms();
+    try{ await loadPricingDefaults(); }catch(e){}
     buildCats();
-    loadPricingDefaults().then(()=>{ buildCats(); recalc(); _origBasePrice = parseFloat(document.getElementById('base_price').value)||2500; selectTier('Standard', false); }).catch(()=>{ selectTier('Standard', false); });
     recalc();
+    _origBasePrice = parseFloat(document.getElementById('base_price').value)||2500;
+    selectTier('Standard', false);
     initInvNum();
     loadRecent();
     loadDrafts();
