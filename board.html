@@ -531,10 +531,10 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
     <div class="profit-strip" id="m-profit-strip" onclick="showCardProfitability()">
       <div>
         <div class="ps-lbl">Est. Profit this job</div>
-        <div class="ps-sub">Tap to see full breakdown</div>
+        <div class="ps-sub" id="ps-sub">Tap to see full breakdown</div>
       </div>
       <div style="text-align:right">
-        <div class="ps-val">$1,892</div>
+        <div class="ps-val" id="ps-val">—</div>
       </div>
       <div class="ps-arrow">›</div>
     </div>
@@ -1710,12 +1710,37 @@ const _sb = supabase.createClient(
 // In-memory registry of all loaded invoices, keyed by invnum
 let CARDS = {};
 
+// Shared finance assumptions (Phase 3.1) — read-only here (edited from payroll.html's
+// Business Finances card); same FINANCE_CONFIG system record, same defaults, so a per-job
+// profit estimate here always matches that view's own numbers.
+const FINANCE_DEFAULTS = {
+  warehouse_monthly: 1380, profit_target_pct: 25, tithe_pct: 10,
+  truck_rate_day: 50, truck_days_default: 1, truck_miles_default: 20,
+  truck_rate_mile: 0.23, fuel_rate_mile: 0.15, ldw_lia_week: 200,
+};
+let FINANCE_CONFIG = { ...FINANCE_DEFAULTS };
+let _financeConfigLoaded = false;
+async function ensureFinanceConfig(){
+  if(_financeConfigLoaded) return;
+  try{
+    const { data } = await _sb.from('invoices').select('data').eq('invnum','FINANCE_CONFIG').maybeSingle();
+    if(data && data.data) FINANCE_CONFIG = { ...FINANCE_DEFAULTS, ...data.data };
+  }catch(e){}
+  _financeConfigLoaded = true;
+}
+function truckCostPerJobEstimate(){
+  const perRental = FINANCE_CONFIG.truck_days_default*FINANCE_CONFIG.truck_rate_day
+    + (FINANCE_CONFIG.ldw_lia_week/7)*FINANCE_CONFIG.truck_days_default
+    + FINANCE_CONFIG.truck_miles_default*(FINANCE_CONFIG.truck_rate_mile+FINANCE_CONFIG.fuel_rate_mile);
+  return 2*perRental; // staging delivery + destage pickup
+}
+
 // The one shared filter every staging-business list/picker on this board should apply:
 // excludes drafts, the internal system/config records (PRICING_DEFAULTS, TIER_PRICING, and
 // each month's TAX_REVIEW_<year>_<month> record — fake "invoice" rows used to persist app
 // settings/state, not real jobs), and GS Photography (Gabe's separate business, which must
 // never mix into Jasmine's staging numbers).
-const SYSTEM_INVNUMS = ['PRICING_DEFAULTS', 'TIER_PRICING'];
+const SYSTEM_INVNUMS = ['PRICING_DEFAULTS', 'TIER_PRICING', 'FINANCE_CONFIG'];
 function isStagingEligible(invnum){
   invnum = String(invnum||'');
   return !invnum.startsWith('DRAFT-') && !invnum.startsWith('GS') && !invnum.startsWith('TAX_REVIEW_') && !SYSTEM_INVNUMS.includes(invnum);
@@ -2460,6 +2485,7 @@ function realOpenCard(invnum){
   renderSendLog(d);
   renderPaymentDueRow(d);
   renderPetDepositSection(inv, d);
+  renderProfitStrip(invnum, inv, d);
 
   // Notes
   setVal('m-notes', d.notes || '');
@@ -3143,15 +3169,96 @@ function setMover(val, type){
   }
 }
 
-function showCardProfitability(){
-  // Use the invoice grand total from the modal
-  const amtText = document.getElementById('m-amt').textContent;
-  const grand = parseFloat(amtText.replace(/[$,]/g,'')) || 0;
-  const addr = document.getElementById('m-addr').textContent;
-  const client = document.getElementById('m-name').textContent;
-  if(typeof showProfitability === 'function'){
-    showProfitability({client, address:addr, baserooms:'Living Room', addons:[]}, grand);
+// Phase 3.1 — per-job profit, replacing what used to be a hardcoded "$1,892" that never
+// changed. Actual once mover hours are logged for this job (time_entries.invnum), projected
+// from the profit-target % before that — same "projected vs. actual" split the spec applies
+// to the tithe figure, extended to the whole profit number since there's nothing real to
+// subtract yet. Warehouse is split across however many OTHER committed jobs share this same
+// calendar month (never a flat %) — truck uses the same editable Penske-card assumptions as
+// the payroll finance view.
+const LABEL_BY_KEY_BOARD = { staging:'Staging (On-Site)', destage:'Destage', warehouse:'Warehouse', travel:'Travel' };
+let _lastProfitBreakdown = null;
+
+async function computeJobProfitBreakdown(invnum, inv, d){
+  await ensureFinanceConfig();
+  const revenue = computeGrand(d);
+  let moverCost = 0, hasActualMover = false;
+  const moverByType = {};
+  try{
+    const { data } = await _sb.from('time_entries').select('work_type,amount').eq('invnum', invnum);
+    (data||[]).forEach(e=>{
+      const amt = parseFloat(e.amount)||0;
+      if(amt>0.009) hasActualMover = true;
+      moverCost += amt;
+      moverByType[e.work_type] = (moverByType[e.work_type]||0) + amt;
+    });
+  }catch(e){}
+
+  const truckCost = truckCostPerJobEstimate();
+  let warehouseShare = FINANCE_CONFIG.warehouse_monthly;
+  if(d.startdate && d.startdate!=='TBD'){
+    const monthKey = d.startdate.slice(0,7);
+    const committed = ['confirmed','staged','destage','done'];
+    const sameMonth = Object.values(CARDS).filter(c=>{
+      const cd = c.data||{};
+      return cd.startdate && cd.startdate!=='TBD' && cd.startdate.slice(0,7)===monthKey && committed.includes(cd.stage||'proposal');
+    });
+    warehouseShare = FINANCE_CONFIG.warehouse_monthly / Math.max(1, sameMonth.length);
   }
+
+  let profit, projected;
+  if(hasActualMover){
+    profit = revenue - moverCost - truckCost - warehouseShare;
+    projected = false;
+  } else {
+    profit = revenue * (FINANCE_CONFIG.profit_target_pct/100);
+    projected = true;
+  }
+  const tithe = Math.max(0, profit) * (FINANCE_CONFIG.tithe_pct/100);
+  return { revenue, moverCost, moverByType, truckCost, warehouseShare, profit, projected, tithe };
+}
+
+async function renderProfitStrip(invnum, inv, d){
+  const valEl = document.getElementById('ps-val');
+  const subEl = document.getElementById('ps-sub');
+  if(!valEl) return;
+  valEl.textContent = '…';
+  try{
+    const b = await computeJobProfitBreakdown(invnum, inv, d);
+    _lastProfitBreakdown = b;
+    valEl.textContent = fmtMoney(b.profit);
+    valEl.style.color = b.profit < 0 ? 'var(--red)' : 'var(--green)';
+    subEl.textContent = (b.projected ? 'Projected' : 'Actual') + ' — tap for breakdown';
+  }catch(e){ valEl.textContent = '—'; }
+}
+
+function showCardProfitability(){
+  const b = _lastProfitBreakdown;
+  if(!b){ alert('Profitability is still loading — try again in a moment.'); return; }
+  const moverLines = Object.entries(b.moverByType).map(([k,v])=>
+    '&nbsp;&nbsp;↳ ' + (LABEL_BY_KEY_BOARD[k]||k) + ': ' + fmtMoney(v)
+  ).join('<br>');
+  const ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(26,24,20,0.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:24px;font-family:Inter,-apple-system,sans-serif';
+  ov.innerHTML = `<div style="background:#fff;border-radius:16px;max-width:380px;width:100%;padding:22px">
+    <div style="font-family:Georgia,serif;font-size:18px;margin-bottom:2px">Profit Breakdown</div>
+    <div style="font-size:11px;color:#a29c96;margin-bottom:14px">${b.projected ? 'Projected — from the '+FINANCE_CONFIG.profit_target_pct+'% margin target (no logged mover hours yet for this job)' : 'Actual — from logged mover hours for this job'}</div>
+    <div style="font-size:13px;line-height:1.9">
+      Revenue: <strong>${fmtMoney(b.revenue)}</strong><br>
+      ${b.projected ? '' :
+        'Mover/contractor pay: <strong>-'+fmtMoney(b.moverCost)+'</strong><br>'+moverLines+'<br>'
+        +'Truck (2 rentals, est.): <strong>-'+fmtMoney(b.truckCost)+'</strong><br>'
+        +'Warehouse share this month: <strong>-'+fmtMoney(b.warehouseShare)+'</strong><br>'
+      }
+      <div style="border-top:1px solid #eee;margin:8px 0;padding-top:8px">Profit: <strong style="color:${b.profit<0?'#b53535':'#4a7c50'}">${fmtMoney(b.profit)}</strong></div>
+      Tithe (${FINANCE_CONFIG.tithe_pct}% of profit, ${b.projected?'projected':'actual'}): <strong>${fmtMoney(b.tithe)}</strong>
+      <div style="font-size:10.5px;color:#a29c96;margin-top:4px">Tithing is personal giving, not a business expense — shown separately, never inside the profit figure above.</div>
+    </div>
+    <button id="pb-close" style="width:100%;margin-top:16px;padding:12px;border:none;border-radius:10px;background:#1a1814;color:#fff;font-weight:600;cursor:pointer;font-family:inherit">Close</button>
+  </div>`;
+  document.body.appendChild(ov);
+  ov.querySelector('#pb-close').onclick = ()=>ov.remove();
+  ov.addEventListener('click', e=>{ if(e.target===ov) ov.remove(); });
 }
 
 </script>

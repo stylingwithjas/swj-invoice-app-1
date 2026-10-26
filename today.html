@@ -496,7 +496,7 @@ async function loadAll(){
   const dateStr=toISODate(viewDate);
   const [tasksRes,invRes]=await Promise.all([
     _sb.from('tasks').select('*').eq('date',dateStr).order('sort_order',{ascending:true}).order('created_at',{ascending:true}),
-    _sb.from('invoices').select('invnum,client,address,invdate,data').not('invnum','like','DRAFT-%').not('invnum','like','GS%').neq('invnum','PRICING_DEFAULTS').neq('invnum','TIER_PRICING').not('invnum','like','TAX_REVIEW_%').order('created_at',{ascending:false}).limit(100)
+    _sb.from('invoices').select('invnum,client,address,invdate,data').not('invnum','like','DRAFT-%').not('invnum','like','GS%').neq('invnum','PRICING_DEFAULTS').neq('invnum','TIER_PRICING').not('invnum','like','TAX_REVIEW_%').neq('invnum','FINANCE_CONFIG').order('created_at',{ascending:false}).limit(100)
   ]);
   allTasks=(tasksRes.data||[]);
   allInvoices=(invRes.data||[]).filter(inv=>{const s=(inv.data&&inv.data.stage)||'proposal';return s!=='denied'&&s!=='closed_lost';});

@@ -218,7 +218,7 @@ const STAGE_LABEL = { proposal:'Proposal', confirmed:'Confirmed', staged:'Staged
 async function loadJobs(){
   try{
     const {data} = await _sb.from('invoices').select('invnum,client,address,invdate,data')
-      .not('invnum','like','DRAFT-%').not('invnum','like','GS%').neq('invnum','PRICING_DEFAULTS').neq('invnum','TIER_PRICING').not('invnum','like','TAX_REVIEW_%')
+      .not('invnum','like','DRAFT-%').not('invnum','like','GS%').neq('invnum','PRICING_DEFAULTS').neq('invnum','TIER_PRICING').not('invnum','like','TAX_REVIEW_%').neq('invnum','FINANCE_CONFIG')
       .order('invdate',{ascending:false}).limit(50);
     _jobs = (data||[]).filter(j => { const s=(j.data||{}).stage||'proposal'; return s!=='denied' && s!=='closed_lost'; });
   }catch(e){ _jobs = []; }

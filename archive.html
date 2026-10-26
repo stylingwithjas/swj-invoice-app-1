@@ -169,7 +169,7 @@ async function downloadSignedContract(invnum, btn){
 async function loadAll(){
   try{
     const {data,error} = await _sb.from('invoices').select('invnum,client,address,invdate,created_at,data')
-      .not('invnum','like','DRAFT-%').not('invnum','like','GS%').neq('invnum','PRICING_DEFAULTS').neq('invnum','TIER_PRICING').not('invnum','like','TAX_REVIEW_%')
+      .not('invnum','like','DRAFT-%').not('invnum','like','GS%').neq('invnum','PRICING_DEFAULTS').neq('invnum','TIER_PRICING').not('invnum','like','TAX_REVIEW_%').neq('invnum','FINANCE_CONFIG')
       .order('created_at',{ascending:false}).limit(1000);
     if(error) throw error;
     _allInvoices = data||[];
@@ -254,7 +254,7 @@ function renderCleanupReport(){
 
   // 4) Never emailed to a client at all (no send_log, not signed, not a draft/system row) —
   // informational only: send_log is new, so older legitimate invoices will also show up here.
-  const SYSTEM = ['PRICING_DEFAULTS','TIER_PRICING'];
+  const SYSTEM = ['PRICING_DEFAULTS','TIER_PRICING','FINANCE_CONFIG'];
   const isSystemRow = invnum => SYSTEM.includes(invnum) || String(invnum||'').startsWith('TAX_REVIEW_');
   const neverSent = rows.filter(inv=>{
     const d = inv.data||{};

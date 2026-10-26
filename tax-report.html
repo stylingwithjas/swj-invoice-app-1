@@ -413,7 +413,7 @@ async function runReport(){
   let invoices = [];
   try{
     const {data,error} = await _sb.from('invoices').select('invnum,client,address,invdate,data')
-      .not('invnum','like','DRAFT-%').not('invnum','like','GS%').neq('invnum','PRICING_DEFAULTS').neq('invnum','TIER_PRICING').not('invnum','like','TAX_REVIEW_%')
+      .not('invnum','like','DRAFT-%').not('invnum','like','GS%').neq('invnum','PRICING_DEFAULTS').neq('invnum','TIER_PRICING').not('invnum','like','TAX_REVIEW_%').neq('invnum','FINANCE_CONFIG')
       .order('created_at',{ascending:false}).limit(1000);
     if(error) throw error;
     invoices = (data||[]).filter(inv => (inv.data||{}).signed === true);
