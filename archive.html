@@ -372,11 +372,33 @@ function renderList(){
   }).join('');
 }
 
+// In-app confirmation (Promise<boolean>) in place of the native confirm() — unreliable
+// inside an installed PWA on iOS (can silently act as Cancel, with no error shown).
+function customConfirm(message, { confirmLabel = 'Confirm', cancelLabel = 'Cancel' } = {}){
+  return new Promise(resolve=>{
+    const ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(26,24,20,0.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:24px;font-family:Inter,-apple-system,sans-serif';
+    const safeMsg = String(message||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+    ov.innerHTML = '<div style="background:#fff;border-radius:16px;max-width:360px;width:100%;padding:22px">'
+      + '<div style="font-size:14px;color:#3d3830;line-height:1.5;margin-bottom:18px">' + safeMsg + '</div>'
+      + '<div style="display:flex;gap:8px">'
+      + '<button id="cc-cancel" style="flex:1;padding:12px;border-radius:9px;border:1px solid #d4cfc9;background:#faf8f5;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit">' + cancelLabel + '</button>'
+      + '<button id="cc-ok" style="flex:1;padding:12px;border-radius:9px;border:none;color:#fff;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit;background:#1a1814">' + confirmLabel + '</button>'
+      + '</div></div>';
+    document.body.appendChild(ov);
+    const cleanup = (result)=>{ ov.remove(); resolve(result); };
+    ov.querySelector('#cc-cancel').onclick = ()=>cleanup(false);
+    ov.querySelector('#cc-ok').onclick = ()=>cleanup(true);
+    ov.addEventListener('click', e=>{ if(e.target===ov) cleanup(false); });
+  });
+}
+
 // Reactivates a closed-lost quote back onto the active board (Phase 1.1 — real quotes are
 // never deleted, so a late client response just needs a way back in). Resets date_sent to
 // now so the 30-day silence clock starts fresh rather than immediately re-expiring it.
 async function reactivateQuote(invnum, btn){
-  if(!confirm('Reactivate this quote back to the board as "Quoted"?')) return;
+  const ok = await customConfirm('Reactivate this quote back to the board as "Quoted"?', { confirmLabel: 'Reactivate' });
+  if(!ok) return;
   const orig = btn.textContent;
   btn.textContent = 'Reactivating…'; btn.disabled = true;
   try{

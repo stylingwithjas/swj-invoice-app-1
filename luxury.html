@@ -497,7 +497,7 @@ body { background:#eceff3; color:var(--ink); }
     <div class="card-body">
       <div class="base-row">
         <span class="base-lbl">Signature package investment</span>
-        <div style="display:inline-flex;align-items:center;gap:6px"><input class="base-input" id="base_price" type="number" step="100" inputmode="decimal" oninput="onBasePriceEdit(this)"><button class="price-save-check" id="base-save-check" onclick="saveBasePriceClicked(this)" title="Save as new default" style="font-size:14px">✓</button></div>
+        <div style="display:inline-flex;align-items:center;gap:6px"><input class="base-input" id="base_price" type="number" step="100" inputmode="decimal" autocomplete="off" oninput="onBasePriceEdit(this)"><button class="price-save-check" id="base-save-check" onclick="saveBasePriceClicked(this)" title="Save as new default" style="font-size:14px">✓</button></div>
       </div>
       <div style="font-size:11px;color:var(--taupe);margin:10px 0 12px;line-height:1.5">
         Includes white-glove delivery, bespoke styling, 45-day curated furnishings & seamless teardown — plus your first 2 staged areas (the breakeven minimum). Add the rest below.
@@ -2247,7 +2247,7 @@ function openEmailModal(data){
   const clientRoleParam=data.cosigner&&data.cosigner.name?"&role=client":"";
   const proposalUrl=location.origin+"/proposal.html?inv="+(data.invnum||"")+clientRoleParam;
   const approveLine="\n\nTo approve this proposal, review & sign here:\n"+proposalUrl;
-  document.getElementById("email-to").value="";
+  document.getElementById("email-to").value=data.client_email||"";
   document.getElementById("email-cc").value="";
   if(isLux){
     document.getElementById("email-subject").value="Your Curated Staging Proposal — "+address;

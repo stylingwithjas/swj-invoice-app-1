@@ -1318,6 +1318,19 @@ class handler(BaseHTTPRequestHandler):
                 sent, stats = run_monthly_tax_report()
                 self._respond(200, {'ok': True, 'emailed': sent, 'period': stats['period_label']})
                 return
+            if job == 'weekly_digest':
+                # Manual on-demand trigger (Build 2 audit: the Monday-only digest had no way
+                # to verify it live without waiting for an actual Monday) — bypasses the
+                # day-of-week gate; the real cron still only calls this on Mondays.
+                sent = run_weekly_digest()
+                self._respond(200, {'ok': True, 'digest_sent': sent})
+                return
+            if job == 'quote_sweep':
+                # Manual on-demand trigger for the 30-day silence sweep, independent of the
+                # daily cron's own firing — same reasoning as weekly_digest above.
+                archived = run_quote_lifecycle_sweep()
+                self._respond(200, {'ok': True, 'quotes_archived': archived})
+                return
             # Default (no ?job=) is the daily cron. Three jobs share this one daily firing
             # instead of adding separate vercel.json cron entries — this project is on the
             # Vercel Hobby plan, which caps a project at 2 cron jobs, and both are already

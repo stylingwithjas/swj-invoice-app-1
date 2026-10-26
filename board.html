@@ -426,6 +426,7 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
     <div style="font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:300;color:#fff;letter-spacing:1px">Today</div>
     <div style="display:flex;align-items:center;gap:10px">
       <button id="check-reminders-btn" onclick="checkRemindersNow()" style="background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.6);border:none;border-radius:14px;padding:5px 10px;font-size:10px;cursor:pointer;white-space:nowrap">🔔 Check Reminders Now</button>
+      <button id="test-digest-btn" onclick="testWeeklyDigestNow()" style="background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.6);border:none;border-radius:14px;padding:5px 10px;font-size:10px;cursor:pointer;white-space:nowrap">📧 Test Weekly Digest</button>
       <div id="today-date" style="font-size:10px;color:rgba(255,255,255,0.3);letter-spacing:1px;text-transform:uppercase"></div>
     </div>
   </div>
@@ -522,6 +523,7 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
       <div class="m-name" id="m-name"></div>
       <div class="m-addr" id="m-addr"></div>
       <div class="m-addr" id="m-invnum" style="font-family:monospace;font-size:10px;opacity:0.6"></div>
+      <div class="m-addr" id="m-datesent" style="font-size:10.5px;opacity:0.75"></div>
       <div class="m-amt" id="m-amt"></div>
     </div>
 
@@ -908,6 +910,30 @@ function setStage(s, el){
   el.classList.add('cur');
 }
 
+// In-app confirmation dialog (Promise<boolean>) — used in place of the native confirm()
+// for anything consequential. Native confirm()/prompt() are unreliable inside an installed
+// PWA on iOS (can be suppressed or auto-dismissed depending on context), which silently
+// behaves as Cancel with no error shown — exactly the failure mode Mark Closed — Lost had
+// before this existed. A custom overlay always works and matches this app's own styling.
+function customConfirm(message, { confirmLabel = 'Confirm', cancelLabel = 'Cancel', danger = false } = {}){
+  return new Promise(resolve=>{
+    const ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(26,24,20,0.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:24px;font-family:Inter,-apple-system,sans-serif';
+    const safeMsg = String(message||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+    ov.innerHTML = '<div style="background:#fff;border-radius:16px;max-width:360px;width:100%;padding:22px">'
+      + '<div style="font-size:14px;color:#3d3830;line-height:1.5;margin-bottom:18px">' + safeMsg + '</div>'
+      + '<div style="display:flex;gap:8px">'
+      + '<button id="cc-cancel" style="flex:1;padding:12px;border-radius:9px;border:1px solid #d4cfc9;background:#faf8f5;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit">' + cancelLabel + '</button>'
+      + '<button id="cc-ok" style="flex:1;padding:12px;border-radius:9px;border:none;color:#fff;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit;background:' + (danger?'#b53535':'#1a1814') + '">' + confirmLabel + '</button>'
+      + '</div></div>';
+    document.body.appendChild(ov);
+    const cleanup = (result)=>{ ov.remove(); resolve(result); };
+    ov.querySelector('#cc-cancel').onclick = ()=>cleanup(false);
+    ov.querySelector('#cc-ok').onclick = ()=>cleanup(true);
+    ov.addEventListener('click', e=>{ if(e.target===ov) cleanup(false); });
+  });
+}
+
 // Closed — Lost (Phase 1.1) removes the card from the active board/pipeline entirely (it
 // still shows up in Archive, searchable, never deleted) — unlike the other Move-to-Stage
 // options, that's a one-way trip out of this view, so it gets its own confirmation and
@@ -916,7 +942,8 @@ async function markClosedLost(){
   if(!currentCardId) return;
   const inv = CARDS[currentCardId];
   if(!inv) return;
-  if(!confirm('Mark this quote Closed — Lost?\n\nIt will drop off the active board but stay fully searchable in Archive. This can be undone later from Archive\'s "Reactivate" button.')) return;
+  const ok = await customConfirm('Mark this quote Closed — Lost?\n\nIt will drop off the active board but stay fully searchable in Archive. This can be undone later from Archive\'s "Reactivate" button.', { confirmLabel: 'Mark Closed — Lost', danger: true });
+  if(!ok) return;
   try{
     const d = { ...(inv.data||{}), stage: 'closed_lost' };
     const { error } = await _sb.from('invoices').upsert({
@@ -1151,7 +1178,7 @@ async function refundPetDeposit(){
   const dep = d.pet_deposit || {};
   const statusEl = document.getElementById('m-pet-deposit-status');
   if(!dep.payment_id){ if(statusEl) statusEl.textContent='No payment on record for this deposit.'; return; }
-  if(!confirm(`Refund the ${'$'+parseFloat(dep.amount||0).toFixed(2)} pet deposit? This issues a real refund through Stripe.`)) return;
+  if(!(await customConfirm(`Refund the ${'$'+parseFloat(dep.amount||0).toFixed(2)} pet deposit? This issues a real refund through Stripe.`, { confirmLabel: 'Refund', danger: true }))) return;
 
   if(statusEl) statusEl.textContent='Refunding…';
   try{
@@ -1260,8 +1287,10 @@ function renderSendLog(d){
 function renderPaymentDueRow(d){
   const row = document.getElementById('m-payment-due-row');
   if(!row) return;
+  const stage = d.stage || 'proposal';
+  if(d.paid || PRE_PAYMENT_STAGES.includes(stage)){ row.textContent = ''; return; }
   const dueISO = paymentDueDateISO(d);
-  if(!dueISO || d.paid){ row.textContent = ''; return; }
+  if(!dueISO){ row.textContent = ''; return; }
   const dueFmt = new Date(dueISO+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
   row.textContent = 'Payment due: ' + dueFmt + ' (48 hours before staging)';
 }
@@ -1740,6 +1769,11 @@ const NUDGE_FINAL_HOURS = 72;   // Final reminder, hours before staging (24h bef
 const QUOTE_SILENCE_DAYS = 30;
 // Needs Attention surfaces payment-due items within this many days.
 const NEEDS_ATTENTION_DAYS = 7;
+// Stages with no payment obligation yet — a quote still being negotiated (proposal/
+// future_hold) or past the point payment matters (done/denied/closed_lost) never shows a
+// "payment due" date. Shared by buildCardHTML (the card) and renderPaymentDueRow (the
+// drawer) so the two can't disagree on this — they used to (Build 2 audit finding).
+const PRE_PAYMENT_STAGES = ['proposal','future_hold','done','denied','closed_lost'];
 
 // Stage display labels & colors
 const STAGE_META = {
@@ -1766,7 +1800,6 @@ function buildCardHTML(inv){
   // Payment due = staging date minus 48 hours, shown right alongside the staging date
   // (Phase 1.2) — the hard rule stays "payment due 48h before staging," this just makes
   // that date visible instead of making people do the math themselves.
-  const PRE_PAYMENT_STAGES = ['proposal','future_hold','done','denied','closed_lost'];
   if(!d.paid && !PRE_PAYMENT_STAGES.includes(stage)){
     const dueISO = paymentDueDateISO(d);
     if(dueISO){
@@ -1866,7 +1899,7 @@ async function autoAdvanceStages(invoices){
   const today = new Date(); today.setHours(0,0,0,0);
   for(const inv of invoices){
     const d = inv.data || {};
-    if((d.stage || 'proposal') === 'confirmed' && d.startdate){
+    if((d.stage || 'proposal') === 'confirmed' && d.startdate && d.startdate !== 'TBD'){
       const sd = new Date(d.startdate + 'T00:00:00');
       if(sd <= today){
         d.stage = 'staged';
@@ -1894,9 +1927,16 @@ async function checkRemindersNow(){
     const j = await r.json();
     if(j.ok){
       const sent = j.reminders_sent || [];
-      alert(sent.length
+      const archived = j.quotes_archived || [];
+      // This same call also runs the 30-day quote-lifecycle sweep, and the weekly digest IF
+      // today happens to be Monday — surfaced here too (Build 2 audit: this button already
+      // triggered both, but only ever reported on the destage reminders).
+      let msg = sent.length
         ? '✓ Reminder check ran — sent: ' + sent.join(', ')
-        : '✓ Reminder check ran — nothing due right now (or already sent earlier today).');
+        : '✓ Reminder check ran — nothing due right now (or already sent earlier today).';
+      msg += '\n\nQuote sweep: ' + (archived.length ? archived.length + ' archived — ' + archived.join(', ') : 'nothing silent 30+ days right now.');
+      if(j.weekly_digest_sent) msg += '\n\nWeekly digest: sent (it\'s Monday).';
+      alert(msg);
     } else {
       alert('Reminder check failed: ' + (j.error || ('HTTP ' + r.status)));
     }
@@ -1904,6 +1944,25 @@ async function checkRemindersNow(){
     alert('Could not reach the reminder check: ' + e.message);
   } finally {
     if(btn){ btn.disabled = false; btn.textContent = '🔔 Check Reminders Now'; }
+  }
+}
+
+// On-demand test for the weekly Needs Attention digest (Build 2 audit: with no trigger
+// surfaced in the app, this could only ever be verified on an actual Monday). Fires the
+// exact same run_weekly_digest() the cron calls on Mondays — bypasses the day-of-week gate.
+async function testWeeklyDigestNow(){
+  const btn = document.getElementById('test-digest-btn');
+  if(btn){ btn.disabled = true; btn.textContent = '📧 Sending…'; }
+  try{
+    const r = await fetch('/api/webhook?job=weekly_digest', { method: 'GET' });
+    const j = await r.json();
+    alert(j.ok
+      ? (j.digest_sent ? '✓ Weekly digest sent — check info@stylingwithjas.com.' : 'Digest ran but the email failed to send — check that EMAIL_PASSWORD is configured.')
+      : 'Digest test failed: ' + (j.error || ('HTTP ' + r.status)));
+  }catch(e){
+    alert('Could not reach the digest test: ' + e.message);
+  }finally{
+    if(btn){ btn.disabled = false; btn.textContent = '📧 Test Weekly Digest'; }
   }
 }
 
@@ -2041,11 +2100,15 @@ function updatePipelineStats(grouped){
   document.getElementById('stat-mtd-total').textContent = fmtMoney(mtdTotal);
   document.getElementById('stat-mtd-count').textContent = mtdCount + ' completed';
 
-  // Needs Attention: count cards that have urgent or warning tags
-  // We use the same logic as buildCardHTML — count cards with .tag.a or .tag.w
-  let attentionCount = 0;
-  document.querySelectorAll('.card .tag.a, .card .tag.w').forEach(() => attentionCount++);
-  document.getElementById('stat-attention-count').textContent = attentionCount;
+  // Needs Attention: count of CARDS (not tags — a card with 3 urgent tags still counts once)
+  // that have at least one urgent/warning tag. Counting tags instead of cards was inflating
+  // this relative to the Today strip's per-job count (Build 2 audit finding).
+  const attentionCards = new Set();
+  document.querySelectorAll('.card .tag.a, .card .tag.w').forEach(tagEl => {
+    const card = tagEl.closest('.card');
+    if(card) attentionCards.add(card);
+  });
+  document.getElementById('stat-attention-count').textContent = attentionCards.size;
 }
 
 function updateTodayStrip(invoices){
@@ -2062,9 +2125,11 @@ function updateTodayStrip(invoices){
     const client = inv.client || d.client || 'Unknown';
 
     // Payment overdue — measured from the actual payment-due date (staging − 48h), never
-    // from staging day itself, and never on a proposal still awaiting signature (Phase 1.2:
-    // "Proposals awaiting signature are never labeled payment-overdue").
-    const dueISO = stage!=='proposal' ? paymentDueDateISO(d) : null;
+    // from staging day itself, and never on a proposal/future-hold quote still awaiting
+    // signature (Phase 1.2: "Proposals awaiting signature are never labeled payment-
+    // overdue") — this was missing the future_hold half of that exclusion (Build 2 audit
+    // finding: today.html had it, this strip didn't, so the two disagreed on the same jobs).
+    const dueISO = !PRE_PAYMENT_STAGES.includes(stage) ? paymentDueDateISO(d) : null;
     if(!d.paid && dueISO){
       const dueDate = new Date(dueISO + 'T00:00:00');
       const daysAgo = Math.round((today - dueDate)/(1000*60*60*24));
@@ -2088,7 +2153,7 @@ function updateTodayStrip(invoices){
       items.push({type:'urgent', label:'Staged · unpaid', value:client, invnum:inv.invnum, sortKey:960});
     }
     // Staging tomorrow
-    if(d.startdate){
+    if(d.startdate && d.startdate !== 'TBD'){
       const startDate = new Date(d.startdate + 'T00:00:00');
       const daysUntil = Math.round((startDate - today)/(1000*60*60*24));
       if(daysUntil === 1){
@@ -2098,7 +2163,7 @@ function updateTodayStrip(invoices){
       }
     }
     // Plan destage (40-44 days into staging)
-    if(d.paid && d.startdate && stage==='staged'){
+    if(d.paid && d.startdate && d.startdate !== 'TBD' && stage==='staged'){
       const startDate = new Date(d.startdate + 'T00:00:00');
       const daysSince = Math.round((today - startDate)/(1000*60*60*24));
       if(daysSince >= 38 && daysSince <= 44){
@@ -2222,7 +2287,7 @@ async function deleteCard(){
   const inv = CARDS[currentCardId];
   if(!inv) return;
   const clientName = inv.client || '(no name)';
-  if(!confirm(`Remove "${clientName}" from the board?\n\nThe invoice will be kept in the database but hidden from active columns. You can recover it later if needed.`)) return;
+  if(!(await customConfirm(`Remove "${clientName}" from the board?\n\nThe invoice will be kept in the database but hidden from active columns. You can recover it later if needed.`, { confirmLabel: 'Remove', danger: true }))) return;
 
   const d = { ...(inv.data || {}) };
   d.stage = 'denied';
@@ -2247,8 +2312,8 @@ async function hardDeleteCard(){
   if(!inv) return;
   const clientName = inv.client || '(no name)';
   // Two-step confirm because this is destructive and unrecoverable
-  if(!confirm(`PERMANENTLY DELETE "${clientName}" (Invoice #${inv.invnum})?\n\nThis cannot be undone. The invoice record will be removed from the database entirely.`)) return;
-  if(!confirm(`Are you sure? This is the final confirmation.\n\nTap OK to permanently delete.`)) return;
+  if(!(await customConfirm(`PERMANENTLY DELETE "${clientName}" (Invoice #${inv.invnum})?\n\nThis cannot be undone. The invoice record will be removed from the database entirely.`, { confirmLabel: 'Delete', danger: true }))) return;
+  if(!(await customConfirm(`Are you sure? This is the final confirmation.\n\nTap to permanently delete.`, { confirmLabel: 'Permanently Delete', danger: true }))) return;
 
   const { error } = await _sb.from('invoices').delete().eq('invnum', inv.invnum);
 
@@ -2300,6 +2365,21 @@ function realOpenCard(invnum){
   document.getElementById('m-name').textContent = inv.client || d.client || '';
   document.getElementById('m-addr').textContent = inv.address || d.address || '';
   document.getElementById('m-invnum').textContent = '#' + invnum;
+  // Phase 1.1 — the 30-day silence clock's starting point, visible so it can be checked by
+  // eye instead of trusting the "Stale · Nd silent" tag alone (Build 2 audit finding: this
+  // was nowhere in the UI even though the send itself worked and the "Not yet sent" tag
+  // correctly cleared).
+  (function(){
+    const el = document.getElementById('m-datesent'); if(!el) return;
+    if(d.date_sent){
+      const sentFmt = new Date(d.date_sent).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+      el.textContent = 'Sent ' + sentFmt;
+    } else if(stage==='proposal' || stage==='future_hold'){
+      el.textContent = d.invdate ? 'Not yet sent (drafted ' + d.invdate + ')' : 'Not yet sent';
+    } else {
+      el.textContent = '';
+    }
+  })();
   document.getElementById('m-amt').textContent = fmtMoney(computeGrand(d));
   setVal('m-amount', (d.base_price != null ? d.base_price : Math.round(computeGrand(d))));
   setVal('m-address-in', inv.address || d.address || '');
@@ -2314,7 +2394,7 @@ function realOpenCard(invnum){
     let through = '?';
     if(d.destage_date){
       through = d.destage_date;
-    } else if(d.startdate){
+    } else if(d.startdate && d.startdate !== 'TBD'){
       const x = new Date(d.startdate + 'T00:00:00'); x.setDate(x.getDate() + 45 + extDays);
       through = x.getFullYear() + '-' + String(x.getMonth()+1).padStart(2,'0') + '-' + String(x.getDate()).padStart(2,'0');
     }
@@ -2414,10 +2494,10 @@ async function voidProposal(invnum){
   const inv = CARDS[invnum]; if(!inv){ alert('Open a project first.'); return; }
   const d = inv.data || {};
   if(d.voided){
-    if(!confirm('Re-activate this proposal?\n\nThe client’s Approve & Sign link will work again.')) return;
+    if(!(await customConfirm('Re-activate this proposal?\n\nThe client’s Approve & Sign link will work again.', { confirmLabel: 'Re-activate' }))) return;
     d.voided = false;
   } else {
-    if(!confirm('Void this proposal?\n\nThe client’s Approve & Sign link will immediately show "no longer available" — they can’t approve it. Use this when the invoice was wrong; re-generate the corrected invoice (same number) to re-issue, or tap this again to re-activate.')) return;
+    if(!(await customConfirm('Void this proposal?\n\nThe client’s Approve & Sign link will immediately show "no longer available" — they can’t approve it. Use this when the invoice was wrong; re-generate the corrected invoice (same number) to re-issue, or tap this again to re-activate.', { confirmLabel: 'Void', danger: true }))) return;
     d.voided = true;
   }
   try { await _sb.from('invoices').upsert({ invnum: inv.invnum, client: inv.client, address: inv.address, invdate: inv.invdate, data: d }, { onConflict: 'invnum' }); } catch(e){}
@@ -2431,7 +2511,7 @@ async function clearExtensions(invnum){
   const d = inv.data || {};
   const n = (d.extensions||[]).length;
   if(!n){ alert('No extensions logged on this project.'); return; }
-  if(!confirm('Remove all ' + n + ' logged extension(s) from this project and reset the rental window to 45 days?\n\n(This only cleans up the board — it does not refund any Stripe payments.)')) return;
+  if(!(await customConfirm('Remove all ' + n + ' logged extension(s) from this project and reset the rental window to 45 days?\n\n(This only cleans up the board — it does not refund any Stripe payments.)', { confirmLabel: 'Remove', danger: true }))) return;
   d.extensions = [];
   d.rental_days = 45;
   try { await _sb.from('invoices').upsert({ invnum: inv.invnum, client: inv.client, address: inv.address, invdate: inv.invdate, data: d }, { onConflict: 'invnum' }); } catch(e){}
@@ -2498,7 +2578,7 @@ async function createSplitPayment(invnum){
 
   const label=(prompt('Label for this link (shown on the board & the Stripe receipt) — e.g. "Deposit", "Balance", "Agent contribution":', '')||'').trim();
 
-  const forClient=confirm('Is this link for '+(inv.client||'the client')+' to pay?\n\nOK = Yes — this becomes the payment button on their Approve & Sign page (replaces whatever was there).\nCancel = No — this is for someone else (e.g. a referring agent). It will NOT appear on the client\'s page; you send this link to them directly.');
+  const forClient=await customConfirm('Is this link for '+(inv.client||'the client')+' to pay?\n\nYes = this becomes the payment button on their Approve & Sign page (replaces whatever was there).\nNo = this is for someone else (e.g. a referring agent). It will NOT appear on the client\'s page; you send this link to them directly.', { confirmLabel: 'Yes — for the client', cancelLabel: 'No — someone else' });
 
   const payNum=((d.payments||[]).length)+1;
   const payId='PAY'+payNum;

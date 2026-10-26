@@ -391,7 +391,7 @@ textarea:focus { border-color:var(--gold); background:var(--warm); }
     <div class="card-body">
       <div class="base-row">
         <span class="base-lbl">Base package price</span>
-        <div style="display:inline-flex;align-items:center;gap:6px"><input class="base-input" id="base_price" type="number" step="100" inputmode="decimal" oninput="onBasePriceEdit(this)"><button class="price-save-check" id="base-save-check" onclick="saveBasePriceClicked(this)" title="Save as new default" style="font-size:14px">✓</button></div>
+        <div style="display:inline-flex;align-items:center;gap:6px"><input class="base-input" id="base_price" type="number" step="100" inputmode="decimal" autocomplete="off" oninput="onBasePriceEdit(this)"><button class="price-save-check" id="base-save-check" onclick="saveBasePriceClicked(this)" title="Save as new default" style="font-size:14px">✓</button></div>
       </div>
       <div style="font-size:11px;color:var(--taupe);margin:10px 0 12px;line-height:1.5">
         Includes delivery, setup, 45-day furniture rental & teardown.
@@ -1810,7 +1810,7 @@ function openEmailModal(data){
   const firstName=client.toLowerCase().startsWith('estate of')?client.split(' ').slice(2).join(' ').split(' ')[0]:client.split(' ')[0];
   const clientRoleParam=data.cosigner&&data.cosigner.name?"&role=client":"";
   const approveLine="\n\nTo approve this proposal, review & sign here:\n"+location.origin+"/proposal.html?inv="+(data.invnum||"")+clientRoleParam;
-  document.getElementById('email-to').value='';
+  document.getElementById('email-to').value=data.client_email||'';
   document.getElementById('email-cc').value='';
   document.getElementById('email-subject').value=`Your Staging Proposal — ${address}`;
   document.getElementById('email-body').value=`Hi ${firstName},\n\nThank you for the opportunity to work with you! I'm excited about this property and what we can create together.\n\nAttached you'll find your personalized staging proposal for ${address}. Inside you'll find the full scope of work, investment total, and payment details.\n\nA few important notes:\n• Full payment is due 48 hours before installation day\n• Once payment is received I'll lock in your staging date\n• The payment link is included in the proposal for your convenience\n\nPlease don't hesitate to reach out with any questions!\n\nLooking forward to transforming your space.${approveLine}\n\nWarmly,\nJasmine Santana\nOwner & Creative Director — Styling With Jas\n📱 206-422-5618\n📧 info@stylingwithjas.com`;

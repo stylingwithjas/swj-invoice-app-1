@@ -577,7 +577,7 @@ function buildS1(){
       const away=Math.round((new Date(dueISO+'T00:00:00')-viewDate)/864e5);
       if(away>=0&&away<=NEEDS_ATTENTION_DAYS){actions.push({sev:'sev-medium',label:'Payment Due Soon',client,addr,detail:away===0?'Payment due today':`Payment due in ${away} day${away===1?'':'s'} · #${inv.invnum}`,amount:grand,amtRed:false,invnum:inv.invnum,btns:[{t:'Open & Remind',cls:'pri',fn:`window.location.href='/board.html?inv=${inv.invnum}'`},{t:'View',fn:`goInv('${inv.invnum}')`}],sk:500+(NEEDS_ATTENTION_DAYS+1-away)});return;}
     }
-    if(paid&&d.startdate&&(d.stage==='staged'||!d.stage)){
+    if(paid&&d.startdate&&d.startdate!=='TBD'&&(d.stage==='staged'||!d.stage)){
       const ago=Math.round((viewDate-new Date(d.startdate+'T00:00:00'))/864e5);
       if(ago>=40&&ago<=50){const left=45-ago;actions.push({sev:left<=2?'sev-high':'sev-medium',label:'Destage Approaching',client,addr,detail:left>0?`${left} day${left===1?'':'s'} until rental ends`:`${Math.abs(left)} days past window`,amount:null,amtRed:false,invnum:inv.invnum,btns:[{t:'Plan Destage',cls:'pri',fn:`window.location.href='/board.html'`}],sk:800-left});}
     }
@@ -605,7 +605,7 @@ function buildS2(){
   // Invoice-derived schedule items (staging today/tomorrow, destage today)
   allInvoices.forEach(inv=>{
     const d=inv.data||{};
-    if(d.startdate){
+    if(d.startdate&&d.startdate!=='TBD'){
       const away=Math.round((new Date(d.startdate+'T00:00:00')-viewDate)/864e5);
       if(away===0||away===1){
         const tags=[];
