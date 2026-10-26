@@ -385,7 +385,7 @@ textarea:focus { border-color:var(--gold); background:var(--warm); }
     <div class="card-body">
       <div class="base-row">
         <span class="base-lbl">Base package price</span>
-        <div style="display:inline-flex;align-items:center;gap:6px"><input class="base-input" id="base_price" type="number" value="2500" step="100" inputmode="decimal" oninput="onBasePriceEdit(this)"><button class="price-save-check" id="base-save-check" onclick="saveBasePriceClicked(this)" title="Save as new default" style="font-size:14px">✓</button></div>
+        <div style="display:inline-flex;align-items:center;gap:6px"><input class="base-input" id="base_price" type="number" step="100" inputmode="decimal" oninput="onBasePriceEdit(this)"><button class="price-save-check" id="base-save-check" onclick="saveBasePriceClicked(this)" title="Save as new default" style="font-size:14px">✓</button></div>
       </div>
       <div style="font-size:11px;color:var(--taupe);margin:10px 0 12px;line-height:1.5">
         Includes delivery, setup, 45-day furniture rental & teardown.
@@ -550,17 +550,17 @@ textarea:focus { border-color:var(--gold); background:var(--warm); }
       <div class="summary-addr" id="sum-addr">&nbsp;</div>
     </div>
     <div class="summary-rows">
-      <div class="t-row"><span>Base package</span><span id="t-base">$2,500.00</span></div>
-      <div class="t-row"><span>Add-ons</span><span id="t-addons">$0.00</span></div>
+      <div class="t-row"><span>Base package</span><span id="t-base">—</span></div>
+      <div class="t-row"><span>Add-ons</span><span id="t-addons">—</span></div>
       <div class="t-divider"></div>
-      <div class="t-row"><span>Subtotal</span><span id="t-sub">$2,500.00</span></div>
-      <div class="t-row"><span id="t-taxlabel">Tax (10.25%)</span><span id="t-tax">$256.25</span></div>
+      <div class="t-row"><span>Subtotal</span><span id="t-sub">—</span></div>
+      <div class="t-row"><span id="t-taxlabel">Tax</span><span id="t-tax">—</span></div>
     </div>
     <div class="sum-grand">
       <span class="sum-grand-lbl">Grand Total</span>
-      <span class="sum-grand-val" id="t-grand">$2,756.25</span>
+      <span class="sum-grand-val" id="t-grand">—</span>
     </div>
-    <div class="sum-ext"><span id="t-ext">Extension: $918.75 / 30 days</span></div>
+    <div class="sum-ext"><span id="t-ext">—</span></div>
     <div id="contrib-summary-wrap" style="display:none;padding:0 16px 10px">
       <div class="t-row"><span>Other contributions</span><span id="t-contrib" style="color:#2d6a0a">-$0.00</span></div>
       <div class="t-row" style="font-weight:700"><span>Balance Due (Client)</span><span id="t-balance">$0.00</span></div>
@@ -2116,6 +2116,10 @@ document.addEventListener('DOMContentLoaded', async function(){
     if(bp){bp.addEventListener('input',recalc);bp.addEventListener('change',recalc);}
     buildRooms();
     try{ await loadPricingDefaults(); }catch(e){}
+    // base_price has no static HTML default (see the input's markup) so it never visibly
+    // shows a wrong number before the saved default loads — if no default is saved yet,
+    // fall back to 2500 here, in the same breath as the real default, instead of in markup.
+    if(bp && !bp.value) bp.value = 2500;
     buildCats();
     recalc();
     _origBasePrice = parseFloat(document.getElementById('base_price').value)||2500;

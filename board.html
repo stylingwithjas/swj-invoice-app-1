@@ -1171,7 +1171,7 @@ async function refundPetDeposit(){
 // Cancelling (or tapping outside the card) closes this and sends/changes nothing.
 let _pendingSend = null;
 
-function showSendPreview({ to, subject, message, meta, invnum, extra, onSent }){
+function showSendPreview({ to, subject, message, meta, invnum, extra, saveData, onSent }){
   document.getElementById('spv-meta').textContent = meta || '';
   document.getElementById('spv-to').textContent = to;
   document.getElementById('spv-subject').textContent = subject;
@@ -1179,7 +1179,7 @@ function showSendPreview({ to, subject, message, meta, invnum, extra, onSent }){
   document.getElementById('spv-status').textContent = '';
   const btn = document.getElementById('spv-send-btn');
   btn.disabled = false; btn.textContent = 'Send';
-  _pendingSend = { to, subject, message, invnum, extra, onSent };
+  _pendingSend = { to, subject, message, invnum, extra, saveData, onSent };
   document.getElementById('spv-overlay').style.display = 'flex';
 }
 
@@ -1190,7 +1190,7 @@ function closeSendPreview(){
 
 async function confirmSendPreview(){
   if(!_pendingSend) return;
-  const { to, subject, message, invnum, extra, onSent } = _pendingSend;
+  const { to, subject, message, invnum, extra, saveData, onSent } = _pendingSend;
   const btn = document.getElementById('spv-send-btn');
   const statusEl = document.getElementById('spv-status');
   btn.disabled = true; btn.textContent = 'Sending…';
@@ -1202,7 +1202,12 @@ async function confirmSendPreview(){
     statusEl.textContent = `✓ Sent to ${to} at ${sentAt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}`;
     statusEl.style.color = 'var(--green)';
     btn.textContent = 'Sent ✓';
-    await logSend(invnum, { to, subject, timestamp: sentAt.toISOString() });
+    // saveData (when a caller passes it, e.g. emailClientDestageReminder reading fresh
+    // fields off the open modal) is the base this writes send_log onto, in ONE upsert —
+    // callers must NOT do their own separate save in onSent, or that second write (built
+    // from a pre-send snapshot that doesn't know about send_log yet) clobbers the entry
+    // this just persisted the moment the page reloads.
+    await logSend(invnum, { to, subject, timestamp: sentAt.toISOString() }, saveData);
     if(onSent) onSent();
     setTimeout(closeSendPreview, 1600);
   }catch(e){
@@ -1213,13 +1218,14 @@ async function confirmSendPreview(){
 }
 
 // Minimal send log (full activity log is Phase 3.2) — enough for right now to answer "what
-// got sent, to whom, when" straight from the record itself.
-async function logSend(invnum, entry){
+// got sent, to whom, when" straight from the record itself. baseData, when given, is used
+// instead of the currently-stored inv.data — see confirmSendPreview's saveData note above.
+async function logSend(invnum, entry, baseData){
   if(!invnum) return;
   try{
     const inv = CARDS[invnum];
     if(!inv) return;
-    const d = inv.data || {};
+    const d = baseData || inv.data || {};
     const send_log = [...(d.send_log || []), { ...entry, type:'email' }];
     const updated = { ...d, send_log };
     await _sb.from('invoices').upsert({ invnum, client: inv.client, address: inv.address, invdate: inv.invdate, data: updated }, { onConflict:'invnum' });
@@ -1355,15 +1361,13 @@ async function emailClientDestageReminder(kind){
     to: clientEmail, subject, message,
     meta: (kind==='pickup'?'Pickup reminder':'Extension offer')+' · '+address+' · wraps up '+destageFmt,
     invnum: currentCardId,
-    onSent: async ()=>{
+    // Same fields were just read to build the email — persist them too, so this action
+    // doubles as a save (matching the "Text" buttons' behavior) instead of silently leaving
+    // whatever was just typed unsaved. Passed as saveData, not a separate upsert here, so
+    // the send_log entry logSend() writes isn't clobbered by a second, send_log-unaware write.
+    saveData: d,
+    onSent: ()=>{
       if(statusEl) statusEl.textContent = '✓ Sent to '+clientEmail;
-      // Same fields were just read to build the email — persist them too, so this action
-      // doubles as a save (matching the "Text" buttons' behavior) instead of silently
-      // leaving whatever was just typed unsaved.
-      try{
-        await _sb.from('invoices').upsert({invnum:inv.invnum, client:inv.client, address:inv.address, invdate:inv.invdate, data:d}, {onConflict:'invnum'});
-        inv.data = d; CARDS[currentCardId].data = d;
-      }catch(e){ /* email already sent either way */ }
     },
   });
 }

@@ -198,10 +198,6 @@ function switchTab(tab){
 let _cleanupLoaded = false;
 let _cleanupAll = [];
 
-function versionBaseKey(invnum){
-  return String(invnum||'').replace(/[-_.\s]*\(?(copy|dup(?:licate)?|test|v\d{1,2})\)?\s*$/i, '').trim().toLowerCase();
-}
-
 async function loadCleanupCandidates(){
   const body = document.getElementById('list-body');
   const note = document.getElementById('summary-note');
@@ -229,8 +225,11 @@ function renderCleanupReport(){
   const note = document.getElementById('summary-note');
   const rows = _cleanupAll;
 
-  // 1) Versioned/duplicate-looking invnums (e.g. "...-v2", "...(copy)", "...-test").
-  const versionFlagged = rows.filter(inv => /[-_.\s]\(?(copy|dup(?:licate)?|test|v\d{1,2})\)?\s*$/i.test(String(inv.invnum||'')));
+  // 1) Versioned/duplicate-looking invnums (e.g. "2020130-v2", "2020130copy", "2020130(v2)").
+  // No separator is required before the marker — the real naming convention for these
+  // wasn't available to confirm against (no direct DB access from this environment), so
+  // this errs toward catching more rather than requiring an exact, unverified format.
+  const versionFlagged = rows.filter(inv => /\(?(copy|dup(?:licate)?|test|v\d{1,2})\)?\s*$/i.test(String(inv.invnum||'')));
 
   // 2) Exact client+address+invdate duplicates (same job entered more than once).
   const groups = {};
@@ -244,10 +243,13 @@ function renderCleanupReport(){
   });
   const dupGroups = Object.values(groups).filter(g=>g.length>1);
 
-  // 3) Signed contracts totaling $1 or less (known test-signature pattern).
+  // 3) Signed contracts totaling $1 or less (known test-signature pattern). Keyed off
+  // signed + total only — a test record often has no real contract_url, so requiring one
+  // (as an earlier version of this check did) silently excluded exactly the rows this is
+  // supposed to find.
   const dollarOne = rows.filter(inv=>{
     const d = inv.data||{};
-    return !!(d.signed && d.contract_url) && computeGrand(d) <= 1;
+    return !!d.signed && computeGrand(d) <= 1;
   });
 
   // 4) Never emailed to a client at all (no send_log, not signed, not a draft/system row) —
