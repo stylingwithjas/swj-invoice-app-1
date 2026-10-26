@@ -92,6 +92,13 @@ def build_extension_pdf(data):
     amount   = float(data.get('base_price', 0) or 0)
     extrate  = float(data.get('extrate', 0) or (amount * 30 / days if days else amount))
     payment_url = data.get('payment_url')
+    # Phase 5.2/5.5 — extension fee is 100% rental; tax is backed out of the already-agreed
+    # fee (amount), which does not change. DOR requires tax be stated separately even when
+    # (as here) the total shown already includes it — see TAX_METHODOLOGY.md.
+    taxrate = float(data.get('taxrate', 0) or 0)
+    _r = taxrate / 100
+    ext_tax = amount - amount / (1 + _r) if _r > 0 else 0.0
+    ext_subtotal = amount - ext_tax
 
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf'); tmp.close()
     fname = tmp.name
@@ -133,9 +140,12 @@ def build_extension_pdf(data):
     cv.drawString(ML, y, 'Description'); cv.drawRightString(PW - MR, y, 'Amount'); y -= 16
     cv.setFont('Helvetica', 9.5); cv.setFillColor(colors.HexColor('#333333'))
     cv.drawString(ML, y, f'Furniture rental extension — {days} days')
-    cv.drawRightString(PW - MR, y, fmt(amount)); y -= 11
+    cv.drawRightString(PW - MR, y, fmt(ext_subtotal)); y -= 11
     cv.setFont('Helvetica', 8); cv.setFillColor(GRAY)
     cv.drawString(ML, y, f'{fmt(extrate)} per 30-day period (prorated)'); y -= 16
+    if taxrate:
+        cv.setFont('Helvetica', 9); cv.setFillColor(colors.HexColor('#333333'))
+        cv.drawString(ML, y, f'Tax ({taxrate:.2f}%)'); cv.drawRightString(PW - MR, y, fmt(ext_tax)); y -= 15
     cv.setStrokeColor(LGRAY); cv.setLineWidth(0.5); cv.line(ML, y, PW - MR, y); y -= 18
     cv.setFont('Helvetica-Bold', 12); cv.setFillColor(INK)
     cv.drawString(ML, y, 'Total Due'); cv.drawRightString(PW - MR, y, fmt(amount)); y -= 26
@@ -523,9 +533,30 @@ def generate_invoice_pdf(data):
     sub_ov = data.get('subtotal_override')
     tax_ov = data.get('tax_override')
     tot_ov = data.get('total_override')
-    subtotal = float(sub_ov) if sub_ov not in (None, '') else base_price + addon_total
-    tax = float(tax_ov) if tax_ov not in (None, '') else subtotal * taxrate / 100
-    grand = float(tot_ov) if tot_ov not in (None, '') else subtotal + tax
+    if sub_ov not in (None, '') or tax_ov not in (None, '') or tot_ov not in (None, ''):
+        subtotal = float(sub_ov) if sub_ov not in (None, '') else base_price + addon_total
+        tax = float(tax_ov) if tax_ov not in (None, '') else subtotal * taxrate / 100
+        grand = float(tot_ov) if tot_ov not in (None, '') else subtotal + tax
+    elif data.get('price_led_tax'):
+        # Phase 5.2 — price-led tax, new invoices only (see TAX_METHODOLOGY.md). The total
+        # is the chosen price, computed exactly as it always was (base+addons, tax added at
+        # the full rate) — what changes is backing the tax out of that fixed total using only
+        # the rental share, instead of taxing the full subtotal. Must mirror priceLedTax() in
+        # index.html/luxury.html exactly, or the PDF won't match what was previewed on screen.
+        grand = (base_price + addon_total) * (1 + taxrate / 100)
+        rental_share_base = float(data.get('rental_share_base', 0.5) or 0.5)
+        rental_dollars = base_price * rental_share_base + sum(
+            a['price'] for a in addons if a.get('type', 'rental') != 'service'
+        )
+        all_dollars = base_price + addon_total
+        rental_share = (rental_dollars / all_dollars) if all_dollars > 0.009 else 1.0
+        r = (taxrate or 0) / 100
+        subtotal = (grand / (1 + r * rental_share)) if r > 0 else grand
+        tax = grand - subtotal
+    else:
+        subtotal = base_price + addon_total
+        tax = subtotal * taxrate / 100
+        grand = subtotal + tax
 
     # Part of the total coming from someone other than the client (e.g. an agent
     # contribution), decided upfront when the invoice is created. Free-text label —
@@ -1217,14 +1248,30 @@ def generate_invoice_pdf(data):
     # ── PAGE 2: TERMS & CONDITIONS + SIGNATURES ──
     cv.showPage()
     y = draw_header(775)
-    
+
+    # Phase 6 added several new clauses on top of the original (short) terms list, which
+    # never needed to spill past one page before — a lightweight "(continued)" header (not
+    # the full branded letterhead, which only makes sense opening the document) so clauses
+    # never silently run off the bottom of the page.
+    def draw_tc_continuation_header():
+        cv.setFont('Helvetica', 8); cv.setFillColor(GRAY)
+        cv.drawString(ML, 775, f'Terms & Conditions (continued) — Invoice No {invnum}')
+        cv.setStrokeColor(LGRAY); cv.setLineWidth(0.4)
+        cv.line(ML, 768, PW - MR, 768)
+        return 752
+
     def tc_section(title, items):
         nonlocal y
+        if y < 80:
+            cv.showPage(); y = draw_tc_continuation_header()
         cv.setFont('Helvetica-Bold', 8.5); cv.setFillColor(BLACK)
         cv.drawString(ML, y, title); y -= 12
         cv.setFont('Helvetica', 8); cv.setFillColor(colors.HexColor('#333333'))
         for item in items:
             for l in wrap(cv, item, 'Helvetica', 8, CW):
+                if y < 45:
+                    cv.showPage(); y = draw_tc_continuation_header()
+                    cv.setFont('Helvetica', 8); cv.setFillColor(colors.HexColor('#333333'))
                 cv.drawString(ML, y, l); y -= 10
         y -= 6
     
@@ -1268,7 +1315,58 @@ def generate_invoice_pdf(data):
     tc_section('Marketing Rights', [
         'Styling With Jas reserves the right to photograph staged spaces for marketing, promotional, and portfolio purposes.',
     ])
-    
+
+    # ── Phase 6 additions (Oct 2026) — new clauses added to close gaps in the original
+    # template. Amounts marked [TBD] are placeholders Gabe/Jasmine must set — never invented
+    # here. Built without attorney review per Gabe's Oct 25, 2026 decision: this ships as a
+    # business draft, not attorney-validated; the holdover/damage/dispute clauses in
+    # particular carry that risk until counsel reviews them (optional later step, not a gate).
+    tc_section('Holdover & Retrieval', [
+        'If furnishings remain on-site past the rental term without an agreed extension, a holdover rate equal to the stated 30-day extension rate, prorated daily, continues to accrue until the furnishings are retrieved.',
+        'Client will receive written notice before retrieval.',
+        'Styling With Jas retains the right to enter the property at reasonable hours, after notice, to retrieve its furnishings.',
+        'Client is liable for the full replacement value of any staging item not returned.',
+    ])
+    tc_section('Extension Payment Terms', [
+        'Extension fees are due before the extension period begins.',
+        'A late fee of [TBD] applies to an extension payment received after the extension period has already begun.',
+        'Styling With Jas reserves the right to schedule destage if an extension remains unpaid after written notice.',
+    ])
+    tc_section('Extension Tax', [
+        'The extension rate stated in this agreement is inclusive of applicable Washington sales tax.',
+    ])
+    tc_section('Damage & Loss', [
+        'An itemized inventory and condition record, including photographs, is taken at installation.',
+        'Client is liable for repair or replacement, at current value, of any staging item damaged or lost during the rental period.',
+    ])
+    tc_section('Early End of Rental', [
+        'Staging fees are earned in full upon installation.',
+        'If Client requests destage before the end of the agreed rental term, an early-removal fee of [TBD] applies.',
+    ])
+    tc_section('Payment Failure', [
+        'A late fee of [TBD] applies to any payment not received by its due date.',
+        'Overdue balances accrue interest at [TBD]% per month, or the maximum rate allowed by law if lower.',
+        'A returned-payment fee of [TBD] applies to any declined or returned payment.',
+        'Client is responsible for collection costs and reasonable attorney\'s fees incurred in collecting unpaid amounts.',
+    ])
+    tc_section('Destage Access', [
+        'The property access and active-utilities requirements stated above apply equally at destage/removal, not only at installation.',
+    ])
+    tc_section('Outcome Disclaimer', [
+        'Staging is a marketing service. Styling With Jas does not guarantee a sale, a sale price, or a timeline for sale.',
+    ])
+    tc_section('Signer Authority', [
+        'By signing below, Client represents that they have authority to bind the property owner to this agreement, or that the property owner has co-signed below.',
+    ])
+    tc_section('General', [
+        'This agreement is governed by the laws of the State of Washington.',
+        'Disputes arising from this agreement will be resolved by [TBD — mediation, arbitration, or litigation, at the parties\' election], in [TBD venue].',
+        'The prevailing party in any dispute arising from this agreement is entitled to recover reasonable attorney\'s fees and costs.',
+        'This agreement, together with the invoice it accompanies, constitutes the entire agreement between the parties and supersedes all prior discussions regarding its subject matter.',
+        'If any provision of this agreement is held unenforceable, the remaining provisions remain in full force.',
+        'Amendments to this agreement — including any extension beyond the rate or term stated here — must be in writing, signed by both parties, to be binding.',
+    ])
+
     y -= 8
     
     # Photography Addendum (when photography or drone promo is selected)

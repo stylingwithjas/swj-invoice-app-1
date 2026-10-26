@@ -104,6 +104,40 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
 .ti-label.info { color:rgba(201,169,110,0.9); }
 .ti-value { font-family:'Cormorant Garamond',serif; font-size:15px; font-weight:400; color:#fff; line-height:1.2; }
 
+/* ── TODAY-STYLE VIEW (Phase 7) — greeting, On Site Now, Destage Needs Scheduling,
+   Needs Action (the existing Today strip, renamed), Pipeline, Future Hold, in that order.
+   Each section hides itself entirely when empty rather than showing a live-button card
+   with nothing in it. ── */
+.tsv-greeting { font-family:'Cormorant Garamond',serif; font-size:17px; font-weight:300; color:var(--ink); padding:14px 16px 4px; }
+.tsv-section { padding:12px 16px; border-bottom:1px solid rgba(162,156,150,0.15); }
+.tsv-section-hdr { font-size:11px; font-weight:700; color:var(--taupe-dk); text-transform:uppercase; letter-spacing:1px; margin-bottom:8px; }
+.tsv-card { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; background:var(--warm); border-radius:10px; padding:10px 12px; margin-bottom:6px; cursor:pointer; }
+.tsv-card:last-child { margin-bottom:0; }
+.tsv-card-name { font-size:13px; font-weight:600; color:var(--ink); }
+.tsv-card-addr { font-size:11px; color:var(--taupe-dk); margin-top:1px; }
+.tsv-card-side { text-align:right; flex-shrink:0; }
+.tsv-card-tag { font-size:10.5px; font-weight:600; padding:3px 8px; border-radius:20px; background:rgba(74,124,80,0.1); color:var(--green); display:inline-block; }
+.tsv-card-tag.a { background:rgba(181,53,53,0.1); color:var(--red); }
+.tsv-card-tag.w { background:rgba(201,124,46,0.1); color:var(--amber,#c97c2e); }
+.tsv-card-sub { font-size:10px; color:var(--taupe); margin-top:3px; }
+.mini-act { font-size:10.5px; padding:4px 9px; border-radius:12px; border:1px solid var(--taupe-lt); background:#fff; cursor:pointer; font-family:'Inter',sans-serif; }
+.mini-act:active { opacity:0.7; }
+
+/* Kanban hidden by default at phone width (Phase 7) — the Today-style view above is the
+   default there; a button lets anyone override this at any width. */
+@media (max-width: 680px) {
+  .board.kanban-hidden { display:none; }
+}
+
+/* Main nav: 9 tabs are too many to fit on a phone screen without crowding — make the strip
+   horizontally scrollable there instead of wrapping/squeezing (Phase 7 mobile nav). Tab
+   order, labels, and destinations are unchanged; this is presentation only. */
+@media (max-width: 680px) {
+  .nav-sw { max-width:100%; overflow-x:auto; scrollbar-width:none; -webkit-overflow-scrolling:touch; }
+  .nav-sw::-webkit-scrollbar { display:none; }
+  .nav-btn { flex-shrink:0; }
+}
+
 /* ── PIPELINE ── */
 .pipeline { display:grid; grid-template-columns:repeat(5,1fr); gap:1px; background:var(--taupe-lt); border-bottom:1px solid var(--taupe-lt); }
 .pipe { background:var(--warm); padding:11px 8px; }
@@ -164,6 +198,8 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
 .col-n { font-size:10px; font-weight:600; color:#fff; min-width:18px; height:18px; border-radius:9px; padding:0 5px; display:inline-flex; align-items:center; justify-content:center; }
 .mtb-btn { width:100%; padding:9px; background:transparent; border:1.5px dashed rgba(162,156,150,0.3); border-radius:10px; color:var(--taupe); font-size:11px; font-weight:500; cursor:pointer; font-family:'Inter',sans-serif; transition:all 0.15s; letter-spacing:0.3px; margin-bottom:9px; }
 .mtb-btn:hover { background:var(--warm); border-color:var(--taupe); }
+.col-subhdr { font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.8px; color:var(--taupe); padding:10px 2px 5px; }
+.col-subhdr:first-child { padding-top:0; }
 
 /* ── CARDS ── */
 .card { border-radius:13px; padding:13px 14px 11px; margin-bottom:8px; cursor:pointer; transition:transform 0.12s,box-shadow 0.12s; border:1px solid transparent; }
@@ -187,10 +223,19 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
 .card.staged    .c-amt { color:var(--teal-dk); }
 .card.destage   .c-amt { color:var(--slate); }
 .c-addr { font-size:11px; color:var(--taupe); margin-bottom:8px; line-height:1.35; }
+.c-invnum { font-family:monospace; font-size:9.5px; color:var(--taupe); opacity:0.7; margin:-5px 0 6px; }
 
 .tags { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:6px; }
 .tag { font-size:10px; font-weight:500; padding:3px 8px; border-radius:20px; letter-spacing:0.2px; }
 .card.proposal  .tag { background:rgba(122,111,105,0.1);  color:var(--taupe-dk); }
+.card.proposal  .tag.w,
+.card.future_hold .tag.w { background:rgba(201,124,46,0.1); color:var(--amber); }
+.card.proposal  .tag.a,
+.card.future_hold .tag.a { background:rgba(181,53,53,0.1);  color:var(--red); }
+.card.future_hold { background:var(--proposal-bg); border-color:rgba(74,94,130,0.14); }
+.card.future_hold .c-name { color:var(--ink); }
+.card.future_hold .c-amt { color:var(--slate); }
+.card.future_hold .tag { background:rgba(74,94,130,0.1); color:var(--slate); }
 .card.confirmed .tag { background:rgba(74,124,80,0.1);    color:var(--green); }
 .card.confirmed .tag.w { background:rgba(201,124,46,0.1); color:var(--amber); }
 .card.confirmed .tag.a { background:rgba(181,53,53,0.1);  color:var(--red); }
@@ -279,6 +324,9 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
 .pricing-row:last-child { border-bottom:none; }
 .pricing-row-desc { flex:1; white-space:pre-wrap; }
 .pricing-row-amt { white-space:nowrap; font-weight:500; }
+.pricing-type-pill { display:inline-block; font-size:8.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.4px; padding:1px 6px; border-radius:8px; margin-left:4px; vertical-align:1px; background:rgba(74,124,80,0.1); color:var(--green); }
+.pricing-type-pill.service { background:rgba(74,94,130,0.1); color:var(--slate); }
+.pricing-type-pill.extension { background:rgba(201,124,46,0.1); color:var(--amber); }
 .pricing-promo { font-size:12px; color:var(--green); padding:3px 0; }
 .pricing-totals { margin-top:10px; padding-top:8px; border-top:1px solid var(--taupe-lt); }
 .pricing-grand { font-weight:700; color:var(--ink); font-size:14px; }
@@ -312,7 +360,14 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
 .ps-arrow { font-size:16px; color:var(--taupe); }
 
 /* Modal actions */
-.m-btns { display:flex; gap:10px; padding:14px 20px 0; align-items:center; }
+.m-btns { display:flex; gap:10px; padding:14px 20px; align-items:center; flex-wrap:wrap; }
+/* Without wrap, this row (Payment Link / Extend Rental / Reset ext. / Void / Remove /
+   Delete / spacer / Cancel / Save Changes) overflowed a phone-width drawer with no way to
+   scroll to it — Save Changes, being last, was simply off-screen and invisible (audit
+   finding, reported by Gabe from the real mobile app). */
+.m-btns .mbtn.pri, .m-btns .mbtn.sec { flex:1 1 auto; min-width:120px; }
+.m-unsaved-note { font-size:11px; color:var(--amber,#c97c2e); text-align:center; padding:0 20px; font-weight:600; display:none; }
+.m-unsaved-note.show { display:block; }
 .mbtn { padding:13px; border-radius:11px; border:none; font-size:14px; font-weight:600; cursor:pointer; font-family:'Inter',sans-serif; transition:opacity 0.15s; }
 .mbtn:active { opacity:0.8; }
 .mbtn.pri { background:var(--ink); color:#fff; flex:1; }
@@ -355,6 +410,22 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
 .shop-send-btn:active { opacity:0.8; }
 .shop-empty { font-size:12px; color:var(--taupe); font-style:italic; text-align:center; padding:8px 0; }
 
+/* Send Preview — the mandatory stop before any client-facing email leaves the app */
+.spv-overlay { display:none; position:fixed; inset:0; background:rgba(26,24,20,0.5); z-index:300; align-items:center; justify-content:center; padding:20px; }
+.spv-card { background:#fff; border-radius:16px; padding:22px; max-width:440px; width:100%; max-height:88vh; overflow-y:auto; }
+.spv-hdr { font-family:'Cormorant Garamond',serif; font-size:20px; margin-bottom:4px; }
+.spv-meta { font-size:11px; color:var(--taupe-dk); margin-bottom:16px; padding-bottom:14px; border-bottom:1px solid var(--warm); }
+.spv-field { margin-bottom:12px; }
+.spv-field-lbl { font-size:9.5px; font-weight:700; color:var(--taupe-dk); text-transform:uppercase; letter-spacing:0.8px; margin-bottom:4px; }
+.spv-field-val { font-size:13px; color:var(--ink); background:var(--warm); border-radius:8px; padding:9px 11px; white-space:pre-wrap; line-height:1.5; }
+.spv-to { font-weight:600; }
+.spv-actions { display:flex; gap:8px; margin-top:16px; }
+.spv-actions button { flex:1; padding:12px; border-radius:9px; font-size:13px; font-weight:600; cursor:pointer; font-family:'Inter',sans-serif; border:none; }
+.spv-cancel { background:var(--warm); color:var(--ink-soft); border:0.5px solid var(--taupe-lt) !important; }
+.spv-send { background:var(--ink); color:#fff; }
+.spv-send:disabled { opacity:0.6; cursor:default; }
+.spv-status { font-size:12px; text-align:center; margin-top:10px; min-height:16px; }
+
 </style>
 </head>
 <body>
@@ -394,12 +465,29 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
   </div>
 </div>
 
-<!-- TODAY SECTION -->
+<!-- TODAY-STYLE VIEW (Phase 7) — greeting, On Site Now, Destage Needs Scheduling,
+     Needs Action, Pipeline, Future Hold, in that order. This is the default view; the
+     kanban below is secondary and hidden by default at phone width (see "Show Full
+     Kanban Board" toggle at the end of this block). -->
+<div class="tsv-greeting" id="tsv-greeting"></div>
+
+<div class="tsv-section" id="tsv-onsite-section" style="display:none">
+  <div class="tsv-section-hdr">🏠 On Site Now</div>
+  <div id="tsv-onsite-list"></div>
+</div>
+
+<div class="tsv-section" id="tsv-destage-section" style="display:none">
+  <div class="tsv-section-hdr">📦 Destage — Needs Scheduling</div>
+  <div id="tsv-destage-list"></div>
+</div>
+
+<!-- Needs Action (the board's own urgent-items strip — kept in sync with today.html's count) -->
 <div class="today-wrap" style="background:var(--ink);padding:0 16px 16px;border-bottom:3px solid var(--gold)">
   <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0 10px">
-    <div style="font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:300;color:#fff;letter-spacing:1px">Today</div>
+    <div style="font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:300;color:#fff;letter-spacing:1px">Needs Action</div>
     <div style="display:flex;align-items:center;gap:10px">
       <button id="check-reminders-btn" onclick="checkRemindersNow()" style="background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.6);border:none;border-radius:14px;padding:5px 10px;font-size:10px;cursor:pointer;white-space:nowrap">🔔 Check Reminders Now</button>
+      <button id="test-digest-btn" onclick="testWeeklyDigestNow()" style="background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.6);border:none;border-radius:14px;padding:5px 10px;font-size:10px;cursor:pointer;white-space:nowrap">📧 Test Weekly Digest</button>
       <div id="today-date" style="font-size:10px;color:rgba(255,255,255,0.3);letter-spacing:1px;text-transform:uppercase"></div>
     </div>
   </div>
@@ -437,6 +525,15 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
     <div class="pipe-val r" id="stat-attention-count">0</div>
     <div class="pipe-note">action required</div>
   </div>
+</div>
+
+<div class="tsv-section" id="tsv-futurehold-section" style="display:none">
+  <div class="tsv-section-hdr">⏳ Future Hold</div>
+  <div id="tsv-futurehold-list"></div>
+</div>
+
+<div style="text-align:center;padding:10px 16px 0">
+  <button class="compact-toggle" id="show-kanban-btn" onclick="toggleKanbanView()" style="color:var(--ink);background:var(--warm);border:1px solid rgba(162,156,150,0.3)">▦ Show Full Kanban Board</button>
 </div>
 
 <!-- BOARD — cards rendered from Supabase -->
@@ -496,6 +593,7 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
       <div class="m-name" id="m-name"></div>
       <div class="m-addr" id="m-addr"></div>
       <div class="m-addr" id="m-invnum" style="font-family:monospace;font-size:10px;opacity:0.6"></div>
+      <div class="m-addr" id="m-datesent" style="font-size:10.5px;opacity:0.75"></div>
       <div class="m-amt" id="m-amt"></div>
     </div>
 
@@ -503,10 +601,10 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
     <div class="profit-strip" id="m-profit-strip" onclick="showCardProfitability()">
       <div>
         <div class="ps-lbl">Est. Profit this job</div>
-        <div class="ps-sub">Tap to see full breakdown</div>
+        <div class="ps-sub" id="ps-sub">Tap to see full breakdown</div>
       </div>
       <div style="text-align:right">
-        <div class="ps-val">$1,892</div>
+        <div class="ps-val" id="ps-val">—</div>
       </div>
       <div class="ps-arrow">›</div>
     </div>
@@ -515,13 +613,14 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
     <div class="m-sec" data-sec="client" style="margin-top:10px">
       <div class="m-sec-ttl">👤 Client</div>
       <div class="m-row">
-        <span class="m-lbl">Invoice total ($)</span>
-        <input class="m-input" id="m-amount" type="text" inputmode="decimal" placeholder="e.g. 3841.61" style="flex:1">
+        <span class="m-lbl">Base price ($) <span style="font-weight:400;color:#999;font-size:10px">— excludes add-ons/tax; grand total is shown above</span></span>
+        <input class="m-input" id="m-amount" type="text" inputmode="decimal" placeholder="e.g. 2650.00" style="flex:1">
       </div>
       <div class="m-row">
         <span class="m-lbl">Address</span>
         <input class="m-input" id="m-address-in" type="text" placeholder="Property address" style="flex:1">
       </div>
+      <div id="m-city-row" style="font-size:11px;color:#a29c96;padding:0 2px 6px"></div>
       <div class="m-row">
         <span class="m-lbl">Client email</span>
         <input class="m-input" id="m-email-in" type="email" placeholder="client@example.com" style="flex:1">
@@ -617,6 +716,13 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
       <div id="m-signatures-list"></div>
     </div>
 
+    <!-- Recent Sends — makes every client email traceable from the record itself, so a
+         mistaken send is visible immediately, not just stored invisibly. -->
+    <div class="m-sec" data-sec="signatures" id="m-sendlog-sec" style="display:none">
+      <div class="m-sec-ttl">📧 Recent Sends</div>
+      <div id="m-sendlog-list"></div>
+    </div>
+
     <!-- Payment -->
     <div class="m-sec" data-sec="payment">
       <div class="m-sec-ttl">💳 Payment</div>
@@ -636,7 +742,21 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
         <span class="m-lbl">Est. bank deposit</span>
         <input class="m-input" id="m-deposit-date" type="text" placeholder="TBA — from Stripe" value="">
       </div>
+      <div id="m-payment-due-row" style="font-size:11px;color:var(--taupe-dk);margin:-2px 0 8px"></div>
       <div id="m-payments-list" style="margin-top:8px"></div>
+      <div class="m-row" style="flex-direction:column;align-items:stretch;gap:6px;margin-top:4px">
+        <span class="m-lbl">Payment nudges</span>
+        <div style="display:flex;gap:8px">
+          <button class="m-text-btn" style="flex:1;background:var(--slate)" onclick="emailClientPaymentNudge('signpay')">Preview &amp; Send: Sign + Pay</button>
+          <button class="m-text-btn" style="flex:1;background:var(--red,#b53535)" onclick="emailClientPaymentNudge('final')">Preview &amp; Send: Final Reminder</button>
+        </div>
+        <div id="m-nudge-status" style="font-size:11px;color:#888;text-align:right"></div>
+      </div>
+      <div class="m-row" style="flex-direction:column;align-items:stretch;gap:6px;margin-top:10px;padding-top:10px;border-top:1px solid rgba(162,156,150,0.12)">
+        <span class="m-lbl">Sales tax exemption <span style="font-weight:400;color:#999;font-size:10px">— leave blank unless this specific sale is exempt</span></span>
+        <input class="m-input" id="m-exempt-reason" type="text" placeholder="Exemption reason (e.g. resale certificate)">
+        <input class="m-input" id="m-exempt-cert" type="text" placeholder="Certificate / reference #">
+      </div>
     </div>
 
     <!-- Refundable Pet Deposit (only shown when enabled on this invoice) -->
@@ -678,8 +798,8 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
       <div class="m-row" style="flex-direction:column;align-items:stretch;gap:6px">
         <span class="m-lbl">Client reminder</span>
         <div style="display:flex;gap:8px">
-          <button class="m-text-btn" style="flex:1;background:var(--teal,#2f8f6f)" onclick="emailClientDestageReminder('pickup')">Email: Pickup Reminder</button>
-          <button class="m-text-btn" style="flex:1;background:var(--slate)" onclick="emailClientDestageReminder('extend')">Email: Offer Extension</button>
+          <button class="m-text-btn" style="flex:1;background:var(--teal,#2f8f6f)" onclick="emailClientDestageReminder('pickup')">Preview &amp; Send: Pickup Reminder</button>
+          <button class="m-text-btn" style="flex:1;background:var(--slate)" onclick="emailClientDestageReminder('extend')">Preview &amp; Send: Offer Extension</button>
         </div>
         <div id="m-destage-email-status" style="font-size:11px;color:#888;text-align:right"></div>
       </div>
@@ -731,14 +851,17 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
       <div class="m-move-ttl">Move to Stage</div>
       <div class="move-grid">
         <div class="move-opt" onclick="setStage('proposal',this)">Proposal Sent</div>
+        <div class="move-opt" onclick="setStage('future_hold',this)">Future Hold</div>
         <div class="move-opt cur" onclick="setStage('confirmed',this)">Confirmed</div>
         <div class="move-opt" onclick="setStage('staged',this)">Currently Staged</div>
         <div class="move-opt" onclick="setStage('destage',this)">Destage Scheduled</div>
         <div class="move-opt" onclick="setStage('done',this)" style="grid-column:1/-1">Mark Completed</div>
         <div class="move-opt denied-opt" onclick="setStage('denied',this)">Mark as Declined</div>
+        <div class="move-opt denied-opt" onclick="markClosedLost()">Mark Closed — Lost</div>
       </div>
     </div>
 
+    <div class="m-unsaved-note" id="m-unsaved-note">● Unsaved changes — tap Save Changes below</div>
     <div class="m-btns">
       <button class="mbtn" onclick="createSplitPayment(currentCardId)" style="background:#e8f3e9;color:#2d6a0a" title="Create a payment link for part of the total (deposit, balance, or a third party like an agent)">💳 Payment Link</button>
       <button class="mbtn" onclick="extendRental(currentCardId)" style="background:#f5ead8;color:#9d7a44" title="Extend the furniture rental and bill it">⏱ Extend Rental</button>
@@ -755,6 +878,27 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
 
 <script>
 let compact = false;
+
+// Phase 7 — the kanban is secondary to the Today-style view above; the "kanban-hidden"
+// class is always applied, but only actually hides anything under 680px (see the media
+// query), so desktop keeps the kanban visible by default while phone width doesn't.
+let _kanbanForced = false;
+function applyKanbanVisibility(){
+  const board = document.getElementById('board');
+  const btn = document.getElementById('show-kanban-btn');
+  if(!board) return;
+  if(_kanbanForced){
+    board.classList.remove('kanban-hidden');
+    if(btn) btn.textContent = '▦ Hide Kanban Board';
+  } else {
+    board.classList.add('kanban-hidden');
+    if(btn) btn.textContent = '▦ Show Full Kanban Board';
+  }
+}
+function toggleKanbanView(){
+  _kanbanForced = !_kanbanForced;
+  applyKanbanVisibility();
+}
 
 function toggleCompact(){
   compact = !compact;
@@ -850,6 +994,7 @@ function filter(stage, btn){
 function openCard(id){ realOpenCard(id); }
 function closeModal(){
   document.getElementById('overlay').classList.remove('on');
+  setUnsavedChanges(false);
 }
 function bgClose(e){
   if(e.target===document.getElementById('overlay')) closeModal();
@@ -857,6 +1002,66 @@ function bgClose(e){
 function setStage(s, el){
   document.querySelectorAll('.move-opt').forEach(o=>o.classList.remove('cur'));
   el.classList.add('cur');
+  // Picking a stage here is a click, not an input/change event, so the delegated listener
+  // never sees it — flag it directly, or a stage pick with no Save press would go right on
+  // showing no warning at all (exactly the audit's reported scenario).
+  setUnsavedChanges(true);
+}
+
+// In-app confirmation dialog (Promise<boolean>) — used in place of the native confirm()
+// for anything consequential. Native confirm()/prompt() are unreliable inside an installed
+// PWA on iOS (can be suppressed or auto-dismissed depending on context), which silently
+// behaves as Cancel with no error shown — exactly the failure mode Mark Closed — Lost had
+// before this existed. A custom overlay always works and matches this app's own styling.
+function customConfirm(message, { confirmLabel = 'Confirm', cancelLabel = 'Cancel', danger = false } = {}){
+  return new Promise(resolve=>{
+    const ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(26,24,20,0.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:24px;font-family:Inter,-apple-system,sans-serif';
+    const safeMsg = String(message||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+    ov.innerHTML = '<div style="background:#fff;border-radius:16px;max-width:360px;width:100%;padding:22px">'
+      + '<div style="font-size:14px;color:#3d3830;line-height:1.5;margin-bottom:18px">' + safeMsg + '</div>'
+      + '<div style="display:flex;gap:8px">'
+      + '<button id="cc-cancel" style="flex:1;padding:12px;border-radius:9px;border:1px solid #d4cfc9;background:#faf8f5;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit">' + cancelLabel + '</button>'
+      + '<button id="cc-ok" style="flex:1;padding:12px;border-radius:9px;border:none;color:#fff;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit;background:' + (danger?'#b53535':'#1a1814') + '">' + confirmLabel + '</button>'
+      + '</div></div>';
+    document.body.appendChild(ov);
+    const cleanup = (result)=>{ ov.remove(); resolve(result); };
+    ov.querySelector('#cc-cancel').onclick = ()=>cleanup(false);
+    ov.querySelector('#cc-ok').onclick = ()=>cleanup(true);
+    ov.addEventListener('click', e=>{ if(e.target===ov) cleanup(false); });
+  });
+}
+
+// Closed — Lost (Phase 1.1) removes the card from the active board/pipeline entirely (it
+// still shows up in Archive, searchable, never deleted) — unlike the other Move-to-Stage
+// options, that's a one-way trip out of this view, so it gets its own confirmation and
+// saves immediately rather than waiting on a separate "Save Changes" tap.
+async function markClosedLost(){
+  if(!currentCardId) return;
+  const inv = CARDS[currentCardId];
+  if(!inv) return;
+  const ok = await customConfirm('Mark this quote Closed — Lost?\n\nIt will drop off the active board but stay fully searchable in Archive. This can be undone later from Archive\'s "Reactivate" button.', { confirmLabel: 'Mark Closed — Lost', danger: true });
+  if(!ok) return;
+  const targetInvnum = inv.invnum;
+  try{
+    const d = { ...(inv.data||{}), stage: 'closed_lost' };
+    const { error } = await _sb.from('invoices').upsert({
+      invnum: targetInvnum, client: inv.client, address: inv.address, invdate: inv.invdate, data: d,
+    }, { onConflict: 'invnum' });
+    if(error){ alert('Could not save: ' + error.message); return; }
+    // This exact transition has repeatedly been reported as silently not sticking, with no
+    // error from the upsert itself — read the row back instead of trusting a successful
+    // response alone, so a real failure is loud instead of invisible.
+    const { data: check, error: checkErr } = await _sb.from('invoices').select('data').eq('invnum', targetInvnum).single();
+    if(checkErr || !check || (check.data||{}).stage !== 'closed_lost'){
+      alert('Saved, but re-reading the record shows the stage did not actually update (now reads "'+((check&&check.data&&check.data.stage)||'unknown — '+(checkErr?checkErr.message:'no row'))+'"). Please try again, and report this if it keeps happening.');
+      loadBoard();
+      return;
+    }
+    inv.data = d; CARDS[targetInvnum].data = d;
+    closeModal();
+    loadBoard();
+  }catch(e){ alert('Could not save: ' + e.message); }
 }
 
 // type -> which confirmation role this text is for (see ROLE_KEY_TO_FIELDS + confirm.html's
@@ -946,13 +1151,9 @@ function renderPricingSection(inv, d){
   const rooms = (d.baserooms||'').split(',').map(r=>r.trim()).filter(Boolean);
   const roomScopes = d.baseroom_scopes || {};
   const addons = d.addons || [];
-  const addonsTotal = addons.reduce((s,a)=>s+(parseFloat(a.price)||0),0);
   const taxrate = parseFloat(d.taxrate) || 0;
-  const _ov = v => (v!=null && v!=='') ? parseFloat(v) : null;
-  const subOv = _ov(d.subtotal_override), taxOv = _ov(d.tax_override), totOv = _ov(d.total_override);
-  const subtotal = subOv!=null ? subOv : (base + addonsTotal);
-  const tax = taxOv!=null ? taxOv : subtotal*taxrate/100;
-  const grand = totOv!=null ? totOv : subtotal+tax;
+  const _split = boardInvoiceSplit(d);
+  const subtotal = _split.subtotal, tax = _split.tax, grand = _split.grand;
   const contributions = (d.contributions||[]).filter(c=>c.label && parseFloat(c.amount)>0);
   const contribTotal = contributions.reduce((s,c)=>s+parseFloat(c.amount),0);
   const petDeposit = d.pet_deposit || {};
@@ -962,12 +1163,16 @@ function renderPricingSection(inv, d){
     return `<div class="pricing-room"><div class="pricing-room-name">• ${escapeHtml(r)}</div>${scope?`<div class="pricing-room-scope">${escapeHtml(scope)}</div>`:''}</div>`;
   }).join('') : '<div class="pricing-empty">No rooms selected</div>';
 
-  const addonsHtml = addons.length ? addons.map(a=>`
-    <div class="pricing-row">
-      <div class="pricing-row-desc">${escapeHtml(a.desc||'')}</div>
+  // Line-type tags (Phase 5.1) — these were computed correctly all along but never shown
+  // anywhere (audit finding: "only the math proves tagging works").
+  const addonsHtml = addons.length ? addons.map(a=>{
+    const type = a.type || boardAddonType(a.desc);
+    const typeLabel = type==='service' ? 'Service' : (type==='extension' ? 'Extension' : 'Rental');
+    return `<div class="pricing-row">
+      <div class="pricing-row-desc">${escapeHtml(a.desc||'')}<span class="pricing-type-pill ${type}">${typeLabel}</span></div>
       <div class="pricing-row-amt">${fmtMoney(parseFloat(a.price)||0)}</div>
-    </div>
-  `).join('') : '';
+    </div>`;
+  }).join('') : '';
 
   const activePromos = ['promo1','promo2','promo3','promo4'].filter(k=>d[k]);
   const promosHtml = activePromos.length ? `
@@ -984,8 +1189,9 @@ function renderPricingSection(inv, d){
     <div class="pricing-row"><div class="pricing-row-desc">Billed separately, not taxed${petDeposit.status?' · '+escapeHtml(petDeposit.status):''}</div><div class="pricing-row-amt">${fmtMoney(parseFloat(petDeposit.amount)||0)}</div></div>
   ` : '';
 
+  const rentalSharePct = d.price_led_tax ? Math.round((parseFloat(d.rental_share_base)||0.5)*100) : null;
   body.innerHTML = `
-    <div class="pricing-sub-hdr">Base Package — ${fmtMoney(base)}</div>
+    <div class="pricing-sub-hdr">Base Package — ${fmtMoney(base)}${rentalSharePct!=null?`<span class="pricing-type-pill">${rentalSharePct}% Rental</span><span class="pricing-type-pill service">${100-rentalSharePct}% Service</span>`:''}</div>
     ${roomsHtml}
     ${addons.length?`<div class="pricing-sub-hdr">Add-ons</div>${addonsHtml}`:''}
     ${promosHtml}
@@ -1024,7 +1230,7 @@ function renderSignaturesSection(inv, d){
     </div>
     ${!sig?`<div style="display:flex;gap:8px;margin:-4px 0 4px;align-items:center">
       <input type="email" id="m-resend-email-${role}" class="m-tel-input" value="${escapeHtml(email||'')}" placeholder="email@example.com" style="flex:1">
-      <button class="m-text-btn" onclick="resendSignatureInvite('${role}')">Resend</button>
+      <button class="m-text-btn" onclick="resendSignatureInvite('${role}')">Preview &amp; Resend</button>
     </div>
     <div id="m-resend-status-${role}" style="font-size:11px;color:#888;text-align:right;margin:0 0 8px"></div>`:''}
   `;
@@ -1081,7 +1287,7 @@ async function refundPetDeposit(){
   const dep = d.pet_deposit || {};
   const statusEl = document.getElementById('m-pet-deposit-status');
   if(!dep.payment_id){ if(statusEl) statusEl.textContent='No payment on record for this deposit.'; return; }
-  if(!confirm(`Refund the ${'$'+parseFloat(dep.amount||0).toFixed(2)} pet deposit? This issues a real refund through Stripe.`)) return;
+  if(!(await customConfirm(`Refund the ${'$'+parseFloat(dep.amount||0).toFixed(2)} pet deposit? This issues a real refund through Stripe.`, { confirmLabel: 'Refund', danger: true }))) return;
 
   if(statusEl) statusEl.textContent='Refunding…';
   try{
@@ -1095,6 +1301,107 @@ async function refundPetDeposit(){
   }catch(e){
     if(statusEl) statusEl.textContent = 'Error: '+e.message;
   }
+}
+
+// ════════════════════════════════════════════════════════════════
+// SEND PREVIEW — mandatory stop before any client-facing email leaves the app
+// ════════════════════════════════════════════════════════════════
+// Every client-send path builds its {to, subject, message} exactly as before, but instead
+// of fetching /api/email directly, it calls showSendPreview() — nothing goes out until the
+// person reviews the exact recipient/content here and presses Send on the preview itself.
+// Cancelling (or tapping outside the card) closes this and sends/changes nothing.
+let _pendingSend = null;
+
+function showSendPreview({ to, subject, message, meta, invnum, extra, saveData, onSent }){
+  document.getElementById('spv-meta').textContent = meta || '';
+  document.getElementById('spv-to').textContent = to;
+  document.getElementById('spv-subject').textContent = subject;
+  document.getElementById('spv-message').textContent = message;
+  document.getElementById('spv-status').textContent = '';
+  const btn = document.getElementById('spv-send-btn');
+  btn.disabled = false; btn.textContent = 'Send';
+  _pendingSend = { to, subject, message, invnum, extra, saveData, onSent };
+  document.getElementById('spv-overlay').style.display = 'flex';
+}
+
+function closeSendPreview(){
+  document.getElementById('spv-overlay').style.display = 'none';
+  _pendingSend = null;
+}
+
+async function confirmSendPreview(){
+  if(!_pendingSend) return;
+  const { to, subject, message, invnum, extra, saveData, onSent } = _pendingSend;
+  const btn = document.getElementById('spv-send-btn');
+  const statusEl = document.getElementById('spv-status');
+  btn.disabled = true; btn.textContent = 'Sending…';
+  try{
+    const r = await fetch('/api/email', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ to, subject, message, ...(extra||{}) }) });
+    const j = await r.json();
+    if(!j.sent) throw new Error(j.error || 'Send failed');
+    const sentAt = new Date();
+    statusEl.textContent = `✓ Sent to ${to} at ${sentAt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}`;
+    statusEl.style.color = 'var(--green)';
+    btn.textContent = 'Sent ✓';
+    // saveData (when a caller passes it, e.g. emailClientDestageReminder reading fresh
+    // fields off the open modal) is the base this writes send_log onto, in ONE upsert —
+    // callers must NOT do their own separate save in onSent, or that second write (built
+    // from a pre-send snapshot that doesn't know about send_log yet) clobbers the entry
+    // this just persisted the moment the page reloads.
+    await logSend(invnum, { to, subject, timestamp: sentAt.toISOString() }, saveData);
+    if(onSent) onSent();
+    setTimeout(closeSendPreview, 1600);
+  }catch(e){
+    statusEl.textContent = 'Error: '+e.message;
+    statusEl.style.color = 'var(--red)';
+    btn.disabled = false; btn.textContent = 'Send';
+  }
+}
+
+// Minimal send log (full activity log is Phase 3.2) — enough for right now to answer "what
+// got sent, to whom, when" straight from the record itself. baseData, when given, is used
+// instead of the currently-stored inv.data — see confirmSendPreview's saveData note above.
+async function logSend(invnum, entry, baseData){
+  if(!invnum) return;
+  try{
+    const inv = CARDS[invnum];
+    if(!inv) return;
+    const d = baseData || inv.data || {};
+    const send_log = [...(d.send_log || []), { ...entry, type:'email' }];
+    const updated = { ...d, send_log };
+    await _sb.from('invoices').upsert({ invnum, client: inv.client, address: inv.address, invdate: inv.invdate, data: updated }, { onConflict:'invnum' });
+    inv.data = updated;
+    if(invnum === currentCardId) renderSendLog(updated);
+  }catch(e){ console.log('[send log] failed', e); }
+}
+
+function renderSendLog(d){
+  const sec = document.getElementById('m-sendlog-sec');
+  const list = document.getElementById('m-sendlog-list');
+  if(!sec || !list) return;
+  const log = (d.send_log || []).slice(-5).reverse();
+  if(!log.length){ sec.style.display = 'none'; return; }
+  sec.style.display = '';
+  list.innerHTML = log.map(e=>{
+    const when = e.timestamp ? new Date(e.timestamp).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) : '';
+    return `<div class="m-row">
+      <span class="m-lbl">${escapeHtml(e.subject||'Email')}</span>
+      <span style="font-size:11px;color:var(--taupe)">${escapeHtml(e.to||'')} · ${escapeHtml(when)}</span>
+    </div>`;
+  }).join('');
+}
+
+// Payment due = staging date minus 48 hours (Phase 1.2) — shown on the job detail next to
+// payment status, same date buildCardHTML already surfaces on the card itself.
+function renderPaymentDueRow(d){
+  const row = document.getElementById('m-payment-due-row');
+  if(!row) return;
+  const stage = d.stage || 'proposal';
+  if(d.paid || PRE_PAYMENT_STAGES.includes(stage)){ row.textContent = ''; return; }
+  const dueISO = paymentDueDateISO(d);
+  if(!dueISO){ row.textContent = ''; return; }
+  const dueFmt = new Date(dueISO+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
+  row.textContent = 'Payment due: ' + dueFmt + ' (48 hours before staging)';
 }
 
 async function resendSignatureInvite(role){
@@ -1147,14 +1454,14 @@ async function resendSignatureInvite(role){
   }
   const message = 'Hi '+firstName+',\n\n'+intro+'\n\nTo review and sign, please visit:\n'+link+'\n\nQuestions? Call or text Jasmine at 206-422-5618.\n\nWarmly,\nJasmine Santana\nOwner & Creative Director — Styling With Jas\n📱 206-422-5618\n📧 info@stylingwithjas.com';
 
-  if(statusEl) statusEl.textContent='Sending…';
-  try{
-    const r = await fetch('/api/email', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({to, subject, message, proposal_link:link, client_first_name:firstName})});
-    const j = await r.json();
-    if(statusEl) statusEl.textContent = j.sent ? '✓ Sent' : ('Error: '+(j.error||'unknown'));
-  }catch(e){
-    if(statusEl) statusEl.textContent = 'Error: '+e.message;
-  }
+  if(statusEl) statusEl.textContent='';
+  showSendPreview({
+    to, subject, message,
+    meta: 'Signature invite · '+(inv.address||d.address||'')+' · #'+currentCardId,
+    invnum: currentCardId,
+    extra: { proposal_link: link, client_first_name: firstName },
+    onSent: ()=>{ if(statusEl) statusEl.textContent = '✓ Sent'; },
+  });
 }
 
 // Sends the client a destage reminder directly from the board's Destage section — same
@@ -1192,23 +1499,60 @@ async function emailClientDestageReminder(kind){
     message = 'Hi '+firstName+',\n\nYour staging rental at '+address+' is scheduled to wrap up on '+destageFmt+'.\n\nIf you\'d like more time, we\'re happy to extend — additional 30-day periods are $'+extrate.toLocaleString(undefined,{minimumFractionDigits:2})+' (prorated by day if needed).\n\nJust reply and let us know, or give us a call!\n\nThank you!\nJasmine Santana\nStyling With Jas\n206-422-5618';
   }
 
-  if(statusEl) statusEl.textContent='Sending…';
-  try{
-    const r = await fetch('/api/email', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({to:clientEmail, subject, message})});
-    const j = await r.json();
-    if(statusEl) statusEl.textContent = j.sent ? ('✓ Sent to '+clientEmail) : ('Error: '+(j.error||'unknown'));
-    if(j.sent){
-      // Same fields were just read to build the email — persist them too, so this action
-      // doubles as a save (matching the "Text" buttons' behavior) instead of silently
-      // leaving whatever was just typed unsaved.
-      try{
-        await _sb.from('invoices').upsert({invnum:inv.invnum, client:inv.client, address:inv.address, invdate:inv.invdate, data:d}, {onConflict:'invnum'});
-        inv.data = d; CARDS[currentCardId].data = d;
-      }catch(e){ /* email already sent either way */ }
-    }
-  }catch(e){
-    if(statusEl) statusEl.textContent = 'Error: '+e.message;
+  if(statusEl) statusEl.textContent='';
+  showSendPreview({
+    to: clientEmail, subject, message,
+    meta: (kind==='pickup'?'Pickup reminder':'Extension offer')+' · '+address+' · wraps up '+destageFmt,
+    invnum: currentCardId,
+    // Same fields were just read to build the email — persist them too, so this action
+    // doubles as a save (matching the "Text" buttons' behavior) instead of silently leaving
+    // whatever was just typed unsaved. Passed as saveData, not a separate upsert here, so
+    // the send_log entry logSend() writes isn't clobbered by a second, send_log-unaware write.
+    saveData: d,
+    onSent: ()=>{
+      if(statusEl) statusEl.textContent = '✓ Sent to '+clientEmail;
+    },
+  });
+}
+
+// Payment nudges (Phase 1.2) — manual-send only, same guardrail as every other client email.
+// Timing is informational copy, not an enforced schedule: Jasmine presses these whenever she
+// judges it's time, typically around NUDGE_SIGNPAY_DAYS before staging (sign+pay) or
+// NUDGE_FINAL_HOURS before staging (final reminder, ~24h before payment is actually due).
+async function emailClientPaymentNudge(kind){
+  const inv = CARDS[currentCardId];
+  if(!inv){ alert('Open a project first.'); return; }
+  const statusEl = document.getElementById('m-nudge-status');
+  const d = buildCardDataFromModal(inv);
+  const clientEmail = (d.client_email || '').trim();
+  const client = inv.client || d.client || '';
+  const firstName = client.split(' ')[0] || 'there';
+  const address = d.address || '';
+  const grand = computeGrand(d);
+  const amountStr = '$'+grand.toLocaleString(undefined,{minimumFractionDigits:2});
+  const dueISO = paymentDueDateISO(d);
+  const dueFmt = dueISO ? new Date(dueISO+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'}) : 'before your staging date';
+  const stagingFmt = d.startdate && d.startdate!=='TBD' ? new Date(d.startdate+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'}) : 'your staging date';
+  const payLine = d.payment_url ? ('\n\nYou can pay securely here:\n'+d.payment_url) : '';
+
+  if(!clientEmail){ if(statusEl) statusEl.textContent='No client email on file'; return; }
+
+  let subject, message;
+  if(kind==='signpay'){
+    subject = 'Sign & Pay — Your Staging at '+address;
+    message = 'Hi '+firstName+',\n\nJust a friendly check-in — your staging at '+address+' is coming up on '+stagingFmt+'. Full payment of '+amountStr+' is due '+dueFmt+' (48 hours before staging), and we\'ll need your signed contract on file before then too.'+payLine+'\n\nLet us know if you have any questions!\n\nWarmly,\nJasmine Santana\nStyling With Jas\n206-422-5618';
+  } else {
+    subject = 'Final Reminder — Payment Due '+dueFmt;
+    message = 'Hi '+firstName+',\n\nThis is a final reminder that payment of '+amountStr+' for your staging at '+address+' is due '+dueFmt+' — 48 hours before your staging date of '+stagingFmt+'. Staging cannot be scheduled until payment is received.'+payLine+'\n\nPlease let us know right away if you have any questions.\n\nWarmly,\nJasmine Santana\nStyling With Jas\n206-422-5618';
   }
+
+  if(statusEl) statusEl.textContent='';
+  showSendPreview({
+    to: clientEmail, subject, message,
+    meta: (kind==='signpay'?'Sign + pay prompt':'Final payment reminder')+' · '+address+' · '+amountStr,
+    invnum: currentCardId,
+    onSent: ()=>{ if(statusEl) statusEl.textContent = '✓ Sent to '+clientEmail; },
+  });
 }
 
 function addToCalendar(type){
@@ -1475,6 +1819,42 @@ const _sb = supabase.createClient(
 // In-memory registry of all loaded invoices, keyed by invnum
 let CARDS = {};
 
+// Shared finance assumptions (Phase 3.1) — read-only here (edited from payroll.html's
+// Business Finances card); same FINANCE_CONFIG system record, same defaults, so a per-job
+// profit estimate here always matches that view's own numbers.
+const FINANCE_DEFAULTS = {
+  warehouse_monthly: 1380, profit_target_pct: 25, tithe_pct: 10,
+  truck_rate_day: 50, truck_days_default: 1, truck_miles_default: 20,
+  truck_rate_mile: 0.23, fuel_rate_mile: 0.15, ldw_lia_week: 200,
+};
+let FINANCE_CONFIG = { ...FINANCE_DEFAULTS };
+let _financeConfigLoaded = false;
+async function ensureFinanceConfig(){
+  if(_financeConfigLoaded) return;
+  try{
+    const { data } = await _sb.from('invoices').select('data').eq('invnum','FINANCE_CONFIG').maybeSingle();
+    if(data && data.data) FINANCE_CONFIG = { ...FINANCE_DEFAULTS, ...data.data };
+  }catch(e){}
+  _financeConfigLoaded = true;
+}
+function truckCostPerJobEstimate(){
+  const perRental = FINANCE_CONFIG.truck_days_default*FINANCE_CONFIG.truck_rate_day
+    + (FINANCE_CONFIG.ldw_lia_week/7)*FINANCE_CONFIG.truck_days_default
+    + FINANCE_CONFIG.truck_miles_default*(FINANCE_CONFIG.truck_rate_mile+FINANCE_CONFIG.fuel_rate_mile);
+  return 2*perRental; // staging delivery + destage pickup
+}
+
+// The one shared filter every staging-business list/picker on this board should apply:
+// excludes drafts, the internal system/config records (PRICING_DEFAULTS, TIER_PRICING, and
+// each month's TAX_REVIEW_<year>_<month> record — fake "invoice" rows used to persist app
+// settings/state, not real jobs), and GS Photography (Gabe's separate business, which must
+// never mix into Jasmine's staging numbers).
+const SYSTEM_INVNUMS = ['PRICING_DEFAULTS', 'TIER_PRICING', 'FINANCE_CONFIG'];
+function isStagingEligible(invnum){
+  invnum = String(invnum||'');
+  return !invnum.startsWith('DRAFT-') && !invnum.startsWith('GS') && !invnum.startsWith('TAX_REVIEW_') && !SYSTEM_INVNUMS.includes(invnum);
+}
+
 // Compute grand total from saved data blob
 function computeGrand(d){
   // Manual total overrides take precedence (Fully manual); blank fields auto-calculate.
@@ -1486,6 +1866,37 @@ function computeGrand(d){
   const sub=_ov(d.subtotal_override); const subEff=sub!=null?sub:(base+addonsTotal);
   const tax=_ov(d.tax_override); const taxEff=tax!=null?tax:subEff*taxrate/100;
   return subEff+taxEff;
+}
+
+// Phase 5.2 price-led split — must mirror invoiceTaxSplit() in tax-report.html and
+// priceLedTax() in index.html/luxury.html exactly, or the drawer disagrees with the client
+// PDF on the Subtotal/Tax breakdown (audit finding: drawer showed the old flat split).
+// computeGrand() above is unaffected and needs no change — the GRAND total is defined to be
+// the same number either way; only how much of it counts as tax vs. revenue changes.
+function boardAddonType(desc){
+  const s=(desc||'').toLowerCase();
+  return (s.includes('photo')||s.includes('consult')||s.includes('design fee')) ? 'service' : 'rental';
+}
+function boardInvoiceSplit(d){
+  const _ov=v=>(v!=null&&v!=='')?parseFloat(v):null;
+  const hasOverride = _ov(d.subtotal_override)!=null || _ov(d.tax_override)!=null || _ov(d.total_override)!=null;
+  const base = parseFloat(d.base_price) || 2500;
+  const addons = d.addons || [];
+  const addonTotal = addons.reduce((s,a)=>s+(parseFloat(a.price)||0),0);
+  const rate = parseFloat(d.taxrate) || 0;
+  const grand = computeGrand(d);
+  if(hasOverride || !d.price_led_tax){
+    const subtotal = _ov(d.subtotal_override) ?? (base+addonTotal);
+    const tax = _ov(d.tax_override) ?? (subtotal*rate/100);
+    return { subtotal, tax, grand };
+  }
+  const rsb = parseFloat(d.rental_share_base); const rentalShareBase = isNaN(rsb) ? 0.5 : rsb;
+  const rentalDollars = base*rentalShareBase + addons.filter(a=>a.type!=='service').reduce((s,a)=>s+(parseFloat(a.price)||0),0);
+  const allDollars = base+addonTotal;
+  const rentalShare = allDollars>0.009 ? rentalDollars/allDollars : 1;
+  const r = rate/100;
+  const subtotal = r>0 ? grand/(1+r*rentalShare) : grand;
+  return { subtotal, tax: grand-subtotal, grand };
 }
 
 function fmtMoney(n){ return '$' + Math.round(n).toLocaleString(); }
@@ -1505,14 +1916,40 @@ function fmtDateShort(iso){
   return d.toLocaleDateString('en-US', {month:'short', day:'numeric'});
 }
 
+// Payment due = staging date minus 48 hours (the one hard payment rule — there is no
+// separate signature deadline). Startdate is date-only, so "48 hours before" is expressed
+// as 2 calendar days before, matching api/webhook.py's payment_due_date exactly.
+function paymentDueDateISO(d){
+  if(!d.startdate || d.startdate === 'TBD') return null;
+  const sd = new Date(d.startdate + 'T00:00:00');
+  sd.setDate(sd.getDate() - 2);
+  return sd.getFullYear() + '-' + String(sd.getMonth()+1).padStart(2,'0') + '-' + String(sd.getDate()).padStart(2,'0');
+}
+
+// Nudge timing constants (Phase 1.2) — easily adjustable, not buried in the button logic.
+const NUDGE_SIGNPAY_DAYS = 7;   // "Sign + pay" prompt, days before staging
+const NUDGE_FINAL_HOURS = 72;   // Final reminder, hours before staging (24h before payment is due)
+// How many days of silence (no date_sent activity) before a quote is swept to closed_lost —
+// mirrors the same constant the daily cron in api/webhook.py uses.
+const QUOTE_SILENCE_DAYS = 30;
+// Needs Attention surfaces payment-due items within this many days.
+const NEEDS_ATTENTION_DAYS = 7;
+// Stages with no payment obligation yet — a quote still being negotiated (proposal/
+// future_hold) or past the point payment matters (done/denied/closed_lost) never shows a
+// "payment due" date. Shared by buildCardHTML (the card) and renderPaymentDueRow (the
+// drawer) so the two can't disagree on this — they used to (Build 2 audit finding).
+const PRE_PAYMENT_STAGES = ['proposal','future_hold','done','denied','closed_lost'];
+
 // Stage display labels & colors
 const STAGE_META = {
-  proposal:  {label:'Proposal Sent',     color:'taupe-dk'},
-  confirmed: {label:'Confirmed',         color:'green'},
-  staged:    {label:'Currently Staged',  color:'gold-dk'},
-  destage:   {label:'Destage Scheduled', color:'slate'},
-  done:      {label:'Completed',         color:'taupe'},
-  denied:    {label:'Declined',          color:'red'},
+  proposal:    {label:'Proposal Sent',     color:'taupe-dk'},
+  future_hold: {label:'Future Hold',       color:'slate'},
+  confirmed:   {label:'Confirmed',         color:'green'},
+  staged:      {label:'Currently Staged',  color:'gold-dk'},
+  destage:     {label:'Destage Scheduled', color:'slate'},
+  done:        {label:'Completed',         color:'taupe'},
+  denied:      {label:'Declined',          color:'red'},
+  closed_lost: {label:'Closed — Lost',     color:'red'},
 };
 
 // Build a card HTML element from an invoice record
@@ -1525,6 +1962,33 @@ function buildCardHTML(inv){
   // Tags based on stage + status
   const tags = [];
   if(d.startdate) tags.push({text:'Staging ' + fmtDateShort(d.startdate)});
+  // Payment due = staging date minus 48 hours, shown right alongside the staging date
+  // (Phase 1.2) — the hard rule stays "payment due 48h before staging," this just makes
+  // that date visible instead of making people do the math themselves.
+  if(!d.paid && !PRE_PAYMENT_STAGES.includes(stage)){
+    const dueISO = paymentDueDateISO(d);
+    if(dueISO){
+      const _today0 = new Date(); _today0.setHours(0,0,0,0);
+      const _daysToDue = Math.round((new Date(dueISO+'T00:00:00') - _today0)/864e5);
+      const urgent = _daysToDue <= NEEDS_ATTENTION_DAYS;
+      tags.push({text:'Payment due ' + fmtDateShort(dueISO), cls: urgent ? (_daysToDue<0?'w':'a') : ''});
+    }
+  }
+  if(d.payer_unknown) tags.push({text:'⚠ Needs a payer', cls:'w'});
+  // Quote lifecycle sub-status (Phase 1.1) — future_hold is its own stage (exempt from the
+  // silence clock); a plain 'proposal' shows how long it's been silent since date_sent.
+  if(stage==='future_hold'){
+    tags.push({text:'Future hold', cls:'ok'});
+  } else if(stage==='proposal'){
+    const sentISO = d.date_sent ? d.date_sent.split('T')[0] : (d.invdate || null);
+    if(sentISO){
+      const _today0 = new Date(); _today0.setHours(0,0,0,0);
+      const _silentDays = Math.round((_today0 - new Date(sentISO+'T00:00:00'))/864e5);
+      if(_silentDays >= QUOTE_SILENCE_DAYS) tags.push({text:'Stale · ' + _silentDays + 'd silent', cls:'w'});
+      else if(_silentDays >= QUOTE_SILENCE_DAYS - 7) tags.push({text:_silentDays + 'd since sent', cls:'a'});
+    }
+    if(!d.date_sent) tags.push({text:'Not yet sent', cls:''});
+  }
   if(stage==='staged' && (d.destage_date || (d.startdate && d.startdate!=='TBD'))){
     const _t0 = new Date(); _t0.setHours(0,0,0,0);
     const _extDays = (d.extensions||[]).reduce((s,e)=>s + (parseInt(e.days,10) || 30*(parseInt(e.periods,10)||1)), 0);
@@ -1559,7 +2023,16 @@ function buildCardHTML(inv){
   if(d.signed) tags.push({text:'Signed ✓', cls:'ok'});
   else if((d.signatures||[]).length) tags.push({text:'Awaiting countersignature', cls:'a'});
   if(d.paid) tags.push({text:'Paid'});
-  else if(stage==='confirmed') tags.push({text:'Payment pending', cls:'a'});
+  else if(stage==='confirmed'){
+    // Urgency now follows the actual payment-due date (see the "Payment due" tag above)
+    // instead of flagging every confirmed-but-unpaid job as urgent regardless of how far
+    // out staging is.
+    const dueISO = paymentDueDateISO(d);
+    const _today0 = new Date(); _today0.setHours(0,0,0,0);
+    const _daysToDue = dueISO ? Math.round((new Date(dueISO+'T00:00:00') - _today0)/864e5) : null;
+    const urgent = _daysToDue === null || _daysToDue <= NEEDS_ATTENTION_DAYS;
+    tags.push({text:'Payment pending', cls: urgent ? 'a' : ''});
+  }
   if(d.photo_date && (stage==='confirmed'||stage==='staged')) tags.push({text:'Photos ' + fmtDateShort(d.photo_date) + _moverConfirmSuffix('photographer')});
   if(_confirms.photographer?.status==='declined') tags.push({text:'⚠ Photographer declined', cls:'w'});
 
@@ -1573,6 +2046,7 @@ function buildCardHTML(inv){
         <div class="c-amt">${fmtMoney(grand)}</div>
       </div>
       <div class="c-addr">${escapeHtml(addr)}</div>
+      <div class="c-invnum">#${escapeHtml(inv.invnum)}</div>
       ${tagHTML ? `<div class="tags">${tagHTML}</div>` : ''}
       ${noteHTML}
     </div>
@@ -1591,7 +2065,7 @@ async function autoAdvanceStages(invoices){
   const today = new Date(); today.setHours(0,0,0,0);
   for(const inv of invoices){
     const d = inv.data || {};
-    if((d.stage || 'proposal') === 'confirmed' && d.startdate){
+    if((d.stage || 'proposal') === 'confirmed' && d.startdate && d.startdate !== 'TBD'){
       const sd = new Date(d.startdate + 'T00:00:00');
       if(sd <= today){
         d.stage = 'staged';
@@ -1619,9 +2093,16 @@ async function checkRemindersNow(){
     const j = await r.json();
     if(j.ok){
       const sent = j.reminders_sent || [];
-      alert(sent.length
+      const archived = j.quotes_archived || [];
+      // This same call also runs the 30-day quote-lifecycle sweep, and the weekly digest IF
+      // today happens to be Monday — surfaced here too (Build 2 audit: this button already
+      // triggered both, but only ever reported on the destage reminders).
+      let msg = sent.length
         ? '✓ Reminder check ran — sent: ' + sent.join(', ')
-        : '✓ Reminder check ran — nothing due right now (or already sent earlier today).');
+        : '✓ Reminder check ran — nothing due right now (or already sent earlier today).';
+      msg += '\n\nQuote sweep: ' + (archived.length ? archived.length + ' archived — ' + archived.join(', ') : 'nothing silent 30+ days right now.');
+      if(j.weekly_digest_sent) msg += '\n\nWeekly digest: sent (it\'s Monday).';
+      alert(msg);
     } else {
       alert('Reminder check failed: ' + (j.error || ('HTTP ' + r.status)));
     }
@@ -1629,6 +2110,25 @@ async function checkRemindersNow(){
     alert('Could not reach the reminder check: ' + e.message);
   } finally {
     if(btn){ btn.disabled = false; btn.textContent = '🔔 Check Reminders Now'; }
+  }
+}
+
+// On-demand test for the weekly Needs Attention digest (Build 2 audit: with no trigger
+// surfaced in the app, this could only ever be verified on an actual Monday). Fires the
+// exact same run_weekly_digest() the cron calls on Mondays — bypasses the day-of-week gate.
+async function testWeeklyDigestNow(){
+  const btn = document.getElementById('test-digest-btn');
+  if(btn){ btn.disabled = true; btn.textContent = '📧 Sending…'; }
+  try{
+    const r = await fetch('/api/webhook?job=weekly_digest', { method: 'GET' });
+    const j = await r.json();
+    alert(j.ok
+      ? (j.digest_sent ? '✓ Weekly digest sent — check info@stylingwithjas.com.' : 'Digest ran but the email failed to send — check that EMAIL_PASSWORD is configured.')
+      : 'Digest test failed: ' + (j.error || ('HTTP ' + r.status)));
+  }catch(e){
+    alert('Could not reach the digest test: ' + e.message);
+  }finally{
+    if(btn){ btn.disabled = false; btn.textContent = '📧 Test Weekly Digest'; }
   }
 }
 
@@ -1650,7 +2150,7 @@ async function loadBoard(){
     // Filter out drafts (DRAFT- prefix) and GS Photography invoices (GS prefix) — GS shares
     // this Supabase table but is a separate business with its own gs-invoice.html generator,
     // not part of Jasmine's board.
-    const invoices = (data||[]).filter(inv => !inv.invnum.startsWith('DRAFT-') && !inv.invnum.startsWith('GS'));
+    const invoices = (data||[]).filter(inv => isStagingEligible(inv.invnum));
 
     // Reset registry
     CARDS = {};
@@ -1659,21 +2159,42 @@ async function loadBoard(){
     // Auto-advance Confirmed → Staged for any project whose staging date has arrived.
     await autoAdvanceStages(invoices);
 
-    // Group by stage; default missing stage to 'proposal'
-    const grouped = { proposal:[], confirmed:[], staged:[], destage:[], done:[], denied:[] };
+    // Group by stage; default missing stage to 'proposal'. closed_lost quotes (Phase 1.1 —
+    // 30 days of silence, swept by the daily cron, or marked by hand from the drawer) get
+    // their own bucket so they're excluded from the active board/pipeline the same way
+    // 'denied' already is, while staying fully visible+searchable in Archive.
+    const grouped = { proposal:[], future_hold:[], confirmed:[], staged:[], destage:[], done:[], denied:[], closed_lost:[] };
     invoices.forEach(inv => {
       const stage = (inv.data && inv.data.stage) || 'proposal';
       if(grouped[stage]) grouped[stage].push(inv);
       else grouped.proposal.push(inv); // unknown stage falls back to proposal
     });
 
-    // Render each column
+    // Render each column — future_hold has no column of its own; it renders inside the
+    // Proposal column's "Future hold" sub-group (Phase 1.1) since it's still quoted work,
+    // just exempt from the 30-day silence clock.
     ['proposal','confirmed','staged','destage','done'].forEach(stage => {
       const body = document.getElementById('col-body-'+stage);
       if(!body) return;
-      const items = grouped[stage] || [];
+      const items = stage==='proposal' ? grouped.proposal.concat(grouped.future_hold) : (grouped[stage] || []);
       if(items.length === 0){
         body.innerHTML = `<div style="padding:24px 12px;text-align:center;font-size:11px;color:var(--taupe);font-style:italic;line-height:1.6">No ${STAGE_META[stage].label.toLowerCase()}<br>jobs yet</div>`;
+      } else if(stage==='proposal'){
+        // Phase 1.1: split quoted work into three views within the same column — Awaiting
+        // signature (fresh), Future hold (accepted but exempt from the silence clock), and
+        // Stale (30+ days of silence, headed for closed-lost on the next daily sweep).
+        const groups = { hold:[], stale:[], fresh:[] };
+        const today0 = new Date(); today0.setHours(0,0,0,0);
+        items.forEach(inv => {
+          const dd = inv.data||{};
+          if(dd.stage === 'future_hold'){ groups.hold.push(inv); return; }
+          const sentISO = dd.date_sent ? dd.date_sent.split('T')[0] : (dd.invdate || null);
+          const silentDays = sentISO ? Math.round((today0 - new Date(sentISO+'T00:00:00'))/864e5) : 0;
+          if(silentDays >= QUOTE_SILENCE_DAYS) groups.stale.push(inv);
+          else groups.fresh.push(inv);
+        });
+        const sub = (label, arr) => arr.length ? `<div class="col-subhdr">${label} (${arr.length})</div>` + arr.map(buildCardHTML).join('') : '';
+        body.innerHTML = sub('Awaiting signature', groups.fresh) + sub('Future hold', groups.hold) + sub('Stale — 30+ days silent', groups.stale);
       } else {
         body.innerHTML = items.map(buildCardHTML).join('');
       }
@@ -1686,7 +2207,7 @@ async function loadBoard(){
     });
 
     // 'All' tab count = sum of active stages
-    const activeTotal = grouped.proposal.length + grouped.confirmed.length + grouped.staged.length + grouped.destage.length + grouped.done.length;
+    const activeTotal = grouped.proposal.length + grouped.future_hold.length + grouped.confirmed.length + grouped.staged.length + grouped.destage.length + grouped.done.length;
     const allTab = document.getElementById('tab-n-all');
     if(allTab) allTab.textContent = activeTotal;
 
@@ -1695,6 +2216,9 @@ async function loadBoard(){
 
     // Update today strip
     updateTodayStrip(invoices);
+
+    // Update the Today-style view (Phase 7 — On Site Now, Destage Needs Scheduling, Future Hold)
+    renderTodayStyleView(invoices);
 
     // Re-apply compact mode if it was on
     if(compact){
@@ -1706,11 +2230,15 @@ async function loadBoard(){
 }
 
 function updatePipelineStats(grouped){
-  // Counts and totals per stage
-  const totalFor = arr => arr.reduce((s,inv) => s + computeGrand(inv.data||{}), 0);
+  // Counts and totals per stage — payer-unknown quick invoices (Phase 2.2) stay out of every
+  // $ total until a real payer is attached, so they can't inflate the pipeline.
+  const totalFor = arr => arr.reduce((s,inv) => (inv.data||{}).payer_unknown ? s : s + computeGrand(inv.data||{}), 0);
 
-  const propCount = grouped.proposal.length;
-  const propTotal = totalFor(grouped.proposal);
+  // Future-hold quotes stay in the Proposals pipe stat (Phase 1.1: "stays in pipeline totals") —
+  // they're still live, quoted work, just exempt from the 30-day silence clock.
+  const proposalLike = grouped.proposal.concat(grouped.future_hold);
+  const propCount = proposalLike.length;
+  const propTotal = totalFor(proposalLike);
   document.getElementById('stat-proposal-count').textContent = propCount;
   document.getElementById('stat-proposal-total').textContent = fmtMoney(propTotal) + ' out';
 
@@ -1730,7 +2258,7 @@ function updatePipelineStats(grouped){
   let mtdTotal = 0, mtdCount = 0;
   Object.values(CARDS).forEach(inv => {
     const d = inv.data || {};
-    if(d.paid && d.paid_date){
+    if(d.paid && d.paid_date && !d.payer_unknown){
       const pd = new Date(d.paid_date + 'T00:00:00');
       if(pd >= monthStart){
         mtdTotal += computeGrand(d);
@@ -1739,13 +2267,16 @@ function updatePipelineStats(grouped){
     }
   });
   document.getElementById('stat-mtd-total').textContent = fmtMoney(mtdTotal);
-  document.getElementById('stat-mtd-count').textContent = mtdCount + ' completed';
+  // This counts every PAID job this month regardless of board stage (a "confirmed" or
+  // "staged" job that's already paid still counts toward revenue) — it's a different
+  // dimension from the Completed STAGE column, which only counts stage==='done'. The two
+  // were never meant to match; "completed" here was misleading wording (audit finding).
+  document.getElementById('stat-mtd-count').textContent = mtdCount + ' paid';
 
-  // Needs Attention: count cards that have urgent or warning tags
-  // We use the same logic as buildCardHTML — count cards with .tag.a or .tag.w
-  let attentionCount = 0;
-  document.querySelectorAll('.card .tag.a, .card .tag.w').forEach(() => attentionCount++);
-  document.getElementById('stat-attention-count').textContent = attentionCount;
+  // Needs Attention tile: set inside updateTodayStrip(), from the SAME items list the strip
+  // itself renders — counting rendered card tags here was a SEPARATE, disagreeing
+  // computation (Build 2 AND Item #6 audit findings: tile vs strip never matched). One
+  // definition, one place it's computed, used by both.
 }
 
 function updateTodayStrip(invoices){
@@ -1761,31 +2292,36 @@ function updateTodayStrip(invoices){
     const stage = d.stage || 'proposal';
     const client = inv.client || d.client || 'Unknown';
 
-    // Payment overdue
-    if(!d.paid && d.startdate){
-      const startDate = new Date(d.startdate + 'T00:00:00');
-      const daysAgo = Math.round((today - startDate)/(1000*60*60*24));
+    // Payment overdue — measured from the actual payment-due date (staging − 48h), never
+    // from staging day itself, and never on a proposal/future-hold quote still awaiting
+    // signature (Phase 1.2: "Proposals awaiting signature are never labeled payment-
+    // overdue") — this was missing the future_hold half of that exclusion (Build 2 audit
+    // finding: today.html had it, this strip didn't, so the two disagreed on the same jobs).
+    const dueISO = !PRE_PAYMENT_STAGES.includes(stage) ? paymentDueDateISO(d) : null;
+    if(!d.paid && dueISO){
+      const dueDate = new Date(dueISO + 'T00:00:00');
+      const daysAgo = Math.round((today - dueDate)/(1000*60*60*24));
       if(daysAgo > 0){
-        items.push({type:'urgent', label:'Payment overdue', value:client, invnum:inv.invnum, sortKey:1000+daysAgo});
+        items.push({type:'urgent', kind:'payment', label:'Payment overdue', value:client, invnum:inv.invnum, sortKey:1000+daysAgo});
         return;
       }
     }
 
-    // Payment due soon: confirmed & unpaid with staging within ~2 days (payment is due ~2 days before).
-    if(stage==='confirmed' && !d.paid && d.startdate){
-      const sd = new Date(d.startdate + 'T00:00:00');
-      const du = Math.round((sd - today)/(1000*60*60*24));
-      if(du >= 0 && du <= 2){
-        const when = du===0 ? 'staging today' : du===1 ? 'staging tomorrow' : 'staging ' + fmtDateShort(d.startdate);
-        items.push({type:'urgent', label:'Payment due', value:client + ' — ' + when, invnum:inv.invnum, sortKey:870});
+    // Payment due soon: confirmed & unpaid, payment-due date within NEEDS_ATTENTION_DAYS.
+    if(stage==='confirmed' && !d.paid && dueISO){
+      const dueDate = new Date(dueISO + 'T00:00:00');
+      const du = Math.round((dueDate - today)/(1000*60*60*24));
+      if(du >= 0 && du <= NEEDS_ATTENTION_DAYS){
+        const when = du===0 ? 'due today' : du===1 ? 'due tomorrow' : 'due ' + fmtDateShort(dueISO);
+        items.push({type:'urgent', kind:'payment', label:'Payment due', value:client + ' — ' + when, invnum:inv.invnum, sortKey:870});
       }
     }
     // Staged but payment never posted — furniture is out; chase payment.
     if(stage==='staged' && !d.paid){
-      items.push({type:'urgent', label:'Staged · unpaid', value:client, invnum:inv.invnum, sortKey:960});
+      items.push({type:'urgent', kind:'payment', label:'Staged · unpaid', value:client, invnum:inv.invnum, sortKey:960});
     }
     // Staging tomorrow
-    if(d.startdate){
+    if(d.startdate && d.startdate !== 'TBD'){
       const startDate = new Date(d.startdate + 'T00:00:00');
       const daysUntil = Math.round((startDate - today)/(1000*60*60*24));
       if(daysUntil === 1){
@@ -1795,7 +2331,7 @@ function updateTodayStrip(invoices){
       }
     }
     // Plan destage (40-44 days into staging)
-    if(d.paid && d.startdate && stage==='staged'){
+    if(d.paid && d.startdate && d.startdate !== 'TBD' && stage==='staged'){
       const startDate = new Date(d.startdate + 'T00:00:00');
       const daysSince = Math.round((today - startDate)/(1000*60*60*24));
       if(daysSince >= 38 && daysSince <= 44){
@@ -1809,16 +2345,233 @@ function updateTodayStrip(invoices){
   });
 
   items.sort((a,b) => b.sortKey - a.sortKey);
+
+  // Needs Attention tile — the SAME distinct-job count the strip itself is built from (one
+  // job can produce more than one item here, e.g. both "Payment overdue" and "Find mover";
+  // the tile counts the JOB once). One shared definition instead of two that disagree.
+  const attentionTile = document.getElementById('stat-attention-count');
+  if(attentionTile) attentionTile.textContent = new Set(items.map(it=>it.invnum)).size;
+
   if(items.length === 0){
     stripEl.innerHTML = '<div style="color:rgba(255,255,255,0.4);font-size:11px;font-style:italic;padding:6px 4px">Nothing urgent today.</div>';
     return;
   }
+  // Payment-related items get one-tap actions (Phase 7: "Each item has one-tap actions:
+  // Send nudge, Send payment link, Mark paid") — every send routes through the same
+  // guardrail as everywhere else (showSendPreview, inside emailClientPaymentNudge).
   stripEl.innerHTML = items.slice(0,8).map(it => `
-    <div class="today-item ${it.type}" onclick="openCard('${it.invnum}')">
-      <div class="ti-label ${it.type}">${it.label}</div>
-      <div class="ti-value">${escapeHtml(it.value)}</div>
+    <div class="today-item ${it.type}">
+      <div onclick="openCard('${it.invnum}')">
+        <div class="ti-label ${it.type}">${it.label}</div>
+        <div class="ti-value">${escapeHtml(it.value)}</div>
+      </div>
+      ${it.kind==='payment' ? `<div style="display:flex;gap:4px;margin-top:6px">
+        <button class="mini-act" onclick="event.stopPropagation();quickNudge('${it.invnum}','signpay')">Nudge</button>
+        <button class="mini-act" onclick="event.stopPropagation();quickPaymentLink('${it.invnum}')">Link</button>
+        <button class="mini-act" onclick="event.stopPropagation();quickMarkPaid('${it.invnum}')">Paid</button>
+      </div>` : ''}
     </div>
   `).join('');
+}
+
+// Phase 7 one-tap actions — each runs the SAME guardrailed function the drawer already
+// uses. emailClientPaymentNudge() reads its message fields straight off the open drawer's
+// form (by design — see its own comment on reading unsaved edits), so this opens the card
+// first rather than just setting currentCardId, or it would build the email from whatever
+// a PREVIOUSLY opened, different card left in those same form fields.
+function quickNudge(invnum, kind){ openCard(invnum); emailClientPaymentNudge(kind); }
+function quickPaymentLink(invnum){ createSplitPayment(invnum); }
+async function quickMarkPaid(invnum){
+  const inv = CARDS[invnum]; if(!inv) return;
+  const ok = await customConfirm('Mark #'+invnum+' ('+(inv.client||'this client')+') as paid today?', { confirmLabel:'Mark Paid' });
+  if(!ok) return;
+  const d = { ...(inv.data||{}), paid:true, paid_date: new Date().toISOString().split('T')[0] };
+  try{
+    await _sb.from('invoices').upsert({ invnum:inv.invnum, client:inv.client, address:inv.address, invdate:inv.invdate, data:d }, { onConflict:'invnum' });
+    inv.data = d;
+    loadBoard();
+  }catch(e){ alert('Could not mark paid: '+e.message); }
+}
+
+// Phase 7 — greeting + the new sections (On Site Now, Destage Needs Scheduling, Future
+// Hold), built from the same `invoices` loadBoard() already fetched. Each section hides
+// itself entirely when empty rather than showing a live-button card with nothing in it.
+function renderGreeting(){
+  const el = document.getElementById('tsv-greeting');
+  if(!el) return;
+  const h = new Date().getHours();
+  const greet = h<12 ? 'Good morning' : h<17 ? 'Good afternoon' : 'Good evening';
+  el.textContent = greet + ', Jasmine — ' + new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
+}
+
+function renderTodayStyleView(invoices){
+  renderOnSiteNow(invoices);
+  renderDestageNeedsScheduling(invoices);
+  renderFutureHoldSection(invoices);
+}
+
+function renderOnSiteNow(invoices){
+  const section = document.getElementById('tsv-onsite-section');
+  const list = document.getElementById('tsv-onsite-list');
+  if(!section || !list) return;
+  const staged = invoices.filter(inv => ((inv.data||{}).stage||'proposal') === 'staged');
+  if(!staged.length){ section.style.display = 'none'; return; }
+  section.style.display = '';
+  const today0 = new Date(); today0.setHours(0,0,0,0);
+  list.innerHTML = staged.map(inv => {
+    const d = inv.data||{};
+    const client = inv.client || d.client || 'Unknown';
+    const addr = shortAddr(inv.address || d.address || '');
+    const extDays = (d.extensions||[]).reduce((s,e)=>s + (parseInt(e.days,10) || 30*(parseInt(e.periods,10)||1)), 0);
+    let end = null;
+    if(d.destage_date){ end = new Date(d.destage_date + 'T00:00:00'); }
+    else if(d.startdate && d.startdate!=='TBD'){ end = new Date(d.startdate + 'T00:00:00'); end.setDate(end.getDate()+45); }
+    if(end && extDays>0) end.setDate(end.getDate()+extDays);
+    const daysLeft = end ? Math.round((end-today0)/864e5) : null;
+    // "A destage prompt appears as the rental-end date approaches" (Phase 7) — the tag
+    // itself IS that prompt, turning urgent inside 3 days.
+    const urgent = daysLeft!=null && daysLeft<=3;
+    const tagText = daysLeft==null ? 'Set a destage date'
+      : daysLeft<0 ? (Math.abs(daysLeft)+'d past end — destage now')
+      : daysLeft===0 ? 'Ends today'
+      : daysLeft+' day'+(daysLeft===1?'':'s')+' left';
+    return `<div class="tsv-card" onclick="openCard('${inv.invnum}')">
+      <div class="tsv-card-main">
+        <div class="tsv-card-name">${escapeHtml(client)}</div>
+        <div class="tsv-card-addr">${escapeHtml(addr)}${d.startdate?' · staged '+fmtDateShort(d.startdate):''}</div>
+      </div>
+      <div class="tsv-card-side">
+        <div class="tsv-card-tag ${urgent?'a':''}">${tagText}</div>
+        <div class="tsv-card-sub">${d.paid?'Paid':'Unpaid'}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderDestageNeedsScheduling(invoices){
+  const section = document.getElementById('tsv-destage-section');
+  const list = document.getElementById('tsv-destage-list');
+  if(!section || !list) return;
+  const destage = invoices.filter(inv => ((inv.data||{}).stage||'proposal') === 'destage');
+  if(!destage.length){ section.style.display = 'none'; return; }
+  section.style.display = '';
+  const today0 = new Date(); today0.setHours(0,0,0,0);
+  list.innerHTML = destage.map(inv => {
+    const d = inv.data||{};
+    const client = inv.client || d.client || 'Unknown';
+    const addr = shortAddr(inv.address || d.address || '');
+    const hasDate = !!d.destage_date;
+    const overdue = hasDate && new Date(d.destage_date+'T00:00:00') < today0;
+    const tagText = hasDate ? fmtDateShort(d.destage_date) + (overdue?' · overdue':'') : 'Not scheduled';
+    return `<div class="tsv-card">
+      <div class="tsv-card-main" onclick="openCard('${inv.invnum}')" style="cursor:pointer">
+        <div class="tsv-card-name">${escapeHtml(client)}</div>
+        <div class="tsv-card-addr">${escapeHtml(addr)}</div>
+      </div>
+      <div class="tsv-card-side">
+        <div class="tsv-card-tag ${overdue?'a':(hasDate?'':'w')}">${tagText}</div>
+        <div style="display:flex;gap:6px;margin-top:5px">
+          <button class="mini-act" onclick="quickScheduleDestage('${inv.invnum}')">Schedule</button>
+          <button class="mini-act" onclick="quickConfirmPickedUp('${inv.invnum}')">Picked up</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderFutureHoldSection(invoices){
+  const section = document.getElementById('tsv-futurehold-section');
+  const list = document.getElementById('tsv-futurehold-list');
+  if(!section || !list) return;
+  const fh = invoices.filter(inv => ((inv.data||{}).stage||'proposal') === 'future_hold');
+  if(!fh.length){ section.style.display = 'none'; return; }
+  section.style.display = '';
+  list.innerHTML = fh.map(inv => {
+    const d = inv.data||{};
+    const client = inv.client || d.client || 'Unknown';
+    const addr = shortAddr(inv.address || d.address || '');
+    return `<div class="tsv-card" onclick="openCard('${inv.invnum}')">
+      <div class="tsv-card-main">
+        <div class="tsv-card-name">${escapeHtml(client)}</div>
+        <div class="tsv-card-addr">${escapeHtml(addr)}${d.startdate&&d.startdate!=='TBD'?' · staging '+fmtDateShort(d.startdate):''}</div>
+      </div>
+      <div class="tsv-card-side"><div class="tsv-card-tag">${fmtMoney(computeGrand(d))}</div></div>
+    </div>`;
+  }).join('');
+}
+
+// In-app date prompt (Promise<string|null>) — used for scheduling destage instead of the
+// native prompt(), same reasoning as customConfirm (unreliable inside an installed PWA).
+function customPromptDate(message, defaultVal){
+  return new Promise(resolve=>{
+    const ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(26,24,20,0.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:24px;font-family:Inter,-apple-system,sans-serif';
+    const safeMsg = String(message||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    ov.innerHTML = '<div style="background:#fff;border-radius:16px;max-width:340px;width:100%;padding:22px">'
+      + '<div style="font-size:14px;color:#3d3830;line-height:1.5;margin-bottom:14px">' + safeMsg + '</div>'
+      + '<input type="date" id="cpd-input" value="' + (defaultVal||'') + '" style="width:100%;padding:10px;border:1px solid #d4cfc9;border-radius:8px;font-size:14px;margin-bottom:14px;font-family:inherit">'
+      + '<div style="display:flex;gap:8px">'
+      + '<button id="cpd-cancel" style="flex:1;padding:12px;border-radius:9px;border:1px solid #d4cfc9;background:#faf8f5;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit">Cancel</button>'
+      + '<button id="cpd-ok" style="flex:1;padding:12px;border-radius:9px;border:none;background:#1a1814;color:#fff;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit">Save</button>'
+      + '</div></div>';
+    document.body.appendChild(ov);
+    const cleanup = (v)=>{ ov.remove(); resolve(v); };
+    ov.querySelector('#cpd-cancel').onclick = ()=>cleanup(null);
+    ov.querySelector('#cpd-ok').onclick = ()=>cleanup(document.getElementById('cpd-input').value || null);
+    ov.addEventListener('click', e=>{ if(e.target===ov) cleanup(null); });
+  });
+}
+
+// In-app text/number prompt (Promise<string|null>) — same reasoning as customConfirm and
+// customPromptDate: native prompt() is unreliable inside an installed PWA and can return
+// null immediately with no dialog shown at all, which looks exactly like "no visible
+// feedback" on a button press (audit finding on the Needs Action Link button, which used
+// to call createSplitPayment()'s two native prompt() calls below).
+function customPromptText(message, defaultVal, inputType){
+  return new Promise(resolve=>{
+    const ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(26,24,20,0.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:24px;font-family:Inter,-apple-system,sans-serif';
+    const safeMsg = String(message||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+    ov.innerHTML = '<div style="background:#fff;border-radius:16px;max-width:360px;width:100%;padding:22px">'
+      + '<div style="font-size:14px;color:#3d3830;line-height:1.5;margin-bottom:14px">' + safeMsg + '</div>'
+      + '<input type="' + (inputType||'text') + '" id="cpt-input" value="' + String(defaultVal||'').replace(/"/g,'&quot;') + '" inputmode="' + (inputType==='number'?'decimal':'text') + '" style="width:100%;padding:10px;border:1px solid #d4cfc9;border-radius:8px;font-size:14px;margin-bottom:14px;font-family:inherit">'
+      + '<div style="display:flex;gap:8px">'
+      + '<button id="cpt-cancel" style="flex:1;padding:12px;border-radius:9px;border:1px solid #d4cfc9;background:#faf8f5;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit">Cancel</button>'
+      + '<button id="cpt-ok" style="flex:1;padding:12px;border-radius:9px;border:none;background:#1a1814;color:#fff;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit">OK</button>'
+      + '</div></div>';
+    document.body.appendChild(ov);
+    const input = ov.querySelector('#cpt-input');
+    const cleanup = (v)=>{ ov.remove(); resolve(v); };
+    ov.querySelector('#cpt-cancel').onclick = ()=>cleanup(null);
+    ov.querySelector('#cpt-ok').onclick = ()=>cleanup(input.value);
+    ov.addEventListener('click', e=>{ if(e.target===ov) cleanup(null); });
+    setTimeout(()=>{ try{ input.focus(); input.select(); }catch(e){} }, 50);
+  });
+}
+
+async function quickScheduleDestage(invnum){
+  const inv = CARDS[invnum]; if(!inv) return;
+  const d = { ...(inv.data||{}) };
+  const picked = await customPromptDate('Schedule destage for '+(inv.client||'this client')+':', d.destage_date||'');
+  if(picked===null) return;
+  d.destage_date = picked || null;
+  try{
+    await _sb.from('invoices').upsert({ invnum:inv.invnum, client:inv.client, address:inv.address, invdate:inv.invdate, data:d }, { onConflict:'invnum' });
+    inv.data = d;
+    loadBoard();
+  }catch(e){ alert('Could not save: '+e.message); }
+}
+
+async function quickConfirmPickedUp(invnum){
+  const inv = CARDS[invnum]; if(!inv) return;
+  const ok = await customConfirm('Confirm furniture picked up for '+(inv.client||'this client')+'?\n\nThis marks the job Completed.', { confirmLabel:'Confirm Picked Up' });
+  if(!ok) return;
+  const d = { ...(inv.data||{}), stage:'done' };
+  try{
+    await _sb.from('invoices').upsert({ invnum:inv.invnum, client:inv.client, address:inv.address, invdate:inv.invdate, data:d }, { onConflict:'invnum' });
+    inv.data = d;
+    loadBoard();
+  }catch(e){ alert('Could not save: '+e.message); }
 }
 
 async function moveToStagePrompt(targetStage){
@@ -1833,10 +2586,10 @@ async function moveToStagePrompt(targetStage){
     if(error){ alert('Could not load invoices: ' + error.message); return; }
 
     const candidates = (data||[])
-      .filter(inv => !inv.invnum.startsWith('DRAFT-'))
+      .filter(inv => isStagingEligible(inv.invnum))
       .filter(inv => {
         const curStage = (inv.data && inv.data.stage) || 'proposal';
-        return curStage !== targetStage && curStage !== 'denied';
+        return curStage !== targetStage && curStage !== 'denied' && curStage !== 'closed_lost';
       });
 
     if(candidates.length === 0){
@@ -1919,7 +2672,7 @@ async function deleteCard(){
   const inv = CARDS[currentCardId];
   if(!inv) return;
   const clientName = inv.client || '(no name)';
-  if(!confirm(`Remove "${clientName}" from the board?\n\nThe invoice will be kept in the database but hidden from active columns. You can recover it later if needed.`)) return;
+  if(!(await customConfirm(`Remove "${clientName}" from the board?\n\nThe invoice will be kept in the database but hidden from active columns. You can recover it later if needed.`, { confirmLabel: 'Remove', danger: true }))) return;
 
   const d = { ...(inv.data || {}) };
   d.stage = 'denied';
@@ -1944,8 +2697,8 @@ async function hardDeleteCard(){
   if(!inv) return;
   const clientName = inv.client || '(no name)';
   // Two-step confirm because this is destructive and unrecoverable
-  if(!confirm(`PERMANENTLY DELETE "${clientName}" (Invoice #${inv.invnum})?\n\nThis cannot be undone. The invoice record will be removed from the database entirely.`)) return;
-  if(!confirm(`Are you sure? This is the final confirmation.\n\nTap OK to permanently delete.`)) return;
+  if(!(await customConfirm(`PERMANENTLY DELETE "${clientName}" (Invoice #${inv.invnum})?\n\nThis cannot be undone. The invoice record will be removed from the database entirely.`, { confirmLabel: 'Delete', danger: true }))) return;
+  if(!(await customConfirm(`Are you sure? This is the final confirmation.\n\nTap to permanently delete.`, { confirmLabel: 'Permanently Delete', danger: true }))) return;
 
   const { error } = await _sb.from('invoices').delete().eq('invnum', inv.invnum);
 
@@ -1990,6 +2743,7 @@ function realOpenCard(invnum){
     console.warn('Card not found:', invnum);
     return;
   }
+  setUnsavedChanges(false);
   const d = inv.data || {};
   const stage = d.stage || 'proposal';
 
@@ -1997,9 +2751,31 @@ function realOpenCard(invnum){
   document.getElementById('m-name').textContent = inv.client || d.client || '';
   document.getElementById('m-addr').textContent = inv.address || d.address || '';
   document.getElementById('m-invnum').textContent = '#' + invnum;
+  // Phase 1.1 — the 30-day silence clock's starting point, visible so it can be checked by
+  // eye instead of trusting the "Stale · Nd silent" tag alone (Build 2 audit finding: this
+  // was nowhere in the UI even though the send itself worked and the "Not yet sent" tag
+  // correctly cleared).
+  (function(){
+    const el = document.getElementById('m-datesent'); if(!el) return;
+    if(d.date_sent){
+      const sentFmt = new Date(d.date_sent).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+      el.textContent = 'Sent ' + sentFmt;
+    } else if(stage==='proposal' || stage==='future_hold'){
+      el.textContent = d.invdate ? 'Not yet sent (drafted ' + d.invdate + ')' : 'Not yet sent';
+    } else {
+      el.textContent = '';
+    }
+  })();
   document.getElementById('m-amt').textContent = fmtMoney(computeGrand(d));
   setVal('m-amount', (d.base_price != null ? d.base_price : Math.round(computeGrand(d))));
   setVal('m-address-in', inv.address || d.address || '');
+  // Structured city/ZIP (Phase 5.1) only exist on invoices created after that change — the
+  // address field above stays the free-text display; this is just surfacing what's captured
+  // separately for tax reporting, which had nowhere to show at all before (audit finding).
+  (function(){
+    const el = document.getElementById('m-city-row'); if(!el) return;
+    el.textContent = (d.city || d.zip) ? ('City/ZIP on file: ' + (d.city||'(no city)') + (d.zip?' '+d.zip:'')) : '';
+  })();
   setVal('m-email-in', d.client_email || '');
   (function(){
     const el = document.getElementById('m-rental-info'); if(!el) return;
@@ -2011,7 +2787,7 @@ function realOpenCard(invnum){
     let through = '?';
     if(d.destage_date){
       through = d.destage_date;
-    } else if(d.startdate){
+    } else if(d.startdate && d.startdate !== 'TBD'){
       const x = new Date(d.startdate + 'T00:00:00'); x.setDate(x.getDate() + 45 + extDays);
       through = x.getFullYear() + '-' + String(x.getMonth()+1).padStart(2,'0') + '-' + String(x.getDate()).padStart(2,'0');
     }
@@ -2056,6 +2832,8 @@ function realOpenCard(invnum){
   }
   setVal('m-paid-date', d.paid_date || '');
   setVal('m-deposit-date', d.deposit_date || '');
+  setVal('m-exempt-reason', d.exempt_reason || '');
+  setVal('m-exempt-cert', d.exempt_cert || '');
   renderPaymentsList(d);
 
   // Destage
@@ -2072,7 +2850,10 @@ function realOpenCard(invnum){
   renderConfirmationStatuses(d);
   renderPricingSection(inv, d);
   renderSignaturesSection(inv, d);
+  renderSendLog(d);
+  renderPaymentDueRow(d);
   renderPetDepositSection(inv, d);
+  renderProfitStrip(invnum, inv, d);
 
   // Notes
   setVal('m-notes', d.notes || '');
@@ -2107,10 +2888,10 @@ async function voidProposal(invnum){
   const inv = CARDS[invnum]; if(!inv){ alert('Open a project first.'); return; }
   const d = inv.data || {};
   if(d.voided){
-    if(!confirm('Re-activate this proposal?\n\nThe client’s Approve & Sign link will work again.')) return;
+    if(!(await customConfirm('Re-activate this proposal?\n\nThe client’s Approve & Sign link will work again.', { confirmLabel: 'Re-activate' }))) return;
     d.voided = false;
   } else {
-    if(!confirm('Void this proposal?\n\nThe client’s Approve & Sign link will immediately show "no longer available" — they can’t approve it. Use this when the invoice was wrong; re-generate the corrected invoice (same number) to re-issue, or tap this again to re-activate.')) return;
+    if(!(await customConfirm('Void this proposal?\n\nThe client’s Approve & Sign link will immediately show "no longer available" — they can’t approve it. Use this when the invoice was wrong; re-generate the corrected invoice (same number) to re-issue, or tap this again to re-activate.', { confirmLabel: 'Void', danger: true }))) return;
     d.voided = true;
   }
   try { await _sb.from('invoices').upsert({ invnum: inv.invnum, client: inv.client, address: inv.address, invdate: inv.invdate, data: d }, { onConflict: 'invnum' }); } catch(e){}
@@ -2124,7 +2905,7 @@ async function clearExtensions(invnum){
   const d = inv.data || {};
   const n = (d.extensions||[]).length;
   if(!n){ alert('No extensions logged on this project.'); return; }
-  if(!confirm('Remove all ' + n + ' logged extension(s) from this project and reset the rental window to 45 days?\n\n(This only cleans up the board — it does not refund any Stripe payments.)')) return;
+  if(!(await customConfirm('Remove all ' + n + ' logged extension(s) from this project and reset the rental window to 45 days?\n\n(This only cleans up the board — it does not refund any Stripe payments.)', { confirmLabel: 'Remove', danger: true }))) return;
   d.extensions = [];
   d.rental_days = 45;
   try { await _sb.from('invoices').upsert({ invnum: inv.invnum, client: inv.client, address: inv.address, invdate: inv.invdate, data: d }, { onConflict: 'invnum' }); } catch(e){}
@@ -2184,14 +2965,15 @@ async function createSplitPayment(invnum){
   const paid=computeAmountPaid(d);
   const remaining=Math.max(0, grand-paid);
 
-  const amountStr=prompt('Create a payment link for part of the total.\n\nInvoice total: $'+grand.toLocaleString(undefined,{minimumFractionDigits:2})+'\nAlready paid: $'+paid.toLocaleString(undefined,{minimumFractionDigits:2})+'\nRemaining: $'+remaining.toLocaleString(undefined,{minimumFractionDigits:2})+'\n\nAmount for this link:', remaining>0?remaining.toFixed(2):'');
+  const amountStr=await customPromptText('Create a payment link for part of the total.\n\nInvoice total: $'+grand.toLocaleString(undefined,{minimumFractionDigits:2})+'\nAlready paid: $'+paid.toLocaleString(undefined,{minimumFractionDigits:2})+'\nRemaining: $'+remaining.toLocaleString(undefined,{minimumFractionDigits:2})+'\n\nAmount for this link:', remaining>0?remaining.toFixed(2):'', 'number');
   if(amountStr===null) return;
   const amount=parseFloat(amountStr);
   if(!amount||amount<=0){ alert('Enter a valid amount.'); return; }
 
-  const label=(prompt('Label for this link (shown on the board & the Stripe receipt) — e.g. "Deposit", "Balance", "Agent contribution":', '')||'').trim();
+  const labelRaw=await customPromptText('Label for this link (shown on the board & the Stripe receipt) — e.g. "Deposit", "Balance", "Agent contribution":', '');
+  const label=(labelRaw||'').trim();
 
-  const forClient=confirm('Is this link for '+(inv.client||'the client')+' to pay?\n\nOK = Yes — this becomes the payment button on their Approve & Sign page (replaces whatever was there).\nCancel = No — this is for someone else (e.g. a referring agent). It will NOT appear on the client\'s page; you send this link to them directly.');
+  const forClient=await customConfirm('Is this link for '+(inv.client||'the client')+' to pay?\n\nYes = this becomes the payment button on their Approve & Sign page (replaces whatever was there).\nNo = this is for someone else (e.g. a referring agent). It will NOT appear on the client\'s page; you send this link to them directly.', { confirmLabel: 'Yes — for the client', cancelLabel: 'No — someone else' });
 
   const payNum=((d.payments||[]).length)+1;
   const payId='PAY'+payNum;
@@ -2291,7 +3073,7 @@ async function createSplitPayment(invnum){
     +'<a href="'+url+'" target="_blank" style="display:block;background:#1a1814;color:#fff;text-decoration:none;padding:13px;border-radius:11px;font-weight:600;margin-bottom:8px">💳 Open this link</a>'
     +(!forClient?('<div style="display:flex;gap:6px;margin-bottom:4px;text-align:left">'
       +'<input type="email" multiple id="board-contrib-email" placeholder="their email(s), comma separated" style="flex:1;font-size:12.5px;padding:9px 10px;border:1px solid #ddd;border-radius:8px;font-family:inherit">'
-      +'<button onclick="emailBoardContribLink()" id="board-contrib-send" style="background:#1a1814;color:#fff;border:none;border-radius:8px;padding:9px 14px;font-size:12.5px;font-weight:600;cursor:pointer">Send</button>'
+      +'<button onclick="emailBoardContribLink()" id="board-contrib-send" style="background:#1a1814;color:#fff;border:none;border-radius:8px;padding:9px 14px;font-size:12.5px;font-weight:600;cursor:pointer">Preview &amp; Send</button>'
       +'</div><div id="board-contrib-status" style="font-size:11px;text-align:left;margin-bottom:10px;min-height:14px"></div>') : '')
     +(secondUrl?('<div style="font-size:12px;color:#2d6a0a;margin:14px 0 6px;border-top:1px solid #eee;padding-top:12px">Client\'s balance auto-updated to $'+secondAmount.toLocaleString(undefined,{minimumFractionDigits:2})+' — their old link is retired.</div>'
       +'<a href="'+secondUrl+'" target="_blank" style="display:block;background:#f5ead8;color:#9d7a44;text-decoration:none;padding:12px;border-radius:11px;font-weight:600;margin-bottom:6px">💳 Open client\'s new link</a>')
@@ -2311,22 +3093,21 @@ async function emailBoardContribLink(){
   if(!p) return;
   const emailInput=document.getElementById('board-contrib-email');
   const statusEl=document.getElementById('board-contrib-status');
-  const btn=document.getElementById('board-contrib-send');
   const raw=emailInput.value.trim();
   const emailRegex=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   const addrs=raw.split(/[,;]/).map(a=>a.trim()).filter(Boolean);
   const bad=addrs.filter(a=>!emailRegex.test(a));
   if(!addrs.length || bad.length){ statusEl.textContent=bad.length?'Invalid email: '+bad.join(', '):'Enter a valid email address'; statusEl.style.color='#e24b4a'; return; }
-  btn.disabled=true; statusEl.textContent='Sending…'; statusEl.style.color='#888';
+  statusEl.textContent=''; statusEl.style.color='#888';
   const amt='$'+parseFloat(p.amount).toLocaleString(undefined,{minimumFractionDigits:2});
   const subject='Payment Request — '+(p.label||'Payment');
   const message='Hi,\n\nJasmine Santana with Styling With Jas is requesting '+amt+' for: '+(p.label||'this payment')+'.\n\nYou can pay securely here:\n'+p.url+'\n\nThank you!\n\nJasmine Santana\nOwner & Creative Director — Styling With Jas\n206-422-5618\ninfo@stylingwithjas.com';
-  try{
-    const r=await fetch('/api/email',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({to:addrs.join(', '),subject,message})});
-    const d=await r.json();
-    if(d.sent){ const n=(d.to||[]).length; statusEl.textContent='✓ Sent to '+(n>1?n+' recipients':addrs[0]); statusEl.style.color='#22c55e'; }
-    else{ statusEl.textContent='Error: '+(d.error||'Unknown'); statusEl.style.color='#e24b4a'; btn.disabled=false; }
-  }catch(e){ statusEl.textContent='Error: '+e.message; statusEl.style.color='#e24b4a'; btn.disabled=false; }
+  showSendPreview({
+    to: addrs.join(', '), subject, message,
+    meta: 'Payment request · '+amt+' · '+(p.label||'Payment'),
+    invnum: currentCardId,
+    onSent: ()=>{ statusEl.textContent='✓ Sent to '+(addrs.length>1?addrs.length+' recipients':addrs[0]); statusEl.style.color='#22c55e'; },
+  });
 }
 
 // Custom date-picker dialog for extendRental() — replaces the old prompt() that only asked
@@ -2414,8 +3195,12 @@ async function extendRental(invnum){
     curEndStr = d.destage_date;
   } else {
     const _priorExtDays = (d.extensions||[]).reduce((s,e)=>s + (parseInt(e.days,10) || 30*(parseInt(e.periods,10)||1)), 0);
-    let _curEndDt = new Date((d.startdate || new Date().toISOString().split('T')[0]) + 'T00:00:00');
-    if(d.startdate) _curEndDt.setDate(_curEndDt.getDate() + 45);
+    // d.startdate can be the literal string 'TBD' (truthy!) for a not-yet-scheduled job —
+    // that must NOT reach new Date(), or it's an Invalid Date and everything downstream
+    // (days/amount in the extension dialog) comes out NaN (audit finding).
+    const _hasRealStart = d.startdate && d.startdate !== 'TBD';
+    let _curEndDt = new Date((_hasRealStart ? d.startdate : new Date().toISOString().split('T')[0]) + 'T00:00:00');
+    if(_hasRealStart) _curEndDt.setDate(_curEndDt.getDate() + 45);
     _curEndDt.setDate(_curEndDt.getDate() + _priorExtDays);
     curEndStr = _curEndDt.getFullYear() + '-' + String(_curEndDt.getMonth()+1).padStart(2,'0') + '-' + String(_curEndDt.getDate()).padStart(2,'0');
   }
@@ -2443,10 +3228,16 @@ async function extendRental(invnum){
     url = j.url;
   } catch(e){ alert('Could not create the payment link:\n' + e.message + '\n\nNothing was changed.'); return; }
 
+  // Extension tax (Phase 5.5) — 100% rental, backed out of the already-agreed fee under the
+  // price-led method (see TAX_METHODOLOGY.md). The fee itself (amount) never changes.
+  const extTaxRate = parseFloat(d.taxrate) || 0;
+  const _extR = extTaxRate/100;
+  const extTax = _extR>0 ? amount - amount/(1+_extR) : 0;
+
   // 2) Extend the rental window + log the extension on the original invoice
   d.rental_days = (parseInt(d.rental_days, 10) || 45) + addDays;
   d.extensions = d.extensions || [];
-  d.extensions.push({ invnum: extNum, days: days, amount: amount, payment_url: url, created: new Date().toISOString().split('T')[0] });
+  d.extensions.push({ invnum: extNum, days: days, amount: amount, tax: extTax, type: 'extension', payment_url: url, created: new Date().toISOString().split('T')[0] });
   try {
     await _sb.from('invoices').upsert({ invnum: inv.invnum, client: inv.client, address: inv.address, invdate: inv.invdate, data: d }, { onConflict: 'invnum' });
   } catch(e){}
@@ -2460,7 +3251,7 @@ async function extendRental(invnum){
   let pdfUrl = null, pdfErr = '';
   try {
     const pdfData = { extension:true, extension_days:days, extension_of:invnum, client:inv.client, address:inv.address,
-      invnum:extNum, invdate:new Date().toISOString().split('T')[0], base_price:amount, extrate:extrate, payment_url:url, rented_through:rentedThrough };
+      invnum:extNum, invdate:new Date().toISOString().split('T')[0], base_price:amount, extrate:extrate, taxrate:extTaxRate, payment_url:url, rented_through:rentedThrough };
     const pr = await fetch('/api/generate', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(pdfData) });
     if(!pr.ok){ const t = await pr.text(); throw new Error('Server ' + pr.status + ' — ' + t.substring(0,120)); }
     const b = await pr.blob();
@@ -2483,11 +3274,42 @@ async function extendRental(invnum){
     + (pdfUrl ? ('<a href="' + pdfUrl + '" download="' + fname + '" target="_blank" style="display:block;background:#1a1814;color:#fff;text-decoration:none;padding:13px;border-radius:11px;font-weight:600;margin-bottom:8px">📄 Open / Save invoice PDF</a>')
               : ('<div style="font-size:12px;color:#b53535;margin-bottom:10px">PDF preview unavailable (' + (pdfErr||'error') + ') — the payment link still works.</div>'))
     + '<a href="' + url + '" target="_blank" style="display:block;background:#f5ead8;color:#9d7a44;text-decoration:none;padding:12px;border-radius:11px;font-weight:600;margin-bottom:6px">💳 Open payment link</a>'
+    + (d.client_email ? '<button id="ext-ov-send" style="display:block;width:100%;background:var(--slate,#4a5e82);color:#fff;border:none;border-radius:11px;padding:12px;font-weight:600;font-size:13px;cursor:pointer;margin-bottom:6px;font-family:inherit">✉ Preview &amp; Send: Extension Confirmation</button>' : '')
     + '<button id="ext-ov-close" style="background:none;border:none;color:#a29c96;font-size:13px;padding:8px;cursor:pointer">Close</button>'
     + '</div>';
   document.body.appendChild(ov);
   ov.querySelector('#ext-ov-close').onclick = function(){ ov.remove(); };
   ov.addEventListener('click', function(e){ if(e.target === ov) ov.remove(); });
+  const sendBtn = ov.querySelector('#ext-ov-send');
+  if(sendBtn) sendBtn.onclick = function(){
+    ov.remove();
+    sendExtensionConfirmation({ invnum, extNum, client: inv.client, clientEmail: d.client_email, address: inv.address,
+      days, amount, tax: extTax, newEndDate: rentedThrough, paymentUrl: url });
+  };
+}
+
+// Phase 5.5 — the written extension confirmation the spec calls for (new end date, fee, tax
+// amount, payment link). This is NOT a new contract — the original signed contract's
+// extension clause already covers it at the stated rate; this just records/communicates THIS
+// specific extension under that existing agreement. Routes through the same guardrail as
+// every other client-facing send.
+function sendExtensionConfirmation({ invnum, extNum, client, clientEmail, address, days, amount, tax, newEndDate, paymentUrl }){
+  if(!clientEmail){ alert('No client email on file — send this by text or in person instead.'); return; }
+  const firstName = (client||'').split(' ')[0] || 'there';
+  const newEndFmt = new Date(newEndDate+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
+  const pretax = amount - tax;
+  const subject = 'Extension Confirmation — ' + address;
+  const message = 'Hi '+firstName+',\n\nThis confirms the extension of your staging rental at '+address+' under the extension terms in your signed agreement — no new contract is needed.\n\n'
+    + 'New end date: '+newEndFmt+' ('+days+' additional day(s))\n'
+    + 'Extension fee: $'+pretax.toLocaleString(undefined,{minimumFractionDigits:2})+' + $'+tax.toLocaleString(undefined,{minimumFractionDigits:2})+' tax = $'+amount.toLocaleString(undefined,{minimumFractionDigits:2})+' total\n'
+    + 'Payment link: '+paymentUrl+'\n\n'
+    + 'Please pay before the extension period begins to keep everything on schedule. Replying to confirm or completing payment both acknowledge this extension.\n\nThank you!\nJasmine Santana\nStyling With Jas\n206-422-5618';
+  showSendPreview({
+    to: clientEmail, subject, message,
+    meta: 'Extension confirmation · '+address+' · '+days+' days · $'+amount.toLocaleString(undefined,{minimumFractionDigits:2}),
+    invnum,
+    onSent: ()=>{},
+  });
 }
 
 async function addPastJob(){
@@ -2547,6 +3369,8 @@ function buildCardDataFromModal(inv){
   d.paid = (paymentVal === 'Paid' || paymentVal === 'Confirmed via Stripe');
   d.paid_date = document.getElementById('m-paid-date').value || null;
   d.deposit_date = document.getElementById('m-deposit-date').value || null;
+  d.exempt_reason = (document.getElementById('m-exempt-reason')?.value || '').trim() || null;
+  d.exempt_cert = (document.getElementById('m-exempt-cert')?.value || '').trim() || null;
 
   const _newDestageDate = document.getElementById('m-ddate').value || null;
   if(_newDestageDate !== d.destage_date){
@@ -2571,6 +3395,7 @@ function buildCardDataFromModal(inv){
     else if(txt.includes('destage')) d.stage = 'destage';
     else if(txt.includes('complet')) d.stage = 'done';
     else if(txt.includes('declin')) d.stage = 'denied';
+    else if(txt.includes('future')) d.stage = 'future_hold';
   }
 
   // Persist prep_items (from in-memory prepData, scoped to this card)
@@ -2579,6 +3404,15 @@ function buildCardDataFromModal(inv){
   }));
 
   return d;
+}
+
+// Unsaved-changes indicator (Phase 7 audit fix: no visible Save button on a phone-width
+// drawer meant a stage pick with no Save press silently did nothing, with no warning at
+// all). Set on any input/change inside the drawer, cleared when a card opens or Save
+// succeeds — see the delegated listener set up once in the DOMContentLoaded handler below.
+function setUnsavedChanges(dirty){
+  const note = document.getElementById('m-unsaved-note');
+  if(note) note.classList.toggle('show', !!dirty);
 }
 
 async function saveCard(){
@@ -2676,12 +3510,24 @@ async function autoCreateTruckReminder(client, stagingDate, invnum){
   }
 }
 
+// Delegated so it's set up once, not per card-open — any input/change inside the drawer
+// (move-grid clicks don't fire these, so setStage() also flags it directly) marks unsaved.
+document.getElementById('overlay')?.addEventListener('input', ()=>setUnsavedChanges(true));
+document.getElementById('overlay')?.addEventListener('change', ()=>setUnsavedChanges(true));
+
 document.addEventListener('DOMContentLoaded', ()=>{
   renderShoppingConsolidator();
+  applyKanbanVisibility();
+  renderGreeting();
   // Default view: Confirmed
   const allTab = document.querySelectorAll('.tab')[0];
   if(allTab) filter('all', allTab);
-  loadBoard();
+  // Deep link (?inv=<invnum>) — lets other pages (e.g. today.html's Needs Attention items)
+  // jump straight into a specific job's drawer instead of just landing on the board.
+  loadBoard().then(()=>{
+    const invnum = new URLSearchParams(location.search).get('inv');
+    if(invnum && CARDS[invnum]) openCard(invnum);
+  });
   // Live updates for the wall display: refresh the moment any project changes (e.g. moves stages).
   try {
     _sb.channel('board-live')
@@ -2712,15 +3558,96 @@ function setMover(val, type){
   }
 }
 
-function showCardProfitability(){
-  // Use the invoice grand total from the modal
-  const amtText = document.getElementById('m-amt').textContent;
-  const grand = parseFloat(amtText.replace(/[$,]/g,'')) || 0;
-  const addr = document.getElementById('m-addr').textContent;
-  const client = document.getElementById('m-name').textContent;
-  if(typeof showProfitability === 'function'){
-    showProfitability({client, address:addr, baserooms:'Living Room', addons:[]}, grand);
+// Phase 3.1 — per-job profit, replacing what used to be a hardcoded "$1,892" that never
+// changed. Actual once mover hours are logged for this job (time_entries.invnum), projected
+// from the profit-target % before that — same "projected vs. actual" split the spec applies
+// to the tithe figure, extended to the whole profit number since there's nothing real to
+// subtract yet. Warehouse is split across however many OTHER committed jobs share this same
+// calendar month (never a flat %) — truck uses the same editable Penske-card assumptions as
+// the payroll finance view.
+const LABEL_BY_KEY_BOARD = { staging:'Staging (On-Site)', destage:'Destage', warehouse:'Warehouse', travel:'Travel' };
+let _lastProfitBreakdown = null;
+
+async function computeJobProfitBreakdown(invnum, inv, d){
+  await ensureFinanceConfig();
+  const revenue = computeGrand(d);
+  let moverCost = 0, hasActualMover = false;
+  const moverByType = {};
+  try{
+    const { data } = await _sb.from('time_entries').select('work_type,amount').eq('invnum', invnum);
+    (data||[]).forEach(e=>{
+      const amt = parseFloat(e.amount)||0;
+      if(amt>0.009) hasActualMover = true;
+      moverCost += amt;
+      moverByType[e.work_type] = (moverByType[e.work_type]||0) + amt;
+    });
+  }catch(e){}
+
+  const truckCost = truckCostPerJobEstimate();
+  let warehouseShare = FINANCE_CONFIG.warehouse_monthly;
+  if(d.startdate && d.startdate!=='TBD'){
+    const monthKey = d.startdate.slice(0,7);
+    const committed = ['confirmed','staged','destage','done'];
+    const sameMonth = Object.values(CARDS).filter(c=>{
+      const cd = c.data||{};
+      return cd.startdate && cd.startdate!=='TBD' && cd.startdate.slice(0,7)===monthKey && committed.includes(cd.stage||'proposal');
+    });
+    warehouseShare = FINANCE_CONFIG.warehouse_monthly / Math.max(1, sameMonth.length);
   }
+
+  let profit, projected;
+  if(hasActualMover){
+    profit = revenue - moverCost - truckCost - warehouseShare;
+    projected = false;
+  } else {
+    profit = revenue * (FINANCE_CONFIG.profit_target_pct/100);
+    projected = true;
+  }
+  const tithe = Math.max(0, profit) * (FINANCE_CONFIG.tithe_pct/100);
+  return { revenue, moverCost, moverByType, truckCost, warehouseShare, profit, projected, tithe };
+}
+
+async function renderProfitStrip(invnum, inv, d){
+  const valEl = document.getElementById('ps-val');
+  const subEl = document.getElementById('ps-sub');
+  if(!valEl) return;
+  valEl.textContent = '…';
+  try{
+    const b = await computeJobProfitBreakdown(invnum, inv, d);
+    _lastProfitBreakdown = b;
+    valEl.textContent = fmtMoney(b.profit);
+    valEl.style.color = b.profit < 0 ? 'var(--red)' : 'var(--green)';
+    subEl.textContent = (b.projected ? 'Projected' : 'Actual') + ' — tap for breakdown';
+  }catch(e){ valEl.textContent = '—'; }
+}
+
+function showCardProfitability(){
+  const b = _lastProfitBreakdown;
+  if(!b){ alert('Profitability is still loading — try again in a moment.'); return; }
+  const moverLines = Object.entries(b.moverByType).map(([k,v])=>
+    '&nbsp;&nbsp;↳ ' + (LABEL_BY_KEY_BOARD[k]||k) + ': ' + fmtMoney(v)
+  ).join('<br>');
+  const ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(26,24,20,0.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:24px;font-family:Inter,-apple-system,sans-serif';
+  ov.innerHTML = `<div style="background:#fff;border-radius:16px;max-width:380px;width:100%;padding:22px">
+    <div style="font-family:Georgia,serif;font-size:18px;margin-bottom:2px">Profit Breakdown</div>
+    <div style="font-size:11px;color:#a29c96;margin-bottom:14px">${b.projected ? 'Projected — from the '+FINANCE_CONFIG.profit_target_pct+'% margin target (no logged mover hours yet for this job)' : 'Actual — from logged mover hours for this job'}</div>
+    <div style="font-size:13px;line-height:1.9">
+      Revenue: <strong>${fmtMoney(b.revenue)}</strong><br>
+      ${b.projected ? '' :
+        'Mover/contractor pay: <strong>-'+fmtMoney(b.moverCost)+'</strong><br>'+moverLines+'<br>'
+        +'Truck (2 rentals, est.): <strong>-'+fmtMoney(b.truckCost)+'</strong><br>'
+        +'Warehouse share this month: <strong>-'+fmtMoney(b.warehouseShare)+'</strong><br>'
+      }
+      <div style="border-top:1px solid #eee;margin:8px 0;padding-top:8px">Profit: <strong style="color:${b.profit<0?'#b53535':'#4a7c50'}">${fmtMoney(b.profit)}</strong></div>
+      Tithe (${FINANCE_CONFIG.tithe_pct}% of profit, ${b.projected?'projected':'actual'}): <strong>${fmtMoney(b.tithe)}</strong>
+      <div style="font-size:10.5px;color:#a29c96;margin-top:4px">Tithing is personal giving, not a business expense — shown separately, never inside the profit figure above.</div>
+    </div>
+    <button id="pb-close" style="width:100%;margin-top:16px;padding:12px;border:none;border-radius:10px;background:#1a1814;color:#fff;font-weight:600;cursor:pointer;font-family:inherit">Close</button>
+  </div>`;
+  document.body.appendChild(ov);
+  ov.querySelector('#pb-close').onclick = ()=>ov.remove();
+  ov.addEventListener('click', e=>{ if(e.target===ov) ov.remove(); });
 }
 
 </script>
@@ -2737,5 +3664,33 @@ function showCardProfitability(){
     </div>
   </div>
 </div>
+
+<!-- Send Preview — every client-facing email routes through this before it actually sends.
+     Shows the exact recipient + content, requires an explicit second press, and logs the
+     send onto the invoice once confirmed. Cancelling closes this and sends/changes nothing. -->
+<div class="spv-overlay" id="spv-overlay" onclick="if(event.target===this)closeSendPreview()">
+  <div class="spv-card">
+    <div class="spv-hdr">Preview &amp; Send</div>
+    <div class="spv-meta" id="spv-meta"></div>
+    <div class="spv-field">
+      <div class="spv-field-lbl">To</div>
+      <div class="spv-field-val spv-to" id="spv-to"></div>
+    </div>
+    <div class="spv-field">
+      <div class="spv-field-lbl">Subject</div>
+      <div class="spv-field-val" id="spv-subject"></div>
+    </div>
+    <div class="spv-field">
+      <div class="spv-field-lbl">Message</div>
+      <div class="spv-field-val" id="spv-message"></div>
+    </div>
+    <div class="spv-actions">
+      <button class="spv-cancel" onclick="closeSendPreview()">Cancel</button>
+      <button class="spv-send" id="spv-send-btn" onclick="confirmSendPreview()">Send</button>
+    </div>
+    <div class="spv-status" id="spv-status"></div>
+  </div>
+</div>
+<script>document.addEventListener('DOMContentLoaded',()=>{try{document.querySelector('.nav-sw .nav-btn.on')?.scrollIntoView({inline:'center',block:'nearest'});}catch(e){}});</script>
 </body>
 </html>

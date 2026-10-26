@@ -48,6 +48,7 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
 .nav-btn { padding:5px 14px; border-radius:16px; border:none; font-size:11px; font-weight:500; cursor:pointer; font-family:'Inter',sans-serif; transition:all 0.18s; }
 .nav-btn.on { background:#fff; color:var(--ink); }
 .nav-btn.off { background:transparent; color:rgba(255,255,255,0.4); }
+@media (max-width: 680px) { .nav-sw { max-width:100%; overflow-x:auto; scrollbar-width:none; -webkit-overflow-scrolling:touch; } .nav-sw::-webkit-scrollbar { display:none; } .nav-btn { flex-shrink:0; } }
 
 .wrap { max-width:900px; margin:0 auto; padding:20px; }
 
@@ -102,10 +103,14 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
   <div class="tabs">
     <button class="tab-btn on" id="tab-signed" onclick="switchTab('signed')">✓ Signed Contracts</button>
     <button class="tab-btn" id="tab-quoted" onclick="switchTab('quoted')">Quoted</button>
+    <button class="tab-btn" id="tab-cleanup" onclick="switchTab('cleanup')">🧹 Cleanup Review</button>
   </div>
   <div class="search-row">
     <input type="text" id="search-input" placeholder="Search by client, address, or invoice number…" oninput="renderList()">
   </div>
+  <label id="payer-filter-row" style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--taupe-dk);margin:-6px 0 12px;cursor:pointer">
+    <input type="checkbox" id="payer-unknown-filter" onchange="renderList()"> Needs a payer only
+  </label>
   <div class="summary-note" id="summary-note">Loading…</div>
   <div id="list-body"></div>
 </div>
@@ -116,7 +121,7 @@ const _sb = supabase.createClient(
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN3dmRmZ3JqbHJwc2Rmd2R1d3ZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwMDcyODUsImV4cCI6MjA5MzU4MzI4NX0.zam9AnIwW91TI6eCKUcg05LhvFcRa7op4QsjRpdcrCY'
 );
 
-const STAGE_LABEL = { proposal:'Proposal', confirmed:'Confirmed', staged:'Staged', destage:'Destage', done:'Done', denied:'Declined' };
+const STAGE_LABEL = { proposal:'Proposal', future_hold:'Future Hold', confirmed:'Confirmed', staged:'Staged', destage:'Destage', done:'Done', denied:'Declined', closed_lost:'Closed — Lost' };
 
 let _allInvoices = [];
 let _activeTab = 'signed';
@@ -165,7 +170,7 @@ async function downloadSignedContract(invnum, btn){
 async function loadAll(){
   try{
     const {data,error} = await _sb.from('invoices').select('invnum,client,address,invdate,created_at,data')
-      .not('invnum','like','DRAFT-%').not('invnum','like','GS%')
+      .not('invnum','like','DRAFT-%').not('invnum','like','GS%').neq('invnum','PRICING_DEFAULTS').neq('invnum','TIER_PRICING').not('invnum','like','TAX_REVIEW_%').neq('invnum','FINANCE_CONFIG')
       .order('created_at',{ascending:false}).limit(1000);
     if(error) throw error;
     _allInvoices = data||[];
@@ -181,7 +186,127 @@ function switchTab(tab){
   _activeTab = tab;
   document.getElementById('tab-signed').classList.toggle('on', tab==='signed');
   document.getElementById('tab-quoted').classList.toggle('on', tab==='quoted');
-  renderList();
+  document.getElementById('tab-cleanup').classList.toggle('on', tab==='cleanup');
+  document.getElementById('search-input').closest('.search-row').style.display = tab==='cleanup' ? 'none' : '';
+  document.getElementById('payer-filter-row').style.display = tab==='cleanup' ? 'none' : '';
+  if(tab==='cleanup') loadCleanupCandidates();
+  else renderList();
+}
+
+// --- Cleanup Review: a read-only dry-run report surfacing likely test/duplicate/abandoned
+// records for Gabe/Jasmine to look over. It NEVER deletes anything — it only lists candidates
+// with the reason each was flagged, so a human decides what (if anything) gets removed.
+let _cleanupLoaded = false;
+let _cleanupAll = [];
+
+async function loadCleanupCandidates(){
+  const body = document.getElementById('list-body');
+  const note = document.getElementById('summary-note');
+  if(_cleanupLoaded){ renderCleanupReport(); return; }
+  note.textContent = 'Loading…';
+  body.innerHTML = '';
+  try{
+    // Unlike the normal archive tabs, this pulls EVERY row with no exclusions at all —
+    // test/duplicate/system records are exactly what we're hunting for here.
+    const {data,error} = await _sb.from('invoices').select('invnum,client,address,invdate,created_at,data')
+      .order('created_at',{ascending:false}).limit(2000);
+    if(error) throw error;
+    _cleanupAll = data||[];
+    _cleanupLoaded = true;
+  }catch(e){
+    body.innerHTML = `<div class="empty-note">Could not load cleanup candidates: ${esc(e.message)}</div>`;
+    note.textContent = '';
+    return;
+  }
+  renderCleanupReport();
+}
+
+function renderCleanupReport(){
+  const body = document.getElementById('list-body');
+  const note = document.getElementById('summary-note');
+  const rows = _cleanupAll;
+
+  // 1) Versioned/duplicate-looking invnums (e.g. "2020130-v2", "2020130copy", "2020130(v2)").
+  // No separator is required before the marker — the real naming convention for these
+  // wasn't available to confirm against (no direct DB access from this environment), so
+  // this errs toward catching more rather than requiring an exact, unverified format.
+  const versionFlagged = rows.filter(inv => /\(?(copy|dup(?:licate)?|test|v\d{1,2})\)?\s*$/i.test(String(inv.invnum||'')));
+
+  // 2) Exact client+address+invdate duplicates (same job entered more than once).
+  const groups = {};
+  rows.forEach(inv=>{
+    const d = inv.data||{};
+    const client = (inv.client||d.client||'').trim().toLowerCase();
+    const address = (inv.address||d.address||'').trim().toLowerCase();
+    if(!client && !address) return;
+    const key = client+'|'+address+'|'+(inv.invdate||'');
+    (groups[key]=groups[key]||[]).push(inv);
+  });
+  const dupGroups = Object.values(groups).filter(g=>g.length>1);
+
+  // 3) Signed contracts totaling $1 or less (known test-signature pattern). Keyed off
+  // signed + total only — a test record often has no real contract_url, so requiring one
+  // (as an earlier version of this check did) silently excluded exactly the rows this is
+  // supposed to find.
+  const dollarOne = rows.filter(inv=>{
+    const d = inv.data||{};
+    // <= 1.01, not <= 1 — a strict $1 boundary can miss a real $1 test record by a fraction
+    // of a cent from floating-point rounding in computeGrand() (audit finding: this kept
+    // reading 0 against a known $1 signed record even after the contract_url requirement
+    // was dropped).
+    return !!d.signed && computeGrand(d) <= 1.01;
+  });
+
+  // 4) Never emailed to a client at all (no send_log, not signed, not a draft/system row) —
+  // informational only: send_log is new, so older legitimate invoices will also show up here.
+  const SYSTEM = ['PRICING_DEFAULTS','TIER_PRICING','FINANCE_CONFIG'];
+  const isSystemRow = invnum => SYSTEM.includes(invnum) || String(invnum||'').startsWith('TAX_REVIEW_');
+  const neverSent = rows.filter(inv=>{
+    const d = inv.data||{};
+    if(isSystemRow(inv.invnum)) return false;
+    if(String(inv.invnum||'').startsWith('DRAFT-')) return false;
+    if(d.signed) return false;
+    return !(d.send_log && d.send_log.length);
+  });
+
+  // 5) Phase 5.1 backfill: real (non-draft/system) invoices with no structured city/ZIP
+  // fields and an address this app can't confidently parse a city out of either — these
+  // predate the structured address fields added with the price-led tax rebuild. Nothing is
+  // guessed or auto-filled here; Gabe/Jasmine need to add the real city/ZIP by hand.
+  const missingLocation = rows.filter(inv=>{
+    const d = inv.data||{};
+    if(isSystemRow(inv.invnum) || String(inv.invnum||'').startsWith('DRAFT-')) return false;
+    if(d.zip) return false;
+    const addr = inv.address || d.address || '';
+    const zipMatch = addr.match(/\b\d{5}\b/);
+    return !zipMatch;
+  });
+
+  note.textContent = `${versionFlagged.length} versioned/duplicate-named, ${dupGroups.length} duplicate group(s), ${dollarOne.length} $1-or-less signed, ${neverSent.length} never emailed, ${missingLocation.length} missing city/ZIP — nothing deleted or changed`;
+
+  const rowHtml = (inv, reason)=>{
+    const d = inv.data||{};
+    const client = inv.client || d.client || 'Client';
+    return `<div class="arc-card">
+      <div class="arc-top">
+        <div><div class="arc-name">${esc(client)}</div><div class="arc-addr">${esc(inv.address||d.address||'')}</div></div>
+        <div class="arc-amt">${fmtMoney(computeGrand(d))}</div>
+      </div>
+      <div class="arc-meta"><span>#${esc(inv.invnum)}</span><span>${esc(inv.invdate||'')}</span><span>${esc(reason)}</span></div>
+      <div class="arc-actions"><a href="/proposal.html?inv=${encodeURIComponent(inv.invnum)}" target="_blank">View Details</a></div>
+    </div>`;
+  };
+
+  const section = (title, html)=> html ? `<h3 style="margin:20px 0 8px;font-size:14px;color:var(--taupe-dk)">${esc(title)}</h3>${html}` : '';
+
+  body.innerHTML = `
+    <div class="empty-note" style="margin-bottom:12px;">This is a dry-run review only — nothing here has been deleted. Each section below lists candidates with the reason they were flagged. Have Gabe/Jasmine confirm before anything is removed. Deleting a confirmed record is intentionally only possible from its card in the board drawer (Remove from Board / Delete) — Archive has no delete path by design, so nothing can be removed from here by accident.</div>
+    ${section(`Versioned or duplicate-named (${versionFlagged.length})`, versionFlagged.map(inv=>rowHtml(inv,'invoice # looks like a duplicate/version/test')).join(''))}
+    ${section(`Same client+address+date entered more than once (${dupGroups.length} group${dupGroups.length===1?'':'s'})`, dupGroups.map(g=>g.map(inv=>rowHtml(inv,'duplicate of '+g.length+' matching rows')).join('')).join(''))}
+    ${section(`Signed contracts totaling $1 or less (${dollarOne.length})`, dollarOne.map(inv=>rowHtml(inv,'signed, total ≤ $1 — likely a test signature')).join(''))}
+    ${section(`Never emailed to a client (${neverSent.length})`, neverSent.map(inv=>rowHtml(inv,'no send_log entry on record')).join(''))}
+    ${section(`Missing structured city/ZIP — needs manual backfill (${missingLocation.length})`, missingLocation.map(inv=>rowHtml(inv,'no ZIP found in address — add city/ZIP by hand')).join(''))}
+  ` || `<div class="empty-note">No cleanup candidates found.</div>`;
 }
 
 function renderList(){
@@ -194,6 +319,10 @@ function renderList(){
     const isSigned = !!(d.signed && d.contract_url);
     return _activeTab==='signed' ? isSigned : !isSigned;
   });
+
+  if(document.getElementById('payer-unknown-filter')?.checked){
+    rows = rows.filter(inv => !!(inv.data||{}).payer_unknown);
+  }
 
   if(q){
     rows = rows.filter(inv=>{
@@ -221,6 +350,7 @@ function renderList(){
     const badge = isSigned
       ? `<span class="arc-badge signed">✓ Signed</span>`
       : `<span class="arc-badge stage">${esc(STAGE_LABEL[stage]||stage)}</span>`;
+    const payerBadge = d.payer_unknown ? `<span class="arc-badge stage" style="background:#fdf0dd;color:#9d7a44">⚠ Needs a payer</span>` : '';
     return `
       <div class="arc-card">
         <div class="arc-top">
@@ -232,6 +362,7 @@ function renderList(){
         </div>
         <div class="arc-meta">
           ${badge}
+          ${payerBadge}
           <span>#${esc(inv.invnum)}</span>
           <span>${esc(fmtDate(d.startdate)||'Staging date TBD')}</span>
           ${isSigned && d.signed_by?`<span>Signed by ${esc(d.signed_by)}${d.signed_date?' on '+esc(d.signed_date):''}</span>`:''}
@@ -239,13 +370,60 @@ function renderList(){
         <div class="arc-actions">
           <a href="/proposal.html?inv=${encodeURIComponent(inv.invnum)}" target="_blank">View Details</a>
           ${isSigned?`<button class="primary" onclick="downloadSignedContract('${esc(inv.invnum)}', this)">Download Signed PDF</button>`:''}
+          ${stage==='closed_lost'?`<button class="primary" onclick="reactivateQuote('${esc(inv.invnum)}', this)">Reactivate to Quoted</button>`:''}
         </div>
       </div>
     `;
   }).join('');
 }
 
+// In-app confirmation (Promise<boolean>) in place of the native confirm() — unreliable
+// inside an installed PWA on iOS (can silently act as Cancel, with no error shown).
+function customConfirm(message, { confirmLabel = 'Confirm', cancelLabel = 'Cancel' } = {}){
+  return new Promise(resolve=>{
+    const ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(26,24,20,0.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:24px;font-family:Inter,-apple-system,sans-serif';
+    const safeMsg = String(message||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+    ov.innerHTML = '<div style="background:#fff;border-radius:16px;max-width:360px;width:100%;padding:22px">'
+      + '<div style="font-size:14px;color:#3d3830;line-height:1.5;margin-bottom:18px">' + safeMsg + '</div>'
+      + '<div style="display:flex;gap:8px">'
+      + '<button id="cc-cancel" style="flex:1;padding:12px;border-radius:9px;border:1px solid #d4cfc9;background:#faf8f5;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit">' + cancelLabel + '</button>'
+      + '<button id="cc-ok" style="flex:1;padding:12px;border-radius:9px;border:none;color:#fff;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit;background:#1a1814">' + confirmLabel + '</button>'
+      + '</div></div>';
+    document.body.appendChild(ov);
+    const cleanup = (result)=>{ ov.remove(); resolve(result); };
+    ov.querySelector('#cc-cancel').onclick = ()=>cleanup(false);
+    ov.querySelector('#cc-ok').onclick = ()=>cleanup(true);
+    ov.addEventListener('click', e=>{ if(e.target===ov) cleanup(false); });
+  });
+}
+
+// Reactivates a closed-lost quote back onto the active board (Phase 1.1 — real quotes are
+// never deleted, so a late client response just needs a way back in). Resets date_sent to
+// now so the 30-day silence clock starts fresh rather than immediately re-expiring it.
+async function reactivateQuote(invnum, btn){
+  const ok = await customConfirm('Reactivate this quote back to the board as "Quoted"?', { confirmLabel: 'Reactivate' });
+  if(!ok) return;
+  const orig = btn.textContent;
+  btn.textContent = 'Reactivating…'; btn.disabled = true;
+  try{
+    const inv = _allInvoices.find(i => i.invnum === invnum);
+    if(!inv) throw new Error('Not found');
+    const d = { ...(inv.data||{}), stage:'proposal', date_sent: new Date().toISOString() };
+    const { error } = await _sb.from('invoices').upsert({
+      invnum: inv.invnum, client: inv.client, address: inv.address, invdate: inv.invdate, data: d,
+    }, { onConflict:'invnum' });
+    if(error) throw error;
+    inv.data = d;
+    renderList();
+  }catch(e){
+    alert('Could not reactivate: '+e.message);
+    btn.textContent = orig; btn.disabled = false;
+  }
+}
+
 document.addEventListener('DOMContentLoaded', loadAll);
 </script>
+<script>document.addEventListener('DOMContentLoaded',()=>{try{document.querySelector('.nav-sw .nav-btn.on')?.scrollIntoView({inline:'center',block:'nearest'});}catch(e){}});</script>
 </body>
 </html>

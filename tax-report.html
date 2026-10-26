@@ -48,6 +48,7 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
 .nav-btn { padding:5px 14px; border-radius:16px; border:none; font-size:11px; font-weight:500; cursor:pointer; font-family:'Inter',sans-serif; transition:all 0.18s; }
 .nav-btn.on { background:#fff; color:var(--ink); }
 .nav-btn.off { background:transparent; color:rgba(255,255,255,0.4); }
+@media (max-width: 680px) { .nav-sw { max-width:100%; overflow-x:auto; scrollbar-width:none; -webkit-overflow-scrolling:touch; } .nav-sw::-webkit-scrollbar { display:none; } .nav-btn { flex-shrink:0; } }
 
 .wrap { max-width:1100px; margin:0 auto; padding:20px; }
 .card { background:#fff; border:0.5px solid var(--taupe-lt); border-radius:14px; padding:18px 20px; margin-bottom:18px; }
@@ -118,13 +119,20 @@ td { padding:8px 6px; border-bottom:0.5px solid var(--warm); vertical-align:top;
       <button class="period-btn primary" onclick="runReport()">Run Report</button>
       <button class="period-btn" onclick="exportSummaryCsv()">⬇ Summary CSV</button>
       <button class="period-btn" onclick="exportDetailCsv()">⬇ Invoice Detail CSV</button>
+      <button class="period-btn" onclick="exportPreFilingCsv()">⬇ Pre-Filing Pull CSV</button>
       <button class="period-btn" id="test-email-btn" onclick="sendTestEmail()">✉ Send Last Month's Report by Email</button>
     </div>
     <div class="disclaimer">
-      Basis: <strong>cash</strong> — revenue and tax are attributed to the month payment was actually received, not the invoice date. Only <strong>signed/approved</strong> invoices are included (unsigned quotes and declined proposals are excluded). Styling With Jas invoices only — GS Photography has its own separate numbering and isn't included here. Category tags (Retailing vs. Service &amp; Other) are a best-effort heuristic based on line-item wording, not a certified B&amp;O classification — please have this reviewed before filing. Card processing fees aren't tracked in this app — see your Stripe dashboard for those.
+      Basis: <strong>cash</strong> — revenue and tax are attributed to the month payment was actually received, not the invoice date. Only <strong>signed/approved</strong> invoices are included (unsigned quotes and declined proposals are excluded). Styling With Jas invoices only — GS Photography has its own separate numbering and isn't included here. Category tags (Retailing vs. Service &amp; Other) and B&amp;O amounts are a best-effort allocation per the method documented in TAX_METHODOLOGY.md, not a CPA-certified classification — please have this reviewed before filing. Card processing fees are a benchmark estimate (2.9% + $0.30 per card payment) — this app has no live Stripe fee feed, so check your Stripe dashboard for actuals.
       <br><br>
       This report is also emailed automatically to info@stylingwithjas.com on the 1st of every month, covering the month that just ended. The button above triggers that exact same email on demand, for testing.
     </div>
+  </div>
+
+  <div class="card" id="review-card" style="display:none">
+    <div class="card-hdr">Monthly Review</div>
+    <div id="review-status" style="font-size:13px;margin-bottom:10px"></div>
+    <button class="period-btn primary" id="review-btn" onclick="markReviewed()">Mark This Report Reviewed</button>
   </div>
 
   <div class="card" id="summary-card" style="display:none">
@@ -134,6 +142,16 @@ td { padding:8px 6px; border-bottom:0.5px solid var(--warm); vertical-align:top;
       <div class="stat-item"><div class="lbl">Sales Tax Collected</div><div class="val" id="s-tax">$0</div></div>
       <div class="stat-item"><div class="lbl">Retailing (Rental)</div><div class="val" id="s-retail">$0</div></div>
       <div class="stat-item"><div class="lbl">Service &amp; Other</div><div class="val" id="s-service">$0</div></div>
+      <div class="stat-item"><div class="lbl">Extension Fees (of Retailing)</div><div class="val" id="s-ext">$0</div></div>
+      <div class="stat-item"><div class="lbl">Card Processing Fees (est.)</div><div class="val" id="s-cardfees">$0</div></div>
+      <div class="stat-item"><div class="lbl">Net Revenue (after card fees)</div><div class="val" id="s-net">$0</div></div>
+    </div>
+
+    <div class="sub-hdr">B&amp;O Tax (estimated — see disclaimer)</div>
+    <div class="stat-grid">
+      <div class="stat-item"><div class="lbl">Retailing B&amp;O (0.471%)</div><div class="val" id="s-bo-retail">$0</div></div>
+      <div class="stat-item"><div class="lbl">Service &amp; Other B&amp;O (1.5%)</div><div class="val" id="s-bo-service">$0</div></div>
+      <div class="stat-item"><div class="lbl">Total B&amp;O</div><div class="val" id="s-bo-total">$0</div></div>
     </div>
 
     <div class="sub-hdr">Sales Tax Collected by City</div>
@@ -146,9 +164,50 @@ td { padding:8px 6px; border-bottom:0.5px solid var(--warm); vertical-align:top;
     </div>
 
     <div class="sub-hdr">Exempt Sales</div>
-    <div id="exempt-note" class="empty-note" style="padding:10px 0">None this period — no exemption-tracking exists in the system yet.</div>
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr><th>Invoice #</th><th>Client</th><th>Amount</th><th>Reason</th><th>Certificate / Ref</th></tr></thead>
+        <tbody id="exempt-body"></tbody>
+      </table>
+      <div class="empty-note" id="exempt-empty" style="display:none">No exemptions recorded this period. (Mark one from the invoice's Payment section on the board if a sale is exempt.)</div>
+    </div>
 
     <div id="unparsed-note" style="display:none" class="disclaimer" style="margin-top:14px"></div>
+  </div>
+
+  <div class="card" id="reconcile-card" style="display:none">
+    <div class="card-hdr">Reconciliation — App Totals vs. Actual Deposits</div>
+    <div class="period-row">
+      <div class="period-field">
+        <label>Actual bank/Stripe deposits this period</label>
+        <input type="number" step="0.01" id="f-actual-deposits" placeholder="0.00" oninput="renderReconciliation()">
+      </div>
+    </div>
+    <div id="reconcile-result" style="margin-top:12px;font-size:13px"></div>
+    <div class="disclaimer" style="margin-top:10px">Entered manually from your bank/Stripe statements — this app doesn't have a live feed into either. A month is never final from the app's numbers alone.</div>
+  </div>
+
+  <div class="card" id="prefiling-card" style="display:none">
+    <div class="card-hdr">Pre-Filing Pull — everything needed for the excise return, in one place</div>
+    <div id="prefiling-body" style="font-size:13px;line-height:1.9"></div>
+  </div>
+
+  <div class="card" id="savings-card" style="display:none">
+    <div class="card-hdr">Allocation Savings — what the rental/service split is actually worth</div>
+    <div class="stat-grid">
+      <div class="stat-item"><div class="lbl">Sales Tax Saved</div><div class="val" id="sv-tax-saved">$0</div></div>
+      <div class="stat-item"><div class="lbl">Extra B&amp;O (service bucket)</div><div class="val" id="sv-extra-bo">$0</div></div>
+      <div class="stat-item"><div class="lbl">Net Gain This Month</div><div class="val" id="sv-net-gain">$0</div></div>
+    </div>
+    <div class="disclaimer" style="margin-top:10px">Old tax = what this invoice's sales tax would have been under the old full-amount method; new tax = what the rental/service split actually produced; extra B&amp;O = the added B&amp;O cost from correctly classifying more of the base package as a Service &amp; Other line (taxed at 1.5%) instead of 100% Retailing (0.471%). Net gain = tax saved − extra B&amp;O. Reporting view only — changes no invoice. Invoices from before this rebuild show $0 here since they don't use the new split.</div>
+    <div class="sub-hdr">Per-Job Breakdown</div>
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr><th>Invoice #</th><th>Client</th><th>Old Tax</th><th>New Tax</th><th>Tax Saved</th><th>Extra B&amp;O</th><th>Net Gain</th></tr></thead>
+        <tbody id="savings-body"></tbody>
+      </table>
+      <div class="empty-note" id="savings-empty" style="display:none">No invoices using the new split had activity this period.</div>
+    </div>
   </div>
 
   <div class="card" id="detail-card" style="display:none">
@@ -201,8 +260,9 @@ function initPeriodPickers(){
 }
 
 // Best-effort city extraction from a free-text address like "5015 128th St E, Tacoma, WA 98446" —
-// there's no structured city field anywhere in the app, so this is a heuristic, not a guarantee.
-// Returns {city, zip, ok} — ok:false means it couldn't confidently parse and should be reviewed.
+// used only as a fallback for invoices from BEFORE the Phase 5 structured city/zip fields
+// existed. Returns {city, zip, ok} — ok:false means it couldn't confidently parse and should
+// be reviewed.
 function parseAddress(address){
   const addr = (address||'').trim();
   if(!addr) return {city:'', zip:'', ok:false};
@@ -216,13 +276,70 @@ function parseAddress(address){
   return {city:'', zip, ok:false};
 }
 
+// City/ZIP for an invoice — Phase 5.1 invoices store these as real fields captured at
+// creation; older invoices only have them inside the free-text address, so fall back to the
+// same best-effort parse the report has always used for those.
+function resolveLocation(inv, d){
+  if(d.price_led_tax && d.zip) return { city: d.city||'(Unparsed)', zip: d.zip, ok: !!d.city };
+  return parseAddress(inv.address || d.address || '');
+}
+
 // Heuristic B&O category per line item — NOT a certified classification. Everything defaults
 // to Retailing (furniture rental, the core of this business) except line items that read like
-// a pure service (photography, consulting, etc.).
+// a pure service (photography, consulting, etc.). Used only for invoices from before each
+// line carried its own stored `type` (Phase 5.1) — see TAX_METHODOLOGY.md.
 function categorize(desc){
   const s = (desc||'').toLowerCase();
   if(s.includes('photo') || s.includes('consult') || s.includes('design fee')) return 'service';
   return 'retailing';
+}
+
+// B&O rates (Phase 5.3) — Retailing (rental, including extensions) vs Service & Other, at
+// this business's current revenue size. Tiers above $1M/$5M are noted in TAX_METHODOLOGY.md
+// but don't apply yet. Not a certified classification — see the report's disclaimer.
+const BO_RETAIL_RATE = 0.00471;
+const BO_SERVICE_RATE = 0.015;
+// Card-processing-fee benchmark (Phase 5.3) — this app has no live Stripe fee feed, so this
+// is an estimate per card payment, not an actual. Manual/other payments have no fee.
+const STRIPE_FEE_PCT = 0.029, STRIPE_FEE_FLAT = 0.30;
+
+// The rental/service split + price-led tax for ONE invoice, used for both the client-facing
+// total (grand) and the B&O/sales-tax bucketing in this report. Phase 5.2 invoices (flagged
+// price_led_tax) use their own stored rental_share_base + per-addon type; invoices from
+// before this rebuild (or anything with a manual override, which always takes precedence)
+// fall back to exactly how this report computed things before — tax on the full subtotal,
+// rental share only estimated via the categorize() heuristic for the B&O view.
+function invoiceTaxSplit(d){
+  const _ov=v=>(v!=null&&v!=='')?parseFloat(v):null;
+  const hasOverride = _ov(d.subtotal_override)!=null || _ov(d.tax_override)!=null || _ov(d.total_override)!=null;
+  const base = parseFloat(d.base_price)||2500;
+  const addons = d.addons||[];
+  const addonTotal = addons.reduce((s,a)=>s+(parseFloat(a.price)||0),0);
+  const rate = parseFloat(d.taxrate)||0;
+
+  if(hasOverride || !d.price_led_tax){
+    const subtotal = computeSubtotal(d);
+    const tax = computeTax(d);
+    const grand = computeGrand(d);
+    let svc=0, ret=base;
+    addons.forEach(a=>{ const amt=parseFloat(a.price)||0; if((a.type||categorize(a.desc))==='service') svc+=amt; else ret+=amt; });
+    const lineTotal = svc+ret;
+    const rentalShare = lineTotal>0.009 ? ret/lineTotal : 1;
+    return { subtotal, tax, grand, rentalShare, rentalPortion: subtotal*rentalShare, servicePortion: subtotal*(1-rentalShare) };
+  }
+
+  // Price-led path (Phase 5.2) — mirrors priceLedTax() in index.html/luxury.html exactly;
+  // must stay in sync with that function and with api/generate.py's Python port, or this
+  // report's numbers won't match what was actually on the client's invoice.
+  const grand = base + addonTotal + (base+addonTotal)*rate/100;
+  const rsb = parseFloat(d.rental_share_base); const rentalShareBase = isNaN(rsb) ? 0.5 : rsb;
+  const rentalDollars = base*rentalShareBase + addons.filter(a=>a.type!=='service').reduce((s,a)=>s+(parseFloat(a.price)||0),0);
+  const allDollars = base + addonTotal;
+  const rentalShare = allDollars>0.009 ? rentalDollars/allDollars : 1;
+  const r = rate/100;
+  const subtotal = r>0 ? grand/(1+r*rentalShare) : grand;
+  const tax = grand-subtotal;
+  return { subtotal, tax, grand, rentalShare, rentalPortion: subtotal*rentalShare, servicePortion: subtotal*(1-rentalShare) };
 }
 
 function computeGrand(d){
@@ -297,7 +414,7 @@ async function runReport(){
   let invoices = [];
   try{
     const {data,error} = await _sb.from('invoices').select('invnum,client,address,invdate,data')
-      .not('invnum','like','DRAFT-%').not('invnum','like','GS%')
+      .not('invnum','like','DRAFT-%').not('invnum','like','GS%').neq('invnum','PRICING_DEFAULTS').neq('invnum','TIER_PRICING').not('invnum','like','TAX_REVIEW_%').neq('invnum','FINANCE_CONFIG')
       .order('created_at',{ascending:false}).limit(1000);
     if(error) throw error;
     invoices = (data||[]).filter(inv => (inv.data||{}).signed === true);
@@ -308,91 +425,175 @@ async function runReport(){
 
   // City -> {rates:Set, taxable:0, tax:0}
   const cityMap = {};
-  let grossReceipts = 0, taxCollected = 0, retailTotal = 0, serviceTotal = 0;
+  let grossReceipts = 0, taxCollected = 0, retailTotal = 0, serviceTotal = 0, extensionTotal = 0, cardFees = 0;
+  let totalTaxSaved = 0, totalExtraBO = 0;
   const detailRows = [];
   const unparsedAddrs = [];
+  const savingsRows = [];
+  const exemptRows = [];
 
   invoices.forEach(inv=>{
     const d = inv.data || {};
-    const events = paymentEvents(d).filter(e => e.date >= periodStart && e.date <= periodEnd);
-    if(!events.length) return;
-
-    const grand = computeGrand(d);
-    const taxTotal = computeTax(d);
-    const subtotal = computeSubtotal(d);
-    const taxRate = parseFloat(d.taxrate) || 0;
-    const taxFraction = grand > 0.009 ? taxTotal/grand : 0;
-
-    const {city, zip, ok} = parseAddress(inv.address || d.address || '');
-    if(!ok) unparsedAddrs.push(`#${inv.invnum} — ${inv.address||d.address||'(no address)'}`);
-    const cityKey = city || '(Unparsed)';
-
-    const periodReceived = events.reduce((s,e)=>s+e.amount,0);
-    const periodTax = periodReceived * taxFraction;
-    grossReceipts += periodReceived;
-    taxCollected += periodTax;
-
-    if(!cityMap[cityKey]) cityMap[cityKey] = {rates:new Set(), taxable:0, tax:0};
-    cityMap[cityKey].rates.add(taxRate.toFixed(2)+'%');
-    cityMap[cityKey].taxable += (periodReceived - periodTax);
-    cityMap[cityKey].tax += periodTax;
-
-    // B&O split (Retailing vs Service & Other), proportional to how this invoice's own
-    // subtotal breaks down, applied to what was actually received this period (net of tax).
-    const base = parseFloat(d.base_price) || 2500;
-    const addons = d.addons || [];
-    let svc = 0, ret = base;
-    addons.forEach(a=>{ const amt=parseFloat(a.price)||0; if(categorize(a.desc)==='service') svc+=amt; else ret+=amt; });
-    const lineTotal = svc+ret;
-    const svcFraction = lineTotal>0 ? svc/lineTotal : 0;
-    const netReceived = periodReceived - periodTax;
-    serviceTotal += netReceived*svcFraction;
-    retailTotal += netReceived*(1-svcFraction);
-
     const client = inv.client || d.client || 'Client';
-    const dueDate = computeDueDate(d);
-    const methods = [...new Set(events.map(e=>e.method))].join(', ');
+    const loc = resolveLocation(inv, d);
+    if(!loc.ok) unparsedAddrs.push(`#${inv.invnum} — ${inv.address||d.address||'(no address)'}`);
+    const cityKey = loc.city || '(Unparsed)';
+    const isExempt = !!d.exempt_reason;
 
-    const lineItems = [
-      { desc: `Base Package (${(d.baserooms||'').split(',').filter(Boolean).length || 0} rooms)`, price: base },
-      ...addons.map(a=>({desc:a.desc||'', price:parseFloat(a.price)||0})),
-    ];
-    lineItems.forEach((li,i)=>{
+    const events = paymentEvents(d).filter(e => e.date >= periodStart && e.date <= periodEnd);
+    if(events.length){
+      const split = invoiceTaxSplit(d);
+      const taxRate = parseFloat(d.taxrate) || 0;
+      const taxFraction = split.grand > 0.009 ? split.tax/split.grand : 0;
+
+      const periodReceived = events.reduce((s,e)=>s+e.amount,0);
+      const periodTax = isExempt ? 0 : periodReceived * taxFraction;
+      grossReceipts += periodReceived;
+      taxCollected += periodTax;
+
+      events.forEach(e=>{ if(e.method==='Stripe (Card)') cardFees += e.amount*STRIPE_FEE_PCT + STRIPE_FEE_FLAT; });
+
+      if(isExempt){
+        exemptRows.push({ invnum: inv.invnum, client, amount: periodReceived, reason: d.exempt_reason, cert: d.exempt_cert||'' });
+      } else {
+        if(!cityMap[cityKey]) cityMap[cityKey] = {rates:new Set(), taxable:0, tax:0};
+        cityMap[cityKey].rates.add(taxRate.toFixed(2)+'%');
+        cityMap[cityKey].taxable += (periodReceived - periodTax);
+        cityMap[cityKey].tax += periodTax;
+      }
+
+      // B&O split (Retailing vs Service & Other) — proportional to this invoice's own
+      // rental/service share (Phase 5.1/5.2 for new invoices, the categorize() heuristic for
+      // legacy ones — see invoiceTaxSplit()), applied to what was actually received this period.
+      const netReceived = periodReceived - periodTax;
+      serviceTotal += netReceived*(1-split.rentalShare);
+      retailTotal += netReceived*split.rentalShare;
+
+      // Phase 5.4 — allocation savings view: what this SAME invoice's tax/B&O would have
+      // been under the OLD full-amount method vs. what the split actually produced, scaled
+      // to what was received this period. Reporting only — changes no invoice, and legacy
+      // invoices (not price_led_tax) net to ~$0 here since old and new use the same split.
+      {
+        const base = parseFloat(d.base_price) || 2500;
+        const addons = d.addons || [];
+        const addonTotal = addons.reduce((s,a)=>s+(parseFloat(a.price)||0),0);
+        const oldSubtotal = base + addonTotal;
+        const oldTax = oldSubtotal * (parseFloat(d.taxrate)||0) / 100;
+        let oldRet = base, oldSvc = 0;
+        addons.forEach(a=>{ const amt=parseFloat(a.price)||0; if((a.type||categorize(a.desc))==='service') oldSvc+=amt; else oldRet+=amt; });
+        const oldLineTotal = oldRet+oldSvc;
+        const oldRentalShare = oldLineTotal>0.009 ? oldRet/oldLineTotal : 1;
+        const oldBO = oldSubtotal*oldRentalShare*BO_RETAIL_RATE + oldSubtotal*(1-oldRentalShare)*BO_SERVICE_RATE;
+        const newBO = split.subtotal*split.rentalShare*BO_RETAIL_RATE + split.subtotal*(1-split.rentalShare)*BO_SERVICE_RATE;
+        const scale = split.grand>0.009 ? periodReceived/split.grand : 0;   // cash-basis: only the portion actually received this period
+        const taxSavedThis = (oldTax - split.tax) * scale;
+        const extraBOThis = (newBO - oldBO) * scale;
+        totalTaxSaved += taxSavedThis;
+        totalExtraBO += extraBOThis;
+        if(Math.abs(taxSavedThis) > 0.009 || Math.abs(extraBOThis) > 0.009){
+          savingsRows.push({ invnum: inv.invnum, client, oldTax: oldTax*scale, newTax: split.tax*scale, taxSaved: taxSavedThis, extraBO: extraBOThis, netGain: taxSavedThis-extraBOThis });
+        }
+      }
+
+      const dueDate = computeDueDate(d);
+      const methods = [...new Set(events.map(e=>e.method))].join(', ');
+      const base = parseFloat(d.base_price) || 2500;
+      const addons = d.addons || [];
+      const lineItems = [
+        { desc: `Base Package (${(d.baserooms||'').split(',').filter(Boolean).length || 0} rooms)`, price: base, type: d.price_led_tax ? 'rental' : null },
+        ...addons.map(a=>({desc:a.desc||'', price:parseFloat(a.price)||0, type:a.type||null})),
+      ];
+      lineItems.forEach((li,i)=>{
+        detailRows.push({
+          invnum: inv.invnum, invdate: d.invdate||inv.invdate||'', dueDate, client, city:loc.city, zip:loc.zip,
+          desc: li.desc, category: isExempt ? 'exempt' : (li.type || categorize(li.desc)),
+          amount: li.price, taxable: isExempt?'No':'Yes', exemption: isExempt?(d.exempt_reason+(d.exempt_cert?' ('+d.exempt_cert+')':'')):'',
+          taxRate, taxTotal: split.tax, subtotal: split.subtotal, grand: split.grand,
+          received: i===0?periodReceived:null, method: i===0?methods:'',
+          showTotalsOnce: i===0,
+        });
+      });
+      if(d.pet_deposit && d.pet_deposit.enabled){
+        detailRows.push({
+          invnum: inv.invnum, invdate: d.invdate||inv.invdate||'', dueDate, client, city:loc.city, zip:loc.zip,
+          desc: 'Refundable Pet Deposit', category: 'deposit (not revenue)', amount: parseFloat(d.pet_deposit.amount)||0,
+          taxable: 'No', exemption: 'Refundable deposit — not a sale',
+          taxRate: 0, taxTotal: 0, subtotal: 0, grand: 0, received: null, method: '', showTotalsOnce:false,
+        });
+      }
+    }
+
+    // Extensions (Phase 5.3) — these have never been their own row in the invoices table
+    // (they live only in data.extensions[] on the parent), so they were previously invisible
+    // to this report entirely. Each paid extension is its own 100%-rental cash-basis event,
+    // taxed at the SAME property's location rate (see api/webhook.py's
+    // supabase_update_extension_payment for how paid/paid_date get set).
+    (d.extensions || []).forEach(ext=>{
+      if(!ext.paid || !ext.paid_date) return;
+      if(ext.paid_date < periodStart || ext.paid_date > periodEnd) return;
+      const amt = parseFloat(ext.amount) || 0;
+      if(amt <= 0.009) return;
+      const taxRate = parseFloat(d.taxrate) || 0;
+      const r = taxRate/100;
+      const extTax = isExempt ? 0 : (r>0 ? amt - amt/(1+r) : 0);
+      const extSubtotal = amt - extTax;
+      grossReceipts += amt; taxCollected += extTax;
+      retailTotal += extSubtotal; extensionTotal += extSubtotal;
+      const method = ext.payment_id ? 'Stripe (Card)' : 'Other/Manual';
+      if(method==='Stripe (Card)') cardFees += amt*STRIPE_FEE_PCT + STRIPE_FEE_FLAT;
+      if(isExempt){
+        exemptRows.push({ invnum: ext.invnum, client, amount: amt, reason: d.exempt_reason, cert: d.exempt_cert||'' });
+      } else {
+        if(!cityMap[cityKey]) cityMap[cityKey] = {rates:new Set(), taxable:0, tax:0};
+        cityMap[cityKey].rates.add(taxRate.toFixed(2)+'%');
+        cityMap[cityKey].taxable += extSubtotal;
+        cityMap[cityKey].tax += extTax;
+      }
       detailRows.push({
-        invnum: inv.invnum, invdate: d.invdate||inv.invdate||'', dueDate, client, city, zip,
-        desc: li.desc, category: categorize(li.desc), amount: li.price, taxable: 'Yes', exemption: '',
-        taxRate, taxTotal, subtotal, grand,
-        received: i===0?periodReceived:null, method: i===0?methods:'',
-        showTotalsOnce: i===0,
+        invnum: ext.invnum, invdate: ext.created||'', dueDate:'', client, city:loc.city, zip:loc.zip,
+        desc: `Extension (${ext.days||'?'} days, of #${inv.invnum})`, category: isExempt?'exempt':'extension',
+        amount: extSubtotal, taxable: isExempt?'No':'Yes', exemption: isExempt?(d.exempt_reason+(d.exempt_cert?' ('+d.exempt_cert+')':'')):'',
+        taxRate, taxTotal: extTax, subtotal: extSubtotal, grand: amt,
+        received: amt, method, showTotalsOnce: true,
       });
     });
-    if(d.pet_deposit && d.pet_deposit.enabled){
-      detailRows.push({
-        invnum: inv.invnum, invdate: d.invdate||inv.invdate||'', dueDate, client, city, zip,
-        desc: 'Refundable Pet Deposit', category: 'deposit (not revenue)', amount: parseFloat(d.pet_deposit.amount)||0,
-        taxable: 'No', exemption: 'Refundable deposit — not a sale',
-        taxRate: 0, taxTotal: 0, subtotal: 0, grand: 0, received: null, method: '', showTotalsOnce:false,
-      });
-    }
   });
 
+  const boRetail = retailTotal * BO_RETAIL_RATE;
+  const boService = serviceTotal * BO_SERVICE_RATE;
+  const netRevenue = grossReceipts - cardFees;
+
   _lastSummary = {
-    period: `${MONTHS[month-1]} ${year}`, grossReceipts, taxCollected, retailTotal, serviceTotal,
-    cityMap, unparsedAddrs,
+    period: `${MONTHS[month-1]} ${year}`, periodKey: `${year}-${pad2(month)}`,
+    grossReceipts, taxCollected, retailTotal, serviceTotal, extensionTotal, cardFees, netRevenue,
+    boRetail, boService, boTotal: boRetail+boService,
+    cityMap, unparsedAddrs, exemptRows,
+    totalTaxSaved, totalExtraBO, totalNetGain: totalTaxSaved-totalExtraBO, savingsRows,
   };
   _lastDetail = detailRows;
 
   renderSummary();
   renderDetail();
+  renderSavings();
+  await renderReview(`${year}-${pad2(month)}`);
+  renderReconciliation();
 }
 
 function renderSummary(){
   const s = _lastSummary;
   document.getElementById('summary-card').style.display = 'block';
+  document.getElementById('reconcile-card').style.display = 'block';
+  document.getElementById('prefiling-card').style.display = 'block';
   document.getElementById('s-gross').textContent = fmtMoney(s.grossReceipts);
   document.getElementById('s-tax').textContent = fmtMoney(s.taxCollected);
   document.getElementById('s-retail').textContent = fmtMoney(s.retailTotal);
   document.getElementById('s-service').textContent = fmtMoney(s.serviceTotal);
+  document.getElementById('s-ext').textContent = fmtMoney(s.extensionTotal);
+  document.getElementById('s-cardfees').textContent = fmtMoney(s.cardFees);
+  document.getElementById('s-net').textContent = fmtMoney(s.netRevenue);
+  document.getElementById('s-bo-retail').textContent = fmtMoney(s.boRetail);
+  document.getElementById('s-bo-service').textContent = fmtMoney(s.boService);
+  document.getElementById('s-bo-total').textContent = fmtMoney(s.boTotal);
 
   const cities = Object.keys(s.cityMap).sort();
   const cityBody = document.getElementById('city-body');
@@ -412,6 +613,18 @@ function renderSummary(){
     }).join('');
   }
 
+  const exemptBody = document.getElementById('exempt-body');
+  const exemptEmpty = document.getElementById('exempt-empty');
+  if(!s.exemptRows.length){
+    exemptBody.innerHTML = ''; exemptEmpty.style.display = 'block';
+  } else {
+    exemptEmpty.style.display = 'none';
+    exemptBody.innerHTML = s.exemptRows.map(r=>`<tr>
+      <td>#${esc(r.invnum)}</td><td>${esc(r.client)}</td><td>${fmtMoney(r.amount)}</td>
+      <td>${esc(r.reason)}</td><td>${esc(r.cert)}</td>
+    </tr>`).join('');
+  }
+
   const unparsedNote = document.getElementById('unparsed-note');
   if(s.unparsedAddrs.length){
     unparsedNote.style.display = 'block';
@@ -419,6 +632,109 @@ function renderSummary(){
   } else {
     unparsedNote.style.display = 'none';
   }
+
+  renderPreFilingPull();
+}
+
+// Phase 5.3 monthly review gate — persisted the same way PRICING_DEFAULTS/TIER_PRICING are
+// (a system/config row in the invoices table, excluded from every real-invoice list/total by
+// the same filters used everywhere else), since there's no separate table for this and no
+// per-user accounts to attach a review to.
+async function renderReview(periodKey){
+  document.getElementById('review-card').style.display = 'block';
+  const statusEl = document.getElementById('review-status');
+  const btn = document.getElementById('review-btn');
+  statusEl.textContent = 'Checking…';
+  try{
+    const { data } = await _sb.from('invoices').select('data').eq('invnum', `TAX_REVIEW_${periodKey}`).maybeSingle();
+    if(data && data.data && data.data.reviewed){
+      statusEl.innerHTML = `✓ Reviewed on ${esc(data.data.reviewed_at ? new Date(data.data.reviewed_at).toLocaleString('en-US',{dateStyle:'medium',timeStyle:'short'}) : '')}`;
+      statusEl.style.color = 'var(--green)';
+      btn.textContent = 'Mark Reviewed Again'; btn.disabled = false;
+    } else {
+      statusEl.innerHTML = '⚠ Not yet reviewed — category tags and B&amp;O amounts are a best-effort allocation. Confirm the category mappings below before treating this as final or filing from it.';
+      statusEl.style.color = 'var(--amber)';
+      btn.textContent = 'Mark This Report Reviewed'; btn.disabled = false;
+    }
+  }catch(e){ statusEl.textContent = ''; }
+}
+
+async function markReviewed(){
+  const periodKey = _lastSummary && _lastSummary.periodKey;
+  if(!periodKey) return;
+  const btn = document.getElementById('review-btn');
+  btn.disabled = true;
+  try{
+    await _sb.from('invoices').upsert({
+      invnum: `TAX_REVIEW_${periodKey}`, client: `TAX_REVIEW_${periodKey}`, address: '',
+      invdate: new Date().toISOString().split('T')[0],
+      data: { reviewed: true, reviewed_at: new Date().toISOString() },
+    }, { onConflict: 'invnum' });
+    await renderReview(periodKey);
+  }catch(e){ alert('Could not save review status: '+e.message); btn.disabled = false; }
+}
+
+// Phase 5.3 reconciliation — purely a manual comparison; this app has no live bank/Stripe
+// feed, so a month is never treated as final from app totals alone.
+function renderReconciliation(){
+  if(!_lastSummary) return;
+  const el = document.getElementById('reconcile-result');
+  const raw = document.getElementById('f-actual-deposits').value;
+  if(raw===''){ el.innerHTML = ''; return; }
+  const actual = parseFloat(raw)||0;
+  const appTotal = _lastSummary.grossReceipts;
+  const diff = actual - appTotal;
+  const clean = Math.abs(diff) < 1;
+  el.innerHTML = `App total: ${fmtMoney(appTotal)} &nbsp;·&nbsp; Actual deposits: ${fmtMoney(actual)} &nbsp;·&nbsp; `
+    + (clean
+      ? `<strong style="color:var(--green)">✓ Reconciled (within $1)</strong>`
+      : `<strong style="color:var(--red)">⚠ Diverges by ${fmtMoney(Math.abs(diff))}</strong> — do not treat this month as final until this is explained.`);
+}
+
+// Phase 5.3 pre-filing pull — every filing number in one place, with the reconciliation
+// status shown alongside, so the monthly pre-filing check grabs them all at once.
+function renderPreFilingPull(){
+  const s = _lastSummary;
+  const body = document.getElementById('prefiling-body');
+  const cities = Object.keys(s.cityMap).sort();
+  const reconcileRaw = document.getElementById('f-actual-deposits') ? document.getElementById('f-actual-deposits').value : '';
+  const reconcileLine = reconcileRaw===''
+    ? 'Reconciliation: not yet entered above.'
+    : (Math.abs((parseFloat(reconcileRaw)||0) - s.grossReceipts) < 1 ? 'Reconciliation: ✓ clean' : '⚠ Reconciliation: diverges from entered bank/Stripe deposits');
+  body.innerHTML = `
+    <strong>${esc(s.period)}</strong><br>
+    Retailing B&amp;O (0.471% of ${fmtMoney(s.retailTotal)}): <strong>${fmtMoney(s.boRetail)}</strong><br>
+    Service &amp; Other B&amp;O (1.5% of ${fmtMoney(s.serviceTotal)}): <strong>${fmtMoney(s.boService)}</strong><br>
+    Total B&amp;O: <strong>${fmtMoney(s.boTotal)}</strong><br><br>
+    Taxable sales: <strong>${fmtMoney(s.grossReceipts - s.taxCollected)}</strong> &nbsp;·&nbsp; Sales tax collected: <strong>${fmtMoney(s.taxCollected)}</strong><br>
+    By location: ${cities.map(c=>`${esc(c)} (${fmtMoney(s.cityMap[c].tax)})`).join(', ') || 'none'}<br><br>
+    Extension fees (included in Retailing above): <strong>${fmtMoney(s.extensionTotal)}</strong><br>
+    Card processing fees (benchmark): <strong>${fmtMoney(s.cardFees)}</strong> &nbsp;·&nbsp; Net revenue: <strong>${fmtMoney(s.netRevenue)}</strong><br>
+    Exemptions: <strong>${s.exemptRows.length}</strong> recorded, totaling ${fmtMoney(s.exemptRows.reduce((sum,r)=>sum+r.amount,0))}<br><br>
+    ${reconcileLine}
+  `;
+}
+
+// Phase 5.4 — allocation savings view. Reporting only; see savings-card's disclaimer.
+function renderSavings(){
+  const s = _lastSummary;
+  document.getElementById('savings-card').style.display = 'block';
+  document.getElementById('sv-tax-saved').textContent = fmtMoney(s.totalTaxSaved);
+  document.getElementById('sv-extra-bo').textContent = fmtMoney(s.totalExtraBO);
+  document.getElementById('sv-net-gain').textContent = fmtMoney(s.totalNetGain);
+
+  const body = document.getElementById('savings-body');
+  const empty = document.getElementById('savings-empty');
+  if(!s.savingsRows.length){
+    body.innerHTML = ''; empty.style.display = 'block'; return;
+  }
+  empty.style.display = 'none';
+  body.innerHTML = s.savingsRows.map(r=>`<tr>
+    <td>#${esc(r.invnum)}</td><td>${esc(r.client)}</td>
+    <td>${fmtMoney(r.oldTax)}</td><td>${fmtMoney(r.newTax)}</td>
+    <td>${fmtMoney(r.taxSaved)}</td><td>${fmtMoney(r.extraBO)}</td>
+    <td style="font-weight:600">${fmtMoney(r.netGain)}</td>
+  </tr>`).join('');
 }
 
 function renderDetail(){
@@ -439,7 +755,7 @@ function renderDetail(){
       <td>${esc(r.city)||'<span class="flag">?</span>'}</td>
       <td>${esc(r.zip)}</td>
       <td>${esc(r.desc)}</td>
-      <td><span class="pill ${r.category==='service'?'service':(r.category.startsWith('deposit')?'':'retailing')}">${esc(r.category)}</span></td>
+      <td><span class="pill ${r.category==='service'?'service':(r.category.startsWith('deposit')||r.category==='exempt'?'':'retailing')}">${esc(r.category)}</span></td>
       <td>${fmtMoney(r.amount)}</td>
       <td>${esc(r.taxable)}</td>
       <td>${esc(r.exemption)}</td>
@@ -449,7 +765,7 @@ function renderDetail(){
       <td>${r.showTotalsOnce?fmtMoney(r.grand):''}</td>
       <td>${r.received!=null?fmtMoney(r.received):''}</td>
       <td>${esc(r.method)}</td>
-      <td>${r.showTotalsOnce?'Not tracked':''}</td>
+      <td>${r.showTotalsOnce ? (r.method&&r.method.includes('Stripe') ? fmtMoney((r.received||0)*STRIPE_FEE_PCT+STRIPE_FEE_FLAT)+' (est.)' : '$0.00') : ''}</td>
     </tr>
   `).join('');
 }
@@ -477,19 +793,52 @@ function exportSummaryCsv(){
   rows.push(['Total Sales Tax Collected', s.taxCollected.toFixed(2)]);
   rows.push(['Retailing (Rental) Receipts', s.retailTotal.toFixed(2)]);
   rows.push(['Service & Other Receipts', s.serviceTotal.toFixed(2)]);
-  rows.push(['Exempt Sales', 'None this period']);
+  rows.push(['Extension Fees (of Retailing)', s.extensionTotal.toFixed(2)]);
+  rows.push(['Card Processing Fees (benchmark est.)', s.cardFees.toFixed(2)]);
+  rows.push(['Net Revenue', s.netRevenue.toFixed(2)]);
+  rows.push(['Retailing B&O (0.471%)', s.boRetail.toFixed(2)]);
+  rows.push(['Service & Other B&O (1.5%)', s.boService.toFixed(2)]);
+  rows.push(['Total B&O', s.boTotal.toFixed(2)]);
+  rows.push(['Exempt Sales Count', String(s.exemptRows.length)]);
+  rows.push(['Exempt Sales Total', s.exemptRows.reduce((sum,r)=>sum+r.amount,0).toFixed(2)]);
   downloadCsv(toCsv(header, rows), `SWJ_Tax_Summary_${s.period.replace(' ','_')}.csv`);
 }
 
 function exportDetailCsv(){
   if(!_lastDetail){ alert('Run the report first.'); return; }
-  const header = ['Invoice #','Invoice Date','Due Date','Customer','City','Zip','Line Item','Category','Item Amount','Taxable','Exemption Reason','Tax Rate','Invoice Tax Total','Invoice Subtotal','Invoice Grand Total','Received This Period','Payment Method','Processing Fee'];
+  const header = ['Invoice #','Invoice Date','Due Date','Customer','City','Zip','Line Item','Category','Item Amount','Taxable','Exemption Reason','Tax Rate','Invoice Tax Total','Invoice Subtotal','Invoice Grand Total','Received This Period','Payment Method','Processing Fee (benchmark est.)'];
   const rows = _lastDetail.map(r=>[
     r.invnum, r.invdate, r.dueDate, r.client, r.city, r.zip, r.desc, r.category, r.amount.toFixed(2), r.taxable, r.exemption,
     r.showTotalsOnce?r.taxRate.toFixed(2)+'%':'', r.showTotalsOnce?r.taxTotal.toFixed(2):'', r.showTotalsOnce?r.subtotal.toFixed(2):'', r.showTotalsOnce?r.grand.toFixed(2):'',
-    r.received!=null?r.received.toFixed(2):'', r.method, r.showTotalsOnce?'Not tracked':'',
+    r.received!=null?r.received.toFixed(2):'', r.method,
+    r.showTotalsOnce ? (r.method&&r.method.includes('Stripe') ? ((r.received||0)*STRIPE_FEE_PCT+STRIPE_FEE_FLAT).toFixed(2) : '0.00') : '',
   ]);
   downloadCsv(toCsv(header, rows), `SWJ_Tax_Invoice_Detail_${_lastSummary.period.replace(' ','_')}.csv`);
+}
+
+// Phase 5.3 pre-filing pull CSV — every filing number in one file for the monthly check.
+function exportPreFilingCsv(){
+  if(!_lastSummary){ alert('Run the report first.'); return; }
+  const s = _lastSummary;
+  const reconcileRaw = document.getElementById('f-actual-deposits').value;
+  const header = ['Line','Amount/Value'];
+  const rows = [
+    ['Period', s.period],
+    ['Retailing B&O (0.471%)', s.boRetail.toFixed(2)],
+    ['Service & Other B&O (1.5%)', s.boService.toFixed(2)],
+    ['Total B&O', s.boTotal.toFixed(2)],
+    ['Taxable Sales', (s.grossReceipts - s.taxCollected).toFixed(2)],
+    ['Sales Tax Collected', s.taxCollected.toFixed(2)],
+    ...Object.keys(s.cityMap).sort().map(c=>[`  Sales Tax — ${c}`, s.cityMap[c].tax.toFixed(2)]),
+    ['Extension Fees (within Retailing)', s.extensionTotal.toFixed(2)],
+    ['Card Processing Fees (benchmark est.)', s.cardFees.toFixed(2)],
+    ['Net Revenue', s.netRevenue.toFixed(2)],
+    ['Exemptions — count', String(s.exemptRows.length)],
+    ['Exemptions — total', s.exemptRows.reduce((sum,r)=>sum+r.amount,0).toFixed(2)],
+    ['Actual Bank/Stripe Deposits (entered)', reconcileRaw||'(not entered)'],
+    ['Reconciliation Status', reconcileRaw==='' ? 'Not entered' : (Math.abs((parseFloat(reconcileRaw)||0)-s.grossReceipts)<1 ? 'Clean' : 'DIVERGES — review before filing')],
+  ];
+  downloadCsv(toCsv(header, rows), `SWJ_Tax_PreFiling_${s.period.replace(' ','_')}.csv`);
 }
 
 // Fires the exact same job the monthly cron runs — reports on whatever month just ended,
@@ -516,5 +865,6 @@ document.addEventListener('DOMContentLoaded', ()=>{
   runReport();
 });
 </script>
+<script>document.addEventListener('DOMContentLoaded',()=>{try{document.querySelector('.nav-sw .nav-btn.on')?.scrollIntoView({inline:'center',block:'nearest'});}catch(e){}});</script>
 </body>
 </html>

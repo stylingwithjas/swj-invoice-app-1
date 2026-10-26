@@ -48,6 +48,7 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
 .nav-btn { padding:5px 14px; border-radius:16px; border:none; font-size:11px; font-weight:500; cursor:pointer; font-family:'Inter',sans-serif; transition:all 0.18s; }
 .nav-btn.on { background:#fff; color:var(--ink); }
 .nav-btn.off { background:transparent; color:rgba(255,255,255,0.4); }
+@media (max-width: 680px) { .nav-sw { max-width:100%; overflow-x:auto; scrollbar-width:none; -webkit-overflow-scrolling:touch; } .nav-sw::-webkit-scrollbar { display:none; } .nav-btn { flex-shrink:0; } }
 
 .wrap { max-width:1000px; margin:0 auto; padding:20px; }
 .card { background:#fff; border:0.5px solid var(--taupe-lt); border-radius:14px; padding:18px 20px; margin-bottom:18px; }
@@ -108,6 +109,23 @@ tr.paid-row { opacity:0.55; }
 .modal-actions .save-btn { border:none; background:var(--ink); color:#fff; }
 .msg { font-size:12px; color:var(--taupe); text-align:center; margin-top:8px; min-height:14px; }
 .msg.err { color:var(--red); }
+
+/* Business Finances */
+.stat-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:12px; margin-top:6px; }
+.stat-item .lbl { font-size:9.5px; color:var(--taupe-dk); text-transform:uppercase; letter-spacing:0.5px; }
+.stat-item .val { font-family:'Cormorant Garamond',serif; font-size:21px; margin-top:2px; }
+.stat-item .val.neg { color:var(--red); }
+.sub-hdr { font-size:11px; font-weight:700; color:var(--taupe-dk); text-transform:uppercase; letter-spacing:0.6px; margin:16px 0 8px; }
+.sub-hdr:first-child { margin-top:0; }
+.fin-settings-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin-bottom:12px; }
+.fin-settings-grid label { display:block; font-size:9.5px; color:var(--taupe-dk); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px; }
+.fin-settings-grid input { width:100%; padding:7px 9px; border:0.5px solid var(--taupe-lt); border-radius:7px; font-size:12.5px; font-family:inherit; }
+.calc-card { background:var(--warm); border-radius:10px; padding:12px 14px; margin-bottom:10px; }
+.calc-card .calc-ttl { font-size:11px; font-weight:700; color:var(--ink-soft); margin-bottom:6px; }
+.calc-card .calc-row { display:flex; justify-content:space-between; font-size:12.5px; padding:3px 0; }
+.calc-card .calc-row.total { border-top:0.5px solid var(--taupe-lt); margin-top:4px; padding-top:6px; font-weight:700; }
+.disclaimer { font-size:10.5px; color:var(--taupe-dk); line-height:1.6; background:var(--warm); border-radius:8px; padding:10px 12px; margin-top:12px; }
+.flag-note { color:var(--red); font-weight:600; }
 </style>
 </head>
 <body>
@@ -134,6 +152,57 @@ tr.paid-row { opacity:0.55; }
 </div>
 
 <div class="wrap">
+
+  <div class="card" id="finance-card">
+    <div class="card-hdr">
+      <span>💰 Business Finances</span>
+      <button class="filter-btn" onclick="toggleFinanceSettings()">⚙ Settings</button>
+    </div>
+    <div class="filter-row" style="margin-bottom:14px">
+      <div class="filter-field"><label>Month</label><select id="fin-month"></select></div>
+      <div class="filter-field"><label>Year</label><select id="fin-year"></select></div>
+      <button class="filter-btn primary" onclick="runFinanceView()">Run</button>
+    </div>
+
+    <div id="finance-settings" style="display:none;background:var(--cream);border-radius:10px;padding:14px;margin-bottom:16px">
+      <div style="font-size:11px;color:var(--taupe-dk);margin-bottom:10px">Every number below is editable — these are starting assumptions, not fixed constants. Mover rates are managed separately (Create a Day's Pay Schedule / /hours.html) and already feed in live from actual logged hours.</div>
+      <div class="fin-settings-grid">
+        <div><label>Warehouse $/mo</label><input type="number" step="1" id="fc-warehouse"></div>
+        <div><label>Avg job revenue ($)</label><input type="number" step="1" id="fc-avgjob"></div>
+        <div><label>Profit target %</label><input type="number" step="0.1" id="fc-profit-pct"></div>
+        <div><label>Tithe % of profit</label><input type="number" step="0.1" id="fc-tithe-pct"></div>
+        <div><label>Truck $/day</label><input type="number" step="1" id="fc-truck-day"></div>
+        <div><label>Truck days/rental (default)</label><input type="number" step="0.5" id="fc-truck-days"></div>
+        <div><label>Truck miles/rental (default)</label><input type="number" step="1" id="fc-truck-miles"></div>
+        <div><label>Truck $/mile</label><input type="number" step="0.01" id="fc-truck-mile-rate"></div>
+        <div><label>Fuel $/mile</label><input type="number" step="0.01" id="fc-fuel-rate"></div>
+        <div><label>LDW+LIA $/week</label><input type="number" step="1" id="fc-ldw-week"></div>
+        <div><label>Stripe fee %</label><input type="number" step="0.01" id="fc-stripe-pct"></div>
+        <div><label>Stripe fee flat ($)</label><input type="number" step="0.01" id="fc-stripe-flat"></div>
+      </div>
+      <button class="filter-btn primary" onclick="saveFinanceConfig()">Save Settings</button>
+      <span class="msg" id="fc-msg" style="display:inline-block;margin-left:8px"></span>
+    </div>
+
+    <div class="sub-hdr">Monthly Summary — <span id="fin-period"></span></div>
+    <div class="stat-grid" id="fin-summary-stats"></div>
+
+    <div class="sub-hdr">Cash to Allocate</div>
+    <div id="fin-cash-breakdown" style="font-size:13px;line-height:1.9"></div>
+
+    <div class="sub-hdr">Scenario Calculators</div>
+    <div id="fin-calculators"></div>
+
+    <div id="fin-reconcile-wrap">
+      <div class="sub-hdr">Reconciliation</div>
+      <div class="filter-row" style="margin-bottom:8px">
+        <div class="filter-field"><label>Actual bank/Stripe deposits this month</label><input type="number" step="0.01" id="fin-actual-deposits" oninput="renderFinanceReconciliation()" placeholder="0.00"></div>
+      </div>
+      <div id="fin-reconcile-result" style="font-size:13px"></div>
+    </div>
+
+    <div class="disclaimer">Revenue is cash-basis (signed invoices, payment-received month — same basis as the Tax Report). Mover pay is actual, from logged hours this month. Truck and warehouse costs use the editable assumptions above, since this app doesn't track per-job truck receipts yet — correct the defaults above if your actual costs differ. Tax set-aside reuses the Tax Report's B&amp;O + sales-tax method (not CPA-certified — see TAX_METHODOLOGY.md). A month with unreconciled revenue is flagged, not presented as final.</div>
+  </div>
 
   <div class="card">
     <div class="card-hdr">Team</div>
@@ -341,9 +410,9 @@ async function loadProjects(){
   const internalOpts = INTERNAL_JOBS.map(j=>`<option value="${esc(j.invnum)}">${esc(j.label)}</option>`).join('');
   try{
     const {data} = await _sb.from('invoices').select('invnum,client,address,invdate,data')
-      .not('invnum','like','DRAFT-%').not('invnum','like','GS%')
+      .not('invnum','like','DRAFT-%').not('invnum','like','GS%').neq('invnum','PRICING_DEFAULTS').neq('invnum','TIER_PRICING').not('invnum','like','TAX_REVIEW_%').neq('invnum','FINANCE_CONFIG')
       .order('invdate',{ascending:false}).limit(50);
-    _projectsCache = (data||[]).filter(j => ((j.data||{}).stage||'proposal') !== 'denied');
+    _projectsCache = (data||[]).filter(j => { const s=(j.data||{}).stage||'proposal'; return s!=='denied' && s!=='closed_lost'; });
     const jobOpts = _projectsCache.map(j=>`<option value="${esc(j.invnum)}">${esc(jobLabelFor(j))}</option>`).join('');
     projSel.innerHTML = '<option value="">All</option>' + internalOpts + jobOpts;
   }catch(e){
@@ -678,13 +747,367 @@ function exportCsv(){
   setTimeout(()=>URL.revokeObjectURL(url), 30000);
 }
 
+// ════════════════════════════════════════════════════════════════
+// BUSINESS FINANCES (Phase 3.1) — the Payroll tab becomes the place Jasmine sees how the
+// business runs financially, built on top of the existing contractor-pay cost input. Every
+// number here is editable (stored as a FINANCE_CONFIG system record, same pattern as
+// PRICING_DEFAULTS) — none of this is meant to be a fixed constant.
+// ════════════════════════════════════════════════════════════════
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const FINANCE_DEFAULTS = {
+  warehouse_monthly: 1380,     // 3 units × $460, confirmed Oct 25, 2026
+  avg_job_revenue: 3800,       // Floor calculator's single-job scenario
+  profit_target_pct: 25,       // operating-margin target, before tithing
+  tithe_pct: 10,                // of profit, not revenue
+  truck_rate_day: 50,          // Penske rate card
+  truck_days_default: 1,       // per rental (staging delivery / destage pickup, each its own rental)
+  truck_miles_default: 20,     // per rental
+  truck_rate_mile: 0.23,
+  fuel_rate_mile: 0.15,        // editable fuel allowance — no receipt tracking in this app yet
+  ldw_lia_week: 200,           // $125 LDW + $75 LIA per week, prorated daily, on every rental
+  stripe_pct: 2.9,
+  stripe_flat: 0.30,
+};
+let FINANCE_CONFIG = { ...FINANCE_DEFAULTS };
+let _financeInvoices = [];
+
+async function loadFinanceConfig(){
+  try{
+    const { data } = await _sb.from('invoices').select('data').eq('invnum','FINANCE_CONFIG').maybeSingle();
+    if(data && data.data) FINANCE_CONFIG = { ...FINANCE_DEFAULTS, ...data.data };
+  }catch(e){ /* no saved config yet — defaults stand */ }
+  setVal2('fc-warehouse', FINANCE_CONFIG.warehouse_monthly);
+  setVal2('fc-avgjob', FINANCE_CONFIG.avg_job_revenue);
+  setVal2('fc-profit-pct', FINANCE_CONFIG.profit_target_pct);
+  setVal2('fc-tithe-pct', FINANCE_CONFIG.tithe_pct);
+  setVal2('fc-truck-day', FINANCE_CONFIG.truck_rate_day);
+  setVal2('fc-truck-days', FINANCE_CONFIG.truck_days_default);
+  setVal2('fc-truck-miles', FINANCE_CONFIG.truck_miles_default);
+  setVal2('fc-truck-mile-rate', FINANCE_CONFIG.truck_rate_mile);
+  setVal2('fc-fuel-rate', FINANCE_CONFIG.fuel_rate_mile);
+  setVal2('fc-ldw-week', FINANCE_CONFIG.ldw_lia_week);
+  setVal2('fc-stripe-pct', FINANCE_CONFIG.stripe_pct);
+  setVal2('fc-stripe-flat', FINANCE_CONFIG.stripe_flat);
+}
+function setVal2(id, v){ const el=document.getElementById(id); if(el) el.value = v; }
+
+async function saveFinanceConfig(){
+  const g = id => parseFloat(document.getElementById(id).value);
+  const cfg = {
+    warehouse_monthly: g('fc-warehouse')||0, avg_job_revenue: g('fc-avgjob')||0,
+    profit_target_pct: g('fc-profit-pct')||0, tithe_pct: g('fc-tithe-pct')||0,
+    truck_rate_day: g('fc-truck-day')||0, truck_days_default: g('fc-truck-days')||0,
+    truck_miles_default: g('fc-truck-miles')||0, truck_rate_mile: g('fc-truck-mile-rate')||0,
+    fuel_rate_mile: g('fc-fuel-rate')||0, ldw_lia_week: g('fc-ldw-week')||0,
+    stripe_pct: g('fc-stripe-pct')||0, stripe_flat: g('fc-stripe-flat')||0,
+  };
+  const msg = document.getElementById('fc-msg');
+  try{
+    await _sb.from('invoices').upsert({
+      invnum:'FINANCE_CONFIG', client:'FINANCE_CONFIG', address:'',
+      invdate:new Date().toISOString().split('T')[0], data: cfg,
+    }, { onConflict:'invnum' });
+    FINANCE_CONFIG = cfg;
+    if(msg){ msg.textContent = 'Saved ✓'; msg.className='msg'; setTimeout(()=>msg.textContent='',2000); }
+    runFinanceView();
+  }catch(e){ if(msg){ msg.textContent = 'Could not save: '+e.message; msg.className='msg err'; } }
+}
+
+function toggleFinanceSettings(){
+  const el = document.getElementById('finance-settings');
+  el.style.display = el.style.display==='none' ? 'block' : 'none';
+}
+
+function initFinancePeriodPickers(){
+  const mSel = document.getElementById('fin-month'), ySel = document.getElementById('fin-year');
+  MONTH_NAMES.forEach((m,i)=>{ const o=document.createElement('option'); o.value=i+1; o.textContent=m; mSel.appendChild(o); });
+  const now = new Date();
+  for(let y=now.getFullYear(); y>=now.getFullYear()-5; y--){ const o=document.createElement('option'); o.value=y; o.textContent=y; ySel.appendChild(o); }
+  mSel.value = now.getMonth()+1; ySel.value = now.getFullYear();
+}
+
+// Price-led tax split (Phase 5.2) — must mirror invoiceTaxSplit() in tax-report.html and
+// priceLedTax() in index.html/luxury.html exactly, or this view's revenue/tax-set-aside
+// numbers won't agree with the tax report's.
+function finCategorize(desc){
+  const s=(desc||'').toLowerCase();
+  return (s.includes('photo')||s.includes('consult')||s.includes('design fee')) ? 'service' : 'retailing';
+}
+function finInvoiceSplit(d){
+  const _ov=v=>(v!=null&&v!=='')?parseFloat(v):null;
+  const hasOverride = _ov(d.subtotal_override)!=null || _ov(d.tax_override)!=null || _ov(d.total_override)!=null;
+  const base = parseFloat(d.base_price)||2500;
+  const addons = d.addons||[];
+  const addonTotal = addons.reduce((s,a)=>s+(parseFloat(a.price)||0),0);
+  const rate = parseFloat(d.taxrate)||0;
+  if(hasOverride || !d.price_led_tax){
+    const subtotal = _ov(d.subtotal_override) ?? (base+addonTotal);
+    const tax = _ov(d.tax_override) ?? (subtotal*rate/100);
+    const grand = _ov(d.total_override) ?? (subtotal+tax);
+    let svc=0, ret=base;
+    addons.forEach(a=>{ const amt=parseFloat(a.price)||0; if((a.type||finCategorize(a.desc))==='service') svc+=amt; else ret+=amt; });
+    const lineTotal = svc+ret;
+    const rentalShare = lineTotal>0.009 ? ret/lineTotal : 1;
+    return { subtotal, tax, grand, rentalShare };
+  }
+  const grand = base+addonTotal+(base+addonTotal)*rate/100;
+  const rsb = parseFloat(d.rental_share_base); const rentalShareBase = isNaN(rsb)?0.5:rsb;
+  const rentalDollars = base*rentalShareBase + addons.filter(a=>a.type!=='service').reduce((s,a)=>s+(parseFloat(a.price)||0),0);
+  const allDollars = base+addonTotal;
+  const rentalShare = allDollars>0.009 ? rentalDollars/allDollars : 1;
+  const r = rate/100;
+  const subtotal = r>0 ? grand/(1+r*rentalShare) : grand;
+  return { subtotal, tax: grand-subtotal, grand, rentalShare };
+}
+function finPaymentEvents(d){
+  const events = [];
+  const splits = d.payments || [];
+  if(splits.length){
+    splits.filter(p=>p.status==='paid' && p.paid_date).forEach(p=>{
+      events.push({ date:p.paid_date, amount:parseFloat(p.amount)||0, method:p.payment_id?'Stripe (Card)':'Other/Manual' });
+    });
+  } else if(d.paid && d.paid_date){
+    // Falls back to the invoice's own total when neither amount_paid nor stripe_amount is
+    // recorded (the common case for a manually-marked-paid invoice, e.g. cash/check/Venmo) —
+    // this app's $0 revenue bug (audit finding) was exactly this falling back to 0 instead,
+    // unlike tax-report.html's paymentEvents(), which has always used this fallback.
+    events.push({ date:d.paid_date, amount:parseFloat(d.amount_paid ?? d.stripe_amount ?? finComputeGrandForEvents(d)) || 0, method:d.stripe_payment_id?'Stripe (Card)':'Other/Manual' });
+  }
+  return events;
+}
+// finInvoiceSplit(d) needs `d`'s own price-led flags, which is already in scope wherever
+// finPaymentEvents is called with the right `d` — just needs the grand total here.
+function finComputeGrandForEvents(d){ return finInvoiceSplit(d).grand; }
+
+async function loadFinanceInvoices(){
+  try{
+    const {data,error} = await _sb.from('invoices').select('invnum,client,address,invdate,data')
+      .not('invnum','like','DRAFT-%').not('invnum','like','GS%').neq('invnum','PRICING_DEFAULTS').neq('invnum','TIER_PRICING').not('invnum','like','TAX_REVIEW_%').neq('invnum','FINANCE_CONFIG')
+      .order('created_at',{ascending:false}).limit(2000);
+    if(error) throw error;
+    _financeInvoices = data||[];
+  }catch(e){ _financeInvoices = []; }
+}
+
+// Truck cost for ONE rental (half a job — staging delivery OR destage pickup), from the
+// Penske rate card: days × $/day + LDW/LIA prorated daily (always included) + miles × ($/mile
+// + fuel $/mile). A job normally has two rentals.
+function truckCostPerRental(days, miles){
+  const d = days!=null ? days : FINANCE_CONFIG.truck_days_default;
+  const m = miles!=null ? miles : FINANCE_CONFIG.truck_miles_default;
+  return d*FINANCE_CONFIG.truck_rate_day + (FINANCE_CONFIG.ldw_lia_week/7)*d + m*(FINANCE_CONFIG.truck_rate_mile+FINANCE_CONFIG.fuel_rate_mile);
+}
+function truckCostPerJob(){ return 2*truckCostPerRental(); }
+
+async function runFinanceView(){
+  const month = parseInt(document.getElementById('fin-month').value,10);
+  const year = parseInt(document.getElementById('fin-year').value,10);
+  const periodStart = `${year}-${String(month).padStart(2,'0')}-01`;
+  const lastDay = new Date(year,month,0).getDate();
+  const periodEnd = `${year}-${String(month).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`;
+  document.getElementById('fin-period').textContent = `${MONTH_NAMES[month-1]} ${year}`;
+
+  // Always refetch on Run — a lazy "only if empty" cache here meant the calculators never
+  // reacted to a new or just-changed job within the same page session (audit finding:
+  // "Pipeline stayed 0 quotes after reload" — reload didn't mean a fresh fetch).
+  await loadFinanceInvoices();
+  const signed = _financeInvoices.filter(inv => (inv.data||{}).signed === true);
+
+  // Revenue + sales-tax collected + B&O (same cash-basis method as the Tax Report).
+  let revenue=0, salesTax=0, retailRev=0, serviceRev=0, cardFees=0;
+  signed.forEach(inv=>{
+    const d = inv.data||{};
+    const split = finInvoiceSplit(d);
+    const events = finPaymentEvents(d).filter(e=>e.date>=periodStart && e.date<=periodEnd);
+    events.forEach(e=>{
+      revenue += e.amount;
+      const taxFraction = split.grand>0.009 ? split.tax/split.grand : 0;
+      const tax = e.amount*taxFraction;
+      salesTax += tax;
+      const net = e.amount-tax;
+      retailRev += net*split.rentalShare;
+      serviceRev += net*(1-split.rentalShare);
+      if(e.method==='Stripe (Card)') cardFees += e.amount*FINANCE_CONFIG.stripe_pct/100 + FINANCE_CONFIG.stripe_flat;
+    });
+    (d.extensions||[]).forEach(ext=>{
+      if(!ext.paid || !ext.paid_date) return;
+      if(ext.paid_date<periodStart || ext.paid_date>periodEnd) return;
+      const amt = parseFloat(ext.amount)||0; if(amt<=0.009) return;
+      const r=(parseFloat(d.taxrate)||0)/100;
+      const tax = r>0 ? amt-amt/(1+r) : 0;
+      revenue += amt; salesTax += tax; retailRev += (amt-tax);
+      if(ext.payment_id) cardFees += amt*FINANCE_CONFIG.stripe_pct/100 + FINANCE_CONFIG.stripe_flat;
+    });
+  });
+  const boEstimate = retailRev*0.00471 + serviceRev*0.015;
+  const taxSetAside = salesTax + boEstimate;
+
+  // Mover/contractor pay — ACTUAL, from logged hours this month (never an assumed %).
+  let moverCost = 0; const moverByType = {};
+  try{
+    const { data: entries } = await _sb.from('time_entries').select('work_type,amount,clock_in')
+      .gte('clock_in', periodStart+'T00:00:00').lte('clock_in', periodEnd+'T23:59:59');
+    (entries||[]).forEach(e=>{
+      const amt = parseFloat(e.amount)||0;
+      moverCost += amt;
+      moverByType[e.work_type] = (moverByType[e.work_type]||0) + amt;
+    });
+  }catch(e){}
+
+  // Job count this month (for the Realistic calculator + warehouse split context) — signed,
+  // staged within this calendar month.
+  const jobsThisMonth = signed.filter(inv=>{
+    const d = inv.data||{};
+    return d.startdate && d.startdate!=='TBD' && d.startdate>=periodStart && d.startdate<=periodEnd;
+  }).length || 1;
+  const truckCost = jobsThisMonth * truckCostPerJob();
+  const warehouseCost = FINANCE_CONFIG.warehouse_monthly;
+
+  const netCashAfterFees = revenue - cardFees;
+  const operatingNet = netCashAfterFees - moverCost - truckCost - warehouseCost - taxSetAside;
+  const marginPct = netCashAfterFees>0.009 ? (operatingNet/netCashAfterFees*100) : 0;
+  const cashToAllocate = netCashAfterFees - moverCost - truckCost - warehouseCost;
+  const profitKept = netCashAfterFees * FINANCE_CONFIG.profit_target_pct/100;
+  const remainingForShopping = cashToAllocate - profitKept;
+  const titheActual = Math.max(0, operatingNet) * FINANCE_CONFIG.tithe_pct/100;
+
+  _lastFinanceSummary = { revenue, salesTax, boEstimate, taxSetAside, moverCost, moverByType, truckCost, warehouseCost,
+    netCashAfterFees, operatingNet, marginPct, cashToAllocate, profitKept, remainingForShopping, titheActual, cardFees, jobsThisMonth };
+
+  renderFinanceSummary();
+  renderFinanceCashBreakdown();
+  renderFinanceCalculators(periodStart, periodEnd);
+  renderFinanceReconciliation();
+}
+let _lastFinanceSummary = null;
+
+function finMoney(n){ return '$'+Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+
+function renderFinanceSummary(){
+  const s = _lastFinanceSummary;
+  const grid = document.getElementById('fin-summary-stats');
+  const moverBreakdown = Object.entries(s.moverByType).map(([k,v])=>`${LABEL_BY_KEY[k]||k}: ${finMoney(v)}`).join(' · ') || 'none logged';
+  grid.innerHTML = `
+    <div class="stat-item"><div class="lbl">Revenue (cash)</div><div class="val">${finMoney(s.revenue)}</div></div>
+    <div class="stat-item"><div class="lbl">Card Fees (est.)</div><div class="val">${finMoney(s.cardFees)}</div></div>
+    <div class="stat-item"><div class="lbl">Mover Pay (actual)</div><div class="val">${finMoney(s.moverCost)}</div></div>
+    <div class="stat-item"><div class="lbl">Truck (${s.jobsThisMonth} job(s))</div><div class="val">${finMoney(s.truckCost)}</div></div>
+    <div class="stat-item"><div class="lbl">Warehouse</div><div class="val">${finMoney(s.warehouseCost)}</div></div>
+    <div class="stat-item"><div class="lbl">Tax Set-Aside</div><div class="val">${finMoney(s.taxSetAside)}</div></div>
+    <div class="stat-item"><div class="lbl">Operating Net</div><div class="val ${s.operatingNet<0?'neg':''}">${finMoney(s.operatingNet)}</div></div>
+    <div class="stat-item"><div class="lbl">Margin %</div><div class="val ${s.marginPct<0?'neg':''}">${s.marginPct.toFixed(1)}%</div></div>
+  `;
+  grid.insertAdjacentHTML('beforeend', `<div class="stat-item" style="grid-column:1/-1"><div class="lbl">Mover pay by type</div><div style="font-size:12px;margin-top:2px">${moverBreakdown}</div></div>`);
+}
+
+function renderFinanceCashBreakdown(){
+  const s = _lastFinanceSummary;
+  document.getElementById('fin-cash-breakdown').innerHTML = `
+    Cash to allocate (after movers, truck, warehouse, card fees): <strong>${finMoney(s.cashToAllocate)}</strong><br>
+    &nbsp;&nbsp;↳ Profit kept (${FINANCE_CONFIG.profit_target_pct}% target, on net cash after fees): <strong>${finMoney(s.profitKept)}</strong><br>
+    &nbsp;&nbsp;↳ Remaining for shopping/inventory, other costs, prior-month shortfalls: <strong>${finMoney(s.remainingForShopping)}</strong><br><br>
+    Tithe this month (10% of operating net, actual — not projected): <strong>${finMoney(s.titheActual)}</strong>
+    <div style="font-size:11px;color:var(--taupe-dk);margin-top:4px">Tithing is personal giving, not a business expense — shown separately, never inside operating profit above.</div>
+  `;
+}
+
+function renderFinanceCalculators(periodStart, periodEnd){
+  const el = document.getElementById('fin-calculators');
+  const warehouse = FINANCE_CONFIG.warehouse_monthly;
+  // Mover cost for pipeline/realistic projections — this period's actual mover-pay-to-
+  // revenue ratio, applied forward (never a hardcoded %); 0 when there's no actual data yet
+  // to derive a ratio from. Audit finding: calculator margins were excluding mover pay
+  // entirely, while the drawer's per-job profit always subtracts it.
+  const s = _lastFinanceSummary;
+  const moverRatio = (s && s.revenue>0.009) ? s.moverCost/s.revenue : 0;
+
+  // Pipeline: ALL quotes (not yet paid) staged this month — proposal/future_hold/confirmed.
+  const pipelineJobs = _financeInvoices.filter(inv=>{
+    const d = inv.data||{}; const stage = d.stage||'proposal';
+    return ['proposal','future_hold','confirmed'].includes(stage) && d.startdate && d.startdate!=='TBD' && d.startdate>=periodStart && d.startdate<=periodEnd;
+  });
+  const pipelineCount = pipelineJobs.length || 1;
+  const pipelineWarehousePerJob = warehouse/pipelineCount;
+  const pipelineAvgRevenue = pipelineJobs.length ? pipelineJobs.reduce((s2,inv)=>s2+computeGrandFin(inv.data||{}),0)/pipelineJobs.length : FINANCE_CONFIG.avg_job_revenue;
+  const pipelineMoverCost = pipelineAvgRevenue*moverRatio;
+  const pipelineMargin = pipelineAvgRevenue - truckCostPerJob() - pipelineWarehousePerJob - pipelineMoverCost;
+
+  // Realistic: confirmed+ (signed/committed) jobs staged this month.
+  const realisticJobs = _financeInvoices.filter(inv=>{
+    const d = inv.data||{}; const stage = d.stage||'proposal';
+    return ['confirmed','staged','destage','done'].includes(stage) && d.startdate && d.startdate!=='TBD' && d.startdate>=periodStart && d.startdate<=periodEnd;
+  });
+  const realisticCount = realisticJobs.length || 1;
+  const realisticWarehousePerJob = warehouse/realisticCount;
+  const realisticAvgRevenue = realisticJobs.length ? realisticJobs.reduce((s2,inv)=>s2+computeGrandFin(inv.data||{}),0)/realisticJobs.length : FINANCE_CONFIG.avg_job_revenue;
+  const realisticMoverCost = realisticAvgRevenue*moverRatio;
+  const realisticMargin = realisticAvgRevenue - truckCostPerJob() - realisticWarehousePerJob - realisticMoverCost;
+
+  // Floor: single job, warehouse in FULL (not split) — the worst-case/breakeven check.
+  const floorRevenue = FINANCE_CONFIG.avg_job_revenue;
+  const floorMoverCost = floorRevenue*moverRatio;
+  const floorCosts = truckCostPerJob() + warehouse + floorMoverCost;
+  const floorProfitAtBenchmark = floorRevenue - floorCosts;
+  const floorMarginAtBenchmark = floorRevenue>0 ? floorProfitAtBenchmark/floorRevenue*100 : 0;
+  const floorCashToAllocate = floorRevenue - floorCosts;
+  const floorProfitAtTarget = floorRevenue * FINANCE_CONFIG.profit_target_pct/100;
+  const floorRemainingAtTarget = floorCashToAllocate - floorProfitAtTarget;
+
+  el.innerHTML = `
+    <div class="calc-card">
+      <div class="calc-ttl">Pipeline — ${pipelineJobs.length} quote(s) this month</div>
+      <div class="calc-row"><span>Avg. job revenue</span><span>${finMoney(pipelineAvgRevenue)}</span></div>
+      <div class="calc-row"><span>Mover pay (at this period's actual ratio)</span><span>-${finMoney(pipelineMoverCost)}</span></div>
+      <div class="calc-row"><span>Truck (per job)</span><span>-${finMoney(truckCostPerJob())}</span></div>
+      <div class="calc-row"><span>Warehouse (split ÷${pipelineCount})</span><span>-${finMoney(pipelineWarehousePerJob)}</span></div>
+      <div class="calc-row total"><span>Projected margin per job</span><span>${finMoney(pipelineMargin)}</span></div>
+    </div>
+    <div class="calc-card">
+      <div class="calc-ttl">Realistic — ${realisticJobs.length} confirmed job(s) this month</div>
+      <div class="calc-row"><span>Avg. job revenue</span><span>${finMoney(realisticAvgRevenue)}</span></div>
+      <div class="calc-row"><span>Mover pay (at this period's actual ratio)</span><span>-${finMoney(realisticMoverCost)}</span></div>
+      <div class="calc-row"><span>Truck (per job)</span><span>-${finMoney(truckCostPerJob())}</span></div>
+      <div class="calc-row"><span>Warehouse (split ÷${realisticCount})</span><span>-${finMoney(realisticWarehousePerJob)}</span></div>
+      <div class="calc-row total"><span>Committed margin per job</span><span>${finMoney(realisticMargin)}</span></div>
+    </div>
+    <div class="calc-card">
+      <div class="calc-ttl">Floor — one average job (${finMoney(floorRevenue)}), warehouse in full</div>
+      <div class="calc-row"><span>Mover pay (at this period's actual ratio)</span><span>-${finMoney(floorMoverCost)}</span></div>
+      <div class="calc-row"><span>Truck + warehouse (full, not split)</span><span>-${finMoney(truckCostPerJob()+warehouse)}</span></div>
+      <div class="calc-row total"><span>Profit at benchmark costs</span><span>${finMoney(floorProfitAtBenchmark)} (${floorMarginAtBenchmark.toFixed(1)}%)</span></div>
+      <div class="calc-row" style="margin-top:8px"><span>Cash to allocate</span><span>${finMoney(floorCashToAllocate)}</span></div>
+      <div class="calc-row"><span>&nbsp;↳ Profit kept at ${FINANCE_CONFIG.profit_target_pct}% target</span><span>-${finMoney(floorProfitAtTarget)}</span></div>
+      <div class="calc-row total"><span>&nbsp;↳ Remains for shopping/other costs</span><span>${finMoney(floorRemainingAtTarget)}</span></div>
+    </div>
+    <div style="font-size:11px;color:var(--taupe-dk)">All percentages here are living numbers — recomputed from the current job count and revenue whenever the pipeline changes. As a job moves quoted → approved → paid, it shifts from Pipeline to Realistic to actual revenue above.</div>
+  `;
+}
+function computeGrandFin(d){ return finInvoiceSplit(d).grand; }
+
+function renderFinanceReconciliation(){
+  if(!_lastFinanceSummary) return;
+  const raw = document.getElementById('fin-actual-deposits').value;
+  const el = document.getElementById('fin-reconcile-result');
+  if(raw===''){ el.innerHTML = '<span style="color:var(--taupe-dk)">Not yet entered — enter actual deposits above to check this month against them.</span>'; return; }
+  const actual = parseFloat(raw)||0;
+  const diff = actual - _lastFinanceSummary.revenue;
+  const clean = Math.abs(diff) < 1;
+  el.innerHTML = clean
+    ? `<strong style="color:var(--green)">✓ Reconciled</strong> — app revenue ${finMoney(_lastFinanceSummary.revenue)} matches actual deposits within $1.`
+    : `<strong class="flag-note">⚠ Diverges by ${finMoney(Math.abs(diff))}</strong> — app shows ${finMoney(_lastFinanceSummary.revenue)}, actual deposits ${finMoney(actual)}. Do not treat this month as final until explained.`;
+}
+
 document.addEventListener('DOMContentLoaded', async ()=>{
   await loadEmployees();
   await loadProjects();
   await loadEntries();
   document.getElementById('ms-date').value = new Date().toISOString().split('T')[0];
   renderScheduleForm();
+  initFinancePeriodPickers();
+  await loadFinanceConfig();
+  await runFinanceView();
 });
 </script>
+<script>document.addEventListener('DOMContentLoaded',()=>{try{document.querySelector('.nav-sw .nav-btn.on')?.scrollIntoView({inline:'center',block:'nearest'});}catch(e){}});</script>
 </body>
 </html>

@@ -44,6 +44,7 @@ body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var
 .nav-btn{position:relative;padding:5px 13px;border-radius:16px;border:none;font-size:11px;font-weight:500;cursor:pointer;font-family:'Inter',sans-serif;transition:all 0.18s;}
 .nav-btn.on{background:var(--cta);color:#fff;}
 .nav-btn.off{background:transparent;color:var(--muted);}
+@media (max-width: 680px) { .nav-sw { max-width:100%; overflow-x:auto; scrollbar-width:none; -webkit-overflow-scrolling:touch; } .nav-sw::-webkit-scrollbar { display:none; } .nav-btn { flex-shrink:0; } }
 .nav-badge{position:absolute;top:-3px;right:-3px;min-width:16px;height:16px;background:var(--red);color:#fff;border-radius:8px;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 4px;border:1.5px solid var(--bg);}
 
 /* ── DATE BAR ── */
@@ -496,10 +497,10 @@ async function loadAll(){
   const dateStr=toISODate(viewDate);
   const [tasksRes,invRes]=await Promise.all([
     _sb.from('tasks').select('*').eq('date',dateStr).order('sort_order',{ascending:true}).order('created_at',{ascending:true}),
-    _sb.from('invoices').select('invnum,client,address,invdate,data').not('invnum','like','DRAFT-%').not('invnum','like','GS%').order('created_at',{ascending:false}).limit(100)
+    _sb.from('invoices').select('invnum,client,address,invdate,data').not('invnum','like','DRAFT-%').not('invnum','like','GS%').neq('invnum','PRICING_DEFAULTS').neq('invnum','TIER_PRICING').not('invnum','like','TAX_REVIEW_%').neq('invnum','FINANCE_CONFIG').order('created_at',{ascending:false}).limit(100)
   ]);
   allTasks=(tasksRes.data||[]);
-  allInvoices=(invRes.data||[]).filter(inv=>{const s=(inv.data&&inv.data.stage)||'proposal';return s!=='denied';});
+  allInvoices=(invRes.data||[]).filter(inv=>{const s=(inv.data&&inv.data.stage)||'proposal';return s!=='denied'&&s!=='closed_lost';});
   activeInvoices=allInvoices;
 
   const urgentCount=buildS1();
@@ -541,24 +542,43 @@ function updateNavBadge(count){
   else document.title='SWJ — Today';
 }
 
+// Payment due = staging date minus 48 hours — matches board.html's paymentDueDateISO and
+// api/webhook.py's payment_due_date exactly (startdate is date-only, so "48h before" is
+// expressed as 2 calendar days before).
+function paymentDueDateISO(d){
+  if(!d.startdate || d.startdate === 'TBD') return null;
+  const sd = new Date(d.startdate + 'T00:00:00');
+  sd.setDate(sd.getDate() - 2);
+  return sd.getFullYear() + '-' + String(sd.getMonth()+1).padStart(2,'0') + '-' + String(sd.getDate()).padStart(2,'0');
+}
+const NEEDS_ATTENTION_DAYS = 7;   // keep in sync with board.html's constant of the same name
+
 // ── S1: URGENT FROM INVOICES ───────────────────────────
 function buildS1(){
   const actions=[];
   allInvoices.forEach(inv=>{
     const d=inv.data||{};
+    const stage=d.stage||'proposal';
     const client=inv.client||d.client||'Unknown';
     const addr=(inv.address||d.address||'').split(',')[0];
     const paid=d.paid===true;
     const grand=computeGrand(d);
-    if(!paid&&d.startdate){
-      const ago=Math.round((viewDate-new Date(d.startdate+'T00:00:00'))/864e5);
-      if(ago>0){actions.push({sev:'sev-high',label:'Payment Overdue',client,addr,detail:`Staging was ${ago} day${ago===1?'':'s'} ago · #${inv.invnum}`,amount:grand,amtRed:true,invnum:inv.invnum,btns:[{t:'Send Reminder',cls:'pri',fn:`goInv('${inv.invnum}')`},{t:'Mark Paid',cls:'grn',fn:`markPaid('${inv.invnum}')`},{t:'View',fn:`goInv('${inv.invnum}')`}],sk:1000+ago});return;}
+    // Pre-payment stages (still just quoted) are never flagged overdue/due-soon — there's
+    // no payment obligation yet (Phase 1.2: "Proposals awaiting signature are never
+    // labeled payment-overdue").
+    const dueISO = (stage==='proposal'||stage==='future_hold') ? null : paymentDueDateISO(d);
+    if(d.payer_unknown){
+      actions.push({sev:'sev-low',label:'Needs a Payer',client,addr,detail:`Quick invoice without a payer attached yet · #${inv.invnum}`,amount:null,amtRed:false,invnum:inv.invnum,btns:[{t:'Open',cls:'pri',fn:`window.location.href='/board.html?inv=${inv.invnum}'`}],sk:400});
     }
-    if(!paid&&d.startdate){
-      const away=Math.round((new Date(d.startdate+'T00:00:00')-viewDate)/864e5);
-      if(away>=0&&away<=2){actions.push({sev:'sev-medium',label:'Payment Due Soon',client,addr,detail:away===0?'Staging today — payment required':`Staging in ${away} day${away===1?'':'s'} · #${inv.invnum}`,amount:grand,amtRed:false,invnum:inv.invnum,btns:[{t:'Send Reminder',cls:'pri',fn:`goInv('${inv.invnum}')`},{t:'View',fn:`goInv('${inv.invnum}')`}],sk:500+(3-away)});return;}
+    if(!paid&&dueISO){
+      const ago=Math.round((viewDate-new Date(dueISO+'T00:00:00'))/864e5);
+      if(ago>0){actions.push({sev:'sev-high',label:'Payment Overdue',client,addr,detail:`Payment was due ${ago} day${ago===1?'':'s'} ago · #${inv.invnum}`,amount:grand,amtRed:true,invnum:inv.invnum,btns:[{t:'Open & Remind',cls:'pri',fn:`window.location.href='/board.html?inv=${inv.invnum}'`},{t:'Mark Paid',cls:'grn',fn:`markPaid('${inv.invnum}')`},{t:'View',fn:`goInv('${inv.invnum}')`}],sk:1000+ago});return;}
     }
-    if(paid&&d.startdate&&(d.stage==='staged'||!d.stage)){
+    if(!paid&&dueISO){
+      const away=Math.round((new Date(dueISO+'T00:00:00')-viewDate)/864e5);
+      if(away>=0&&away<=NEEDS_ATTENTION_DAYS){actions.push({sev:'sev-medium',label:'Payment Due Soon',client,addr,detail:away===0?'Payment due today':`Payment due in ${away} day${away===1?'':'s'} · #${inv.invnum}`,amount:grand,amtRed:false,invnum:inv.invnum,btns:[{t:'Open & Remind',cls:'pri',fn:`window.location.href='/board.html?inv=${inv.invnum}'`},{t:'View',fn:`goInv('${inv.invnum}')`}],sk:500+(NEEDS_ATTENTION_DAYS+1-away)});return;}
+    }
+    if(paid&&d.startdate&&d.startdate!=='TBD'&&(d.stage==='staged'||!d.stage)){
       const ago=Math.round((viewDate-new Date(d.startdate+'T00:00:00'))/864e5);
       if(ago>=40&&ago<=50){const left=45-ago;actions.push({sev:left<=2?'sev-high':'sev-medium',label:'Destage Approaching',client,addr,detail:left>0?`${left} day${left===1?'':'s'} until rental ends`:`${Math.abs(left)} days past window`,amount:null,amtRed:false,invnum:inv.invnum,btns:[{t:'Plan Destage',cls:'pri',fn:`window.location.href='/board.html'`}],sk:800-left});}
     }
@@ -586,7 +606,7 @@ function buildS2(){
   // Invoice-derived schedule items (staging today/tomorrow, destage today)
   allInvoices.forEach(inv=>{
     const d=inv.data||{};
-    if(d.startdate){
+    if(d.startdate&&d.startdate!=='TBD'){
       const away=Math.round((new Date(d.startdate+'T00:00:00')-viewDate)/864e5);
       if(away===0||away===1){
         const tags=[];
@@ -1103,5 +1123,6 @@ document.addEventListener('DOMContentLoaded',async()=>{
   loadAll();
 });
 </script>
+<script>document.addEventListener('DOMContentLoaded',()=>{try{document.querySelector('.nav-sw .nav-btn.on')?.scrollIntoView({inline:'center',block:'nearest'});}catch(e){}});</script>
 </body>
 </html>

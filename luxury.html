@@ -52,6 +52,7 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
 .nav-btn { padding:5px 12px; border-radius:16px; border:none; font-size:11px; font-weight:500; cursor:pointer; font-family:"Inter",sans-serif; transition:all 0.18s; white-space:nowrap; }
 .nav-btn.on  { background:#fff; color:var(--ink); }
 .nav-btn.off { background:transparent; color:rgba(255,255,255,0.4); }
+@media (max-width: 680px) { .nav-sw { max-width:100%; overflow-x:auto; scrollbar-width:none; -webkit-overflow-scrolling:touch; } .nav-sw::-webkit-scrollbar { display:none; } .nav-btn { flex-shrink:0; } }
 
 /* ── CONTENT ── */
 .content { padding:16px; max-width:640px; margin:0 auto; }
@@ -405,6 +406,10 @@ body { background:#eceff3; color:var(--ink); }
         <div class="field-lbl">Client Name</div>
         <input class="field-input client-input" id="client" type="text" placeholder="Jane Smith" autocomplete="name">
         <div class="ferr" id="e-client">Required</div>
+        <div class="toggle-row" style="padding-top:6px">
+          <input type="checkbox" id="payer-unknown" onchange="togglePayerUnknown()">
+          <label for="payer-unknown" style="font-size:11px">Payer not known yet — quick invoice, no client name required</label>
+        </div>
       </div>
       <div class="field" id="f-client-email">
         <div class="field-lbl">Client Email <span style="text-transform:none;letter-spacing:0;font-weight:400;color:var(--taupe);font-size:10px">— used for automatic receipt delivery</span></div>
@@ -416,10 +421,16 @@ body { background:#eceff3; color:var(--ink); }
         <input class="field-input" id="address" type="text" placeholder="123 Main St, Seattle WA" autocomplete="street-address" oninput="lookupTaxRate()">
         <div class="ferr" id="e-address">Required</div>
       </div>
-      <div class="field" style="max-width:180px">
-        <div class="field-lbl">ZIP Code</div>
-        <input class="field-input" id="zipcode" type="text" inputmode="numeric" maxlength="5" placeholder="98126" oninput="lookupTaxRate()">
-        <div class="zip-note" id="tax-note">&nbsp;</div>
+      <div style="display:flex;gap:10px">
+        <div class="field" style="flex:1">
+          <div class="field-lbl">City <span style="text-transform:none;letter-spacing:0;font-weight:400;color:var(--taupe);font-size:10px">— stored separately for tax reporting, never parsed from the address above</span></div>
+          <input class="field-input" id="city" type="text" placeholder="Seattle" autocomplete="address-level2">
+        </div>
+        <div class="field" style="max-width:180px">
+          <div class="field-lbl">ZIP Code</div>
+          <input class="field-input" id="zipcode" type="text" inputmode="numeric" maxlength="5" placeholder="98126" oninput="lookupTaxRate()">
+          <div class="zip-note" id="tax-note">&nbsp;</div>
+        </div>
       </div>
     </div>
   </div>
@@ -487,7 +498,7 @@ body { background:#eceff3; color:var(--ink); }
     <div class="card-body">
       <div class="base-row">
         <span class="base-lbl">Signature package investment</span>
-        <div style="display:inline-flex;align-items:center;gap:6px"><input class="base-input" id="base_price" type="number" value="2500" step="100" inputmode="decimal" oninput="onBasePriceEdit(this)"><button class="price-save-check" id="base-save-check" onclick="saveBasePriceClicked(this)" title="Save as new default" style="font-size:14px">✓</button></div>
+        <div style="display:inline-flex;align-items:center;gap:6px"><input class="base-input" id="base_price" type="number" step="100" inputmode="decimal" autocomplete="off" oninput="onBasePriceEdit(this)"><button class="price-save-check" id="base-save-check" onclick="saveBasePriceClicked(this)" title="Save as new default" style="font-size:14px">✓</button></div>
       </div>
       <div style="font-size:11px;color:var(--taupe);margin:10px 0 12px;line-height:1.5">
         Includes white-glove delivery, bespoke styling, 45-day curated furnishings & seamless teardown — plus your first 2 staged areas (the breakeven minimum). Add the rest below.
@@ -657,17 +668,17 @@ body { background:#eceff3; color:var(--ink); }
       <div class="summary-addr" id="sum-addr">&nbsp;</div>
     </div>
     <div class="summary-rows">
-      <div class="t-row"><span>Signature package</span><span id="t-base">$2,500.00</span></div>
-      <div class="t-row"><span>Add-ons</span><span id="t-addons">$0.00</span></div>
+      <div class="t-row"><span>Signature package</span><span id="t-base">—</span></div>
+      <div class="t-row"><span>Add-ons</span><span id="t-addons">—</span></div>
       <div class="t-divider"></div>
-      <div class="t-row"><span>Subtotal</span><span id="t-sub">$2,500.00</span></div>
-      <div class="t-row"><span id="t-taxlabel">Tax (10.25%)</span><span id="t-tax">$256.25</span></div>
+      <div class="t-row"><span>Subtotal</span><span id="t-sub">—</span></div>
+      <div class="t-row"><span id="t-taxlabel">Tax</span><span id="t-tax">—</span></div>
     </div>
     <div class="sum-grand">
       <span class="sum-grand-lbl">Grand Total</span>
-      <span class="sum-grand-val" id="t-grand">$2,756.25</span>
+      <span class="sum-grand-val" id="t-grand">—</span>
     </div>
-    <div class="sum-ext"><span id="t-ext">Extension: $918.75 / 30 days</span></div>
+    <div class="sum-ext"><span id="t-ext">—</span></div>
     <div id="contrib-summary-wrap" style="display:none;padding:0 20px 10px">
       <div class="t-row"><span>Other contributions</span><span id="t-contrib" style="color:#4a7c50">-$0.00</span></div>
       <div class="t-row" style="font-weight:700"><span>Balance Due (Client)</span><span id="t-balance">$0.00</span></div>
@@ -689,6 +700,7 @@ body { background:#eceff3; color:var(--ink); }
             <div class="modal-field"><label>CC <span style="text-transform:none;letter-spacing:0;font-weight:400;color:#999;font-size:10px">— sees this email, not asked to sign (e.g. a real estate agent)</span></label><input id="email-cc" type="email" multiple placeholder="agent@example.com"></div>
             <div class="modal-field"><label>Subject</label><input id="email-subject" type="text"></div>
             <div class="modal-field"><label>Message</label><textarea id="email-body"></textarea></div>
+            <div id="email-cosigner-notice" style="display:none;font-size:12px;color:#5f685a;background:#eef1ea;border-radius:8px;padding:9px 11px;margin-top:8px;line-height:1.5"></div>
             <div id="email-status" style="font-size:13px;color:#888;margin-top:8px;min-height:18px"></div>
             <button class="modal-send-btn" id="email-send-btn" onclick="sendEmail()" style="width:100%;margin-bottom:8px">Send Email</button>
             <div class="modal-btns">
@@ -940,6 +952,19 @@ function toggleStartDateTBD(){
   if(tbd){ inp.dataset.prevValue = inp.value; inp.value=''; }
   else if(inp.dataset.prevValue){ inp.value = inp.dataset.prevValue; }
 }
+
+// Payer-unknown: lets Jasmine create a quick invoice before she knows who's actually paying,
+// without typing a placeholder name like "TBD" into the client field (which used to pollute
+// the archive/follow-ups/totals as if it were a real client). Checking this just waives the
+// client-name requirement in validation — nothing else about creating the invoice changes.
+// Saving a real name later and unchecking this is what "attaches a payer."
+function togglePayerUnknown(){
+  const on = document.getElementById('payer-unknown').checked;
+  const inp = document.getElementById('client');
+  document.getElementById('e-client')?.classList.remove('show');
+  inp.classList.remove('err');
+  inp.placeholder = on ? 'Optional while payer is unknown' : 'Jane Smith';
+}
 function getStartDateValue(){
   return document.getElementById('startdate-tbd')?.checked ? 'TBD' : document.getElementById('startdate').value;
 }
@@ -1135,18 +1160,57 @@ function getCosigner(){
 }
 
 function fmt(n){return'$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
+
+// Phase 5.1 — every add-on line is tagged rental or service (room/category furniture is
+// always rental; only a line that reads like pure labor — photography, consulting, a design
+// fee — is service). Same heuristic the tax report has used for Retailing vs Service & Other
+// since before this rebuild, now applied at creation time instead of re-guessed at report time.
+function addonType(desc){
+  const s=(desc||'').toLowerCase();
+  return (s.includes('photo')||s.includes('consult')||s.includes('design fee')) ? 'service' : 'rental';
+}
+// Base package default rental/service split — see TAX_METHODOLOGY.md for the derivation
+// (confirmed 50/50 by Gabe, Oct 25, 2026). Stored per-invoice (rental_share_base) so a future
+// change to this constant never silently reclassifies an already-issued invoice.
+const BASE_RENTAL_SHARE = 0.5;
+
+// Phase 5.2 — price-led tax: `total` is the chosen price (computed exactly as it always was —
+// nothing about what the client is charged changes). What changes is backing the tax out of
+// that already-fixed total using only the rental share, instead of taxing the full subtotal.
+// See TAX_METHODOLOGY.md for the full derivation and the worked example.
+function priceLedTax(basePrice, addonList, ratePct, total){
+  const rentalDollars = basePrice*BASE_RENTAL_SHARE + addonList.filter(a=>a.type!=='service').reduce((s,a)=>s+a.price,0);
+  const allDollars = basePrice + addonList.reduce((s,a)=>s+a.price,0);
+  const rentalShare = allDollars>0.009 ? rentalDollars/allDollars : 1;
+  const r = (ratePct||0)/100;
+  const pretax = r>0 ? total/(1+r*rentalShare) : total;
+  return {pretax, tax: total-pretax, rentalShare};
+}
+
 function recalc(){
-  let t=0;selAddons.forEach(e=>{t+=parseFloat(CATS[e.ci].sizes[e.oi].price)||0;});
-  t+=customs.reduce((s,a)=>s+(parseFloat(a.price)||0),0);
-  t+=extraBedrooms.reduce((s,b)=>s+(parseFloat(b.price)||0),0);  // each extra bedroom keeps its OWN price
-  t+=extraAreas.reduce((s,a)=>s+(parseFloat(a.price)||0),0);     // each extra area keeps its OWN price
+  let t=0; const _addons=[];
+  selAddons.forEach(e=>{const p=parseFloat(CATS[e.ci].sizes[e.oi].price)||0;t+=p;_addons.push({price:p,type:'rental'});});
+  customs.forEach(a=>{const p=parseFloat(a.price)||0;t+=p;_addons.push({price:p,type:addonType(a.desc)});});
+  extraBedrooms.forEach(b=>{const p=parseFloat(b.price)||0;t+=p;_addons.push({price:p,type:'rental'});});  // each extra bedroom keeps its OWN price
+  extraAreas.forEach(a=>{const p=parseFloat(a.price)||0;t+=p;_addons.push({price:p,type:'rental'});});     // each extra area keeps its OWN price
   const base=parseFloat(document.getElementById('base_price')?.value)||2500;
   const sub=base+t,rate=parseFloat(document.getElementById('taxrate').value)||0;
   // Manual overrides: anything typed prints exactly; blank fields auto-calculate.
   const ovSub=_ov('ov-subtotal'),ovTax=_ov('ov-tax'),ovTot=_ov('ov-total');
-  const subShown=ovSub!==null?ovSub:sub;
-  const taxShown=ovTax!==null?ovTax:subShown*rate/100;
-  const grandShown=ovTot!==null?ovTot:subShown+taxShown;
+  let subShown, taxShown, grandShown;
+  if(ovSub!==null||ovTax!==null||ovTot!==null){
+    subShown=ovSub!==null?ovSub:sub;
+    taxShown=ovTax!==null?ovTax:subShown*rate/100;
+    grandShown=ovTot!==null?ovTot:subShown+taxShown;
+  } else {
+    // "Chosen price" — the exact same number this always produced (base+addons, tax added
+    // at the full rate). Price-led tax then backs the (smaller, rental-only) tax out of
+    // THIS fixed total rather than taxing the full subtotal — see priceLedTax() above.
+    grandShown = sub + sub*rate/100;
+    const plt = priceLedTax(base, _addons, rate, grandShown);
+    subShown = plt.pretax;
+    taxShown = plt.tax;
+  }
   const baseEl=document.getElementById('t-base'); if(baseEl) baseEl.textContent=fmt(base);
   document.getElementById('t-addons').textContent=fmt(t);
   document.getElementById('t-sub').textContent=fmt(subShown);
@@ -1729,6 +1793,11 @@ async function loadRecent(){
       .from('invoices')
       .select('invnum,client,address,invdate,data')
       .not('invnum', 'like', 'GS%')
+      .not('invnum', 'like', 'DRAFT-%')
+      .neq('invnum', 'PRICING_DEFAULTS')
+      .neq('invnum', 'TIER_PRICING')
+      .not('invnum', 'like', 'TAX_REVIEW_%')
+      .neq('invnum', 'FINANCE_CONFIG')
       .order('created_at', { ascending: false })
       .limit(10);
     if(error||!data||data.length===0){el.textContent='No recent invoices.';return;}
@@ -1772,13 +1841,34 @@ function loadInvoice(idx){
   }catch(e){console.log('Load error:',e);}
 }
 
+// The full record as loaded, kept so a later save can restore whatever this generator has
+// no form field for (destage_date, extensions[], stage, signed, confirmations, payments,
+// send_log, etc. — all board-managed). Without this, regenerating an already-staged
+// invoice's PDF would silently wipe all of that: saveInvoice()'s upsert replaces the WHOLE
+// data column, and the generator only ever rebuilds the fields it knows about (confirmed
+// real-world data loss, audit finding on #2020130/#2020131/#2020129).
+let _loadedInvoiceData = null;
+function preserveBoardFields(data, invNumFinal){
+  if(_loadedInvoiceData && _loadedInvoiceData.invnum === invNumFinal){
+    Object.keys(_loadedInvoiceData).forEach(k=>{ if(!(k in data)) data[k] = _loadedInvoiceData[k]; });
+  }
+  return data;
+}
+
 function loadInvoiceData(d){
+  _loadedInvoiceData = d;
   try{
     // Fill form fields
     document.getElementById('client').value = d.client||'';
+    const payerUnknownChk = document.getElementById('payer-unknown');
+    if(payerUnknownChk){ payerUnknownChk.checked = !!d.payer_unknown; togglePayerUnknown(); }
     if(document.getElementById('client_email')) document.getElementById('client_email').value = d.client_email || '';
     document.getElementById('address').value = d.address||'';
-    document.getElementById('zipcode').value = '';
+    // d.zip/d.city only exist on invoices created after the Phase 5 structured-address
+    // change — legacy records have the zip baked into the free-text address above instead,
+    // so there's nothing to restore into these fields for them.
+    if(document.getElementById('zipcode')) document.getElementById('zipcode').value = d.zip||'';
+    if(document.getElementById('city')) document.getElementById('city').value = d.city||'';
     document.getElementById('invdate').value = d.invdate||'';
     setStartDateFromData(d.startdate);
     document.getElementById('invnum-display').value = d.invnum||'';   // keep the same number so editing + regenerating UPDATES this invoice (and its Approve/Sign link)
@@ -1918,6 +2008,7 @@ async function saveDraft(silent){
   customs.filter(a=>a.desc).forEach(a=>{allAddons.push({desc:a.desc+(a.scope?': '+a.scope:''),price:parseFloat(a.price)||0});});
   extraBedrooms.forEach(b=>{allAddons.push({desc:`${b.name} (${b.bed}): ${b.scope||b.size}`,price:b.price});});
   extraAreas.forEach(a=>{allAddons.push({desc:`${a.name}: ${a.scope||a.size}`,price:parseFloat(a.price)||0});});
+  allAddons.forEach(a=>{ a.type = a.type || addonType(a.desc); });
 
   const sub = parseFloat(document.getElementById('base_price')?.value)||2500;
   const taxrate = parseFloat(document.getElementById('taxrate').value)||0;
@@ -1937,6 +2028,10 @@ async function saveDraft(silent){
     base_price: parseFloat(document.getElementById('base_price')?.value)||2500,
     subtotal_override: ovSub, tax_override: ovTax, total_override: ovTot,
     addons: allAddons,
+    city: document.getElementById('city')?.value.trim()||'',
+    zip: document.getElementById('zipcode')?.value.trim()||'',
+    property_state: 'WA',
+    rental_share_base: BASE_RENTAL_SHARE,
     state: captureState(),
     promo1: document.getElementById('promo1').checked,
     promo2: document.getElementById('promo2').checked,
@@ -1948,6 +2043,7 @@ async function saveDraft(silent){
     paid_date: document.getElementById('paid_date')?.value||'',
     payment_url: null,
     cosigner: getCosigner(),
+    payer_unknown: !!document.getElementById('payer-unknown')?.checked,
     _is_draft: true,
     _draft_saved: new Date().toLocaleDateString()
   };
@@ -2010,10 +2106,11 @@ let _lastPdfBlob=null,_lastPdfFilename='';
 // and any failure shows a visible message instead of spinning forever.
 async function downloadPdfNow(){
   let valid=true;
+  const payerUnknown = document.getElementById('payer-unknown')?.checked;
   ['client','address','invdate','startdate'].forEach(iid=>{
     const inp=document.getElementById(iid);
     const eid='e-'+iid;
-    if(!inp || (!inp.value.trim() && !(iid==='startdate' && document.getElementById('startdate-tbd')?.checked))){if(inp)inp.classList.add('err');document.getElementById(eid)?.classList.add('show');valid=false;}
+    if(!inp || (!inp.value.trim() && !(iid==='startdate' && document.getElementById('startdate-tbd')?.checked) && !(iid==='client' && payerUnknown))){if(inp)inp.classList.add('err');document.getElementById(eid)?.classList.add('show');valid=false;}
     else{inp.classList.remove('err');document.getElementById(eid)?.classList.remove('show');}
   });
   if(selRooms.size===0){document.getElementById('rooms-grid')?.classList.add('err');document.getElementById('e-rooms')?.classList.add('show');valid=false;}
@@ -2036,23 +2133,32 @@ async function downloadPdfNow(){
   customs.filter(a=>a.desc).forEach(a=>{allAddons.push({desc:a.desc+(a.scope?': '+a.scope:''),price:parseFloat(a.price)||0});});
   extraBedrooms.forEach(b=>{allAddons.push({desc:b.name+' ('+b.bed+'): '+(b.scope||b.size),price:b.price});});
   extraAreas.forEach(a=>{allAddons.push({desc:a.name+': '+(a.scope||a.size),price:parseFloat(a.price)||0});});
+  allAddons.forEach(a=>{ a.type = a.type || addonType(a.desc); });
 
   const base=parseFloat(document.getElementById('base_price')?.value)||2500;
   const addonTotal=allAddons.reduce((s,a)=>s+a.price,0);
   const sub=base+addonTotal, taxrate=parseFloat(document.getElementById('taxrate').value)||0;
   const ovSub=_ov('ov-subtotal'),ovTax=_ov('ov-tax'),ovTot=_ov('ov-total');
-  const subEff=ovSub!==null?ovSub:sub;
-  const taxEff=ovTax!==null?ovTax:subEff*taxrate/100;
-  const grand=ovTot!==null?ovTot:subEff+taxEff, extrate=Math.round(grand/3*100)/100;
+  const _hasOverride=ovSub!==null||ovTax!==null||ovTot!==null;
+  const grand = _hasOverride ? (ovTot!==null?ovTot:(ovSub!==null?ovSub:sub)+(ovTax!==null?ovTax:(ovSub!==null?ovSub:sub)*taxrate/100)) : sub+sub*taxrate/100;
+  const extrate=Math.round(grand/3*100)/100;
   const client=document.getElementById('client').value.trim();
   const clientEmail=document.getElementById('client_email')?.value.trim()||'';
   const addressBase=document.getElementById('address').value.trim();
   const zipVal=document.getElementById('zipcode')?.value.trim()||'';
-  const address=zipVal&&!addressBase.includes(zipVal)?addressBase+' '+zipVal:addressBase;
+  // City (Phase 5.1) is stored as its own structured field for tax reporting, but the
+  // client-facing property address shown on the PDF/proposal still needs it too (audit
+  // finding: "client PDFs omit the city") — appended here only if not already typed into
+  // the free-text address above.
+  const cityVal=document.getElementById('city')?.value.trim()||'';
+  let address=addressBase;
+  if(cityVal && !address.toLowerCase().includes(cityVal.toLowerCase())) address += (address?', ':'')+cityVal;
+  if(zipVal && !address.includes(zipVal)) address += ' '+zipVal;
   const invNumFinal=document.getElementById('invnum-display').value.trim()||'202093';
 
   const _contribList=contributions.filter(c=>c.label&&parseFloat(c.amount)>0).map(c=>({label:c.label,amount:parseFloat(c.amount)}));
-  const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:getStartDateValue(),baserooms:[...selRooms].join(', '),baseroom_scopes:roomScopesObj(),extrate,taxrate,base_price:base,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,state:captureState(),home_value:homeValue,home_sqft:homeSqft,tier:selTier,scope:selScope,promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,promo4:document.getElementById('promo4')?.checked||false,payment_url:null,contributions:_contribList,cosigner:getCosigner(),cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||'',pet_deposit:petDepositBase()};
+  const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:getStartDateValue(),baserooms:[...selRooms].join(', '),baseroom_scopes:roomScopesObj(),extrate,taxrate,base_price:base,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,city:document.getElementById('city')?.value.trim()||'',zip:zipVal,property_state:'WA',rental_share_base:BASE_RENTAL_SHARE,price_led_tax:!_hasOverride,state:captureState(),home_value:homeValue,home_sqft:homeSqft,tier:selTier,scope:selScope,promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,promo4:document.getElementById('promo4')?.checked||false,payment_url:null,contributions:_contribList,cosigner:getCosigner(),cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||'',pet_deposit:petDepositBase(),payer_unknown:!!payerUnknown};
+  preserveBoardFields(data, invNumFinal);
 
   const ctrl=new AbortController();
   const to=setTimeout(()=>ctrl.abort(),90000);
@@ -2166,7 +2272,7 @@ function openEmailModal(data){
   const clientRoleParam=data.cosigner&&data.cosigner.name?"&role=client":"";
   const proposalUrl=location.origin+"/proposal.html?inv="+(data.invnum||"")+clientRoleParam;
   const approveLine="\n\nTo approve this proposal, review & sign here:\n"+proposalUrl;
-  document.getElementById("email-to").value="";
+  document.getElementById("email-to").value=data.client_email||"";
   document.getElementById("email-cc").value="";
   if(isLux){
     document.getElementById("email-subject").value="Your Curated Staging Proposal — "+address;
@@ -2174,6 +2280,16 @@ function openEmailModal(data){
   } else {
     document.getElementById("email-subject").value="Your Staging Proposal — "+address;
     document.getElementById("email-body").value="Hi "+firstName+",\n\nThank you for the opportunity to work with you! I'm excited about this property and what we can create together.\n\nAttached you'll find your personalized staging proposal for "+address+". Inside you'll find the full scope of work, investment total, and payment details.\n\nA few important notes:\n• Full payment is due 48 hours before installation day\n• Once payment is received I'll lock in your staging date\n• The payment link is included in the proposal for your convenience\n\nPlease don't hesitate to reach out with any questions!\n\nLooking forward to transforming your space."+approveLine+"\n\nWarmly,\nJasmine Santana\nOwner & Creative Director — Styling With Jas\n📱 206-422-5618\n📧 info@stylingwithjas.com";
+  }
+  // Sending this invites the co-signer automatically in the same action (see
+  // sendCosignerInviteEmail) — disclosed here so nothing sends invisibly as a side effect.
+  const cosignerNotice = document.getElementById("email-cosigner-notice");
+  const cs = data.cosigner;
+  if(cs && cs.name && cs.email){
+    cosignerNotice.style.display = "block";
+    cosignerNotice.textContent = "Sending this will also invite "+cs.name+" <"+cs.email+"> to review and sign as "+(cs.role||"co-signer")+".";
+  } else {
+    cosignerNotice.style.display = "none";
   }
   document.getElementById("email-status").textContent="";
   document.getElementById("email-modal").classList.add("show");
@@ -2244,6 +2360,13 @@ async function sendEmail(){
     if(d.sent){
       const n=(d.to||[]).length;
       let statusMsg='✓ Sent to '+(n>1?n+' recipients':'1 recipient')+(d.skipped&&d.skipped.length?' (skipped invalid: '+d.skipped.join(', ')+')':'')+(ccAddrs.length?' · CC\'d '+ccAddrs.length:'')+'!';
+      // This is the proposal actually reaching the client — the quote lifecycle's 30-day
+      // silence clock runs from this timestamp (date_sent), not from when it was drafted.
+      // Re-sending later (e.g. a correction) intentionally restarts the clock.
+      if(window._lastInvoiceData){
+        window._lastInvoiceData.date_sent = new Date().toISOString();
+        saveInvoice(window._lastInvoiceData).catch(()=>{});
+      }
       // Co-signer gets their own tailored Approve & Sign email at the same time — signing
       // doesn't wait on the client to go first anymore, so both need their invite up front.
       const cosignerResult=await sendCosignerInviteEmail(window._lastInvoiceData, base64);
@@ -2289,10 +2412,11 @@ async function sendCosignerInviteEmail(data, pdfBase64){
 
 async function generatePDF(){
   let valid=true;
+  const payerUnknown = document.getElementById('payer-unknown')?.checked;
   ['client','address','invdate','startdate'].forEach(iid=>{
     const inp=document.getElementById(iid);
     const eid='e-'+iid;
-    if(!inp || (!inp.value.trim() && !(iid==='startdate' && document.getElementById('startdate-tbd')?.checked))){if(inp)inp.classList.add('err');document.getElementById(eid)?.classList.add('show');valid=false;}
+    if(!inp || (!inp.value.trim() && !(iid==='startdate' && document.getElementById('startdate-tbd')?.checked) && !(iid==='client' && payerUnknown))){if(inp)inp.classList.add('err');document.getElementById(eid)?.classList.add('show');valid=false;}
     else{inp.classList.remove('err');document.getElementById(eid)?.classList.remove('show');}
   });
   if(selRooms.size===0){document.getElementById('rooms-grid')?.classList.add('err');document.getElementById('e-rooms')?.classList.add('show');valid=false;}
@@ -2309,19 +2433,27 @@ async function generatePDF(){
   customs.filter(a=>a.desc).forEach(a=>{allAddons.push({desc:a.desc+(a.scope?': '+a.scope:''),price:parseFloat(a.price)||0});});
   extraBedrooms.forEach(b=>{allAddons.push({desc:`${b.name} (${b.bed}): ${b.scope||b.size}`,price:b.price});});
   extraAreas.forEach(a=>{allAddons.push({desc:`${a.name}: ${a.scope||a.size}`,price:parseFloat(a.price)||0});});
+  allAddons.forEach(a=>{ a.type = a.type || addonType(a.desc); });
 
   const addonTotal=allAddons.reduce((s,a)=>s+a.price,0);
   const base=parseFloat(document.getElementById('base_price')?.value)||2500;
   const sub=base+addonTotal,taxrate=parseFloat(document.getElementById('taxrate').value)||0;
   const ovSub=_ov('ov-subtotal'),ovTax=_ov('ov-tax'),ovTot=_ov('ov-total');
-  const subEff=ovSub!==null?ovSub:sub;
-  const taxEff=ovTax!==null?ovTax:subEff*taxrate/100;
-  const grand=ovTot!==null?ovTot:subEff+taxEff,extrate=Math.round(grand/3*100)/100;
+  const _hasOverride=ovSub!==null||ovTax!==null||ovTot!==null;
+  const grand = _hasOverride ? (ovTot!==null?ovTot:(ovSub!==null?ovSub:sub)+(ovTax!==null?ovTax:(ovSub!==null?ovSub:sub)*taxrate/100)) : sub+sub*taxrate/100;
+  const extrate=Math.round(grand/3*100)/100;
   const client=document.getElementById('client').value.trim();
   const clientEmail=document.getElementById('client_email')?.value.trim()||'';
   const addressBase=document.getElementById('address').value.trim();
   const zipVal=document.getElementById('zipcode')?.value.trim()||'';
-  const address=zipVal&&!addressBase.includes(zipVal)?addressBase+' '+zipVal:addressBase;
+  // City (Phase 5.1) is stored as its own structured field for tax reporting, but the
+  // client-facing property address shown on the PDF/proposal still needs it too (audit
+  // finding: "client PDFs omit the city") — appended here only if not already typed into
+  // the free-text address above.
+  const cityVal=document.getElementById('city')?.value.trim()||'';
+  let address=addressBase;
+  if(cityVal && !address.toLowerCase().includes(cityVal.toLowerCase())) address += (address?', ':'')+cityVal;
+  if(zipVal && !address.includes(zipVal)) address += ' '+zipVal;
   const invNumFinal=document.getElementById('invnum-display').value.trim()||'202093';
   invNum=invNumFinal;
 
@@ -2354,8 +2486,9 @@ async function generatePDF(){
 
   setSt('loading','Generating your invoice PDF...');
   const _contribList=contributions.filter(c=>c.label&&parseFloat(c.amount)>0).map(c=>({label:c.label,amount:parseFloat(c.amount)}));
-  const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:getStartDateValue(),baserooms:[...selRooms].join(', '),baseroom_scopes:roomScopesObj(),extrate,taxrate,base_price:base,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,state:captureState(),home_value:homeValue,home_sqft:homeSqft,tier:selTier,scope:selScope,promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
-            promo4:document.getElementById('promo4').checked,payment_url,payment_link_id,contributions:_contribList,payments:splitPayments,active_client_payment_id:activeClientPaymentId,pet_deposit:petDeposit,cosigner:getCosigner(),cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||''};
+  const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:getStartDateValue(),baserooms:[...selRooms].join(', '),baseroom_scopes:roomScopesObj(),extrate,taxrate,base_price:base,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,city:document.getElementById('city')?.value.trim()||'',zip:zipVal,property_state:'WA',rental_share_base:BASE_RENTAL_SHARE,price_led_tax:!_hasOverride,state:captureState(),home_value:homeValue,home_sqft:homeSqft,tier:selTier,scope:selScope,promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
+            promo4:document.getElementById('promo4').checked,payment_url,payment_link_id,contributions:_contribList,payments:splitPayments,active_client_payment_id:activeClientPaymentId,pet_deposit:petDeposit,cosigner:getCosigner(),cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||'',payer_unknown:!!payerUnknown};
+  preserveBoardFields(data, invNumFinal);
 
   const _ctrl=new AbortController();
   const _to=setTimeout(()=>_ctrl.abort(),90000);   // never spin forever
@@ -2403,18 +2536,26 @@ async function generate(){
   customs.filter(a=>a.desc).forEach(a=>{allAddons.push({desc:a.desc+(a.scope?': '+a.scope:''),price:parseFloat(a.price)||0});});
   extraBedrooms.forEach(b=>{allAddons.push({desc:`${b.name} (${b.bed}): ${b.scope||b.size}`,price:b.price});});
   extraAreas.forEach(a=>{allAddons.push({desc:`${a.name}: ${a.scope||a.size}`,price:parseFloat(a.price)||0});});
+  allAddons.forEach(a=>{ a.type = a.type || addonType(a.desc); });
 
   const addonTotal=allAddons.reduce((s,a)=>s+a.price,0);
   const base=parseFloat(document.getElementById('base_price')?.value)||2500; const sub=base+addonTotal,taxrate=parseFloat(document.getElementById('taxrate').value)||0;
   const ovSub=_ov('ov-subtotal'),ovTax=_ov('ov-tax'),ovTot=_ov('ov-total');
-  const subEff=ovSub!==null?ovSub:sub;
-  const taxEff=ovTax!==null?ovTax:subEff*taxrate/100;
-  const grand=ovTot!==null?ovTot:subEff+taxEff,extrate=Math.round(grand/3*100)/100;
+  const _hasOverride=ovSub!==null||ovTax!==null||ovTot!==null;
+  const grand = _hasOverride ? (ovTot!==null?ovTot:(ovSub!==null?ovSub:sub)+(ovTax!==null?ovTax:(ovSub!==null?ovSub:sub)*taxrate/100)) : sub+sub*taxrate/100;
+  const extrate=Math.round(grand/3*100)/100;
   const client=document.getElementById('client').value.trim();
   const clientEmail=document.getElementById('client_email')?.value.trim()||'';
   const addressBase=document.getElementById('address').value.trim();
   const zipVal=document.getElementById('zipcode')?.value.trim()||'';
-  const address=zipVal&&!addressBase.includes(zipVal)?addressBase+' '+zipVal:addressBase;
+  // City (Phase 5.1) is stored as its own structured field for tax reporting, but the
+  // client-facing property address shown on the PDF/proposal still needs it too (audit
+  // finding: "client PDFs omit the city") — appended here only if not already typed into
+  // the free-text address above.
+  const cityVal=document.getElementById('city')?.value.trim()||'';
+  let address=addressBase;
+  if(cityVal && !address.toLowerCase().includes(cityVal.toLowerCase())) address += (address?', ':'')+cityVal;
+  if(zipVal && !address.includes(zipVal)) address += ' '+zipVal;
 
   // Read invoice number from editable field
   const invNumFinal = document.getElementById('invnum-display').value.trim() || '202093';
@@ -2452,8 +2593,9 @@ async function generate(){
   setSt('loading','Generating your invoice PDF...');
 
   const _contribList=contributions.filter(c=>c.label&&parseFloat(c.amount)>0).map(c=>({label:c.label,amount:parseFloat(c.amount)}));
-  const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:getStartDateValue(),baserooms:[...selRooms].join(', '),baseroom_scopes:roomScopesObj(),extrate,taxrate,base_price:parseFloat(document.getElementById('base_price')?.value)||2500,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,state:captureState(),home_value:homeValue,home_sqft:homeSqft,tier:selTier,scope:selScope,promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
-            promo4:document.getElementById('promo4').checked,payment_url,payment_link_id,contributions:_contribList,payments:splitPayments,active_client_payment_id:activeClientPaymentId,pet_deposit:petDeposit,cosigner:getCosigner(),cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||''};
+  const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:getStartDateValue(),baserooms:[...selRooms].join(', '),baseroom_scopes:roomScopesObj(),extrate,taxrate,base_price:parseFloat(document.getElementById('base_price')?.value)||2500,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,city:document.getElementById('city')?.value.trim()||'',zip:zipVal,property_state:'WA',rental_share_base:BASE_RENTAL_SHARE,price_led_tax:!_hasOverride,state:captureState(),home_value:homeValue,home_sqft:homeSqft,tier:selTier,scope:selScope,promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
+            promo4:document.getElementById('promo4').checked,payment_url,payment_link_id,contributions:_contribList,payments:splitPayments,active_client_payment_id:activeClientPaymentId,pet_deposit:petDeposit,cosigner:getCosigner(),cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||'',payer_unknown:!!payerUnknown};
+  preserveBoardFields(data, invNumFinal);
 
   // Send to API and download PDF
   try {
@@ -2511,15 +2653,21 @@ async function generate(){
 
 
 
-document.addEventListener('DOMContentLoaded', function(){
+document.addEventListener('DOMContentLoaded', async function(){
   try {
     document.getElementById('invdate').value=new Date().toISOString().split('T')[0];
     const bp=document.getElementById('base_price');
     if(bp){bp.addEventListener('input',recalc);bp.addEventListener('change',recalc);}
     buildRooms();
+    try{ await loadPricingDefaults(); }catch(e){}
+    // base_price has no static HTML default (see the input's markup) so it never visibly
+    // shows a wrong number before the saved default loads — if no default is saved yet,
+    // fall back to 2500 here, in the same breath as the real default, instead of in markup.
+    if(bp && !bp.value) bp.value = 2500;
     buildCats();
-    loadPricingDefaults().then(()=>{ buildCats(); recalc(); _origBasePrice = parseFloat(document.getElementById('base_price').value)||2500; selectTier('Standard', false); }).catch(()=>{ selectTier('Standard', false); });
     recalc();
+    _origBasePrice = parseFloat(document.getElementById('base_price').value)||2500;
+    selectTier('Standard', false);
     initInvNum();
     loadRecent();
     loadDrafts();
@@ -2529,5 +2677,6 @@ document.addEventListener('DOMContentLoaded', function(){
   }
 });
 </script>
+<script>document.addEventListener('DOMContentLoaded',()=>{try{document.querySelector('.nav-sw .nav-btn.on')?.scrollIntoView({inline:'center',block:'nearest'});}catch(e){}});</script>
 </body>
 </html>
