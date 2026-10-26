@@ -104,6 +104,40 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
 .ti-label.info { color:rgba(201,169,110,0.9); }
 .ti-value { font-family:'Cormorant Garamond',serif; font-size:15px; font-weight:400; color:#fff; line-height:1.2; }
 
+/* ── TODAY-STYLE VIEW (Phase 7) — greeting, On Site Now, Destage Needs Scheduling,
+   Needs Action (the existing Today strip, renamed), Pipeline, Future Hold, in that order.
+   Each section hides itself entirely when empty rather than showing a live-button card
+   with nothing in it. ── */
+.tsv-greeting { font-family:'Cormorant Garamond',serif; font-size:17px; font-weight:300; color:var(--ink); padding:14px 16px 4px; }
+.tsv-section { padding:12px 16px; border-bottom:1px solid rgba(162,156,150,0.15); }
+.tsv-section-hdr { font-size:11px; font-weight:700; color:var(--taupe-dk); text-transform:uppercase; letter-spacing:1px; margin-bottom:8px; }
+.tsv-card { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; background:var(--warm); border-radius:10px; padding:10px 12px; margin-bottom:6px; cursor:pointer; }
+.tsv-card:last-child { margin-bottom:0; }
+.tsv-card-name { font-size:13px; font-weight:600; color:var(--ink); }
+.tsv-card-addr { font-size:11px; color:var(--taupe-dk); margin-top:1px; }
+.tsv-card-side { text-align:right; flex-shrink:0; }
+.tsv-card-tag { font-size:10.5px; font-weight:600; padding:3px 8px; border-radius:20px; background:rgba(74,124,80,0.1); color:var(--green); display:inline-block; }
+.tsv-card-tag.a { background:rgba(181,53,53,0.1); color:var(--red); }
+.tsv-card-tag.w { background:rgba(201,124,46,0.1); color:var(--amber,#c97c2e); }
+.tsv-card-sub { font-size:10px; color:var(--taupe); margin-top:3px; }
+.mini-act { font-size:10.5px; padding:4px 9px; border-radius:12px; border:1px solid var(--taupe-lt); background:#fff; cursor:pointer; font-family:'Inter',sans-serif; }
+.mini-act:active { opacity:0.7; }
+
+/* Kanban hidden by default at phone width (Phase 7) — the Today-style view above is the
+   default there; a button lets anyone override this at any width. */
+@media (max-width: 680px) {
+  .board.kanban-hidden { display:none; }
+}
+
+/* Main nav: 9 tabs are too many to fit on a phone screen without crowding — make the strip
+   horizontally scrollable there instead of wrapping/squeezing (Phase 7 mobile nav). Tab
+   order, labels, and destinations are unchanged; this is presentation only. */
+@media (max-width: 680px) {
+  .nav-sw { max-width:100%; overflow-x:auto; scrollbar-width:none; -webkit-overflow-scrolling:touch; }
+  .nav-sw::-webkit-scrollbar { display:none; }
+  .nav-btn { flex-shrink:0; }
+}
+
 /* ── PIPELINE ── */
 .pipeline { display:grid; grid-template-columns:repeat(5,1fr); gap:1px; background:var(--taupe-lt); border-bottom:1px solid var(--taupe-lt); }
 .pipe { background:var(--warm); padding:11px 8px; }
@@ -420,10 +454,26 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
   </div>
 </div>
 
-<!-- TODAY SECTION -->
+<!-- TODAY-STYLE VIEW (Phase 7) — greeting, On Site Now, Destage Needs Scheduling,
+     Needs Action, Pipeline, Future Hold, in that order. This is the default view; the
+     kanban below is secondary and hidden by default at phone width (see "Show Full
+     Kanban Board" toggle at the end of this block). -->
+<div class="tsv-greeting" id="tsv-greeting"></div>
+
+<div class="tsv-section" id="tsv-onsite-section" style="display:none">
+  <div class="tsv-section-hdr">🏠 On Site Now</div>
+  <div id="tsv-onsite-list"></div>
+</div>
+
+<div class="tsv-section" id="tsv-destage-section" style="display:none">
+  <div class="tsv-section-hdr">📦 Destage — Needs Scheduling</div>
+  <div id="tsv-destage-list"></div>
+</div>
+
+<!-- Needs Action (the board's own urgent-items strip — kept in sync with today.html's count) -->
 <div class="today-wrap" style="background:var(--ink);padding:0 16px 16px;border-bottom:3px solid var(--gold)">
   <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0 10px">
-    <div style="font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:300;color:#fff;letter-spacing:1px">Today</div>
+    <div style="font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:300;color:#fff;letter-spacing:1px">Needs Action</div>
     <div style="display:flex;align-items:center;gap:10px">
       <button id="check-reminders-btn" onclick="checkRemindersNow()" style="background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.6);border:none;border-radius:14px;padding:5px 10px;font-size:10px;cursor:pointer;white-space:nowrap">🔔 Check Reminders Now</button>
       <button id="test-digest-btn" onclick="testWeeklyDigestNow()" style="background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.6);border:none;border-radius:14px;padding:5px 10px;font-size:10px;cursor:pointer;white-space:nowrap">📧 Test Weekly Digest</button>
@@ -464,6 +514,15 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
     <div class="pipe-val r" id="stat-attention-count">0</div>
     <div class="pipe-note">action required</div>
   </div>
+</div>
+
+<div class="tsv-section" id="tsv-futurehold-section" style="display:none">
+  <div class="tsv-section-hdr">⏳ Future Hold</div>
+  <div id="tsv-futurehold-list"></div>
+</div>
+
+<div style="text-align:center;padding:10px 16px 0">
+  <button class="compact-toggle" id="show-kanban-btn" onclick="toggleKanbanView()" style="color:var(--ink);background:var(--warm);border:1px solid rgba(162,156,150,0.3)">▦ Show Full Kanban Board</button>
 </div>
 
 <!-- BOARD — cards rendered from Supabase -->
@@ -543,8 +602,8 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
     <div class="m-sec" data-sec="client" style="margin-top:10px">
       <div class="m-sec-ttl">👤 Client</div>
       <div class="m-row">
-        <span class="m-lbl">Invoice total ($)</span>
-        <input class="m-input" id="m-amount" type="text" inputmode="decimal" placeholder="e.g. 3841.61" style="flex:1">
+        <span class="m-lbl">Base price ($) <span style="font-weight:400;color:#999;font-size:10px">— excludes add-ons/tax; grand total is shown above</span></span>
+        <input class="m-input" id="m-amount" type="text" inputmode="decimal" placeholder="e.g. 2650.00" style="flex:1">
       </div>
       <div class="m-row">
         <span class="m-lbl">Address</span>
@@ -806,6 +865,27 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
 
 <script>
 let compact = false;
+
+// Phase 7 — the kanban is secondary to the Today-style view above; the "kanban-hidden"
+// class is always applied, but only actually hides anything under 680px (see the media
+// query), so desktop keeps the kanban visible by default while phone width doesn't.
+let _kanbanForced = false;
+function applyKanbanVisibility(){
+  const board = document.getElementById('board');
+  const btn = document.getElementById('show-kanban-btn');
+  if(!board) return;
+  if(_kanbanForced){
+    board.classList.remove('kanban-hidden');
+    if(btn) btn.textContent = '▦ Hide Kanban Board';
+  } else {
+    board.classList.add('kanban-hidden');
+    if(btn) btn.textContent = '▦ Show Full Kanban Board';
+  }
+}
+function toggleKanbanView(){
+  _kanbanForced = !_kanbanForced;
+  applyKanbanVisibility();
+}
 
 function toggleCompact(){
   compact = !compact;
@@ -2076,6 +2156,9 @@ async function loadBoard(){
     // Update today strip
     updateTodayStrip(invoices);
 
+    // Update the Today-style view (Phase 7 — On Site Now, Destage Needs Scheduling, Future Hold)
+    renderTodayStyleView(invoices);
+
     // Re-apply compact mode if it was on
     if(compact){
       document.querySelectorAll('.card').forEach(c => c.classList.add('compact'));
@@ -2159,7 +2242,7 @@ function updateTodayStrip(invoices){
       const dueDate = new Date(dueISO + 'T00:00:00');
       const daysAgo = Math.round((today - dueDate)/(1000*60*60*24));
       if(daysAgo > 0){
-        items.push({type:'urgent', label:'Payment overdue', value:client, invnum:inv.invnum, sortKey:1000+daysAgo});
+        items.push({type:'urgent', kind:'payment', label:'Payment overdue', value:client, invnum:inv.invnum, sortKey:1000+daysAgo});
         return;
       }
     }
@@ -2170,12 +2253,12 @@ function updateTodayStrip(invoices){
       const du = Math.round((dueDate - today)/(1000*60*60*24));
       if(du >= 0 && du <= NEEDS_ATTENTION_DAYS){
         const when = du===0 ? 'due today' : du===1 ? 'due tomorrow' : 'due ' + fmtDateShort(dueISO);
-        items.push({type:'urgent', label:'Payment due', value:client + ' — ' + when, invnum:inv.invnum, sortKey:870});
+        items.push({type:'urgent', kind:'payment', label:'Payment due', value:client + ' — ' + when, invnum:inv.invnum, sortKey:870});
       }
     }
     // Staged but payment never posted — furniture is out; chase payment.
     if(stage==='staged' && !d.paid){
-      items.push({type:'urgent', label:'Staged · unpaid', value:client, invnum:inv.invnum, sortKey:960});
+      items.push({type:'urgent', kind:'payment', label:'Staged · unpaid', value:client, invnum:inv.invnum, sortKey:960});
     }
     // Staging tomorrow
     if(d.startdate && d.startdate !== 'TBD'){
@@ -2206,12 +2289,195 @@ function updateTodayStrip(invoices){
     stripEl.innerHTML = '<div style="color:rgba(255,255,255,0.4);font-size:11px;font-style:italic;padding:6px 4px">Nothing urgent today.</div>';
     return;
   }
+  // Payment-related items get one-tap actions (Phase 7: "Each item has one-tap actions:
+  // Send nudge, Send payment link, Mark paid") — every send routes through the same
+  // guardrail as everywhere else (showSendPreview, inside emailClientPaymentNudge).
   stripEl.innerHTML = items.slice(0,8).map(it => `
-    <div class="today-item ${it.type}" onclick="openCard('${it.invnum}')">
-      <div class="ti-label ${it.type}">${it.label}</div>
-      <div class="ti-value">${escapeHtml(it.value)}</div>
+    <div class="today-item ${it.type}">
+      <div onclick="openCard('${it.invnum}')">
+        <div class="ti-label ${it.type}">${it.label}</div>
+        <div class="ti-value">${escapeHtml(it.value)}</div>
+      </div>
+      ${it.kind==='payment' ? `<div style="display:flex;gap:4px;margin-top:6px">
+        <button class="mini-act" onclick="event.stopPropagation();quickNudge('${it.invnum}','signpay')">Nudge</button>
+        <button class="mini-act" onclick="event.stopPropagation();quickPaymentLink('${it.invnum}')">Link</button>
+        <button class="mini-act" onclick="event.stopPropagation();quickMarkPaid('${it.invnum}')">Paid</button>
+      </div>` : ''}
     </div>
   `).join('');
+}
+
+// Phase 7 one-tap actions — each runs the SAME guardrailed function the drawer already
+// uses. emailClientPaymentNudge() reads its message fields straight off the open drawer's
+// form (by design — see its own comment on reading unsaved edits), so this opens the card
+// first rather than just setting currentCardId, or it would build the email from whatever
+// a PREVIOUSLY opened, different card left in those same form fields.
+function quickNudge(invnum, kind){ openCard(invnum); emailClientPaymentNudge(kind); }
+function quickPaymentLink(invnum){ createSplitPayment(invnum); }
+async function quickMarkPaid(invnum){
+  const inv = CARDS[invnum]; if(!inv) return;
+  const ok = await customConfirm('Mark #'+invnum+' ('+(inv.client||'this client')+') as paid today?', { confirmLabel:'Mark Paid' });
+  if(!ok) return;
+  const d = { ...(inv.data||{}), paid:true, paid_date: new Date().toISOString().split('T')[0] };
+  try{
+    await _sb.from('invoices').upsert({ invnum:inv.invnum, client:inv.client, address:inv.address, invdate:inv.invdate, data:d }, { onConflict:'invnum' });
+    inv.data = d;
+    loadBoard();
+  }catch(e){ alert('Could not mark paid: '+e.message); }
+}
+
+// Phase 7 — greeting + the new sections (On Site Now, Destage Needs Scheduling, Future
+// Hold), built from the same `invoices` loadBoard() already fetched. Each section hides
+// itself entirely when empty rather than showing a live-button card with nothing in it.
+function renderGreeting(){
+  const el = document.getElementById('tsv-greeting');
+  if(!el) return;
+  const h = new Date().getHours();
+  const greet = h<12 ? 'Good morning' : h<17 ? 'Good afternoon' : 'Good evening';
+  el.textContent = greet + ', Jasmine — ' + new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
+}
+
+function renderTodayStyleView(invoices){
+  renderOnSiteNow(invoices);
+  renderDestageNeedsScheduling(invoices);
+  renderFutureHoldSection(invoices);
+}
+
+function renderOnSiteNow(invoices){
+  const section = document.getElementById('tsv-onsite-section');
+  const list = document.getElementById('tsv-onsite-list');
+  if(!section || !list) return;
+  const staged = invoices.filter(inv => ((inv.data||{}).stage||'proposal') === 'staged');
+  if(!staged.length){ section.style.display = 'none'; return; }
+  section.style.display = '';
+  const today0 = new Date(); today0.setHours(0,0,0,0);
+  list.innerHTML = staged.map(inv => {
+    const d = inv.data||{};
+    const client = inv.client || d.client || 'Unknown';
+    const addr = shortAddr(inv.address || d.address || '');
+    const extDays = (d.extensions||[]).reduce((s,e)=>s + (parseInt(e.days,10) || 30*(parseInt(e.periods,10)||1)), 0);
+    let end = null;
+    if(d.destage_date){ end = new Date(d.destage_date + 'T00:00:00'); }
+    else if(d.startdate && d.startdate!=='TBD'){ end = new Date(d.startdate + 'T00:00:00'); end.setDate(end.getDate()+45); }
+    if(end && extDays>0) end.setDate(end.getDate()+extDays);
+    const daysLeft = end ? Math.round((end-today0)/864e5) : null;
+    // "A destage prompt appears as the rental-end date approaches" (Phase 7) — the tag
+    // itself IS that prompt, turning urgent inside 3 days.
+    const urgent = daysLeft!=null && daysLeft<=3;
+    const tagText = daysLeft==null ? 'Set a destage date'
+      : daysLeft<0 ? (Math.abs(daysLeft)+'d past end — destage now')
+      : daysLeft===0 ? 'Ends today'
+      : daysLeft+' day'+(daysLeft===1?'':'s')+' left';
+    return `<div class="tsv-card" onclick="openCard('${inv.invnum}')">
+      <div class="tsv-card-main">
+        <div class="tsv-card-name">${escapeHtml(client)}</div>
+        <div class="tsv-card-addr">${escapeHtml(addr)}${d.startdate?' · staged '+fmtDateShort(d.startdate):''}</div>
+      </div>
+      <div class="tsv-card-side">
+        <div class="tsv-card-tag ${urgent?'a':''}">${tagText}</div>
+        <div class="tsv-card-sub">${d.paid?'Paid':'Unpaid'}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderDestageNeedsScheduling(invoices){
+  const section = document.getElementById('tsv-destage-section');
+  const list = document.getElementById('tsv-destage-list');
+  if(!section || !list) return;
+  const destage = invoices.filter(inv => ((inv.data||{}).stage||'proposal') === 'destage');
+  if(!destage.length){ section.style.display = 'none'; return; }
+  section.style.display = '';
+  const today0 = new Date(); today0.setHours(0,0,0,0);
+  list.innerHTML = destage.map(inv => {
+    const d = inv.data||{};
+    const client = inv.client || d.client || 'Unknown';
+    const addr = shortAddr(inv.address || d.address || '');
+    const hasDate = !!d.destage_date;
+    const overdue = hasDate && new Date(d.destage_date+'T00:00:00') < today0;
+    const tagText = hasDate ? fmtDateShort(d.destage_date) + (overdue?' · overdue':'') : 'Not scheduled';
+    return `<div class="tsv-card">
+      <div class="tsv-card-main" onclick="openCard('${inv.invnum}')" style="cursor:pointer">
+        <div class="tsv-card-name">${escapeHtml(client)}</div>
+        <div class="tsv-card-addr">${escapeHtml(addr)}</div>
+      </div>
+      <div class="tsv-card-side">
+        <div class="tsv-card-tag ${overdue?'a':(hasDate?'':'w')}">${tagText}</div>
+        <div style="display:flex;gap:6px;margin-top:5px">
+          <button class="mini-act" onclick="quickScheduleDestage('${inv.invnum}')">Schedule</button>
+          <button class="mini-act" onclick="quickConfirmPickedUp('${inv.invnum}')">Picked up</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderFutureHoldSection(invoices){
+  const section = document.getElementById('tsv-futurehold-section');
+  const list = document.getElementById('tsv-futurehold-list');
+  if(!section || !list) return;
+  const fh = invoices.filter(inv => ((inv.data||{}).stage||'proposal') === 'future_hold');
+  if(!fh.length){ section.style.display = 'none'; return; }
+  section.style.display = '';
+  list.innerHTML = fh.map(inv => {
+    const d = inv.data||{};
+    const client = inv.client || d.client || 'Unknown';
+    const addr = shortAddr(inv.address || d.address || '');
+    return `<div class="tsv-card" onclick="openCard('${inv.invnum}')">
+      <div class="tsv-card-main">
+        <div class="tsv-card-name">${escapeHtml(client)}</div>
+        <div class="tsv-card-addr">${escapeHtml(addr)}${d.startdate&&d.startdate!=='TBD'?' · staging '+fmtDateShort(d.startdate):''}</div>
+      </div>
+      <div class="tsv-card-side"><div class="tsv-card-tag">${fmtMoney(computeGrand(d))}</div></div>
+    </div>`;
+  }).join('');
+}
+
+// In-app date prompt (Promise<string|null>) — used for scheduling destage instead of the
+// native prompt(), same reasoning as customConfirm (unreliable inside an installed PWA).
+function customPromptDate(message, defaultVal){
+  return new Promise(resolve=>{
+    const ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(26,24,20,0.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:24px;font-family:Inter,-apple-system,sans-serif';
+    const safeMsg = String(message||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    ov.innerHTML = '<div style="background:#fff;border-radius:16px;max-width:340px;width:100%;padding:22px">'
+      + '<div style="font-size:14px;color:#3d3830;line-height:1.5;margin-bottom:14px">' + safeMsg + '</div>'
+      + '<input type="date" id="cpd-input" value="' + (defaultVal||'') + '" style="width:100%;padding:10px;border:1px solid #d4cfc9;border-radius:8px;font-size:14px;margin-bottom:14px;font-family:inherit">'
+      + '<div style="display:flex;gap:8px">'
+      + '<button id="cpd-cancel" style="flex:1;padding:12px;border-radius:9px;border:1px solid #d4cfc9;background:#faf8f5;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit">Cancel</button>'
+      + '<button id="cpd-ok" style="flex:1;padding:12px;border-radius:9px;border:none;background:#1a1814;color:#fff;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit">Save</button>'
+      + '</div></div>';
+    document.body.appendChild(ov);
+    const cleanup = (v)=>{ ov.remove(); resolve(v); };
+    ov.querySelector('#cpd-cancel').onclick = ()=>cleanup(null);
+    ov.querySelector('#cpd-ok').onclick = ()=>cleanup(document.getElementById('cpd-input').value || null);
+    ov.addEventListener('click', e=>{ if(e.target===ov) cleanup(null); });
+  });
+}
+
+async function quickScheduleDestage(invnum){
+  const inv = CARDS[invnum]; if(!inv) return;
+  const d = { ...(inv.data||{}) };
+  const picked = await customPromptDate('Schedule destage for '+(inv.client||'this client')+':', d.destage_date||'');
+  if(picked===null) return;
+  d.destage_date = picked || null;
+  try{
+    await _sb.from('invoices').upsert({ invnum:inv.invnum, client:inv.client, address:inv.address, invdate:inv.invdate, data:d }, { onConflict:'invnum' });
+    inv.data = d;
+    loadBoard();
+  }catch(e){ alert('Could not save: '+e.message); }
+}
+
+async function quickConfirmPickedUp(invnum){
+  const inv = CARDS[invnum]; if(!inv) return;
+  const ok = await customConfirm('Confirm furniture picked up for '+(inv.client||'this client')+'?\n\nThis marks the job Completed.', { confirmLabel:'Confirm Picked Up' });
+  if(!ok) return;
+  const d = { ...(inv.data||{}), stage:'done' };
+  try{
+    await _sb.from('invoices').upsert({ invnum:inv.invnum, client:inv.client, address:inv.address, invdate:inv.invdate, data:d }, { onConflict:'invnum' });
+    inv.data = d;
+    loadBoard();
+  }catch(e){ alert('Could not save: '+e.message); }
 }
 
 async function moveToStagePrompt(targetStage){
@@ -3130,6 +3396,8 @@ async function autoCreateTruckReminder(client, stagingDate, invnum){
 
 document.addEventListener('DOMContentLoaded', ()=>{
   renderShoppingConsolidator();
+  applyKanbanVisibility();
+  renderGreeting();
   // Default view: Confirmed
   const allTab = document.querySelectorAll('.tab')[0];
   if(allTab) filter('all', allTab);
@@ -3302,5 +3570,6 @@ function showCardProfitability(){
     <div class="spv-status" id="spv-status"></div>
   </div>
 </div>
+<script>document.addEventListener('DOMContentLoaded',()=>{try{document.querySelector('.nav-sw .nav-btn.on')?.scrollIntoView({inline:'center',block:'nearest'});}catch(e){}});</script>
 </body>
 </html>

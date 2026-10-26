@@ -48,6 +48,7 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
 .nav-btn { padding:5px 14px; border-radius:16px; border:none; font-size:11px; font-weight:500; cursor:pointer; font-family:'Inter',sans-serif; transition:all 0.18s; }
 .nav-btn.on { background:#fff; color:var(--ink); }
 .nav-btn.off { background:transparent; color:rgba(255,255,255,0.4); }
+@media (max-width: 680px) { .nav-sw { max-width:100%; overflow-x:auto; scrollbar-width:none; -webkit-overflow-scrolling:touch; } .nav-sw::-webkit-scrollbar { display:none; } .nav-btn { flex-shrink:0; } }
 
 .wrap { max-width:1000px; margin:0 auto; padding:20px; }
 .card { background:#fff; border:0.5px solid var(--taupe-lt); border-radius:14px; padding:18px 20px; margin-bottom:18px; }
@@ -1085,5 +1086,6 @@ document.addEventListener('DOMContentLoaded', async ()=>{
   await runFinanceView();
 });
 </script>
+<script>document.addEventListener('DOMContentLoaded',()=>{try{document.querySelector('.nav-sw .nav-btn.on')?.scrollIntoView({inline:'center',block:'nearest'});}catch(e){}});</script>
 </body>
 </html>
