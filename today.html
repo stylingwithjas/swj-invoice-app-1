@@ -499,7 +499,7 @@ async function loadAll(){
     _sb.from('invoices').select('invnum,client,address,invdate,data').not('invnum','like','DRAFT-%').not('invnum','like','GS%').neq('invnum','PRICING_DEFAULTS').neq('invnum','TIER_PRICING').order('created_at',{ascending:false}).limit(100)
   ]);
   allTasks=(tasksRes.data||[]);
-  allInvoices=(invRes.data||[]).filter(inv=>{const s=(inv.data&&inv.data.stage)||'proposal';return s!=='denied';});
+  allInvoices=(invRes.data||[]).filter(inv=>{const s=(inv.data&&inv.data.stage)||'proposal';return s!=='denied'&&s!=='closed_lost';});
   activeInvoices=allInvoices;
 
   const urgentCount=buildS1();
@@ -541,22 +541,41 @@ function updateNavBadge(count){
   else document.title='SWJ — Today';
 }
 
+// Payment due = staging date minus 48 hours — matches board.html's paymentDueDateISO and
+// api/webhook.py's tax_compute_due_date exactly (startdate is date-only, so "48h before" is
+// expressed as 2 calendar days before).
+function paymentDueDateISO(d){
+  if(!d.startdate || d.startdate === 'TBD') return null;
+  const sd = new Date(d.startdate + 'T00:00:00');
+  sd.setDate(sd.getDate() - 2);
+  return sd.getFullYear() + '-' + String(sd.getMonth()+1).padStart(2,'0') + '-' + String(sd.getDate()).padStart(2,'0');
+}
+const NEEDS_ATTENTION_DAYS = 7;   // keep in sync with board.html's constant of the same name
+
 // ── S1: URGENT FROM INVOICES ───────────────────────────
 function buildS1(){
   const actions=[];
   allInvoices.forEach(inv=>{
     const d=inv.data||{};
+    const stage=d.stage||'proposal';
     const client=inv.client||d.client||'Unknown';
     const addr=(inv.address||d.address||'').split(',')[0];
     const paid=d.paid===true;
     const grand=computeGrand(d);
-    if(!paid&&d.startdate){
-      const ago=Math.round((viewDate-new Date(d.startdate+'T00:00:00'))/864e5);
-      if(ago>0){actions.push({sev:'sev-high',label:'Payment Overdue',client,addr,detail:`Staging was ${ago} day${ago===1?'':'s'} ago · #${inv.invnum}`,amount:grand,amtRed:true,invnum:inv.invnum,btns:[{t:'Send Reminder',cls:'pri',fn:`goInv('${inv.invnum}')`},{t:'Mark Paid',cls:'grn',fn:`markPaid('${inv.invnum}')`},{t:'View',fn:`goInv('${inv.invnum}')`}],sk:1000+ago});return;}
+    // Pre-payment stages (still just quoted) are never flagged overdue/due-soon — there's
+    // no payment obligation yet (Phase 1.2: "Proposals awaiting signature are never
+    // labeled payment-overdue").
+    const dueISO = (stage==='proposal'||stage==='future_hold') ? null : paymentDueDateISO(d);
+    if(d.payer_unknown){
+      actions.push({sev:'sev-low',label:'Needs a Payer',client,addr,detail:`Quick invoice without a payer attached yet · #${inv.invnum}`,amount:null,amtRed:false,invnum:inv.invnum,btns:[{t:'Open',cls:'pri',fn:`window.location.href='/board.html?inv=${inv.invnum}'`}],sk:400});
     }
-    if(!paid&&d.startdate){
-      const away=Math.round((new Date(d.startdate+'T00:00:00')-viewDate)/864e5);
-      if(away>=0&&away<=2){actions.push({sev:'sev-medium',label:'Payment Due Soon',client,addr,detail:away===0?'Staging today — payment required':`Staging in ${away} day${away===1?'':'s'} · #${inv.invnum}`,amount:grand,amtRed:false,invnum:inv.invnum,btns:[{t:'Send Reminder',cls:'pri',fn:`goInv('${inv.invnum}')`},{t:'View',fn:`goInv('${inv.invnum}')`}],sk:500+(3-away)});return;}
+    if(!paid&&dueISO){
+      const ago=Math.round((viewDate-new Date(dueISO+'T00:00:00'))/864e5);
+      if(ago>0){actions.push({sev:'sev-high',label:'Payment Overdue',client,addr,detail:`Payment was due ${ago} day${ago===1?'':'s'} ago · #${inv.invnum}`,amount:grand,amtRed:true,invnum:inv.invnum,btns:[{t:'Open & Remind',cls:'pri',fn:`window.location.href='/board.html?inv=${inv.invnum}'`},{t:'Mark Paid',cls:'grn',fn:`markPaid('${inv.invnum}')`},{t:'View',fn:`goInv('${inv.invnum}')`}],sk:1000+ago});return;}
+    }
+    if(!paid&&dueISO){
+      const away=Math.round((new Date(dueISO+'T00:00:00')-viewDate)/864e5);
+      if(away>=0&&away<=NEEDS_ATTENTION_DAYS){actions.push({sev:'sev-medium',label:'Payment Due Soon',client,addr,detail:away===0?'Payment due today':`Payment due in ${away} day${away===1?'':'s'} · #${inv.invnum}`,amount:grand,amtRed:false,invnum:inv.invnum,btns:[{t:'Open & Remind',cls:'pri',fn:`window.location.href='/board.html?inv=${inv.invnum}'`},{t:'View',fn:`goInv('${inv.invnum}')`}],sk:500+(NEEDS_ATTENTION_DAYS+1-away)});return;}
     }
     if(paid&&d.startdate&&(d.stage==='staged'||!d.stage)){
       const ago=Math.round((viewDate-new Date(d.startdate+'T00:00:00'))/864e5);

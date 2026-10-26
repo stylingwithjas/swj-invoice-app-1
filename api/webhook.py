@@ -389,6 +389,130 @@ def run_destage_reminders():
     return sent
 
 
+# ════════════════════════════════════════════════════════════════
+# QUOTE LIFECYCLE SWEEP + WEEKLY DIGEST (Phase 1 — folds into the SAME daily cron as
+# run_destage_reminders(), rather than adding new vercel.json cron entries, since the
+# Vercel Hobby plan this project is on caps a project at 2 cron jobs and both are already
+# spoken for — see vercel.json)
+# ════════════════════════════════════════════════════════════════
+
+QUOTE_SILENCE_DAYS = 30   # keep in sync with board.html's constant of the same name
+
+PRE_PAYMENT_STAGES = ('proposal', 'future_hold', 'done', 'denied', 'closed_lost')
+
+
+def payment_due_date(d):
+    """Payment due = staging date minus 48 hours. Returns a date or None."""
+    startdate = d.get('startdate')
+    if not startdate or startdate == 'TBD':
+        return None
+    try:
+        return datetime.datetime.strptime(startdate, '%Y-%m-%d').date() - datetime.timedelta(days=2)
+    except Exception:
+        return None
+
+
+def _list_business_invoices():
+    """Every Jasmine-business invoice (SWJ staging), excluding drafts, GS Photography, and
+    the internal system/config rows (PRICING_DEFAULTS/TIER_PRICING) — the same exclusion set
+    every client-facing list in the app now applies (Phase 2.1/2.4)."""
+    key = os.environ.get('SUPABASE_KEY', '')
+    req = urllib.request.Request(
+        f'{SUPABASE_URL}/rest/v1/invoices?select=invnum,client,address,invdate,data&order=created_at.desc&limit=2000',
+        headers={'apikey': key, 'Authorization': f'Bearer {key}'}
+    )
+    with urllib.request.urlopen(req, timeout=20) as r:
+        invoices = json.loads(r.read())
+    out = []
+    for inv in invoices:
+        invnum = str(inv.get('invnum', ''))
+        if invnum.startswith('DRAFT-') or invnum.startswith('GS'):
+            continue
+        if invnum in ('PRICING_DEFAULTS', 'TIER_PRICING'):
+            continue
+        out.append(inv)
+    return out
+
+
+def run_quote_lifecycle_sweep():
+    """A quote with no client response for QUOTE_SILENCE_DAYS after the latest date_sent (or
+    invdate, for legacy records with no date_sent yet) moves to closed_lost — archived, never
+    deleted, still searchable from Archive's "Reactivate" button. future_hold quotes are
+    exempt (client already accepted, just not signing yet)."""
+    today = datetime.date.today()
+    archived = []
+    for inv in _list_business_invoices():
+        d = inv.get('data') or {}
+        stage = d.get('stage', 'proposal')
+        if stage != 'proposal':
+            continue   # future_hold is exempt; anything else is already past this stage
+        sent_str = d.get('date_sent') or d.get('invdate')
+        if not sent_str:
+            continue
+        try:
+            sent_date = datetime.datetime.strptime(sent_str[:10], '%Y-%m-%d').date()
+        except Exception:
+            continue
+        silent_days = (today - sent_date).days
+        if silent_days < QUOTE_SILENCE_DAYS:
+            continue
+        invnum = inv.get('invnum', '')
+        client = inv.get('client') or d.get('client') or 'Client'
+        try:
+            _patch_invoice_data(invnum, {**d, 'stage': 'closed_lost'})
+            archived.append(f'{invnum}:{client}:{silent_days}d')
+        except Exception as e:
+            print(f'[quote_lifecycle] patch failed for {invnum}: {e}')
+
+    if archived:
+        body = (
+            f'{len(archived)} quote(s) moved to Closed — Lost after {QUOTE_SILENCE_DAYS}+ days of silence '
+            f'(no client response since the proposal was sent). Nothing was deleted — each one is still '
+            f'searchable from Archive, with a "Reactivate to Quoted" button if the client responds late.\n\n'
+            + '\n'.join(archived)
+        )
+        send_email(JASMINE_EMAIL, f'{len(archived)} quote(s) archived as Closed — Lost',
+                   body, html_body=notification_html(body))
+    return archived
+
+
+def run_weekly_digest():
+    """Internal-only summary (never a client send) listing overdue payments, payments due
+    soon, and payer-unknown quick invoices needing a payer attached. Gated to Mondays by the
+    caller — this function itself has no day-of-week logic."""
+    today = datetime.date.today()
+    overdue, due_soon, needs_payer = [], [], []
+    for inv in _list_business_invoices():
+        d = inv.get('data') or {}
+        stage = d.get('stage', 'proposal')
+        client = inv.get('client') or d.get('client') or 'Client'
+        invnum = inv.get('invnum', '')
+
+        if d.get('payer_unknown'):
+            needs_payer.append(f'#{invnum} — {client}')
+
+        if d.get('paid') or stage in PRE_PAYMENT_STAGES:
+            continue
+        due = payment_due_date(d)
+        if not due:
+            continue
+        days = (today - due).days
+        if days > 0:
+            overdue.append(f'#{invnum} — {client} — due {abs(days)}d ago')
+        elif -days <= 7:
+            due_soon.append(f'#{invnum} — {client} — due in {-days}d')
+
+    body = (
+        f'Weekly Needs Attention digest — {today.strftime("%B %d, %Y")} (Styling With Jas only; '
+        f'GS Photography is never included).\n\n'
+        f'Overdue payments ({len(overdue)}):\n' + ('\n'.join(overdue) if overdue else 'None') + '\n\n'
+        f'Payment due within 7 days ({len(due_soon)}):\n' + ('\n'.join(due_soon) if due_soon else 'None') + '\n\n'
+        f'Needs a payer attached ({len(needs_payer)}):\n' + ('\n'.join(needs_payer) if needs_payer else 'None')
+    )
+    return send_email(JASMINE_EMAIL, f'Weekly Needs Attention Digest — {today.strftime("%b %d")}',
+                       body, html_body=notification_html(body))
+
+
 def supabase_update_split_payment(parent_invnum, pay_id, payment_info):
     """A split/partial payment link (id like '202092-PAY1') got paid. Update the matching
     entry in the PARENT invoice's data.payments[] and recompute the running amount_paid —
@@ -1030,8 +1154,18 @@ class handler(BaseHTTPRequestHandler):
                 sent, stats = run_monthly_tax_report()
                 self._respond(200, {'ok': True, 'emailed': sent, 'period': stats['period_label']})
                 return
+            # Default (no ?job=) is the daily cron. Three jobs share this one daily firing
+            # instead of adding separate vercel.json cron entries — this project is on the
+            # Vercel Hobby plan, which caps a project at 2 cron jobs, and both are already
+            # spoken for (this daily path + the monthly tax report above).
             sent = run_destage_reminders()
-            self._respond(200, {'ok': True, 'reminders_sent': sent})
+            archived = run_quote_lifecycle_sweep()
+            digest_sent = False
+            if datetime.date.today().weekday() == 0:   # Monday
+                digest_sent = run_weekly_digest()
+            self._respond(200, {
+                'ok': True, 'reminders_sent': sent, 'quotes_archived': archived, 'weekly_digest_sent': digest_sent,
+            })
         except Exception as e:
             self._respond(500, {'error': str(e)})
 

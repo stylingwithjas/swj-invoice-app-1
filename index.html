@@ -356,6 +356,10 @@ textarea:focus { border-color:var(--gold); background:var(--warm); }
         <div class="field-lbl">Client Name</div>
         <input class="field-input client-input" id="client" type="text" placeholder="Jane Smith" autocomplete="name">
         <div class="ferr" id="e-client">Required</div>
+        <div class="toggle-row" style="padding-top:6px">
+          <input type="checkbox" id="payer-unknown" onchange="togglePayerUnknown()">
+          <label for="payer-unknown" style="font-size:11px">Payer not known yet — quick invoice, no client name required</label>
+        </div>
       </div>
       <div class="field" id="f-client-email">
         <div class="field-lbl">Client Email <span style="text-transform:none;letter-spacing:0;font-weight:400;color:var(--taupe);font-size:10px">— used for automatic receipt delivery</span></div>
@@ -762,6 +766,20 @@ function toggleStartDateTBD(){
   inp.disabled = tbd;
   if(tbd){ inp.dataset.prevValue = inp.value; inp.value=''; }
   else if(inp.dataset.prevValue){ inp.value = inp.dataset.prevValue; }
+}
+
+// Payer-unknown: lets Jasmine create a quick invoice before she knows who's actually paying,
+// without typing a placeholder name like "TBD" into the client field (which used to pollute
+// the archive/follow-ups/totals as if it were a real client). Checking this just waives the
+// client-name requirement in generatePDF()'s validation — nothing else about creating the
+// invoice changes, so it stays exactly as fast as before. Saving a real name later and
+// unchecking this is what "attaches a payer" and brings the invoice back into normal totals.
+function togglePayerUnknown(){
+  const on = document.getElementById('payer-unknown').checked;
+  const inp = document.getElementById('client');
+  document.getElementById('e-client').classList.remove('show');
+  inp.classList.remove('err');
+  inp.placeholder = on ? 'Optional while payer is unknown' : 'Jane Smith';
 }
 function getStartDateValue(){
   return document.getElementById('startdate-tbd')?.checked ? 'TBD' : document.getElementById('startdate').value;
@@ -1355,6 +1373,8 @@ function loadInvoiceData(d){
   try{
     // Fill form fields
     document.getElementById('client').value = d.client||'';
+    const payerUnknownChk = document.getElementById('payer-unknown');
+    if(payerUnknownChk){ payerUnknownChk.checked = !!d.payer_unknown; togglePayerUnknown(); }
     if(document.getElementById('client_email')) document.getElementById('client_email').value = d.client_email || '';
     document.getElementById('address').value = d.address||'';
     document.getElementById('zipcode').value = '';
@@ -1524,6 +1544,7 @@ async function saveDraft(silent){
     paid_date: document.getElementById('paid_date')?.value||'',
     payment_url: null,
     cosigner: getCosigner(),
+    payer_unknown: !!document.getElementById('payer-unknown')?.checked,
     _is_draft: true,
     _draft_saved: new Date().toLocaleDateString()
   };
@@ -1586,9 +1607,10 @@ let _lastPdfBlob=null,_lastPdfFilename='';
 // and any failure shows a visible message instead of spinning forever.
 async function downloadPdfNow(){
   let valid=true;
+  const payerUnknown = document.getElementById('payer-unknown')?.checked;
   [['f-client','e-client','client'],['f-address','e-address','address'],['f-invdate','e-invdate','invdate'],['f-startdate','e-startdate','startdate']].forEach(([fid,eid,iid])=>{
     const inp=document.getElementById(iid);
-    if(!inp || (!inp.value.trim() && !(iid==='startdate' && document.getElementById('startdate-tbd')?.checked))){if(inp)inp.classList.add('err');document.getElementById(eid)?.classList.add('show');valid=false;}
+    if(!inp || (!inp.value.trim() && !(iid==='startdate' && document.getElementById('startdate-tbd')?.checked) && !(iid==='client' && payerUnknown))){if(inp)inp.classList.add('err');document.getElementById(eid)?.classList.add('show');valid=false;}
     else{inp.classList.remove('err');document.getElementById(eid)?.classList.remove('show');}
   });
   if(selRooms.size===0){document.getElementById('rooms-grid').classList.add('err');document.getElementById('e-rooms').classList.add('show');valid=false;}
@@ -1627,7 +1649,7 @@ async function downloadPdfNow(){
   invNum=invNumFinal;
 
   const _contribList=contributions.filter(c=>c.label&&parseFloat(c.amount)>0).map(c=>({label:c.label,amount:parseFloat(c.amount)}));
-  const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:getStartDateValue(),baserooms:[...selRooms].join(', '),baseroom_scopes:roomScopesObj(),extrate,taxrate,base_price:base,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,state:captureState(),promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,promo4:document.getElementById('promo4').checked,payment_url:null,contributions:_contribList,pet_deposit:petDepositBase(),cosigner:getCosigner(),cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||''};
+  const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:getStartDateValue(),baserooms:[...selRooms].join(', '),baseroom_scopes:roomScopesObj(),extrate,taxrate,base_price:base,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,state:captureState(),promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,promo4:document.getElementById('promo4').checked,payment_url:null,contributions:_contribList,pet_deposit:petDepositBase(),cosigner:getCosigner(),cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||'',payer_unknown:!!payerUnknown};
 
   const ctrl=new AbortController();
   const to=setTimeout(()=>ctrl.abort(),90000);
@@ -1815,6 +1837,14 @@ async function sendEmail(){
     if(d.sent){
       const n=(d.to||[]).length;
       let statusMsg='✓ Sent to '+(n>1?n+' recipients':'1 recipient')+(d.skipped&&d.skipped.length?' (skipped invalid: '+d.skipped.join(', ')+')':'')+(ccAddrs.length?' · CC\'d '+ccAddrs.length:'')+'!';
+      // This is the proposal actually reaching the client — the quote lifecycle's 30-day
+      // silence clock runs from this timestamp (date_sent), not from when it was drafted.
+      // Re-sending later (e.g. a correction) intentionally restarts the clock.
+      if(window._lastInvoiceData){
+        window._lastInvoiceData.date_sent = new Date().toISOString();
+        if(!window._lastInvoiceData.quote_status) window._lastInvoiceData.quote_status = 'quoted';
+        saveInvoice(window._lastInvoiceData).catch(()=>{});
+      }
       // Co-signer gets their own tailored Approve & Sign email at the same time — signing
       // doesn't wait on the client to go first anymore, so both need their invite up front.
       const cosignerResult=await sendCosignerInviteEmail(window._lastInvoiceData, base64);
@@ -1859,9 +1889,10 @@ async function sendCosignerInviteEmail(data, pdfBase64){
 
 async function generatePDF(){
   let valid=true;
+  const payerUnknown = document.getElementById('payer-unknown')?.checked;
   [['f-client','e-client','client'],['f-address','e-address','address'],['f-invdate','e-invdate','invdate'],['f-startdate','e-startdate','startdate']].forEach(([fid,eid,iid])=>{
     const inp=document.getElementById(iid);
-    if(!inp || (!inp.value.trim() && !(iid==='startdate' && document.getElementById('startdate-tbd')?.checked))){if(inp)inp.classList.add('err');document.getElementById(eid)?.classList.add('show');valid=false;}
+    if(!inp || (!inp.value.trim() && !(iid==='startdate' && document.getElementById('startdate-tbd')?.checked) && !(iid==='client' && payerUnknown))){if(inp)inp.classList.add('err');document.getElementById(eid)?.classList.add('show');valid=false;}
     else{inp.classList.remove('err');document.getElementById(eid)?.classList.remove('show');}
   });
   if(selRooms.size===0){document.getElementById('rooms-grid').classList.add('err');document.getElementById('e-rooms').classList.add('show');valid=false;}
@@ -1923,7 +1954,7 @@ async function generatePDF(){
   setSt('loading','Generating your invoice PDF...');
   const _contribList=contributions.filter(c=>c.label&&parseFloat(c.amount)>0).map(c=>({label:c.label,amount:parseFloat(c.amount)}));
   const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:getStartDateValue(),baserooms:[...selRooms].join(', '),baseroom_scopes:roomScopesObj(),extrate,taxrate,base_price:base,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,state:captureState(),promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
-            promo4:document.getElementById('promo4').checked,payment_url,payment_link_id,contributions:_contribList,payments:splitPayments,active_client_payment_id:activeClientPaymentId,pet_deposit:petDeposit,cosigner:getCosigner(),cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||''};
+            promo4:document.getElementById('promo4').checked,payment_url,payment_link_id,contributions:_contribList,payments:splitPayments,active_client_payment_id:activeClientPaymentId,pet_deposit:petDeposit,cosigner:getCosigner(),cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||'',payer_unknown:!!payerUnknown};
 
   const _ctrl=new AbortController();
   const _to=setTimeout(()=>_ctrl.abort(),90000);   // never spin forever
@@ -1950,9 +1981,10 @@ async function generatePDF(){
 
 async function generate(){
   let valid=true;
+  const payerUnknown = document.getElementById('payer-unknown')?.checked;
   [['f-client','e-client','client'],['f-address','e-address','address'],['f-invdate','e-invdate','invdate'],['f-startdate','e-startdate','startdate']].forEach(([fid,eid,iid])=>{
     const inp=document.getElementById(iid);
-    if(!inp || (!inp.value.trim() && !(iid==='startdate' && document.getElementById('startdate-tbd')?.checked))){if(inp)inp.classList.add('err');document.getElementById(eid)?.classList.add('show');valid=false;}
+    if(!inp || (!inp.value.trim() && !(iid==='startdate' && document.getElementById('startdate-tbd')?.checked) && !(iid==='client' && payerUnknown))){if(inp)inp.classList.add('err');document.getElementById(eid)?.classList.add('show');valid=false;}
     else{inp.classList.remove('err');document.getElementById(eid)?.classList.remove('show');}
   });
   if(selRooms.size===0){document.getElementById('rooms-grid').classList.add('err');document.getElementById('e-rooms').classList.add('show');valid=false;}
@@ -2020,7 +2052,7 @@ async function generate(){
 
   const _contribList=contributions.filter(c=>c.label&&parseFloat(c.amount)>0).map(c=>({label:c.label,amount:parseFloat(c.amount)}));
   const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:getStartDateValue(),baserooms:[...selRooms].join(', '),baseroom_scopes:roomScopesObj(),extrate,taxrate,base_price:parseFloat(document.getElementById('base_price')?.value)||2500,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,state:captureState(),promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
-            promo4:document.getElementById('promo4').checked,payment_url,payment_link_id,contributions:_contribList,payments:splitPayments,active_client_payment_id:activeClientPaymentId,pet_deposit:petDeposit,cosigner:getCosigner(),cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||''};
+            promo4:document.getElementById('promo4').checked,payment_url,payment_link_id,contributions:_contribList,payments:splitPayments,active_client_payment_id:activeClientPaymentId,pet_deposit:petDeposit,cosigner:getCosigner(),cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||'',payer_unknown:!!payerUnknown};
 
   // Send to API and download PDF
   try {

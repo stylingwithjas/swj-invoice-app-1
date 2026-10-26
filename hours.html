@@ -220,7 +220,7 @@ async function loadJobs(){
     const {data} = await _sb.from('invoices').select('invnum,client,address,invdate,data')
       .not('invnum','like','DRAFT-%').not('invnum','like','GS%').neq('invnum','PRICING_DEFAULTS').neq('invnum','TIER_PRICING')
       .order('invdate',{ascending:false}).limit(50);
-    _jobs = (data||[]).filter(j => ((j.data||{}).stage||'proposal') !== 'denied');
+    _jobs = (data||[]).filter(j => { const s=(j.data||{}).stage||'proposal'; return s!=='denied' && s!=='closed_lost'; });
   }catch(e){ _jobs = []; }
 }
 function jobLabel(j){

@@ -164,6 +164,8 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
 .col-n { font-size:10px; font-weight:600; color:#fff; min-width:18px; height:18px; border-radius:9px; padding:0 5px; display:inline-flex; align-items:center; justify-content:center; }
 .mtb-btn { width:100%; padding:9px; background:transparent; border:1.5px dashed rgba(162,156,150,0.3); border-radius:10px; color:var(--taupe); font-size:11px; font-weight:500; cursor:pointer; font-family:'Inter',sans-serif; transition:all 0.15s; letter-spacing:0.3px; margin-bottom:9px; }
 .mtb-btn:hover { background:var(--warm); border-color:var(--taupe); }
+.col-subhdr { font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.8px; color:var(--taupe); padding:10px 2px 5px; }
+.col-subhdr:first-child { padding-top:0; }
 
 /* ── CARDS ── */
 .card { border-radius:13px; padding:13px 14px 11px; margin-bottom:8px; cursor:pointer; transition:transform 0.12s,box-shadow 0.12s; border:1px solid transparent; }
@@ -191,6 +193,14 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
 .tags { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:6px; }
 .tag { font-size:10px; font-weight:500; padding:3px 8px; border-radius:20px; letter-spacing:0.2px; }
 .card.proposal  .tag { background:rgba(122,111,105,0.1);  color:var(--taupe-dk); }
+.card.proposal  .tag.w,
+.card.future_hold .tag.w { background:rgba(201,124,46,0.1); color:var(--amber); }
+.card.proposal  .tag.a,
+.card.future_hold .tag.a { background:rgba(181,53,53,0.1);  color:var(--red); }
+.card.future_hold { background:var(--proposal-bg); border-color:rgba(74,94,130,0.14); }
+.card.future_hold .c-name { color:var(--ink); }
+.card.future_hold .c-amt { color:var(--slate); }
+.card.future_hold .tag { background:rgba(74,94,130,0.1); color:var(--slate); }
 .card.confirmed .tag { background:rgba(74,124,80,0.1);    color:var(--green); }
 .card.confirmed .tag.w { background:rgba(201,124,46,0.1); color:var(--amber); }
 .card.confirmed .tag.a { background:rgba(181,53,53,0.1);  color:var(--red); }
@@ -659,7 +669,16 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
         <span class="m-lbl">Est. bank deposit</span>
         <input class="m-input" id="m-deposit-date" type="text" placeholder="TBA — from Stripe" value="">
       </div>
+      <div id="m-payment-due-row" style="font-size:11px;color:var(--taupe-dk);margin:-2px 0 8px"></div>
       <div id="m-payments-list" style="margin-top:8px"></div>
+      <div class="m-row" style="flex-direction:column;align-items:stretch;gap:6px;margin-top:4px">
+        <span class="m-lbl">Payment nudges</span>
+        <div style="display:flex;gap:8px">
+          <button class="m-text-btn" style="flex:1;background:var(--slate)" onclick="emailClientPaymentNudge('signpay')">Preview &amp; Send: Sign + Pay</button>
+          <button class="m-text-btn" style="flex:1;background:var(--red,#b53535)" onclick="emailClientPaymentNudge('final')">Preview &amp; Send: Final Reminder</button>
+        </div>
+        <div id="m-nudge-status" style="font-size:11px;color:#888;text-align:right"></div>
+      </div>
     </div>
 
     <!-- Refundable Pet Deposit (only shown when enabled on this invoice) -->
@@ -754,11 +773,13 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
       <div class="m-move-ttl">Move to Stage</div>
       <div class="move-grid">
         <div class="move-opt" onclick="setStage('proposal',this)">Proposal Sent</div>
+        <div class="move-opt" onclick="setStage('future_hold',this)">Future Hold</div>
         <div class="move-opt cur" onclick="setStage('confirmed',this)">Confirmed</div>
         <div class="move-opt" onclick="setStage('staged',this)">Currently Staged</div>
         <div class="move-opt" onclick="setStage('destage',this)">Destage Scheduled</div>
         <div class="move-opt" onclick="setStage('done',this)" style="grid-column:1/-1">Mark Completed</div>
         <div class="move-opt denied-opt" onclick="setStage('denied',this)">Mark as Declined</div>
+        <div class="move-opt denied-opt" onclick="markClosedLost()">Mark Closed — Lost</div>
       </div>
     </div>
 
@@ -880,6 +901,27 @@ function bgClose(e){
 function setStage(s, el){
   document.querySelectorAll('.move-opt').forEach(o=>o.classList.remove('cur'));
   el.classList.add('cur');
+}
+
+// Closed — Lost (Phase 1.1) removes the card from the active board/pipeline entirely (it
+// still shows up in Archive, searchable, never deleted) — unlike the other Move-to-Stage
+// options, that's a one-way trip out of this view, so it gets its own confirmation and
+// saves immediately rather than waiting on a separate "Save Changes" tap.
+async function markClosedLost(){
+  if(!currentCardId) return;
+  const inv = CARDS[currentCardId];
+  if(!inv) return;
+  if(!confirm('Mark this quote Closed — Lost?\n\nIt will drop off the active board but stay fully searchable in Archive. This can be undone later from Archive\'s "Reactivate" button.')) return;
+  try{
+    const d = { ...(inv.data||{}), stage: 'closed_lost' };
+    const { error } = await _sb.from('invoices').upsert({
+      invnum: inv.invnum, client: inv.client, address: inv.address, invdate: inv.invdate, data: d,
+    }, { onConflict: 'invnum' });
+    if(error){ alert('Could not save: ' + error.message); return; }
+    inv.data = d; CARDS[currentCardId].data = d;
+    closeModal();
+    loadBoard();
+  }catch(e){ alert('Could not save: ' + e.message); }
 }
 
 // type -> which confirmation role this text is for (see ROLE_KEY_TO_FIELDS + confirm.html's
@@ -1202,6 +1244,17 @@ function renderSendLog(d){
   }).join('');
 }
 
+// Payment due = staging date minus 48 hours (Phase 1.2) — shown on the job detail next to
+// payment status, same date buildCardHTML already surfaces on the card itself.
+function renderPaymentDueRow(d){
+  const row = document.getElementById('m-payment-due-row');
+  if(!row) return;
+  const dueISO = paymentDueDateISO(d);
+  if(!dueISO || d.paid){ row.textContent = ''; return; }
+  const dueFmt = new Date(dueISO+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
+  row.textContent = 'Payment due: ' + dueFmt + ' (48 hours before staging)';
+}
+
 async function resendSignatureInvite(role){
   const inv = CARDS[currentCardId];
   if(!inv){ alert('Open a project first.'); return; }
@@ -1312,6 +1365,46 @@ async function emailClientDestageReminder(kind){
         inv.data = d; CARDS[currentCardId].data = d;
       }catch(e){ /* email already sent either way */ }
     },
+  });
+}
+
+// Payment nudges (Phase 1.2) — manual-send only, same guardrail as every other client email.
+// Timing is informational copy, not an enforced schedule: Jasmine presses these whenever she
+// judges it's time, typically around NUDGE_SIGNPAY_DAYS before staging (sign+pay) or
+// NUDGE_FINAL_HOURS before staging (final reminder, ~24h before payment is actually due).
+async function emailClientPaymentNudge(kind){
+  const inv = CARDS[currentCardId];
+  if(!inv){ alert('Open a project first.'); return; }
+  const statusEl = document.getElementById('m-nudge-status');
+  const d = buildCardDataFromModal(inv);
+  const clientEmail = (d.client_email || '').trim();
+  const client = inv.client || d.client || '';
+  const firstName = client.split(' ')[0] || 'there';
+  const address = d.address || '';
+  const grand = computeGrand(d);
+  const amountStr = '$'+grand.toLocaleString(undefined,{minimumFractionDigits:2});
+  const dueISO = paymentDueDateISO(d);
+  const dueFmt = dueISO ? new Date(dueISO+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'}) : 'before your staging date';
+  const stagingFmt = d.startdate && d.startdate!=='TBD' ? new Date(d.startdate+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'}) : 'your staging date';
+  const payLine = d.payment_url ? ('\n\nYou can pay securely here:\n'+d.payment_url) : '';
+
+  if(!clientEmail){ if(statusEl) statusEl.textContent='No client email on file'; return; }
+
+  let subject, message;
+  if(kind==='signpay'){
+    subject = 'Sign & Pay — Your Staging at '+address;
+    message = 'Hi '+firstName+',\n\nJust a friendly check-in — your staging at '+address+' is coming up on '+stagingFmt+'. Full payment of '+amountStr+' is due '+dueFmt+' (48 hours before staging), and we\'ll need your signed contract on file before then too.'+payLine+'\n\nLet us know if you have any questions!\n\nWarmly,\nJasmine Santana\nStyling With Jas\n206-422-5618';
+  } else {
+    subject = 'Final Reminder — Payment Due '+dueFmt;
+    message = 'Hi '+firstName+',\n\nThis is a final reminder that payment of '+amountStr+' for your staging at '+address+' is due '+dueFmt+' — 48 hours before your staging date of '+stagingFmt+'. Staging cannot be scheduled until payment is received.'+payLine+'\n\nPlease let us know right away if you have any questions.\n\nWarmly,\nJasmine Santana\nStyling With Jas\n206-422-5618';
+  }
+
+  if(statusEl) statusEl.textContent='';
+  showSendPreview({
+    to: clientEmail, subject, message,
+    meta: (kind==='signpay'?'Sign + pay prompt':'Final payment reminder')+' · '+address+' · '+amountStr,
+    invnum: currentCardId,
+    onSent: ()=>{ if(statusEl) statusEl.textContent = '✓ Sent to '+clientEmail; },
   });
 }
 
@@ -1619,14 +1712,35 @@ function fmtDateShort(iso){
   return d.toLocaleDateString('en-US', {month:'short', day:'numeric'});
 }
 
+// Payment due = staging date minus 48 hours (the one hard payment rule — there is no
+// separate signature deadline). Startdate is date-only, so "48 hours before" is expressed
+// as 2 calendar days before, matching api/webhook.py's tax_compute_due_date exactly.
+function paymentDueDateISO(d){
+  if(!d.startdate || d.startdate === 'TBD') return null;
+  const sd = new Date(d.startdate + 'T00:00:00');
+  sd.setDate(sd.getDate() - 2);
+  return sd.getFullYear() + '-' + String(sd.getMonth()+1).padStart(2,'0') + '-' + String(sd.getDate()).padStart(2,'0');
+}
+
+// Nudge timing constants (Phase 1.2) — easily adjustable, not buried in the button logic.
+const NUDGE_SIGNPAY_DAYS = 7;   // "Sign + pay" prompt, days before staging
+const NUDGE_FINAL_HOURS = 72;   // Final reminder, hours before staging (24h before payment is due)
+// How many days of silence (no date_sent activity) before a quote is swept to closed_lost —
+// mirrors the same constant the daily cron in api/webhook.py uses.
+const QUOTE_SILENCE_DAYS = 30;
+// Needs Attention surfaces payment-due items within this many days.
+const NEEDS_ATTENTION_DAYS = 7;
+
 // Stage display labels & colors
 const STAGE_META = {
-  proposal:  {label:'Proposal Sent',     color:'taupe-dk'},
-  confirmed: {label:'Confirmed',         color:'green'},
-  staged:    {label:'Currently Staged',  color:'gold-dk'},
-  destage:   {label:'Destage Scheduled', color:'slate'},
-  done:      {label:'Completed',         color:'taupe'},
-  denied:    {label:'Declined',          color:'red'},
+  proposal:    {label:'Proposal Sent',     color:'taupe-dk'},
+  future_hold: {label:'Future Hold',       color:'slate'},
+  confirmed:   {label:'Confirmed',         color:'green'},
+  staged:      {label:'Currently Staged',  color:'gold-dk'},
+  destage:     {label:'Destage Scheduled', color:'slate'},
+  done:        {label:'Completed',         color:'taupe'},
+  denied:      {label:'Declined',          color:'red'},
+  closed_lost: {label:'Closed — Lost',     color:'red'},
 };
 
 // Build a card HTML element from an invoice record
@@ -1639,6 +1753,34 @@ function buildCardHTML(inv){
   // Tags based on stage + status
   const tags = [];
   if(d.startdate) tags.push({text:'Staging ' + fmtDateShort(d.startdate)});
+  // Payment due = staging date minus 48 hours, shown right alongside the staging date
+  // (Phase 1.2) — the hard rule stays "payment due 48h before staging," this just makes
+  // that date visible instead of making people do the math themselves.
+  const PRE_PAYMENT_STAGES = ['proposal','future_hold','done','denied','closed_lost'];
+  if(!d.paid && !PRE_PAYMENT_STAGES.includes(stage)){
+    const dueISO = paymentDueDateISO(d);
+    if(dueISO){
+      const _today0 = new Date(); _today0.setHours(0,0,0,0);
+      const _daysToDue = Math.round((new Date(dueISO+'T00:00:00') - _today0)/864e5);
+      const urgent = _daysToDue <= NEEDS_ATTENTION_DAYS;
+      tags.push({text:'Payment due ' + fmtDateShort(dueISO), cls: urgent ? (_daysToDue<0?'w':'a') : ''});
+    }
+  }
+  if(d.payer_unknown) tags.push({text:'⚠ Needs a payer', cls:'w'});
+  // Quote lifecycle sub-status (Phase 1.1) — future_hold is its own stage (exempt from the
+  // silence clock); a plain 'proposal' shows how long it's been silent since date_sent.
+  if(stage==='future_hold'){
+    tags.push({text:'Future hold', cls:'ok'});
+  } else if(stage==='proposal'){
+    const sentISO = d.date_sent ? d.date_sent.split('T')[0] : (d.invdate || null);
+    if(sentISO){
+      const _today0 = new Date(); _today0.setHours(0,0,0,0);
+      const _silentDays = Math.round((_today0 - new Date(sentISO+'T00:00:00'))/864e5);
+      if(_silentDays >= QUOTE_SILENCE_DAYS) tags.push({text:'Stale · ' + _silentDays + 'd silent', cls:'w'});
+      else if(_silentDays >= QUOTE_SILENCE_DAYS - 7) tags.push({text:_silentDays + 'd since sent', cls:'a'});
+    }
+    if(!d.date_sent) tags.push({text:'Not yet sent', cls:''});
+  }
   if(stage==='staged' && (d.destage_date || (d.startdate && d.startdate!=='TBD'))){
     const _t0 = new Date(); _t0.setHours(0,0,0,0);
     const _extDays = (d.extensions||[]).reduce((s,e)=>s + (parseInt(e.days,10) || 30*(parseInt(e.periods,10)||1)), 0);
@@ -1673,7 +1815,16 @@ function buildCardHTML(inv){
   if(d.signed) tags.push({text:'Signed ✓', cls:'ok'});
   else if((d.signatures||[]).length) tags.push({text:'Awaiting countersignature', cls:'a'});
   if(d.paid) tags.push({text:'Paid'});
-  else if(stage==='confirmed') tags.push({text:'Payment pending', cls:'a'});
+  else if(stage==='confirmed'){
+    // Urgency now follows the actual payment-due date (see the "Payment due" tag above)
+    // instead of flagging every confirmed-but-unpaid job as urgent regardless of how far
+    // out staging is.
+    const dueISO = paymentDueDateISO(d);
+    const _today0 = new Date(); _today0.setHours(0,0,0,0);
+    const _daysToDue = dueISO ? Math.round((new Date(dueISO+'T00:00:00') - _today0)/864e5) : null;
+    const urgent = _daysToDue === null || _daysToDue <= NEEDS_ATTENTION_DAYS;
+    tags.push({text:'Payment pending', cls: urgent ? 'a' : ''});
+  }
   if(d.photo_date && (stage==='confirmed'||stage==='staged')) tags.push({text:'Photos ' + fmtDateShort(d.photo_date) + _moverConfirmSuffix('photographer')});
   if(_confirms.photographer?.status==='declined') tags.push({text:'⚠ Photographer declined', cls:'w'});
 
@@ -1773,21 +1924,42 @@ async function loadBoard(){
     // Auto-advance Confirmed → Staged for any project whose staging date has arrived.
     await autoAdvanceStages(invoices);
 
-    // Group by stage; default missing stage to 'proposal'
-    const grouped = { proposal:[], confirmed:[], staged:[], destage:[], done:[], denied:[] };
+    // Group by stage; default missing stage to 'proposal'. closed_lost quotes (Phase 1.1 —
+    // 30 days of silence, swept by the daily cron, or marked by hand from the drawer) get
+    // their own bucket so they're excluded from the active board/pipeline the same way
+    // 'denied' already is, while staying fully visible+searchable in Archive.
+    const grouped = { proposal:[], future_hold:[], confirmed:[], staged:[], destage:[], done:[], denied:[], closed_lost:[] };
     invoices.forEach(inv => {
       const stage = (inv.data && inv.data.stage) || 'proposal';
       if(grouped[stage]) grouped[stage].push(inv);
       else grouped.proposal.push(inv); // unknown stage falls back to proposal
     });
 
-    // Render each column
+    // Render each column — future_hold has no column of its own; it renders inside the
+    // Proposal column's "Future hold" sub-group (Phase 1.1) since it's still quoted work,
+    // just exempt from the 30-day silence clock.
     ['proposal','confirmed','staged','destage','done'].forEach(stage => {
       const body = document.getElementById('col-body-'+stage);
       if(!body) return;
-      const items = grouped[stage] || [];
+      const items = stage==='proposal' ? grouped.proposal.concat(grouped.future_hold) : (grouped[stage] || []);
       if(items.length === 0){
         body.innerHTML = `<div style="padding:24px 12px;text-align:center;font-size:11px;color:var(--taupe);font-style:italic;line-height:1.6">No ${STAGE_META[stage].label.toLowerCase()}<br>jobs yet</div>`;
+      } else if(stage==='proposal'){
+        // Phase 1.1: split quoted work into three views within the same column — Awaiting
+        // signature (fresh), Future hold (accepted but exempt from the silence clock), and
+        // Stale (30+ days of silence, headed for closed-lost on the next daily sweep).
+        const groups = { hold:[], stale:[], fresh:[] };
+        const today0 = new Date(); today0.setHours(0,0,0,0);
+        items.forEach(inv => {
+          const dd = inv.data||{};
+          if(dd.stage === 'future_hold'){ groups.hold.push(inv); return; }
+          const sentISO = dd.date_sent ? dd.date_sent.split('T')[0] : (dd.invdate || null);
+          const silentDays = sentISO ? Math.round((today0 - new Date(sentISO+'T00:00:00'))/864e5) : 0;
+          if(silentDays >= QUOTE_SILENCE_DAYS) groups.stale.push(inv);
+          else groups.fresh.push(inv);
+        });
+        const sub = (label, arr) => arr.length ? `<div class="col-subhdr">${label} (${arr.length})</div>` + arr.map(buildCardHTML).join('') : '';
+        body.innerHTML = sub('Awaiting signature', groups.fresh) + sub('Future hold', groups.hold) + sub('Stale — 30+ days silent', groups.stale);
       } else {
         body.innerHTML = items.map(buildCardHTML).join('');
       }
@@ -1800,7 +1972,7 @@ async function loadBoard(){
     });
 
     // 'All' tab count = sum of active stages
-    const activeTotal = grouped.proposal.length + grouped.confirmed.length + grouped.staged.length + grouped.destage.length + grouped.done.length;
+    const activeTotal = grouped.proposal.length + grouped.future_hold.length + grouped.confirmed.length + grouped.staged.length + grouped.destage.length + grouped.done.length;
     const allTab = document.getElementById('tab-n-all');
     if(allTab) allTab.textContent = activeTotal;
 
@@ -1820,11 +1992,15 @@ async function loadBoard(){
 }
 
 function updatePipelineStats(grouped){
-  // Counts and totals per stage
-  const totalFor = arr => arr.reduce((s,inv) => s + computeGrand(inv.data||{}), 0);
+  // Counts and totals per stage — payer-unknown quick invoices (Phase 2.2) stay out of every
+  // $ total until a real payer is attached, so they can't inflate the pipeline.
+  const totalFor = arr => arr.reduce((s,inv) => (inv.data||{}).payer_unknown ? s : s + computeGrand(inv.data||{}), 0);
 
-  const propCount = grouped.proposal.length;
-  const propTotal = totalFor(grouped.proposal);
+  // Future-hold quotes stay in the Proposals pipe stat (Phase 1.1: "stays in pipeline totals") —
+  // they're still live, quoted work, just exempt from the 30-day silence clock.
+  const proposalLike = grouped.proposal.concat(grouped.future_hold);
+  const propCount = proposalLike.length;
+  const propTotal = totalFor(proposalLike);
   document.getElementById('stat-proposal-count').textContent = propCount;
   document.getElementById('stat-proposal-total').textContent = fmtMoney(propTotal) + ' out';
 
@@ -1844,7 +2020,7 @@ function updatePipelineStats(grouped){
   let mtdTotal = 0, mtdCount = 0;
   Object.values(CARDS).forEach(inv => {
     const d = inv.data || {};
-    if(d.paid && d.paid_date){
+    if(d.paid && d.paid_date && !d.payer_unknown){
       const pd = new Date(d.paid_date + 'T00:00:00');
       if(pd >= monthStart){
         mtdTotal += computeGrand(d);
@@ -1875,22 +2051,25 @@ function updateTodayStrip(invoices){
     const stage = d.stage || 'proposal';
     const client = inv.client || d.client || 'Unknown';
 
-    // Payment overdue
-    if(!d.paid && d.startdate){
-      const startDate = new Date(d.startdate + 'T00:00:00');
-      const daysAgo = Math.round((today - startDate)/(1000*60*60*24));
+    // Payment overdue — measured from the actual payment-due date (staging − 48h), never
+    // from staging day itself, and never on a proposal still awaiting signature (Phase 1.2:
+    // "Proposals awaiting signature are never labeled payment-overdue").
+    const dueISO = stage!=='proposal' ? paymentDueDateISO(d) : null;
+    if(!d.paid && dueISO){
+      const dueDate = new Date(dueISO + 'T00:00:00');
+      const daysAgo = Math.round((today - dueDate)/(1000*60*60*24));
       if(daysAgo > 0){
         items.push({type:'urgent', label:'Payment overdue', value:client, invnum:inv.invnum, sortKey:1000+daysAgo});
         return;
       }
     }
 
-    // Payment due soon: confirmed & unpaid with staging within ~2 days (payment is due ~2 days before).
-    if(stage==='confirmed' && !d.paid && d.startdate){
-      const sd = new Date(d.startdate + 'T00:00:00');
-      const du = Math.round((sd - today)/(1000*60*60*24));
-      if(du >= 0 && du <= 2){
-        const when = du===0 ? 'staging today' : du===1 ? 'staging tomorrow' : 'staging ' + fmtDateShort(d.startdate);
+    // Payment due soon: confirmed & unpaid, payment-due date within NEEDS_ATTENTION_DAYS.
+    if(stage==='confirmed' && !d.paid && dueISO){
+      const dueDate = new Date(dueISO + 'T00:00:00');
+      const du = Math.round((dueDate - today)/(1000*60*60*24));
+      if(du >= 0 && du <= NEEDS_ATTENTION_DAYS){
+        const when = du===0 ? 'due today' : du===1 ? 'due tomorrow' : 'due ' + fmtDateShort(dueISO);
         items.push({type:'urgent', label:'Payment due', value:client + ' — ' + when, invnum:inv.invnum, sortKey:870});
       }
     }
@@ -1950,7 +2129,7 @@ async function moveToStagePrompt(targetStage){
       .filter(inv => isStagingEligible(inv.invnum))
       .filter(inv => {
         const curStage = (inv.data && inv.data.stage) || 'proposal';
-        return curStage !== targetStage && curStage !== 'denied';
+        return curStage !== targetStage && curStage !== 'denied' && curStage !== 'closed_lost';
       });
 
     if(candidates.length === 0){
@@ -2187,6 +2366,7 @@ function realOpenCard(invnum){
   renderPricingSection(inv, d);
   renderSignaturesSection(inv, d);
   renderSendLog(d);
+  renderPaymentDueRow(d);
   renderPetDepositSection(inv, d);
 
   // Notes
@@ -2685,6 +2865,7 @@ function buildCardDataFromModal(inv){
     else if(txt.includes('destage')) d.stage = 'destage';
     else if(txt.includes('complet')) d.stage = 'done';
     else if(txt.includes('declin')) d.stage = 'denied';
+    else if(txt.includes('future')) d.stage = 'future_hold';
   }
 
   // Persist prep_items (from in-memory prepData, scoped to this card)
@@ -2795,7 +2976,12 @@ document.addEventListener('DOMContentLoaded', ()=>{
   // Default view: Confirmed
   const allTab = document.querySelectorAll('.tab')[0];
   if(allTab) filter('all', allTab);
-  loadBoard();
+  // Deep link (?inv=<invnum>) — lets other pages (e.g. today.html's Needs Attention items)
+  // jump straight into a specific job's drawer instead of just landing on the board.
+  loadBoard().then(()=>{
+    const invnum = new URLSearchParams(location.search).get('inv');
+    if(invnum && CARDS[invnum]) openCard(invnum);
+  });
   // Live updates for the wall display: refresh the moment any project changes (e.g. moves stages).
   try {
     _sb.channel('board-live')

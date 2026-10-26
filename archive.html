@@ -107,6 +107,9 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
   <div class="search-row">
     <input type="text" id="search-input" placeholder="Search by client, address, or invoice number…" oninput="renderList()">
   </div>
+  <label id="payer-filter-row" style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--taupe-dk);margin:-6px 0 12px;cursor:pointer">
+    <input type="checkbox" id="payer-unknown-filter" onchange="renderList()"> Needs a payer only
+  </label>
   <div class="summary-note" id="summary-note">Loading…</div>
   <div id="list-body"></div>
 </div>
@@ -117,7 +120,7 @@ const _sb = supabase.createClient(
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN3dmRmZ3JqbHJwc2Rmd2R1d3ZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwMDcyODUsImV4cCI6MjA5MzU4MzI4NX0.zam9AnIwW91TI6eCKUcg05LhvFcRa7op4QsjRpdcrCY'
 );
 
-const STAGE_LABEL = { proposal:'Proposal', confirmed:'Confirmed', staged:'Staged', destage:'Destage', done:'Done', denied:'Declined' };
+const STAGE_LABEL = { proposal:'Proposal', future_hold:'Future Hold', confirmed:'Confirmed', staged:'Staged', destage:'Destage', done:'Done', denied:'Declined', closed_lost:'Closed — Lost' };
 
 let _allInvoices = [];
 let _activeTab = 'signed';
@@ -184,6 +187,7 @@ function switchTab(tab){
   document.getElementById('tab-quoted').classList.toggle('on', tab==='quoted');
   document.getElementById('tab-cleanup').classList.toggle('on', tab==='cleanup');
   document.getElementById('search-input').closest('.search-row').style.display = tab==='cleanup' ? 'none' : '';
+  document.getElementById('payer-filter-row').style.display = tab==='cleanup' ? 'none' : '';
   if(tab==='cleanup') loadCleanupCandidates();
   else renderList();
 }
@@ -294,6 +298,10 @@ function renderList(){
     return _activeTab==='signed' ? isSigned : !isSigned;
   });
 
+  if(document.getElementById('payer-unknown-filter')?.checked){
+    rows = rows.filter(inv => !!(inv.data||{}).payer_unknown);
+  }
+
   if(q){
     rows = rows.filter(inv=>{
       const d = inv.data||{};
@@ -320,6 +328,7 @@ function renderList(){
     const badge = isSigned
       ? `<span class="arc-badge signed">✓ Signed</span>`
       : `<span class="arc-badge stage">${esc(STAGE_LABEL[stage]||stage)}</span>`;
+    const payerBadge = d.payer_unknown ? `<span class="arc-badge stage" style="background:#fdf0dd;color:#9d7a44">⚠ Needs a payer</span>` : '';
     return `
       <div class="arc-card">
         <div class="arc-top">
@@ -331,6 +340,7 @@ function renderList(){
         </div>
         <div class="arc-meta">
           ${badge}
+          ${payerBadge}
           <span>#${esc(inv.invnum)}</span>
           <span>${esc(fmtDate(d.startdate)||'Staging date TBD')}</span>
           ${isSigned && d.signed_by?`<span>Signed by ${esc(d.signed_by)}${d.signed_date?' on '+esc(d.signed_date):''}</span>`:''}
@@ -338,10 +348,34 @@ function renderList(){
         <div class="arc-actions">
           <a href="/proposal.html?inv=${encodeURIComponent(inv.invnum)}" target="_blank">View Details</a>
           ${isSigned?`<button class="primary" onclick="downloadSignedContract('${esc(inv.invnum)}', this)">Download Signed PDF</button>`:''}
+          ${stage==='closed_lost'?`<button class="primary" onclick="reactivateQuote('${esc(inv.invnum)}', this)">Reactivate to Quoted</button>`:''}
         </div>
       </div>
     `;
   }).join('');
+}
+
+// Reactivates a closed-lost quote back onto the active board (Phase 1.1 — real quotes are
+// never deleted, so a late client response just needs a way back in). Resets date_sent to
+// now so the 30-day silence clock starts fresh rather than immediately re-expiring it.
+async function reactivateQuote(invnum, btn){
+  if(!confirm('Reactivate this quote back to the board as "Quoted"?')) return;
+  const orig = btn.textContent;
+  btn.textContent = 'Reactivating…'; btn.disabled = true;
+  try{
+    const inv = _allInvoices.find(i => i.invnum === invnum);
+    if(!inv) throw new Error('Not found');
+    const d = { ...(inv.data||{}), stage:'proposal', date_sent: new Date().toISOString() };
+    const { error } = await _sb.from('invoices').upsert({
+      invnum: inv.invnum, client: inv.client, address: inv.address, invdate: inv.invdate, data: d,
+    }, { onConflict:'invnum' });
+    if(error) throw error;
+    inv.data = d;
+    renderList();
+  }catch(e){
+    alert('Could not reactivate: '+e.message);
+    btn.textContent = orig; btn.disabled = false;
+  }
 }
 
 document.addEventListener('DOMContentLoaded', loadAll);
