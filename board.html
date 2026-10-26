@@ -1714,7 +1714,7 @@ function fmtDateShort(iso){
 
 // Payment due = staging date minus 48 hours (the one hard payment rule — there is no
 // separate signature deadline). Startdate is date-only, so "48 hours before" is expressed
-// as 2 calendar days before, matching api/webhook.py's tax_compute_due_date exactly.
+// as 2 calendar days before, matching api/webhook.py's payment_due_date exactly.
 function paymentDueDateISO(d){
   if(!d.startdate || d.startdate === 'TBD') return null;
   const sd = new Date(d.startdate + 'T00:00:00');

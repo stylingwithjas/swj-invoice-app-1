@@ -542,7 +542,7 @@ function updateNavBadge(count){
 }
 
 // Payment due = staging date minus 48 hours — matches board.html's paymentDueDateISO and
-// api/webhook.py's tax_compute_due_date exactly (startdate is date-only, so "48h before" is
+// api/webhook.py's payment_due_date exactly (startdate is date-only, so "48h before" is
 // expressed as 2 calendar days before).
 function paymentDueDateISO(d){
   if(!d.startdate || d.startdate === 'TBD') return null;

@@ -2284,7 +2284,6 @@ async function sendEmail(){
       // Re-sending later (e.g. a correction) intentionally restarts the clock.
       if(window._lastInvoiceData){
         window._lastInvoiceData.date_sent = new Date().toISOString();
-        if(!window._lastInvoiceData.quote_status) window._lastInvoiceData.quote_status = 'quoted';
         saveInvoice(window._lastInvoiceData).catch(()=>{});
       }
       // Co-signer gets their own tailored Approve & Sign email at the same time — signing
