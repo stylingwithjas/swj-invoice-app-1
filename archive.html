@@ -169,7 +169,7 @@ async function downloadSignedContract(invnum, btn){
 async function loadAll(){
   try{
     const {data,error} = await _sb.from('invoices').select('invnum,client,address,invdate,created_at,data')
-      .not('invnum','like','DRAFT-%').not('invnum','like','GS%').neq('invnum','PRICING_DEFAULTS').neq('invnum','TIER_PRICING')
+      .not('invnum','like','DRAFT-%').not('invnum','like','GS%').neq('invnum','PRICING_DEFAULTS').neq('invnum','TIER_PRICING').not('invnum','like','TAX_REVIEW_%')
       .order('created_at',{ascending:false}).limit(1000);
     if(error) throw error;
     _allInvoices = data||[];
@@ -255,15 +255,29 @@ function renderCleanupReport(){
   // 4) Never emailed to a client at all (no send_log, not signed, not a draft/system row) —
   // informational only: send_log is new, so older legitimate invoices will also show up here.
   const SYSTEM = ['PRICING_DEFAULTS','TIER_PRICING'];
+  const isSystemRow = invnum => SYSTEM.includes(invnum) || String(invnum||'').startsWith('TAX_REVIEW_');
   const neverSent = rows.filter(inv=>{
     const d = inv.data||{};
-    if(SYSTEM.includes(inv.invnum)) return false;
+    if(isSystemRow(inv.invnum)) return false;
     if(String(inv.invnum||'').startsWith('DRAFT-')) return false;
     if(d.signed) return false;
     return !(d.send_log && d.send_log.length);
   });
 
-  note.textContent = `${versionFlagged.length} versioned/duplicate-named, ${dupGroups.length} duplicate group(s), ${dollarOne.length} $1-or-less signed, ${neverSent.length} never emailed — nothing deleted`;
+  // 5) Phase 5.1 backfill: real (non-draft/system) invoices with no structured city/ZIP
+  // fields and an address this app can't confidently parse a city out of either — these
+  // predate the structured address fields added with the price-led tax rebuild. Nothing is
+  // guessed or auto-filled here; Gabe/Jasmine need to add the real city/ZIP by hand.
+  const missingLocation = rows.filter(inv=>{
+    const d = inv.data||{};
+    if(isSystemRow(inv.invnum) || String(inv.invnum||'').startsWith('DRAFT-')) return false;
+    if(d.zip) return false;
+    const addr = inv.address || d.address || '';
+    const zipMatch = addr.match(/\b\d{5}\b/);
+    return !zipMatch;
+  });
+
+  note.textContent = `${versionFlagged.length} versioned/duplicate-named, ${dupGroups.length} duplicate group(s), ${dollarOne.length} $1-or-less signed, ${neverSent.length} never emailed, ${missingLocation.length} missing city/ZIP — nothing deleted or changed`;
 
   const rowHtml = (inv, reason)=>{
     const d = inv.data||{};
@@ -286,6 +300,7 @@ function renderCleanupReport(){
     ${section(`Same client+address+date entered more than once (${dupGroups.length} group${dupGroups.length===1?'':'s'})`, dupGroups.map(g=>g.map(inv=>rowHtml(inv,'duplicate of '+g.length+' matching rows')).join('')).join(''))}
     ${section(`Signed contracts totaling $1 or less (${dollarOne.length})`, dollarOne.map(inv=>rowHtml(inv,'signed, total ≤ $1 — likely a test signature')).join(''))}
     ${section(`Never emailed to a client (${neverSent.length})`, neverSent.map(inv=>rowHtml(inv,'no send_log entry on record')).join(''))}
+    ${section(`Missing structured city/ZIP — needs manual backfill (${missingLocation.length})`, missingLocation.map(inv=>rowHtml(inv,'no ZIP found in address — add city/ZIP by hand')).join(''))}
   ` || `<div class="empty-note">No cleanup candidates found.</div>`;
 }
 

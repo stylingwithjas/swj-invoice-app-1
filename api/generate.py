@@ -92,6 +92,13 @@ def build_extension_pdf(data):
     amount   = float(data.get('base_price', 0) or 0)
     extrate  = float(data.get('extrate', 0) or (amount * 30 / days if days else amount))
     payment_url = data.get('payment_url')
+    # Phase 5.2/5.5 — extension fee is 100% rental; tax is backed out of the already-agreed
+    # fee (amount), which does not change. DOR requires tax be stated separately even when
+    # (as here) the total shown already includes it — see TAX_METHODOLOGY.md.
+    taxrate = float(data.get('taxrate', 0) or 0)
+    _r = taxrate / 100
+    ext_tax = amount - amount / (1 + _r) if _r > 0 else 0.0
+    ext_subtotal = amount - ext_tax
 
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf'); tmp.close()
     fname = tmp.name
@@ -133,9 +140,12 @@ def build_extension_pdf(data):
     cv.drawString(ML, y, 'Description'); cv.drawRightString(PW - MR, y, 'Amount'); y -= 16
     cv.setFont('Helvetica', 9.5); cv.setFillColor(colors.HexColor('#333333'))
     cv.drawString(ML, y, f'Furniture rental extension — {days} days')
-    cv.drawRightString(PW - MR, y, fmt(amount)); y -= 11
+    cv.drawRightString(PW - MR, y, fmt(ext_subtotal)); y -= 11
     cv.setFont('Helvetica', 8); cv.setFillColor(GRAY)
     cv.drawString(ML, y, f'{fmt(extrate)} per 30-day period (prorated)'); y -= 16
+    if taxrate:
+        cv.setFont('Helvetica', 9); cv.setFillColor(colors.HexColor('#333333'))
+        cv.drawString(ML, y, f'Tax ({taxrate:.2f}%)'); cv.drawRightString(PW - MR, y, fmt(ext_tax)); y -= 15
     cv.setStrokeColor(LGRAY); cv.setLineWidth(0.5); cv.line(ML, y, PW - MR, y); y -= 18
     cv.setFont('Helvetica-Bold', 12); cv.setFillColor(INK)
     cv.drawString(ML, y, 'Total Due'); cv.drawRightString(PW - MR, y, fmt(amount)); y -= 26
@@ -523,9 +533,30 @@ def generate_invoice_pdf(data):
     sub_ov = data.get('subtotal_override')
     tax_ov = data.get('tax_override')
     tot_ov = data.get('total_override')
-    subtotal = float(sub_ov) if sub_ov not in (None, '') else base_price + addon_total
-    tax = float(tax_ov) if tax_ov not in (None, '') else subtotal * taxrate / 100
-    grand = float(tot_ov) if tot_ov not in (None, '') else subtotal + tax
+    if sub_ov not in (None, '') or tax_ov not in (None, '') or tot_ov not in (None, ''):
+        subtotal = float(sub_ov) if sub_ov not in (None, '') else base_price + addon_total
+        tax = float(tax_ov) if tax_ov not in (None, '') else subtotal * taxrate / 100
+        grand = float(tot_ov) if tot_ov not in (None, '') else subtotal + tax
+    elif data.get('price_led_tax'):
+        # Phase 5.2 — price-led tax, new invoices only (see TAX_METHODOLOGY.md). The total
+        # is the chosen price, computed exactly as it always was (base+addons, tax added at
+        # the full rate) — what changes is backing the tax out of that fixed total using only
+        # the rental share, instead of taxing the full subtotal. Must mirror priceLedTax() in
+        # index.html/luxury.html exactly, or the PDF won't match what was previewed on screen.
+        grand = (base_price + addon_total) * (1 + taxrate / 100)
+        rental_share_base = float(data.get('rental_share_base', 0.5) or 0.5)
+        rental_dollars = base_price * rental_share_base + sum(
+            a['price'] for a in addons if a.get('type', 'rental') != 'service'
+        )
+        all_dollars = base_price + addon_total
+        rental_share = (rental_dollars / all_dollars) if all_dollars > 0.009 else 1.0
+        r = (taxrate or 0) / 100
+        subtotal = (grand / (1 + r * rental_share)) if r > 0 else grand
+        tax = grand - subtotal
+    else:
+        subtotal = base_price + addon_total
+        tax = subtotal * taxrate / 100
+        grand = subtotal + tax
 
     # Part of the total coming from someone other than the client (e.g. an agent
     # contribution), decided upfront when the invoice is created. Free-text label —

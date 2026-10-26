@@ -234,6 +234,9 @@ SPLIT_PAY_RE = re.compile(r'^(.+)-PAY(\d+)$')
 # separately from the invoice's own paid/balance math — see supabase_update_pet_deposit.
 DEPOSIT_PAY_RE = re.compile(r'^(.+)-PETDEP$')
 
+# Matches an extension payment link, e.g. "202092-EXT1" — see supabase_update_extension_payment.
+EXT_PAY_RE = re.compile(r'^(.+)-EXT(\d+)$')
+
 
 def compute_grand(data):
     """Same Subtotal/Tax/Total-with-overrides formula used by api/generate.py and the
@@ -426,7 +429,7 @@ def _list_business_invoices():
     out = []
     for inv in invoices:
         invnum = str(inv.get('invnum', ''))
-        if invnum.startswith('DRAFT-') or invnum.startswith('GS'):
+        if invnum.startswith('DRAFT-') or invnum.startswith('GS') or invnum.startswith('TAX_REVIEW_'):
             continue
         if invnum in ('PRICING_DEFAULTS', 'TIER_PRICING'):
             continue
@@ -572,6 +575,48 @@ def supabase_update_split_payment(parent_invnum, pay_id, payment_info):
         return False
 
 
+def supabase_update_extension_payment(parent_invnum, ext_invnum, payment_info):
+    """An extension payment link (invnum like '202092-EXT1') got paid. Extensions have never
+    been their own row in the invoices table — they live only in the PARENT invoice's
+    data.extensions[] array — so this marks the matching entry paid there instead of looking
+    for a Supabase row that doesn't exist (the gap supabase_update_payment's docstring notes).
+    This is what makes extension revenue visible to cash-basis tax reporting at all (Phase 5.3:
+    "Extension fees appear as their own visible category") — before this, a paid extension had
+    no recorded payment date anywhere, so it could never be picked up by period."""
+    try:
+        key = os.environ.get('SUPABASE_KEY', '')
+        req = urllib.request.Request(
+            f'{SUPABASE_URL}/rest/v1/invoices?invnum=eq.{urllib.parse.quote(parent_invnum)}&select=data',
+            headers={'apikey': key, 'Authorization': f'Bearer {key}'}
+        )
+        with urllib.request.urlopen(req, timeout=10) as r:
+            rows = json.loads(r.read())
+        if not rows:
+            return False
+        current_data = rows[0].get('data', {}) or {}
+        extensions = current_data.get('extensions') or []
+
+        entry = next((e for e in extensions if e.get('invnum') == ext_invnum), None)
+        if entry is None:
+            print(f'Extension {ext_invnum} not found on {parent_invnum}')
+            return False
+
+        # Idempotent against Stripe webhook redelivery.
+        if entry.get('paid') and entry.get('payment_id') == payment_info.get('payment_id'):
+            return True
+
+        entry['paid'] = True
+        entry['payment_id'] = payment_info.get('payment_id', '')
+        entry['paid_date'] = payment_info.get('paid_date', '')
+        entry['amount'] = payment_info.get('amount', entry.get('amount', 0))
+
+        current_data['extensions'] = extensions
+        return _patch_invoice_data(parent_invnum, current_data)
+    except Exception as e:
+        print(f'Extension payment update error: {e}')
+        return False
+
+
 def supabase_update_pet_deposit(parent_invnum, payment_info):
     """The refundable pet deposit link (id like '202092-PETDEP') got paid. Marks
     data.pet_deposit as paid on the PARENT invoice — never touches amount_paid/paid/grand,
@@ -610,6 +655,12 @@ def supabase_update_payment(invnum, payment_info):
     m = SPLIT_PAY_RE.match(invnum)
     if m:
         return supabase_update_split_payment(m.group(1), 'PAY' + m.group(2), payment_info)
+
+    # Route extension payment links (metadata.invoice like "202092-EXT1") to the parent
+    # invoice's extensions[] array — same reasoning as the split-payment route above.
+    m = EXT_PAY_RE.match(invnum)
+    if m:
+        return supabase_update_extension_payment(m.group(1), invnum, payment_info)
 
     try:
         key = os.environ.get('SUPABASE_KEY', '')
@@ -907,6 +958,63 @@ def tax_categorize(desc):
     return 'retailing'
 
 
+# Phase 5.1 invoices (flagged price_led_tax) store real city/zip fields captured at creation;
+# older invoices only have them inside the free-text address, so fall back to the same
+# best-effort parse this report has always used for those.
+def tax_resolve_location(inv, d):
+    if d.get('price_led_tax') and d.get('zip'):
+        return {'city': d.get('city') or '(Unparsed)', 'zip': d.get('zip'), 'ok': bool(d.get('city'))}
+    return tax_parse_address(inv.get('address') or d.get('address') or '')
+
+
+# B&O rates (Phase 5.3) — see TAX_METHODOLOGY.md. Not a certified classification.
+BO_RETAIL_RATE = 0.00471
+BO_SERVICE_RATE = 0.015
+# Card-processing-fee benchmark — no live Stripe fee feed exists in this app.
+STRIPE_FEE_PCT = 0.029
+STRIPE_FEE_FLAT = 0.30
+
+
+def tax_invoice_split(d):
+    """Mirrors invoiceTaxSplit() in tax-report.html exactly — must stay in sync with it, and
+    with priceLedTax() in index.html/luxury.html, or the automated email won't match the
+    interactive report or the client's own invoice."""
+    has_override = any(_tax_ov(d.get(k)) is not None for k in ('subtotal_override', 'tax_override', 'total_override'))
+    base = float(d.get('base_price', 2500) or 2500)
+    addons = d.get('addons') or []
+    addon_total = sum(float(a.get('price', 0) or 0) for a in addons)
+    rate = float(d.get('taxrate', 0) or 0)
+
+    if has_override or not d.get('price_led_tax'):
+        subtotal = tax_compute_subtotal(d)
+        tax = tax_compute_tax(d)
+        grand = tax_compute_grand(d)
+        svc = 0.0
+        ret = base
+        for a in addons:
+            amt = float(a.get('price', 0) or 0)
+            if (a.get('type') or tax_categorize(a.get('desc'))) == 'service':
+                svc += amt
+            else:
+                ret += amt
+        line_total = svc + ret
+        rental_share = (ret / line_total) if line_total > 0.009 else 1.0
+        return {'subtotal': subtotal, 'tax': tax, 'grand': grand, 'rental_share': rental_share}
+
+    grand = base + addon_total + (base + addon_total) * rate / 100
+    rsb = d.get('rental_share_base')
+    rental_share_base = float(rsb) if rsb not in (None, '') else 0.5
+    rental_dollars = base * rental_share_base + sum(
+        float(a.get('price', 0) or 0) for a in addons if a.get('type') != 'service'
+    )
+    all_dollars = base + addon_total
+    rental_share = (rental_dollars / all_dollars) if all_dollars > 0.009 else 1.0
+    r = rate / 100
+    subtotal = (grand / (1 + r * rental_share)) if r > 0 else grand
+    tax = grand - subtotal
+    return {'subtotal': subtotal, 'tax': tax, 'grand': grand, 'rental_share': rental_share}
+
+
 def tax_payment_events(d):
     """Every payment EVENT that actually cleared, each tagged with the date received —
     cash-basis reporting keys off this, not the invoice date."""
@@ -963,81 +1071,118 @@ def build_monthly_tax_report(year, month):
     invoices = _tax_list_signed_invoices()
 
     city_map = {}  # city -> {rates:set, taxable:float, tax:float}
-    gross_receipts = tax_collected = retail_total = service_total = 0.0
+    gross_receipts = tax_collected = retail_total = service_total = extension_total = card_fees = 0.0
     detail_rows = []
     unparsed = []
+    exempt_rows = []  # (invnum, client, amount, reason, cert)
 
     for inv in invoices:
         d = inv.get('data') or {}
-        events = [e for e in tax_payment_events(d) if period_start <= e['date'] <= period_end]
-        if not events:
-            continue
-
-        grand = tax_compute_grand(d)
-        tax_total = tax_compute_tax(d)
-        subtotal = tax_compute_subtotal(d)
-        tax_rate = float(d.get('taxrate', 0) or 0)
-        tax_fraction = (tax_total / grand) if grand > 0.009 else 0.0
-
-        addr = inv.get('address') or d.get('address') or ''
-        parsed = tax_parse_address(addr)
-        city_key = parsed['city'] or '(Unparsed)'
-        if not parsed['ok']:
-            unparsed.append(f"#{inv.get('invnum')} — {addr or '(no address)'}")
-
-        period_received = sum(e['amount'] for e in events)
-        period_tax = period_received * tax_fraction
-        gross_receipts += period_received
-        tax_collected += period_tax
-
-        bucket = city_map.setdefault(city_key, {'rates': set(), 'taxable': 0.0, 'tax': 0.0})
-        bucket['rates'].add(f'{tax_rate:.2f}%')
-        bucket['taxable'] += (period_received - period_tax)
-        bucket['tax'] += period_tax
-
-        base = float(d.get('base_price', 2500) or 2500)
-        addons = d.get('addons') or []
-        svc = 0.0
-        ret = base
-        for a in addons:
-            amt = float(a.get('price', 0) or 0)
-            if tax_categorize(a.get('desc')) == 'service':
-                svc += amt
-            else:
-                ret += amt
-        line_total = svc + ret
-        svc_fraction = (svc / line_total) if line_total > 0 else 0.0
-        net_received = period_received - period_tax
-        service_total += net_received * svc_fraction
-        retail_total += net_received * (1 - svc_fraction)
-
         client = inv.get('client') or d.get('client') or 'Client'
-        due_date = tax_compute_due_date(d)
-        methods = ', '.join(sorted(set(e['method'] for e in events)))
-        rooms_n = len([r for r in (d.get('baserooms') or '').split(',') if r.strip()])
+        loc = tax_resolve_location(inv, d)
+        if not loc['ok']:
+            unparsed.append(f"#{inv.get('invnum')} — {inv.get('address') or d.get('address') or '(no address)'}")
+        city_key = loc['city'] or '(Unparsed)'
+        is_exempt = bool(d.get('exempt_reason'))
 
-        line_items = [{'desc': f'Base Package ({rooms_n} rooms)', 'price': base}]
-        line_items += [{'desc': a.get('desc', ''), 'price': float(a.get('price', 0) or 0)} for a in addons]
+        events = [e for e in tax_payment_events(d) if period_start <= e['date'] <= period_end]
+        if events:
+            split = tax_invoice_split(d)
+            tax_rate = float(d.get('taxrate', 0) or 0)
+            tax_fraction = (split['tax'] / split['grand']) if split['grand'] > 0.009 else 0.0
 
-        for i, li in enumerate(line_items):
+            period_received = sum(e['amount'] for e in events)
+            period_tax = 0.0 if is_exempt else period_received * tax_fraction
+            gross_receipts += period_received
+            tax_collected += period_tax
+            for e in events:
+                if e['method'] == 'Stripe (Card)':
+                    card_fees += e['amount'] * STRIPE_FEE_PCT + STRIPE_FEE_FLAT
+
+            if is_exempt:
+                exempt_rows.append((inv.get('invnum'), client, period_received, d.get('exempt_reason'), d.get('exempt_cert') or ''))
+            else:
+                bucket = city_map.setdefault(city_key, {'rates': set(), 'taxable': 0.0, 'tax': 0.0})
+                bucket['rates'].add(f'{tax_rate:.2f}%')
+                bucket['taxable'] += (period_received - period_tax)
+                bucket['tax'] += period_tax
+
+            net_received = period_received - period_tax
+            service_total += net_received * (1 - split['rental_share'])
+            retail_total += net_received * split['rental_share']
+
+            due_date = tax_compute_due_date(d)
+            methods = ', '.join(sorted(set(e['method'] for e in events)))
+            rooms_n = len([r for r in (d.get('baserooms') or '').split(',') if r.strip()])
+            base = float(d.get('base_price', 2500) or 2500)
+            addons = d.get('addons') or []
+
+            line_items = [{'desc': f'Base Package ({rooms_n} rooms)', 'price': base, 'type': 'rental' if d.get('price_led_tax') else None}]
+            line_items += [{'desc': a.get('desc', ''), 'price': float(a.get('price', 0) or 0), 'type': a.get('type')} for a in addons]
+
+            for i, li in enumerate(line_items):
+                category = 'exempt' if is_exempt else (li['type'] or tax_categorize(li['desc']))
+                exemption = (d.get('exempt_reason', '') + (f" ({d.get('exempt_cert')})" if d.get('exempt_cert') else '')) if is_exempt else ''
+                detail_rows.append([
+                    inv.get('invnum'), d.get('invdate', inv.get('invdate', '')), due_date, client,
+                    loc['city'], loc['zip'], li['desc'], category,
+                    f"{li['price']:.2f}", 'No' if is_exempt else 'Yes', exemption,
+                    f'{tax_rate:.2f}%' if i == 0 else '', f"{split['tax']:.2f}" if i == 0 else '',
+                    f"{split['subtotal']:.2f}" if i == 0 else '', f"{split['grand']:.2f}" if i == 0 else '',
+                    f'{period_received:.2f}' if i == 0 else '', methods if i == 0 else '',
+                    (f'{(period_received*STRIPE_FEE_PCT+STRIPE_FEE_FLAT):.2f}' if i == 0 and 'Stripe' in methods else ('0.00' if i == 0 else '')),
+                ])
+
+            pet_deposit = d.get('pet_deposit') or {}
+            if pet_deposit.get('enabled'):
+                detail_rows.append([
+                    inv.get('invnum'), d.get('invdate', inv.get('invdate', '')), due_date, client,
+                    loc['city'], loc['zip'], 'Refundable Pet Deposit', 'deposit (not revenue)',
+                    f"{float(pet_deposit.get('amount', 0) or 0):.2f}", 'No', 'Refundable deposit — not a sale',
+                    '', '', '', '', '', '', '',
+                ])
+
+        # Extensions (Phase 5.3) — see supabase_update_extension_payment; these were invisible
+        # to this report entirely before that existed, since they're not their own row.
+        for ext in (d.get('extensions') or []):
+            if not ext.get('paid') or not ext.get('paid_date'):
+                continue
+            if not (period_start <= ext['paid_date'] <= period_end):
+                continue
+            amt = float(ext.get('amount', 0) or 0)
+            if amt <= 0.009:
+                continue
+            tax_rate = float(d.get('taxrate', 0) or 0)
+            r = tax_rate / 100
+            ext_tax = 0.0 if is_exempt else (amt - amt / (1 + r) if r > 0 else 0.0)
+            ext_subtotal = amt - ext_tax
+            gross_receipts += amt
+            tax_collected += ext_tax
+            retail_total += ext_subtotal
+            extension_total += ext_subtotal
+            method = 'Stripe (Card)' if ext.get('payment_id') else 'Other/Manual'
+            if method == 'Stripe (Card)':
+                card_fees += amt * STRIPE_FEE_PCT + STRIPE_FEE_FLAT
+            if is_exempt:
+                exempt_rows.append((ext.get('invnum'), client, amt, d.get('exempt_reason'), d.get('exempt_cert') or ''))
+            else:
+                bucket = city_map.setdefault(city_key, {'rates': set(), 'taxable': 0.0, 'tax': 0.0})
+                bucket['rates'].add(f'{tax_rate:.2f}%')
+                bucket['taxable'] += ext_subtotal
+                bucket['tax'] += ext_tax
+            exemption = (d.get('exempt_reason', '') + (f" ({d.get('exempt_cert')})" if d.get('exempt_cert') else '')) if is_exempt else ''
             detail_rows.append([
-                inv.get('invnum'), d.get('invdate', inv.get('invdate', '')), due_date, client,
-                parsed['city'], parsed['zip'], li['desc'], tax_categorize(li['desc']),
-                f"{li['price']:.2f}", 'Yes', '',
-                f'{tax_rate:.2f}%' if i == 0 else '', f'{tax_total:.2f}' if i == 0 else '',
-                f'{subtotal:.2f}' if i == 0 else '', f'{grand:.2f}' if i == 0 else '',
-                f'{period_received:.2f}' if i == 0 else '', methods if i == 0 else '',
-                'Not tracked' if i == 0 else '',
+                ext.get('invnum'), ext.get('created', ''), '', client, loc['city'], loc['zip'],
+                f"Extension ({ext.get('days', '?')} days, of #{inv.get('invnum')})", 'exempt' if is_exempt else 'extension',
+                f'{ext_subtotal:.2f}', 'No' if is_exempt else 'Yes', exemption,
+                f'{tax_rate:.2f}%', f'{ext_tax:.2f}', f'{ext_subtotal:.2f}', f'{amt:.2f}',
+                f'{amt:.2f}', method,
+                f'{(amt*STRIPE_FEE_PCT+STRIPE_FEE_FLAT):.2f}' if method == 'Stripe (Card)' else '0.00',
             ])
 
-        pet_deposit = d.get('pet_deposit') or {}
-        if pet_deposit.get('enabled'):
-            detail_rows.append([
-                inv.get('invnum'), d.get('invdate', inv.get('invdate', '')), due_date, client,
-                parsed['city'], parsed['zip'], 'Refundable Pet Deposit', 'deposit (not revenue)',
-                f"{float(pet_deposit.get('amount', 0) or 0):.2f}", 'No', 'Refundable deposit — not a sale',
-                '', '', '', '', '', '', '',
-            ])
+    bo_retail = retail_total * BO_RETAIL_RATE
+    bo_service = service_total * BO_SERVICE_RATE
+    net_revenue = gross_receipts - card_fees
 
     # Summary CSV
     summary_buf = io.StringIO()
@@ -1052,7 +1197,14 @@ def build_monthly_tax_report(year, month):
     w.writerow(['Total Sales Tax Collected', f'{tax_collected:.2f}'])
     w.writerow(['Retailing (Rental) Receipts', f'{retail_total:.2f}'])
     w.writerow(['Service & Other Receipts', f'{service_total:.2f}'])
-    w.writerow(['Exempt Sales', 'None this period'])
+    w.writerow(['Extension Fees (within Retailing)', f'{extension_total:.2f}'])
+    w.writerow(['Card Processing Fees (benchmark est.)', f'{card_fees:.2f}'])
+    w.writerow(['Net Revenue', f'{net_revenue:.2f}'])
+    w.writerow(['Retailing B&O (0.471%)', f'{bo_retail:.2f}'])
+    w.writerow(['Service & Other B&O (1.5%)', f'{bo_service:.2f}'])
+    w.writerow(['Total B&O', f'{(bo_retail+bo_service):.2f}'])
+    w.writerow(['Exempt Sales Count', str(len(exempt_rows))])
+    w.writerow(['Exempt Sales Total', f"{sum(r[2] for r in exempt_rows):.2f}"])
 
     # Detail CSV
     detail_buf = io.StringIO()
@@ -1060,12 +1212,15 @@ def build_monthly_tax_report(year, month):
     w2.writerow(['Invoice #', 'Invoice Date', 'Due Date', 'Customer', 'City', 'Zip', 'Line Item',
                  'Category', 'Item Amount', 'Taxable', 'Exemption Reason', 'Tax Rate',
                  'Invoice Tax Total', 'Invoice Subtotal', 'Invoice Grand Total',
-                 'Received This Period', 'Payment Method', 'Processing Fee'])
+                 'Received This Period', 'Payment Method', 'Processing Fee (benchmark est.)'])
     w2.writerows(detail_rows)
 
     stats = {
         'period_label': period_label, 'gross_receipts': gross_receipts, 'tax_collected': tax_collected,
-        'retail_total': retail_total, 'service_total': service_total,
+        'retail_total': retail_total, 'service_total': service_total, 'extension_total': extension_total,
+        'card_fees': card_fees, 'net_revenue': net_revenue, 'bo_retail': bo_retail, 'bo_service': bo_service,
+        'bo_total': bo_retail + bo_service, 'exempt_count': len(exempt_rows),
+        'exempt_total': sum(r[2] for r in exempt_rows),
         'invoice_count': len({r[0] for r in detail_rows}), 'unparsed': unparsed,
     }
     return summary_buf.getvalue().encode(), detail_buf.getvalue().encode(), stats
@@ -1092,13 +1247,22 @@ def send_monthly_tax_report_email(summary_csv, detail_csv, stats):
             f"Styling With Jas only).\n\n"
             f"Gross Receipts: ${stats['gross_receipts']:,.2f}\n"
             f"Sales Tax Collected: ${stats['tax_collected']:,.2f}\n"
-            f"Retailing (Rental): ${stats['retail_total']:,.2f}\n"
+            f"Retailing (Rental, incl. extensions ${stats['extension_total']:,.2f}): ${stats['retail_total']:,.2f}\n"
             f"Service & Other: ${stats['service_total']:,.2f}\n"
+            f"Retailing B&O (0.471%): ${stats['bo_retail']:,.2f}\n"
+            f"Service & Other B&O (1.5%): ${stats['bo_service']:,.2f}\n"
+            f"Total B&O: ${stats['bo_total']:,.2f}\n"
+            f"Card Processing Fees (benchmark est.): ${stats['card_fees']:,.2f}\n"
+            f"Net Revenue: ${stats['net_revenue']:,.2f}\n"
+            f"Exempt sales: {stats['exempt_count']} (${stats['exempt_total']:,.2f})\n"
             f"Invoices with activity this period: {stats['invoice_count']}\n\n"
-            f"Full breakdown attached as CSV. Category tags are a best-effort heuristic — "
-            f"have this reviewed before filing."
+            f"Full breakdown attached as CSV. Category tags and B&O amounts are a best-effort "
+            f"allocation per the method documented in TAX_METHODOLOGY.md, not CPA-certified — "
+            f"have this reviewed before filing. This has NOT been marked reviewed — do that from "
+            f"/tax-report.html before treating it as final."
             f"{unparsed_note}\n\n"
-            f"See the full interactive report anytime at /tax-report.html."
+            f"See the full interactive report (including reconciliation and the pre-filing pull) "
+            f"anytime at /tax-report.html."
         )
         msg.attach(MIMEText(body, 'plain'))
 

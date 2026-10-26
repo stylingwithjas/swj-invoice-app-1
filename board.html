@@ -679,6 +679,11 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
         </div>
         <div id="m-nudge-status" style="font-size:11px;color:#888;text-align:right"></div>
       </div>
+      <div class="m-row" style="flex-direction:column;align-items:stretch;gap:6px;margin-top:10px;padding-top:10px;border-top:1px solid rgba(162,156,150,0.12)">
+        <span class="m-lbl">Sales tax exemption <span style="font-weight:400;color:#999;font-size:10px">— leave blank unless this specific sale is exempt</span></span>
+        <input class="m-input" id="m-exempt-reason" type="text" placeholder="Exemption reason (e.g. resale certificate)">
+        <input class="m-input" id="m-exempt-cert" type="text" placeholder="Certificate / reference #">
+      </div>
     </div>
 
     <!-- Refundable Pet Deposit (only shown when enabled on this invoice) -->
@@ -1677,13 +1682,14 @@ const _sb = supabase.createClient(
 let CARDS = {};
 
 // The one shared filter every staging-business list/picker on this board should apply:
-// excludes drafts, the internal system/config records (PRICING_DEFAULTS, TIER_PRICING —
-// fake "invoice" rows used to persist app settings, not real jobs), and GS Photography
-// (Gabe's separate business, which must never mix into Jasmine's staging numbers).
+// excludes drafts, the internal system/config records (PRICING_DEFAULTS, TIER_PRICING, and
+// each month's TAX_REVIEW_<year>_<month> record — fake "invoice" rows used to persist app
+// settings/state, not real jobs), and GS Photography (Gabe's separate business, which must
+// never mix into Jasmine's staging numbers).
 const SYSTEM_INVNUMS = ['PRICING_DEFAULTS', 'TIER_PRICING'];
 function isStagingEligible(invnum){
   invnum = String(invnum||'');
-  return !invnum.startsWith('DRAFT-') && !invnum.startsWith('GS') && !SYSTEM_INVNUMS.includes(invnum);
+  return !invnum.startsWith('DRAFT-') && !invnum.startsWith('GS') && !invnum.startsWith('TAX_REVIEW_') && !SYSTEM_INVNUMS.includes(invnum);
 }
 
 // Compute grand total from saved data blob
@@ -2353,6 +2359,8 @@ function realOpenCard(invnum){
   }
   setVal('m-paid-date', d.paid_date || '');
   setVal('m-deposit-date', d.deposit_date || '');
+  setVal('m-exempt-reason', d.exempt_reason || '');
+  setVal('m-exempt-cert', d.exempt_cert || '');
   renderPaymentsList(d);
 
   // Destage
@@ -2741,10 +2749,16 @@ async function extendRental(invnum){
     url = j.url;
   } catch(e){ alert('Could not create the payment link:\n' + e.message + '\n\nNothing was changed.'); return; }
 
+  // Extension tax (Phase 5.5) — 100% rental, backed out of the already-agreed fee under the
+  // price-led method (see TAX_METHODOLOGY.md). The fee itself (amount) never changes.
+  const extTaxRate = parseFloat(d.taxrate) || 0;
+  const _extR = extTaxRate/100;
+  const extTax = _extR>0 ? amount - amount/(1+_extR) : 0;
+
   // 2) Extend the rental window + log the extension on the original invoice
   d.rental_days = (parseInt(d.rental_days, 10) || 45) + addDays;
   d.extensions = d.extensions || [];
-  d.extensions.push({ invnum: extNum, days: days, amount: amount, payment_url: url, created: new Date().toISOString().split('T')[0] });
+  d.extensions.push({ invnum: extNum, days: days, amount: amount, tax: extTax, type: 'extension', payment_url: url, created: new Date().toISOString().split('T')[0] });
   try {
     await _sb.from('invoices').upsert({ invnum: inv.invnum, client: inv.client, address: inv.address, invdate: inv.invdate, data: d }, { onConflict: 'invnum' });
   } catch(e){}
@@ -2758,7 +2772,7 @@ async function extendRental(invnum){
   let pdfUrl = null, pdfErr = '';
   try {
     const pdfData = { extension:true, extension_days:days, extension_of:invnum, client:inv.client, address:inv.address,
-      invnum:extNum, invdate:new Date().toISOString().split('T')[0], base_price:amount, extrate:extrate, payment_url:url, rented_through:rentedThrough };
+      invnum:extNum, invdate:new Date().toISOString().split('T')[0], base_price:amount, extrate:extrate, taxrate:extTaxRate, payment_url:url, rented_through:rentedThrough };
     const pr = await fetch('/api/generate', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(pdfData) });
     if(!pr.ok){ const t = await pr.text(); throw new Error('Server ' + pr.status + ' — ' + t.substring(0,120)); }
     const b = await pr.blob();
@@ -2781,11 +2795,42 @@ async function extendRental(invnum){
     + (pdfUrl ? ('<a href="' + pdfUrl + '" download="' + fname + '" target="_blank" style="display:block;background:#1a1814;color:#fff;text-decoration:none;padding:13px;border-radius:11px;font-weight:600;margin-bottom:8px">📄 Open / Save invoice PDF</a>')
               : ('<div style="font-size:12px;color:#b53535;margin-bottom:10px">PDF preview unavailable (' + (pdfErr||'error') + ') — the payment link still works.</div>'))
     + '<a href="' + url + '" target="_blank" style="display:block;background:#f5ead8;color:#9d7a44;text-decoration:none;padding:12px;border-radius:11px;font-weight:600;margin-bottom:6px">💳 Open payment link</a>'
+    + (d.client_email ? '<button id="ext-ov-send" style="display:block;width:100%;background:var(--slate,#4a5e82);color:#fff;border:none;border-radius:11px;padding:12px;font-weight:600;font-size:13px;cursor:pointer;margin-bottom:6px;font-family:inherit">✉ Preview &amp; Send: Extension Confirmation</button>' : '')
     + '<button id="ext-ov-close" style="background:none;border:none;color:#a29c96;font-size:13px;padding:8px;cursor:pointer">Close</button>'
     + '</div>';
   document.body.appendChild(ov);
   ov.querySelector('#ext-ov-close').onclick = function(){ ov.remove(); };
   ov.addEventListener('click', function(e){ if(e.target === ov) ov.remove(); });
+  const sendBtn = ov.querySelector('#ext-ov-send');
+  if(sendBtn) sendBtn.onclick = function(){
+    ov.remove();
+    sendExtensionConfirmation({ invnum, extNum, client: inv.client, clientEmail: d.client_email, address: inv.address,
+      days, amount, tax: extTax, newEndDate: rentedThrough, paymentUrl: url });
+  };
+}
+
+// Phase 5.5 — the written extension confirmation the spec calls for (new end date, fee, tax
+// amount, payment link). This is NOT a new contract — the original signed contract's
+// extension clause already covers it at the stated rate; this just records/communicates THIS
+// specific extension under that existing agreement. Routes through the same guardrail as
+// every other client-facing send.
+function sendExtensionConfirmation({ invnum, extNum, client, clientEmail, address, days, amount, tax, newEndDate, paymentUrl }){
+  if(!clientEmail){ alert('No client email on file — send this by text or in person instead.'); return; }
+  const firstName = (client||'').split(' ')[0] || 'there';
+  const newEndFmt = new Date(newEndDate+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
+  const pretax = amount - tax;
+  const subject = 'Extension Confirmation — ' + address;
+  const message = 'Hi '+firstName+',\n\nThis confirms the extension of your staging rental at '+address+' under the extension terms in your signed agreement — no new contract is needed.\n\n'
+    + 'New end date: '+newEndFmt+' ('+days+' additional day(s))\n'
+    + 'Extension fee: $'+pretax.toLocaleString(undefined,{minimumFractionDigits:2})+' + $'+tax.toLocaleString(undefined,{minimumFractionDigits:2})+' tax = $'+amount.toLocaleString(undefined,{minimumFractionDigits:2})+' total\n'
+    + 'Payment link: '+paymentUrl+'\n\n'
+    + 'Please pay before the extension period begins to keep everything on schedule. Replying to confirm or completing payment both acknowledge this extension.\n\nThank you!\nJasmine Santana\nStyling With Jas\n206-422-5618';
+  showSendPreview({
+    to: clientEmail, subject, message,
+    meta: 'Extension confirmation · '+address+' · '+days+' days · $'+amount.toLocaleString(undefined,{minimumFractionDigits:2}),
+    invnum,
+    onSent: ()=>{},
+  });
 }
 
 async function addPastJob(){
@@ -2845,6 +2890,8 @@ function buildCardDataFromModal(inv){
   d.paid = (paymentVal === 'Paid' || paymentVal === 'Confirmed via Stripe');
   d.paid_date = document.getElementById('m-paid-date').value || null;
   d.deposit_date = document.getElementById('m-deposit-date').value || null;
+  d.exempt_reason = (document.getElementById('m-exempt-reason')?.value || '').trim() || null;
+  d.exempt_cert = (document.getElementById('m-exempt-cert')?.value || '').trim() || null;
 
   const _newDestageDate = document.getElementById('m-ddate').value || null;
   if(_newDestageDate !== d.destage_date){

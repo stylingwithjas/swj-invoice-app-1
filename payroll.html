@@ -341,7 +341,7 @@ async function loadProjects(){
   const internalOpts = INTERNAL_JOBS.map(j=>`<option value="${esc(j.invnum)}">${esc(j.label)}</option>`).join('');
   try{
     const {data} = await _sb.from('invoices').select('invnum,client,address,invdate,data')
-      .not('invnum','like','DRAFT-%').not('invnum','like','GS%').neq('invnum','PRICING_DEFAULTS').neq('invnum','TIER_PRICING')
+      .not('invnum','like','DRAFT-%').not('invnum','like','GS%').neq('invnum','PRICING_DEFAULTS').neq('invnum','TIER_PRICING').not('invnum','like','TAX_REVIEW_%')
       .order('invdate',{ascending:false}).limit(50);
     _projectsCache = (data||[]).filter(j => { const s=(j.data||{}).stage||'proposal'; return s!=='denied' && s!=='closed_lost'; });
     const jobOpts = _projectsCache.map(j=>`<option value="${esc(j.invnum)}">${esc(jobLabelFor(j))}</option>`).join('');

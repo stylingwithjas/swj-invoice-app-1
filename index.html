@@ -371,10 +371,16 @@ textarea:focus { border-color:var(--gold); background:var(--warm); }
         <input class="field-input" id="address" type="text" placeholder="123 Main St, Seattle WA" autocomplete="street-address" oninput="lookupTaxRate()">
         <div class="ferr" id="e-address">Required</div>
       </div>
-      <div class="field" style="max-width:180px">
-        <div class="field-lbl">ZIP Code</div>
-        <input class="field-input" id="zipcode" type="text" inputmode="numeric" maxlength="5" placeholder="98126" oninput="lookupTaxRate()">
-        <div class="zip-note" id="tax-note">&nbsp;</div>
+      <div style="display:flex;gap:10px">
+        <div class="field" style="flex:1">
+          <div class="field-lbl">City <span style="text-transform:none;letter-spacing:0;font-weight:400;color:var(--taupe);font-size:10px">— stored separately for tax reporting, never parsed from the address above</span></div>
+          <input class="field-input" id="city" type="text" placeholder="Seattle" autocomplete="address-level2">
+        </div>
+        <div class="field" style="max-width:180px">
+          <div class="field-lbl">ZIP Code</div>
+          <input class="field-input" id="zipcode" type="text" inputmode="numeric" maxlength="5" placeholder="98126" oninput="lookupTaxRate()">
+          <div class="zip-note" id="tax-note">&nbsp;</div>
+        </div>
       </div>
     </div>
   </div>
@@ -976,17 +982,56 @@ function getCosigner(){
 }
 
 function fmt(n){return'$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
+
+// Phase 5.1 — every add-on line is tagged rental or service (room/category furniture is
+// always rental; only a line that reads like pure labor — photography, consulting, a design
+// fee — is service). Same heuristic the tax report has used for Retailing vs Service & Other
+// since before this rebuild, now applied at creation time instead of re-guessed at report time.
+function addonType(desc){
+  const s=(desc||'').toLowerCase();
+  return (s.includes('photo')||s.includes('consult')||s.includes('design fee')) ? 'service' : 'rental';
+}
+// Base package default rental/service split — see TAX_METHODOLOGY.md for the derivation
+// (confirmed 50/50 by Gabe, Oct 25, 2026). Stored per-invoice (rental_share_base) so a future
+// change to this constant never silently reclassifies an already-issued invoice.
+const BASE_RENTAL_SHARE = 0.5;
+
+// Phase 5.2 — price-led tax: `total` is the chosen price (computed exactly as it always was —
+// nothing about what the client is charged changes). What changes is backing the tax out of
+// that already-fixed total using only the rental share, instead of taxing the full subtotal.
+// See TAX_METHODOLOGY.md for the full derivation and the worked example.
+function priceLedTax(basePrice, addonList, ratePct, total){
+  const rentalDollars = basePrice*BASE_RENTAL_SHARE + addonList.filter(a=>a.type!=='service').reduce((s,a)=>s+a.price,0);
+  const allDollars = basePrice + addonList.reduce((s,a)=>s+a.price,0);
+  const rentalShare = allDollars>0.009 ? rentalDollars/allDollars : 1;
+  const r = (ratePct||0)/100;
+  const pretax = r>0 ? total/(1+r*rentalShare) : total;
+  return {pretax, tax: total-pretax, rentalShare};
+}
+
 function recalc(){
-  let t=0;selAddons.forEach(e=>{t+=parseFloat(CATS[e.ci].sizes[e.oi].price)||0;});
-  t+=customs.reduce((s,a)=>s+(parseFloat(a.price)||0),0);
-  t+=extraBedrooms.reduce((s,b)=>s+(parseFloat(b.price)||0),0);  // each extra bedroom keeps its OWN price (independent of other bedrooms)
+  let t=0; const _addons=[];
+  selAddons.forEach(e=>{const p=parseFloat(CATS[e.ci].sizes[e.oi].price)||0;t+=p;_addons.push({price:p,type:'rental'});});
+  customs.forEach(a=>{const p=parseFloat(a.price)||0;t+=p;_addons.push({price:p,type:addonType(a.desc)});});
+  extraBedrooms.forEach(b=>{const p=parseFloat(b.price)||0;t+=p;_addons.push({price:p,type:'rental'});});
   const base=parseFloat(document.getElementById('base_price')?.value)||2500;
   const sub=base+t,rate=parseFloat(document.getElementById('taxrate').value)||0;
   // Manual overrides: anything typed prints exactly; blank fields auto-calculate.
   const ovSub=_ov('ov-subtotal'),ovTax=_ov('ov-tax'),ovTot=_ov('ov-total');
-  const subShown=ovSub!==null?ovSub:sub;
-  const taxShown=ovTax!==null?ovTax:subShown*rate/100;
-  const grandShown=ovTot!==null?ovTot:subShown+taxShown;
+  let subShown, taxShown, grandShown;
+  if(ovSub!==null||ovTax!==null||ovTot!==null){
+    subShown=ovSub!==null?ovSub:sub;
+    taxShown=ovTax!==null?ovTax:subShown*rate/100;
+    grandShown=ovTot!==null?ovTot:subShown+taxShown;
+  } else {
+    // "Chosen price" — the exact same number this always produced (base+addons, tax added
+    // at the full rate). Price-led tax then backs the (smaller, rental-only) tax out of
+    // THIS fixed total rather than taxing the full subtotal — see priceLedTax() above.
+    grandShown = sub + sub*rate/100;
+    const plt = priceLedTax(base, _addons, rate, grandShown);
+    subShown = plt.pretax;
+    taxShown = plt.tax;
+  }
   const baseEl=document.getElementById('t-base'); if(baseEl) baseEl.textContent=fmt(base);
   document.getElementById('t-addons').textContent=fmt(t);
   document.getElementById('t-sub').textContent=fmt(subShown);
@@ -1335,6 +1380,7 @@ async function loadRecent(){
       .not('invnum', 'like', 'DRAFT-%')
       .neq('invnum', 'PRICING_DEFAULTS')
       .neq('invnum', 'TIER_PRICING')
+      .not('invnum', 'like', 'TAX_REVIEW_%')
       .order('created_at', { ascending: false })
       .limit(10);
     if(error||!data||data.length===0){el.textContent='No recent invoices.';return;}
@@ -1377,7 +1423,11 @@ function loadInvoiceData(d){
     if(payerUnknownChk){ payerUnknownChk.checked = !!d.payer_unknown; togglePayerUnknown(); }
     if(document.getElementById('client_email')) document.getElementById('client_email').value = d.client_email || '';
     document.getElementById('address').value = d.address||'';
-    document.getElementById('zipcode').value = '';
+    // d.zip/d.city only exist on invoices created after the Phase 5 structured-address
+    // change — legacy records have the zip baked into the free-text address above instead,
+    // so there's nothing to restore into these fields for them.
+    if(document.getElementById('zipcode')) document.getElementById('zipcode').value = d.zip||'';
+    if(document.getElementById('city')) document.getElementById('city').value = d.city||'';
     document.getElementById('invdate').value = d.invdate||'';
     setStartDateFromData(d.startdate);
     document.getElementById('invnum-display').value = d.invnum||'';   // keep the same number so editing + regenerating UPDATES this invoice (and its Approve/Sign link)
@@ -1514,6 +1564,7 @@ async function saveDraft(silent){
   });
   customs.filter(a=>a.desc).forEach(a=>{allAddons.push({desc:a.desc+(a.scope?': '+a.scope:''),price:parseFloat(a.price)||0});});
   extraBedrooms.forEach(b=>{allAddons.push({desc:`${b.name} (${b.bed}): ${b.scope||b.size}`,price:b.price});});
+  allAddons.forEach(a=>{ a.type = a.type || addonType(a.desc); });
 
   const sub = parseFloat(document.getElementById('base_price')?.value)||2500;
   const taxrate = parseFloat(document.getElementById('taxrate').value)||0;
@@ -1533,6 +1584,10 @@ async function saveDraft(silent){
     base_price: parseFloat(document.getElementById('base_price')?.value)||2500,
     subtotal_override: ovSub, tax_override: ovTax, total_override: ovTot,
     addons: allAddons,
+    city: document.getElementById('city')?.value.trim()||'',
+    zip: document.getElementById('zipcode')?.value.trim()||'',
+    property_state: 'WA',
+    rental_share_base: BASE_RENTAL_SHARE,
     state: captureState(),
     promo1: document.getElementById('promo1').checked,
     promo2: document.getElementById('promo2').checked,
@@ -1632,14 +1687,15 @@ async function downloadPdfNow(){
   });
   customs.filter(a=>a.desc).forEach(a=>{allAddons.push({desc:a.desc+(a.scope?': '+a.scope:''),price:parseFloat(a.price)||0});});
   extraBedrooms.forEach(b=>{allAddons.push({desc:`${b.name} (${b.bed}): ${b.scope||b.size}`,price:b.price});});
+  allAddons.forEach(a=>{ a.type = a.type || addonType(a.desc); });
 
   const base=parseFloat(document.getElementById('base_price')?.value)||2500;
   const addonTotal=allAddons.reduce((s,a)=>s+a.price,0);
   const sub=base+addonTotal, taxrate=parseFloat(document.getElementById('taxrate').value)||0;
   const ovSub=_ov('ov-subtotal'),ovTax=_ov('ov-tax'),ovTot=_ov('ov-total');
-  const subEff=ovSub!==null?ovSub:sub;
-  const taxEff=ovTax!==null?ovTax:subEff*taxrate/100;
-  const grand=ovTot!==null?ovTot:subEff+taxEff, extrate=Math.round(grand/3*100)/100;
+  const _hasOverride = ovSub!==null||ovTax!==null||ovTot!==null;
+  const grand = _hasOverride ? (ovTot!==null?ovTot:(ovSub!==null?ovSub:sub)+(ovTax!==null?ovTax:(ovSub!==null?ovSub:sub)*taxrate/100)) : sub+sub*taxrate/100;
+  const extrate=Math.round(grand/3*100)/100;
   const client=document.getElementById('client').value.trim();
   const clientEmail=document.getElementById('client_email')?.value.trim()||'';
   const addressBase=document.getElementById('address').value.trim();
@@ -1649,7 +1705,7 @@ async function downloadPdfNow(){
   invNum=invNumFinal;
 
   const _contribList=contributions.filter(c=>c.label&&parseFloat(c.amount)>0).map(c=>({label:c.label,amount:parseFloat(c.amount)}));
-  const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:getStartDateValue(),baserooms:[...selRooms].join(', '),baseroom_scopes:roomScopesObj(),extrate,taxrate,base_price:base,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,state:captureState(),promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,promo4:document.getElementById('promo4').checked,payment_url:null,contributions:_contribList,pet_deposit:petDepositBase(),cosigner:getCosigner(),cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||'',payer_unknown:!!payerUnknown};
+  const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:getStartDateValue(),baserooms:[...selRooms].join(', '),baseroom_scopes:roomScopesObj(),extrate,taxrate,base_price:base,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,city:document.getElementById('city')?.value.trim()||'',zip:zipVal,property_state:'WA',rental_share_base:BASE_RENTAL_SHARE,price_led_tax:!_hasOverride,state:captureState(),promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,promo4:document.getElementById('promo4').checked,payment_url:null,contributions:_contribList,pet_deposit:petDepositBase(),cosigner:getCosigner(),cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||'',payer_unknown:!!payerUnknown};
 
   const ctrl=new AbortController();
   const to=setTimeout(()=>ctrl.abort(),90000);
@@ -1907,14 +1963,15 @@ async function generatePDF(){
   });
   customs.filter(a=>a.desc).forEach(a=>{allAddons.push({desc:a.desc+(a.scope?': '+a.scope:''),price:parseFloat(a.price)||0});});
   extraBedrooms.forEach(b=>{allAddons.push({desc:`${b.name} (${b.bed}): ${b.scope||b.size}`,price:b.price});});
+  allAddons.forEach(a=>{ a.type = a.type || addonType(a.desc); });
 
   const addonTotal=allAddons.reduce((s,a)=>s+a.price,0);
   const base=parseFloat(document.getElementById('base_price')?.value)||2500;
   const sub=base+addonTotal,taxrate=parseFloat(document.getElementById('taxrate').value)||0;
   const ovSub=_ov('ov-subtotal'),ovTax=_ov('ov-tax'),ovTot=_ov('ov-total');
-  const subEff=ovSub!==null?ovSub:sub;
-  const taxEff=ovTax!==null?ovTax:subEff*taxrate/100;
-  const grand=ovTot!==null?ovTot:subEff+taxEff,extrate=Math.round(grand/3*100)/100;
+  const _hasOverride=ovSub!==null||ovTax!==null||ovTot!==null;
+  const grand = _hasOverride ? (ovTot!==null?ovTot:(ovSub!==null?ovSub:sub)+(ovTax!==null?ovTax:(ovSub!==null?ovSub:sub)*taxrate/100)) : sub+sub*taxrate/100;
+  const extrate=Math.round(grand/3*100)/100;
   const client=document.getElementById('client').value.trim();
   const clientEmail=document.getElementById('client_email')?.value.trim()||'';
   const addressBase=document.getElementById('address').value.trim();
@@ -1952,7 +2009,7 @@ async function generatePDF(){
 
   setSt('loading','Generating your invoice PDF...');
   const _contribList=contributions.filter(c=>c.label&&parseFloat(c.amount)>0).map(c=>({label:c.label,amount:parseFloat(c.amount)}));
-  const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:getStartDateValue(),baserooms:[...selRooms].join(', '),baseroom_scopes:roomScopesObj(),extrate,taxrate,base_price:base,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,state:captureState(),promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
+  const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:getStartDateValue(),baserooms:[...selRooms].join(', '),baseroom_scopes:roomScopesObj(),extrate,taxrate,base_price:base,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,city:document.getElementById('city')?.value.trim()||'',zip:zipVal,property_state:'WA',rental_share_base:BASE_RENTAL_SHARE,price_led_tax:!_hasOverride,state:captureState(),promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
             promo4:document.getElementById('promo4').checked,payment_url,payment_link_id,contributions:_contribList,payments:splitPayments,active_client_payment_id:activeClientPaymentId,pet_deposit:petDeposit,cosigner:getCosigner(),cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||'',payer_unknown:!!payerUnknown};
 
   const _ctrl=new AbortController();
@@ -2001,13 +2058,14 @@ async function generate(){
   });
   customs.filter(a=>a.desc).forEach(a=>{allAddons.push({desc:a.desc+(a.scope?': '+a.scope:''),price:parseFloat(a.price)||0});});
   extraBedrooms.forEach(b=>{allAddons.push({desc:`${b.name} (${b.bed}): ${b.scope||b.size}`,price:b.price});});
+  allAddons.forEach(a=>{ a.type = a.type || addonType(a.desc); });
 
   const addonTotal=allAddons.reduce((s,a)=>s+a.price,0);
   const base=parseFloat(document.getElementById('base_price')?.value)||2500; const sub=base+addonTotal,taxrate=parseFloat(document.getElementById('taxrate').value)||0;
   const ovSub=_ov('ov-subtotal'),ovTax=_ov('ov-tax'),ovTot=_ov('ov-total');
-  const subEff=ovSub!==null?ovSub:sub;
-  const taxEff=ovTax!==null?ovTax:subEff*taxrate/100;
-  const grand=ovTot!==null?ovTot:subEff+taxEff,extrate=Math.round(grand/3*100)/100;
+  const _hasOverride=ovSub!==null||ovTax!==null||ovTot!==null;
+  const grand = _hasOverride ? (ovTot!==null?ovTot:(ovSub!==null?ovSub:sub)+(ovTax!==null?ovTax:(ovSub!==null?ovSub:sub)*taxrate/100)) : sub+sub*taxrate/100;
+  const extrate=Math.round(grand/3*100)/100;
   const client=document.getElementById('client').value.trim();
   const clientEmail=document.getElementById('client_email')?.value.trim()||'';
   const addressBase=document.getElementById('address').value.trim();
@@ -2050,7 +2108,7 @@ async function generate(){
   setSt('loading','Generating your invoice PDF...');
 
   const _contribList=contributions.filter(c=>c.label&&parseFloat(c.amount)>0).map(c=>({label:c.label,amount:parseFloat(c.amount)}));
-  const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:getStartDateValue(),baserooms:[...selRooms].join(', '),baseroom_scopes:roomScopesObj(),extrate,taxrate,base_price:parseFloat(document.getElementById('base_price')?.value)||2500,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,state:captureState(),promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
+  const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:getStartDateValue(),baserooms:[...selRooms].join(', '),baseroom_scopes:roomScopesObj(),extrate,taxrate,base_price:parseFloat(document.getElementById('base_price')?.value)||2500,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,city:document.getElementById('city')?.value.trim()||'',zip:zipVal,property_state:'WA',rental_share_base:BASE_RENTAL_SHARE,price_led_tax:!_hasOverride,state:captureState(),promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
             promo4:document.getElementById('promo4').checked,payment_url,payment_link_id,contributions:_contribList,payments:splitPayments,active_client_payment_id:activeClientPaymentId,pet_deposit:petDeposit,cosigner:getCosigner(),cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||'',payer_unknown:!!payerUnknown};
 
   // Send to API and download PDF
