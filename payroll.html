@@ -126,6 +126,19 @@ tr.paid-row { opacity:0.55; }
 .calc-card .calc-row.total { border-top:0.5px solid var(--taupe-lt); margin-top:4px; padding-top:6px; font-weight:700; }
 .disclaimer { font-size:10.5px; color:var(--taupe-dk); line-height:1.6; background:var(--warm); border-radius:8px; padding:10px 12px; margin-top:12px; }
 .flag-note { color:var(--red); font-weight:600; }
+.special-flag { background:#fdf0e3; border:1px solid var(--amber); color:#8a5a1f; border-radius:8px; padding:8px 12px; font-size:12px; margin:8px 0; }
+.name-list { font-size:11px; color:var(--taupe-dk); margin-top:2px; line-height:1.5; }
+.name-list .nm { display:block; }
+.budget-row { display:flex; justify-content:space-between; font-size:12.5px; padding:4px 0; border-bottom:0.5px solid var(--taupe-lt); }
+.budget-row:last-child { border-bottom:none; }
+.budget-row .ov { color:var(--red); font-weight:600; }
+.alloc-card { background:var(--warm); border-radius:10px; padding:12px 14px; margin-bottom:10px; }
+.alloc-card .alloc-ttl { font-size:12px; font-weight:700; color:var(--ink-soft); margin-bottom:6px; }
+.alloc-card .alloc-row { display:flex; justify-content:space-between; font-size:12px; padding:2px 0; }
+.alloc-card .alloc-row.total { border-top:0.5px solid var(--taupe-lt); margin-top:4px; padding-top:5px; font-weight:700; }
+.alloc-card .alloc-row.sub { padding-left:10px; color:var(--taupe-dk); }
+.override-row { display:flex; gap:8px; align-items:center; margin-top:8px; flex-wrap:wrap; }
+.override-row select, .override-row input { font-size:11.5px; padding:5px 8px; border-radius:7px; border:0.5px solid var(--taupe-lt); font-family:inherit; }
 </style>
 </head>
 <body>
@@ -168,9 +181,8 @@ tr.paid-row { opacity:0.55; }
       <div style="font-size:11px;color:var(--taupe-dk);margin-bottom:10px">Every number below is editable — these are starting assumptions, not fixed constants. Mover rates are managed separately (Create a Day's Pay Schedule / /hours.html) and already feed in live from actual logged hours.</div>
       <div class="fin-settings-grid">
         <div><label>Warehouse $/mo</label><input type="number" step="1" id="fc-warehouse"></div>
-        <div><label>Avg job revenue ($)</label><input type="number" step="1" id="fc-avgjob"></div>
-        <div><label>Profit target %</label><input type="number" step="0.1" id="fc-profit-pct"></div>
-        <div><label>Tithe % of profit</label><input type="number" step="0.1" id="fc-tithe-pct"></div>
+        <div><label>Jasmine keep target %</label><input type="number" step="0.1" id="fc-profit-pct"></div>
+        <div><label>Tithe % of keep</label><input type="number" step="0.1" id="fc-tithe-pct"></div>
         <div><label>Truck $/day</label><input type="number" step="1" id="fc-truck-day"></div>
         <div><label>Truck days/rental (default)</label><input type="number" step="0.5" id="fc-truck-days"></div>
         <div><label>Truck miles/rental (default)</label><input type="number" step="1" id="fc-truck-miles"></div>
@@ -179,19 +191,38 @@ tr.paid-row { opacity:0.55; }
         <div><label>LDW+LIA $/week</label><input type="number" step="1" id="fc-ldw-week"></div>
         <div><label>Stripe fee %</label><input type="number" step="0.01" id="fc-stripe-pct"></div>
         <div><label>Stripe fee flat ($)</label><input type="number" step="0.01" id="fc-stripe-flat"></div>
+        <div><label>Mover planning — staging $/job</label><input type="number" step="1" id="fc-mover-staging"></div>
+        <div><label>Mover planning — destage $/job</label><input type="number" step="1" id="fc-mover-destage"></div>
+        <div><label>Mover ideal %</label><input type="number" step="0.1" id="fc-mover-ideal"></div>
+        <div><label>Normal shared labor $/job (one-off threshold)</label><input type="number" step="1" id="fc-shared-normal"></div>
       </div>
       <button class="filter-btn primary" onclick="saveFinanceConfig()">Save Settings</button>
       <span class="msg" id="fc-msg" style="display:inline-block;margin-left:8px"></span>
     </div>
 
     <div class="sub-hdr">Monthly Summary — <span id="fin-period"></span></div>
+    <div id="fin-oneoff-banner"></div>
     <div class="stat-grid" id="fin-summary-stats"></div>
 
-    <div class="sub-hdr">Cash to Allocate</div>
+    <div class="sub-hdr">Keep / Inventory / Tithe</div>
     <div id="fin-cash-breakdown" style="font-size:13px;line-height:1.9"></div>
 
-    <div class="sub-hdr">Scenario Calculators</div>
-    <div id="fin-calculators"></div>
+    <div class="sub-hdr">Monthly Budget — Received + Expected</div>
+    <div id="fin-budget"></div>
+
+    <div class="sub-hdr">Committed — signed &amp; scheduled, next 60 days</div>
+    <div id="fin-committed"></div>
+
+    <div class="sub-hdr">Per-Project Allocation</div>
+    <div id="fin-allocation"></div>
+
+    <div class="sub-hdr">Manual Override</div>
+    <div class="override-row">
+      <select id="fin-override-add"><option value="">Add a project to this month…</option></select>
+      <button class="filter-btn" onclick="financeIncludeProject()">+ Add</button>
+      <button class="filter-btn" onclick="financeToggleOneOff()" id="fin-oneoff-toggle-btn">Toggle one-off flag</button>
+    </div>
+    <div style="font-size:10.5px;color:var(--taupe-dk);margin-top:4px">Add a project the automatic rules missed, remove one with the ✕ next to it below, or flip the one-off flag for a month the auto-check got wrong. No confirmation needed — this is the correction mechanism, not a gate.</div>
 
     <div id="fin-reconcile-wrap">
       <div class="sub-hdr">Reconciliation</div>
@@ -201,7 +232,7 @@ tr.paid-row { opacity:0.55; }
       <div id="fin-reconcile-result" style="font-size:13px"></div>
     </div>
 
-    <div class="disclaimer">Revenue is cash-basis (signed invoices, payment-received month — same basis as the Tax Report). Mover pay is actual, from logged hours this month. Truck and warehouse costs use the editable assumptions above, since this app doesn't track per-job truck receipts yet — correct the defaults above if your actual costs differ. Tax set-aside reuses the Tax Report's B&amp;O + sales-tax method (not CPA-certified — see TAX_METHODOLOGY.md). A month with unreconciled revenue is flagged, not presented as final.</div>
+    <div class="disclaimer">Revenue is cash-basis (signed invoices, payment-received month — same basis as the Tax Report). Mover pay is actual, from logged hours this month. Truck and warehouse costs use the editable assumptions above, since this app doesn't track per-job truck receipts yet — correct the defaults above if your actual costs differ. Tax set-aside reuses the Tax Report's B&amp;O + sales-tax method (not CPA-certified — see TAX_METHODOLOGY.md). "Jasmine keep (actual net)" is real profit; "Jasmine keep (target)" is a benchmark line only — the two are never blended. Inventory (shopping budget) is derived, never entered: whatever is left after costs and the keep target. A month with unreconciled revenue is flagged, not presented as final. Viewing this page never changes a stored record — only the Manual Override controls write anything.</div>
   </div>
 
   <div class="card">
@@ -756,9 +787,8 @@ function exportCsv(){
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const FINANCE_DEFAULTS = {
   warehouse_monthly: 1380,     // 3 units × $460, confirmed Oct 25, 2026
-  avg_job_revenue: 3800,       // Floor calculator's single-job scenario
-  profit_target_pct: 25,       // operating-margin target, before tithing
-  tithe_pct: 10,                // of profit, not revenue
+  profit_target_pct: 25,       // Jasmine keep TARGET, as % of gross revenue (30% for 2027 jobs per pricing decision)
+  tithe_pct: 10,                // of Jasmine keep (target), not of revenue or operating net
   truck_rate_day: 50,          // Penske rate card
   truck_days_default: 1,       // per rental (staging delivery / destage pickup, each its own rental)
   truck_miles_default: 20,     // per rental
@@ -767,6 +797,10 @@ const FINANCE_DEFAULTS = {
   ldw_lia_week: 200,           // $125 LDW + $75 LIA per week, prorated daily, on every rental
   stripe_pct: 2.9,
   stripe_flat: 0.30,
+  mover_plan_staging: 400,     // planning-average estimate per job, used before actual hours are logged
+  mover_plan_destage: 160,     // staging $400 + destage $160 = $560/job; warehouse labor is inside these two, never added on top
+  mover_ideal_pct: 15,         // benchmark: mover cost as a % of job revenue
+  shared_labor_normal_per_job: 75, // normal shared/warehouse-overhead labor per job in a non-special month (top of the $50-75 range) — above this × job count, a month auto-flags as one-off/special
 };
 let FINANCE_CONFIG = { ...FINANCE_DEFAULTS };
 let _financeInvoices = [];
@@ -777,7 +811,6 @@ async function loadFinanceConfig(){
     if(data && data.data) FINANCE_CONFIG = { ...FINANCE_DEFAULTS, ...data.data };
   }catch(e){ /* no saved config yet — defaults stand */ }
   setVal2('fc-warehouse', FINANCE_CONFIG.warehouse_monthly);
-  setVal2('fc-avgjob', FINANCE_CONFIG.avg_job_revenue);
   setVal2('fc-profit-pct', FINANCE_CONFIG.profit_target_pct);
   setVal2('fc-tithe-pct', FINANCE_CONFIG.tithe_pct);
   setVal2('fc-truck-day', FINANCE_CONFIG.truck_rate_day);
@@ -788,18 +821,24 @@ async function loadFinanceConfig(){
   setVal2('fc-ldw-week', FINANCE_CONFIG.ldw_lia_week);
   setVal2('fc-stripe-pct', FINANCE_CONFIG.stripe_pct);
   setVal2('fc-stripe-flat', FINANCE_CONFIG.stripe_flat);
+  setVal2('fc-mover-staging', FINANCE_CONFIG.mover_plan_staging);
+  setVal2('fc-mover-destage', FINANCE_CONFIG.mover_plan_destage);
+  setVal2('fc-mover-ideal', FINANCE_CONFIG.mover_ideal_pct);
+  setVal2('fc-shared-normal', FINANCE_CONFIG.shared_labor_normal_per_job);
 }
 function setVal2(id, v){ const el=document.getElementById(id); if(el) el.value = v; }
 
 async function saveFinanceConfig(){
   const g = id => parseFloat(document.getElementById(id).value);
   const cfg = {
-    warehouse_monthly: g('fc-warehouse')||0, avg_job_revenue: g('fc-avgjob')||0,
+    warehouse_monthly: g('fc-warehouse')||0,
     profit_target_pct: g('fc-profit-pct')||0, tithe_pct: g('fc-tithe-pct')||0,
     truck_rate_day: g('fc-truck-day')||0, truck_days_default: g('fc-truck-days')||0,
     truck_miles_default: g('fc-truck-miles')||0, truck_rate_mile: g('fc-truck-mile-rate')||0,
     fuel_rate_mile: g('fc-fuel-rate')||0, ldw_lia_week: g('fc-ldw-week')||0,
     stripe_pct: g('fc-stripe-pct')||0, stripe_flat: g('fc-stripe-flat')||0,
+    mover_plan_staging: g('fc-mover-staging')||0, mover_plan_destage: g('fc-mover-destage')||0,
+    mover_ideal_pct: g('fc-mover-ideal')||0, shared_labor_normal_per_job: g('fc-shared-normal')||0,
   };
   const msg = document.getElementById('fc-msg');
   try{
@@ -882,7 +921,7 @@ function finComputeGrandForEvents(d){ return finInvoiceSplit(d).grand; }
 async function loadFinanceInvoices(){
   try{
     const {data,error} = await _sb.from('invoices').select('invnum,client,address,invdate,data')
-      .not('invnum','like','DRAFT-%').not('invnum','like','GS%').neq('invnum','PRICING_DEFAULTS').neq('invnum','TIER_PRICING').not('invnum','like','TAX_REVIEW_%').neq('invnum','FINANCE_CONFIG')
+      .not('invnum','like','DRAFT-%').not('invnum','like','GS%').neq('invnum','PRICING_DEFAULTS').neq('invnum','TIER_PRICING').not('invnum','like','TAX_REVIEW_%').neq('invnum','FINANCE_CONFIG').neq('invnum','FINANCE_OVERRIDES')
       .order('created_at',{ascending:false}).limit(2000);
     if(error) throw error;
     _financeInvoices = data||[];
@@ -898,6 +937,59 @@ function truckCostPerRental(days, miles){
   return d*FINANCE_CONFIG.truck_rate_day + (FINANCE_CONFIG.ldw_lia_week/7)*d + m*(FINANCE_CONFIG.truck_rate_mile+FINANCE_CONFIG.fuel_rate_mile);
 }
 function truckCostPerJob(){ return 2*truckCostPerRental(); }
+function moverPlanningPerJob(){ return FINANCE_CONFIG.mover_plan_staging + FINANCE_CONFIG.mover_plan_destage; }
+
+// Manual override record (redesign §10) — add/remove a project from a month's Budget/
+// Allocation views, or force/clear a one-off classification. Same system-record pattern as
+// FINANCE_CONFIG, keyed by month so one override doesn't bleed into another period.
+let FINANCE_OVERRIDES = {};
+async function loadFinanceOverrides(){
+  try{
+    const { data } = await _sb.from('invoices').select('data').eq('invnum','FINANCE_OVERRIDES').maybeSingle();
+    FINANCE_OVERRIDES = (data && data.data) || {};
+  }catch(e){ FINANCE_OVERRIDES = {}; }
+}
+function periodKey(periodStart){ return periodStart.slice(0,7); }
+function getOverridesFor(periodStart){
+  const k = periodKey(periodStart);
+  return FINANCE_OVERRIDES[k] || { excludeInvnums:[], includeInvnums:[], oneOff:{force:null} };
+}
+async function saveFinanceOverrides(){
+  try{
+    await _sb.from('invoices').upsert({
+      invnum:'FINANCE_OVERRIDES', client:'FINANCE_OVERRIDES', address:'',
+      invdate:new Date().toISOString().split('T')[0], data: FINANCE_OVERRIDES,
+    }, { onConflict:'invnum' });
+  }catch(e){ alert('Could not save override: '+e.message); }
+}
+function currentOverrideBucket(){
+  const periodStart = _lastFinancePeriod && _lastFinancePeriod.start; if(!periodStart) return null;
+  const k = periodKey(periodStart);
+  FINANCE_OVERRIDES[k] = FINANCE_OVERRIDES[k] || { excludeInvnums:[], includeInvnums:[], oneOff:{force:null} };
+  return FINANCE_OVERRIDES[k];
+}
+async function financeExcludeProject(invnum){
+  const ov = currentOverrideBucket(); if(!ov) return;
+  if(!ov.excludeInvnums.includes(invnum)) ov.excludeInvnums.push(invnum);
+  ov.includeInvnums = (ov.includeInvnums||[]).filter(n=>n!==invnum);
+  await saveFinanceOverrides();
+  runFinanceView();
+}
+async function financeIncludeProject(){
+  const sel = document.getElementById('fin-override-add'); const invnum = sel && sel.value; if(!invnum) return;
+  const ov = currentOverrideBucket(); if(!ov) return;
+  if(!ov.includeInvnums.includes(invnum)) ov.includeInvnums.push(invnum);
+  ov.excludeInvnums = (ov.excludeInvnums||[]).filter(n=>n!==invnum);
+  await saveFinanceOverrides();
+  runFinanceView();
+}
+async function financeToggleOneOff(){
+  const ov = currentOverrideBucket(); if(!ov) return;
+  const current = _lastFinanceSummary ? _lastFinanceSummary.oneOff.flagged : false;
+  ov.oneOff = { force: current ? false : true };
+  await saveFinanceOverrides();
+  runFinanceView();
+}
 
 async function runFinanceView(){
   const month = parseInt(document.getElementById('fin-month').value,10);
@@ -906,15 +998,30 @@ async function runFinanceView(){
   const lastDay = new Date(year,month,0).getDate();
   const periodEnd = `${year}-${String(month).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`;
   document.getElementById('fin-period').textContent = `${MONTH_NAMES[month-1]} ${year}`;
+  _lastFinancePeriod = { start:periodStart, end:periodEnd };
 
-  // Always refetch on Run — a lazy "only if empty" cache here meant the calculators never
-  // reacted to a new or just-changed job within the same page session (audit finding:
-  // "Pipeline stayed 0 quotes after reload" — reload didn't mean a fresh fetch).
+  // Always refetch on Run — a lazy "only if empty" cache here meant the view never reacted to
+  // a new or just-changed job within the same page session.
   await loadFinanceInvoices();
-  const signed = _financeInvoices.filter(inv => (inv.data||{}).signed === true);
+  await loadFinanceOverrides();
+  const overrides = getOverridesFor(periodStart);
+  const excludeSet = new Set(overrides.excludeInvnums||[]);
+  const includeSet = new Set(overrides.includeInvnums||[]);
+  const signedRaw = _financeInvoices.filter(inv => (inv.data||{}).signed === true);
+  const signed = signedRaw.filter(inv=>!excludeSet.has(inv.invnum));
+  _financeInvoices.forEach(inv=>{ if(includeSet.has(inv.invnum) && !signed.some(x=>x.invnum===inv.invnum)) signed.push(inv); });
 
-  // Revenue + sales-tax collected + B&O (same cash-basis method as the Tax Report).
-  let revenue=0, salesTax=0, retailRev=0, serviceRev=0, cardFees=0;
+  // Paid but unsigned — flagged, never silently dropped from view (it contributes $0 revenue).
+  const paidButUnsigned = _financeInvoices.filter(inv=>{
+    const d = inv.data||{};
+    if(d.signed) return false;
+    const hasPaidEvent = finPaymentEvents(d).some(e=>e.date>=periodStart && e.date<=periodEnd);
+    return hasPaidEvent;
+  }).map(inv=>`${inv.client||'Client'} #${inv.invnum}`);
+
+  // ---- Received: payment events this period, named ----
+  let revenue=0, salesTax=0, retailRev=0, serviceRev=0, stripeFee=0;
+  const received = [];
   signed.forEach(inv=>{
     const d = inv.data||{};
     const split = finInvoiceSplit(d);
@@ -927,7 +1034,8 @@ async function runFinanceView(){
       const net = e.amount-tax;
       retailRev += net*split.rentalShare;
       serviceRev += net*(1-split.rentalShare);
-      if(e.method==='Stripe (Card)') cardFees += e.amount*FINANCE_CONFIG.stripe_pct/100 + FINANCE_CONFIG.stripe_flat;
+      if(e.method==='Stripe (Card)') stripeFee += e.amount*FINANCE_CONFIG.stripe_pct/100 + FINANCE_CONFIG.stripe_flat;
+      received.push({ invnum:inv.invnum, client:inv.client||'Client', amount:e.amount, method:e.method, date:e.date });
     });
     (d.extensions||[]).forEach(ext=>{
       if(!ext.paid || !ext.paid_date) return;
@@ -936,153 +1044,249 @@ async function runFinanceView(){
       const r=(parseFloat(d.taxrate)||0)/100;
       const tax = r>0 ? amt-amt/(1+r) : 0;
       revenue += amt; salesTax += tax; retailRev += (amt-tax);
-      if(ext.payment_id) cardFees += amt*FINANCE_CONFIG.stripe_pct/100 + FINANCE_CONFIG.stripe_flat;
+      if(ext.payment_id) stripeFee += amt*FINANCE_CONFIG.stripe_pct/100 + FINANCE_CONFIG.stripe_flat;
+      received.push({ invnum:inv.invnum, client:inv.client||'Client', amount:amt, method:ext.payment_id?'Stripe (Card)':'Other/Manual', date:ext.paid_date, note:'extension' });
     });
   });
+
+  // ---- Expected (unpaid balance, staged by this period's end, overdue if staged earlier) and
+  // Committed (unpaid balance, staged more than 60 days out from TODAY — a forward strip that
+  // doesn't depend on which month is picked, so a signed-but-not-yet-due job is never invisible). ----
+  const expected = [], committed = [];
+  const today = new Date().toISOString().split('T')[0];
+  const in60 = new Date(); in60.setDate(in60.getDate()+60);
+  const in60Str = in60.toISOString().split('T')[0];
+  signed.forEach(inv=>{
+    const d = inv.data||{};
+    if(!d.startdate || d.startdate==='TBD') return;
+    const split = finInvoiceSplit(d);
+    const paidSoFar = (d.payments||[]).length
+      ? (d.payments||[]).filter(p=>p.status==='paid').reduce((s,p)=>s+(parseFloat(p.amount)||0),0)
+      : (d.paid ? split.grand : 0);
+    const balance = Math.max(0, split.grand - paidSoFar);
+    if(balance<=0.009) return;
+    if(d.startdate<=periodEnd){
+      expected.push({ invnum:inv.invnum, client:inv.client||'Client', balance, startdate:d.startdate, overdue:d.startdate<periodStart });
+    }
+    if(d.startdate>today && d.startdate<=in60Str){
+      committed.push({ invnum:inv.invnum, client:inv.client||'Client', balance, startdate:d.startdate, data:d });
+    }
+  });
+  const noStagingDate = signed.filter(inv=>{
+    const d = inv.data||{};
+    return (!d.startdate || d.startdate==='TBD') && !d.paid;
+  }).map(inv=>`${inv.client||'Client'} #${inv.invnum}`);
+
   const boEstimate = retailRev*0.00471 + serviceRev*0.015;
   const taxSetAside = salesTax + boEstimate;
 
-  // Mover/contractor pay — ACTUAL, from logged hours this month (never an assumed %).
-  let moverCost = 0; const moverByType = {};
+  // ---- Mover pay — ACTUAL, from logged hours this month, grouped into display piles ($35
+  // on-site / $25 general = destage+warehouse+travel) while the raw type stays on the entry
+  // itself, and by project (for Allocation cards). Shared/internal-job entries (no real client
+  // job) are isolated so the one-off check below can pull them out of the baseline. ----
+  let moverCost = 0; const moverByType = {}; const moverByProject = {}; let sharedLaborTotal = 0;
+  const internalInvnums = INTERNAL_JOBS.map(j=>j.invnum);
   try{
-    const { data: entries } = await _sb.from('time_entries').select('work_type,amount,clock_in')
+    const { data: entries } = await _sb.from('time_entries').select('id,work_type,amount,clock_in,invnum,job_label')
       .gte('clock_in', periodStart+'T00:00:00').lte('clock_in', periodEnd+'T23:59:59');
     (entries||[]).forEach(e=>{
       const amt = parseFloat(e.amount)||0;
       moverCost += amt;
       moverByType[e.work_type] = (moverByType[e.work_type]||0) + amt;
+      if(e.invnum) moverByProject[e.invnum] = (moverByProject[e.invnum]||0) + amt;
+      if(internalInvnums.includes(e.invnum)) sharedLaborTotal += amt;
     });
   }catch(e){}
+  const moverOnSite = moverByType['staging']||0;
+  const moverGeneral = (moverByType['destage']||0) + (moverByType['warehouse']||0) + (moverByType['travel']||0);
 
-  // Job count this month (for the Realistic calculator + warehouse split context) — signed,
-  // staged within this calendar month.
-  const jobsThisMonth = signed.filter(inv=>{
+  const jobsThisMonthList = signed.filter(inv=>{
     const d = inv.data||{};
     return d.startdate && d.startdate!=='TBD' && d.startdate>=periodStart && d.startdate<=periodEnd;
-  }).length || 1;
+  });
+  const jobsThisMonth = jobsThisMonthList.length || 1;
+
+  // ---- One-off / special month (§9) — auto-flag, no confirmation gate. Shared/internal-job
+  // labor above the normal per-job baseline means the month is move/organizing-inflated, not
+  // run-rate. Manual override (above) can force it either way. ----
+  const sharedBaseline = jobsThisMonth * FINANCE_CONFIG.shared_labor_normal_per_job;
+  const autoFlagged = sharedLaborTotal > sharedBaseline;
+  const forced = overrides.oneOff && overrides.oneOff.force;
+  const oneOffFlagged = forced===true ? true : (forced===false ? false : autoFlagged);
+  const oneOffAmount = oneOffFlagged ? sharedLaborTotal : 0;
+  // One-off flagging changes what's excluded from ratio/ideal-check baselines below — it never
+  // changes what's actually owed, so the operating-net chain always uses the full moverCost.
+  const moverCostExOneOff = moverCost - oneOffAmount;
+
   const truckCost = jobsThisMonth * truckCostPerJob();
   const warehouseCost = FINANCE_CONFIG.warehouse_monthly;
 
-  const netCashAfterFees = revenue - cardFees;
-  const operatingNet = netCashAfterFees - moverCost - truckCost - warehouseCost - taxSetAside;
-  const marginPct = netCashAfterFees>0.009 ? (operatingNet/netCashAfterFees*100) : 0;
-  const cashToAllocate = netCashAfterFees - moverCost - truckCost - warehouseCost;
-  const profitKept = netCashAfterFees * FINANCE_CONFIG.profit_target_pct/100;
-  const remainingForShopping = cashToAllocate - profitKept;
-  const titheActual = Math.max(0, operatingNet) * FINANCE_CONFIG.tithe_pct/100;
+  // ---- The keep / inventory / tithe chain (redesign §8) ----
+  const netCashAfterFees = revenue - stripeFee;
+  const operatingNet = netCashAfterFees - moverCost - truckCost - warehouseCost - taxSetAside; // "Jasmine keep (actual net)"
+  const marginPct = revenue>0.009 ? (operatingNet/revenue*100) : 0;
+  const keepTarget = revenue * FINANCE_CONFIG.profit_target_pct/100; // benchmark line only, % of gross revenue
+  const inventoryBudget = operatingNet - keepTarget; // derived, never entered — a negative is a shortfall, shown plainly
+  const titheAmount = keepTarget * FINANCE_CONFIG.tithe_pct/100; // tithe comes out of what Jasmine personally keeps, not the business leftover
+  const personallyRetained = keepTarget - titheAmount;
 
-  _lastFinanceSummary = { revenue, salesTax, boEstimate, taxSetAside, moverCost, moverByType, truckCost, warehouseCost,
-    netCashAfterFees, operatingNet, marginPct, cashToAllocate, profitKept, remainingForShopping, titheActual, cardFees, jobsThisMonth };
+  // Mover ideal check (§5) — actual vs 15% ideal, one-off entries excluded so a warehouse move
+  // doesn't falsely read as every project running over.
+  const moverIdealTarget = revenue * FINANCE_CONFIG.mover_ideal_pct/100;
+  const moverOverIdeal = moverCostExOneOff - moverIdealTarget;
+
+  _lastFinanceSummary = { revenue, salesTax, boEstimate, taxSetAside, moverCost, moverByType, moverOnSite, moverGeneral,
+    moverByProject, truckCost, warehouseCost, netCashAfterFees, operatingNet, marginPct, keepTarget, inventoryBudget,
+    titheAmount, personallyRetained, stripeFee, jobsThisMonth, jobsThisMonthList, received, expected, committed,
+    paidButUnsigned, noStagingDate, moverCostExOneOff, moverIdealTarget, moverOverIdeal, overrides,
+    oneOff:{ flagged:oneOffFlagged, amount:oneOffAmount, baseline:sharedBaseline, raw:sharedLaborTotal, autoFlagged } };
 
   renderFinanceSummary();
   renderFinanceCashBreakdown();
-  renderFinanceCalculators(periodStart, periodEnd);
+  renderFinanceBudget();
+  renderFinanceAllocationCards();
+  renderFinanceOverrideOptions();
   renderFinanceReconciliation();
 }
 let _lastFinanceSummary = null;
+let _lastFinancePeriod = null;
 
 function finMoney(n){ return '$'+Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function finNameList(items){ return items.length ? `<div class="name-list">${items.map(t=>`<span class="nm">${esc(t)}</span>`).join('')}</div>` : '<div class="name-list">none</div>'; }
 
 function renderFinanceSummary(){
   const s = _lastFinanceSummary;
+  const banner = document.getElementById('fin-oneoff-banner');
+  banner.innerHTML = s.oneOff.flagged
+    ? `<div class="special-flag">⚠ Special / one-off month${s.oneOff.autoFlagged && s.overrides.oneOff.force!==true ? ' (auto-flagged)' : ' (manually forced)'} — ${finMoney(s.oneOff.amount)} in shared/warehouse-organizing labor is excluded from the mover-ideal check and from per-project splits below (normal baseline for ${s.jobsThisMonth} job(s): ${finMoney(s.oneOff.baseline)}). This does not change what's actually owed above.</div>`
+    : '';
   const grid = document.getElementById('fin-summary-stats');
   const moverBreakdown = Object.entries(s.moverByType).map(([k,v])=>`${LABEL_BY_KEY[k]||k}: ${finMoney(v)}`).join(' · ') || 'none logged';
+  const receivedNames = s.received.map(r=>`${r.client} #${r.invnum} — ${finMoney(r.amount)} (${r.method==='Stripe (Card)'?'Stripe':'manual'}, ${fmtDate(r.date)})`);
   grid.innerHTML = `
-    <div class="stat-item"><div class="lbl">Revenue (cash)</div><div class="val">${finMoney(s.revenue)}</div></div>
-    <div class="stat-item"><div class="lbl">Card Fees (est.)</div><div class="val">${finMoney(s.cardFees)}</div></div>
-    <div class="stat-item"><div class="lbl">Mover Pay (actual)</div><div class="val">${finMoney(s.moverCost)}</div></div>
-    <div class="stat-item"><div class="lbl">Truck (${s.jobsThisMonth} job(s))</div><div class="val">${finMoney(s.truckCost)}</div></div>
-    <div class="stat-item"><div class="lbl">Warehouse</div><div class="val">${finMoney(s.warehouseCost)}</div></div>
-    <div class="stat-item"><div class="lbl">Tax Set-Aside</div><div class="val">${finMoney(s.taxSetAside)}</div></div>
-    <div class="stat-item"><div class="lbl">Operating Net</div><div class="val ${s.operatingNet<0?'neg':''}">${finMoney(s.operatingNet)}</div></div>
-    <div class="stat-item"><div class="lbl">Margin %</div><div class="val ${s.marginPct<0?'neg':''}">${s.marginPct.toFixed(1)}%</div></div>
+    <div class="stat-item"><div class="lbl">Revenue — actual</div><div class="val">${finMoney(s.revenue)}</div>${finNameList(receivedNames)}</div>
+    <div class="stat-item"><div class="lbl">Stripe fee — actual</div><div class="val">${finMoney(s.stripeFee)}</div></div>
+    <div class="stat-item"><div class="lbl">Mover cost — actual</div><div class="val">${finMoney(s.moverCost)}</div><div class="name-list">On-site $35: ${finMoney(s.moverOnSite)} · General $25: ${finMoney(s.moverGeneral)}</div></div>
+    <div class="stat-item"><div class="lbl">Truck — estimate (${s.jobsThisMonth} job(s))</div><div class="val">${finMoney(s.truckCost)}</div>${finNameList(s.jobsThisMonthList.map(j=>`${j.client||'Client'} #${j.invnum}`))}</div>
+    <div class="stat-item"><div class="lbl">Warehouse — flat</div><div class="val">${finMoney(s.warehouseCost)}</div></div>
+    <div class="stat-item"><div class="lbl">Taxes set aside — owed, not paid</div><div class="val">${finMoney(s.taxSetAside)}</div></div>
+    <div class="stat-item"><div class="lbl">Jasmine keep — actual net</div><div class="val ${s.operatingNet<0?'neg':''}">${finMoney(s.operatingNet)}</div></div>
+    <div class="stat-item"><div class="lbl">Margin — actual %</div><div class="val ${s.marginPct<0?'neg':''}">${s.marginPct.toFixed(1)}%</div></div>
+    <div class="stat-item"><div class="lbl">Jasmine keep — target (${FINANCE_CONFIG.profit_target_pct}% of revenue, benchmark only)</div><div class="val">${finMoney(s.keepTarget)}</div></div>
+    <div class="stat-item"><div class="lbl">Inventory — derived shopping budget</div><div class="val ${s.inventoryBudget<0?'neg':''}">${finMoney(s.inventoryBudget)}</div></div>
+    <div class="stat-item"><div class="lbl">Tithe — 10% of keep target</div><div class="val">${finMoney(s.titheAmount)}</div></div>
+    <div class="stat-item"><div class="lbl">Personally retained (keep − tithe)</div><div class="val">${finMoney(s.personallyRetained)}</div></div>
   `;
-  grid.insertAdjacentHTML('beforeend', `<div class="stat-item" style="grid-column:1/-1"><div class="lbl">Mover pay by type</div><div style="font-size:12px;margin-top:2px">${moverBreakdown}</div></div>`);
+  grid.insertAdjacentHTML('beforeend', `<div class="stat-item" style="grid-column:1/-1"><div class="lbl">Mover pay by raw type</div><div style="font-size:12px;margin-top:2px">${moverBreakdown}</div></div>`);
+  if(s.paidButUnsigned.length) grid.insertAdjacentHTML('beforeend', `<div class="stat-item" style="grid-column:1/-1"><div class="lbl flag-note">⚠ Paid but unsigned — $0 counted above, not dropped</div>${finNameList(s.paidButUnsigned)}</div>`);
+  if(s.noStagingDate.length) grid.insertAdjacentHTML('beforeend', `<div class="stat-item" style="grid-column:1/-1"><div class="lbl flag-note">⚠ Signed, unpaid, no staging date — not in Expected or Committed below</div>${finNameList(s.noStagingDate)}</div>`);
 }
 
 function renderFinanceCashBreakdown(){
   const s = _lastFinanceSummary;
+  const idealNote = s.revenue>0.009
+    ? `Mover ideal check: ${finMoney(s.moverCostExOneOff)} actual vs ${finMoney(s.moverIdealTarget)} ideal (${FINANCE_CONFIG.mover_ideal_pct}% of revenue)${s.oneOff.flagged?' — one-off labor excluded':''} — ${s.moverOverIdeal>0.009?`<span class="flag-note">${finMoney(s.moverOverIdeal)} over ideal, comes out of keep + inventory</span>`:'within ideal'}.`
+    : 'Mover ideal check: no revenue this period to check against.';
   document.getElementById('fin-cash-breakdown').innerHTML = `
-    Cash to allocate (after movers, truck, warehouse, card fees): <strong>${finMoney(s.cashToAllocate)}</strong><br>
-    &nbsp;&nbsp;↳ Profit kept (${FINANCE_CONFIG.profit_target_pct}% target, on net cash after fees): <strong>${finMoney(s.profitKept)}</strong><br>
-    &nbsp;&nbsp;↳ Remaining for shopping/inventory, other costs, prior-month shortfalls: <strong>${finMoney(s.remainingForShopping)}</strong><br><br>
-    Tithe this month (10% of operating net, actual — not projected): <strong>${finMoney(s.titheActual)}</strong>
-    <div style="font-size:11px;color:var(--taupe-dk);margin-top:4px">Tithing is personal giving, not a business expense — shown separately, never inside operating profit above.</div>
+    Revenue ${finMoney(s.revenue)} − Stripe ${finMoney(s.stripeFee)} − Movers ${finMoney(s.moverCost)} − Truck ${finMoney(s.truckCost)} − Warehouse ${finMoney(s.warehouseCost)} − Taxes ${finMoney(s.taxSetAside)} = <strong>Net ${finMoney(s.operatingNet)}</strong><br>
+    − Jasmine keep target (${FINANCE_CONFIG.profit_target_pct}% of revenue) ${finMoney(s.keepTarget)} = <strong>Inventory (shopping budget) ${finMoney(s.inventoryBudget)}</strong>${s.inventoryBudget<0?' <span class="flag-note">— shortfall</span>':''}<br><br>
+    Tithe (10% of keep target, from keep — never a business cost, never reducing inventory): <strong>${finMoney(s.titheAmount)}</strong><br>
+    Personally retained (keep target − tithe): <strong>${finMoney(s.personallyRetained)}</strong>
+    <div style="font-size:11px;color:var(--taupe-dk);margin-top:6px">${idealNote}</div>
+    <div style="font-size:11px;color:var(--taupe-dk);margin-top:4px">Inventory is whatever is left after costs and the keep target — not a tracked balance, not entered by hand. If costs rise and keep stays at target, inventory shrinks dollar-for-dollar.</div>
   `;
 }
 
-function renderFinanceCalculators(periodStart, periodEnd){
-  const el = document.getElementById('fin-calculators');
-  const warehouse = FINANCE_CONFIG.warehouse_monthly;
-  // Mover cost for pipeline/realistic projections — this period's actual mover-pay-to-
-  // revenue ratio, applied forward (never a hardcoded %); 0 when there's no actual data yet
-  // to derive a ratio from. Audit finding: calculator margins were excluding mover pay
-  // entirely, while the drawer's per-job profit always subtracts it.
+function renderFinanceBudget(){
   const s = _lastFinanceSummary;
-  const moverRatio = (s && s.revenue>0.009) ? s.moverCost/s.revenue : 0;
-
-  // Pipeline: ALL quotes (not yet paid) staged this month — proposal/future_hold/confirmed.
-  const pipelineJobs = _financeInvoices.filter(inv=>{
-    const d = inv.data||{}; const stage = d.stage||'proposal';
-    return ['proposal','future_hold','confirmed'].includes(stage) && d.startdate && d.startdate!=='TBD' && d.startdate>=periodStart && d.startdate<=periodEnd;
-  });
-  const pipelineCount = pipelineJobs.length || 1;
-  const pipelineWarehousePerJob = warehouse/pipelineCount;
-  const pipelineAvgRevenue = pipelineJobs.length ? pipelineJobs.reduce((s2,inv)=>s2+computeGrandFin(inv.data||{}),0)/pipelineJobs.length : FINANCE_CONFIG.avg_job_revenue;
-  const pipelineMoverCost = pipelineAvgRevenue*moverRatio;
-  const pipelineMargin = pipelineAvgRevenue - truckCostPerJob() - pipelineWarehousePerJob - pipelineMoverCost;
-
-  // Realistic: confirmed+ (signed/committed) jobs staged this month.
-  const realisticJobs = _financeInvoices.filter(inv=>{
-    const d = inv.data||{}; const stage = d.stage||'proposal';
-    return ['confirmed','staged','destage','done'].includes(stage) && d.startdate && d.startdate!=='TBD' && d.startdate>=periodStart && d.startdate<=periodEnd;
-  });
-  const realisticCount = realisticJobs.length || 1;
-  const realisticWarehousePerJob = warehouse/realisticCount;
-  const realisticAvgRevenue = realisticJobs.length ? realisticJobs.reduce((s2,inv)=>s2+computeGrandFin(inv.data||{}),0)/realisticJobs.length : FINANCE_CONFIG.avg_job_revenue;
-  const realisticMoverCost = realisticAvgRevenue*moverRatio;
-  const realisticMargin = realisticAvgRevenue - truckCostPerJob() - realisticWarehousePerJob - realisticMoverCost;
-
-  // Floor: single job, warehouse in FULL (not split) — the worst-case/breakeven check.
-  const floorRevenue = FINANCE_CONFIG.avg_job_revenue;
-  const floorMoverCost = floorRevenue*moverRatio;
-  const floorCosts = truckCostPerJob() + warehouse + floorMoverCost;
-  const floorProfitAtBenchmark = floorRevenue - floorCosts;
-  const floorMarginAtBenchmark = floorRevenue>0 ? floorProfitAtBenchmark/floorRevenue*100 : 0;
-  const floorCashToAllocate = floorRevenue - floorCosts;
-  const floorProfitAtTarget = floorRevenue * FINANCE_CONFIG.profit_target_pct/100;
-  const floorRemainingAtTarget = floorCashToAllocate - floorProfitAtTarget;
-
-  el.innerHTML = `
-    <div class="calc-card">
-      <div class="calc-ttl">Pipeline — ${pipelineJobs.length} quote(s) this month</div>
-      <div class="calc-row"><span>Avg. job revenue</span><span>${finMoney(pipelineAvgRevenue)}</span></div>
-      <div class="calc-row"><span>Mover pay (at this period's actual ratio)</span><span>-${finMoney(pipelineMoverCost)}</span></div>
-      <div class="calc-row"><span>Truck (per job)</span><span>-${finMoney(truckCostPerJob())}</span></div>
-      <div class="calc-row"><span>Warehouse (split ÷${pipelineCount})</span><span>-${finMoney(pipelineWarehousePerJob)}</span></div>
-      <div class="calc-row total"><span>Projected margin per job</span><span>${finMoney(pipelineMargin)}</span></div>
-    </div>
-    <div class="calc-card">
-      <div class="calc-ttl">Realistic — ${realisticJobs.length} confirmed job(s) this month</div>
-      <div class="calc-row"><span>Avg. job revenue</span><span>${finMoney(realisticAvgRevenue)}</span></div>
-      <div class="calc-row"><span>Mover pay (at this period's actual ratio)</span><span>-${finMoney(realisticMoverCost)}</span></div>
-      <div class="calc-row"><span>Truck (per job)</span><span>-${finMoney(truckCostPerJob())}</span></div>
-      <div class="calc-row"><span>Warehouse (split ÷${realisticCount})</span><span>-${finMoney(realisticWarehousePerJob)}</span></div>
-      <div class="calc-row total"><span>Committed margin per job</span><span>${finMoney(realisticMargin)}</span></div>
-    </div>
-    <div class="calc-card">
-      <div class="calc-ttl">Floor — one average job (${finMoney(floorRevenue)}), warehouse in full</div>
-      <div class="calc-row"><span>Mover pay (at this period's actual ratio)</span><span>-${finMoney(floorMoverCost)}</span></div>
-      <div class="calc-row"><span>Truck + warehouse (full, not split)</span><span>-${finMoney(truckCostPerJob()+warehouse)}</span></div>
-      <div class="calc-row total"><span>Profit at benchmark costs</span><span>${finMoney(floorProfitAtBenchmark)} (${floorMarginAtBenchmark.toFixed(1)}%)</span></div>
-      <div class="calc-row" style="margin-top:8px"><span>Cash to allocate</span><span>${finMoney(floorCashToAllocate)}</span></div>
-      <div class="calc-row"><span>&nbsp;↳ Profit kept at ${FINANCE_CONFIG.profit_target_pct}% target</span><span>-${finMoney(floorProfitAtTarget)}</span></div>
-      <div class="calc-row total"><span>&nbsp;↳ Remains for shopping/other costs</span><span>${finMoney(floorRemainingAtTarget)}</span></div>
-    </div>
-    <div style="font-size:11px;color:var(--taupe-dk)">All percentages here are living numbers — recomputed from the current job count and revenue whenever the pipeline changes. As a job moves quoted → approved → paid, it shifts from Pipeline to Realistic to actual revenue above.</div>
+  const budgetTotal = s.revenue + s.expected.reduce((t,e)=>t+e.balance,0);
+  const receivedRows = s.received.map(r=>`<div class="budget-row"><span>${esc(r.client)} #${esc(r.invnum)} — ${fmtDate(r.date)}${r.note==='extension'?' (extension)':''}</span><span>${finMoney(r.amount)}</span></div>`).join('') || '<div class="budget-row"><span>None received this period</span><span>$0.00</span></div>';
+  const expectedRows = s.expected.map(e=>`<div class="budget-row"><span>${e.overdue?'<span class="ov">⚠ overdue — </span>':''}${esc(e.client)} #${esc(e.invnum)} — staged ${fmtDate(e.startdate)} <button class="mini-btn" onclick="financeExcludeProject('${esc(e.invnum)}')" title="Remove from this month">✕</button></span><span>${finMoney(e.balance)}</span></div>`).join('') || '<div class="budget-row"><span>None expected this period</span><span>$0.00</span></div>';
+  document.getElementById('fin-budget').innerHTML = `
+    <div class="sub-hdr" style="margin-top:0">Received — ${finMoney(s.revenue)}</div>
+    ${receivedRows}
+    <div class="sub-hdr">Expected — unpaid balance, staged by period end</div>
+    ${expectedRows}
+    <div class="budget-row" style="font-weight:700;border-top:1px solid var(--taupe-lt);margin-top:6px;padding-top:6px"><span>Budget total (Received + Expected, each job counted once)</span><span>${finMoney(budgetTotal)}</span></div>
+  `;
+  const committedRows = s.committed.map(c=>`<div class="budget-row"><span>${esc(c.client)} #${esc(c.invnum)} — staged ${fmtDate(c.startdate)}</span><span>${finMoney(c.balance)}</span></div>`).join('') || '<div class="budget-row"><span>Nothing signed &amp; scheduled beyond this period in the next 60 days</span><span>$0.00</span></div>';
+  const committedTotal = s.committed.reduce((t,c)=>t+c.balance,0);
+  document.getElementById('fin-committed').innerHTML = `
+    ${committedRows}
+    <div class="budget-row" style="font-weight:700;border-top:1px solid var(--taupe-lt);margin-top:6px;padding-top:6px"><span>Already locked in, next 60 days</span><span>${finMoney(committedTotal)}</span></div>
+    <div style="font-size:10.5px;color:var(--taupe-dk);margin-top:4px">Not counted in this month's Budget total above — shown so a big Inventory number this month isn't treated as fully spendable if upcoming months are thin.</div>
   `;
 }
-function computeGrandFin(d){ return finInvoiceSplit(d).grand; }
+
+// Per-project allocation (§1B) — same line structure as the Monthly Summary, computed per
+// project. Covers this period's Received jobs (actuals) and Expected jobs (actual costs where
+// logged, the $560 planning average otherwise), plus Committed/upcoming jobs as a pure
+// projection so Jasmine can see where a signed-but-not-yet-due job's money should go before it happens.
+function renderFinanceAllocationCards(){
+  const s = _lastFinanceSummary;
+  const el = document.getElementById('fin-allocation');
+  const warehouse = FINANCE_CONFIG.warehouse_monthly;
+  const projectCount = s.jobsThisMonth;
+
+  const projects = [];
+  s.jobsThisMonthList.forEach(inv=>{
+    const d = inv.data||{};
+    const split = finInvoiceSplit(d);
+    const revenue = split.grand;
+    const actualMover = s.moverByProject[inv.invnum];
+    const mover = actualMover!=null ? actualMover : moverPlanningPerJob();
+    const moverIsActual = actualMover!=null;
+    projects.push({ invnum:inv.invnum, client:inv.client||'Client', revenue, mover, moverIsActual, warehouseShare: warehouse/projectCount, status:'this month', split });
+  });
+  s.committed.forEach(c=>{
+    const actualMover = s.moverByProject[c.invnum];
+    const split = finInvoiceSplit(c.data||{});
+    projects.push({ invnum:c.invnum, client:c.client, revenue:c.balance, mover: actualMover!=null?actualMover:moverPlanningPerJob(), moverIsActual: actualMover!=null, warehouseShare: warehouse, status:'upcoming — projected', split });
+  });
+
+  if(!projects.length){ el.innerHTML = '<div class="empty-note">No projects to allocate this period.</div>'; return; }
+
+  el.innerHTML = projects.map(p=>{
+    const stripe = p.status==='this month' ? (s.received.filter(r=>r.invnum===p.invnum && r.method==='Stripe (Card)').reduce((t,r)=>t+(r.amount*FINANCE_CONFIG.stripe_pct/100+FINANCE_CONFIG.stripe_flat),0)) : 0;
+    // Same per-job tax method as the monthly set-aside: sales tax from this job's own price-led
+    // split, then B&O on the retailing/service split of what's left — a real per-job figure, not
+    // a blended guess.
+    const taxFraction = p.split.grand>0.009 ? p.split.tax/p.split.grand : 0;
+    const salesTaxShare = p.revenue*taxFraction;
+    const netOfSalesTax = p.revenue-salesTaxShare;
+    const boShare = netOfSalesTax*p.split.rentalShare*0.00471 + netOfSalesTax*(1-p.split.rentalShare)*0.015;
+    const taxEst = salesTaxShare + boShare;
+    const truck = truckCostPerJob();
+    const net = p.revenue - stripe - p.mover - truck - p.warehouseShare - taxEst;
+    const keepTarget = p.revenue * FINANCE_CONFIG.profit_target_pct/100;
+    const inventory = net - keepTarget;
+    const tithe = keepTarget * FINANCE_CONFIG.tithe_pct/100;
+    const idealMover = p.revenue * FINANCE_CONFIG.mover_ideal_pct/100;
+    const overIdeal = p.mover - idealMover;
+    return `
+    <div class="alloc-card">
+      <div class="alloc-ttl">${esc(p.client)} #${esc(p.invnum)} — ${esc(p.status)}</div>
+      <div class="alloc-row"><span>Revenue</span><span>${finMoney(p.revenue)}</span></div>
+      <div class="alloc-row sub"><span>Stripe fee</span><span>-${finMoney(stripe)}</span></div>
+      <div class="alloc-row sub"><span>Mover cost (${p.moverIsActual?'actual':'planning avg $'+moverPlanningPerJob()})${overIdeal>0.009?' ⚠ over ideal':''}</span><span>-${finMoney(p.mover)}</span></div>
+      <div class="alloc-row sub"><span>Truck (estimate)</span><span>-${finMoney(truck)}</span></div>
+      <div class="alloc-row sub"><span>Warehouse (split ÷${projectCount})</span><span>-${finMoney(p.warehouseShare)}</span></div>
+      <div class="alloc-row sub"><span>Taxes set aside (estimate)</span><span>-${finMoney(taxEst)}</span></div>
+      <div class="alloc-row total"><span>Net</span><span>${finMoney(net)}</span></div>
+      <div class="alloc-row sub"><span>Jasmine keep (target ${FINANCE_CONFIG.profit_target_pct}%)</span><span>${finMoney(keepTarget)}</span></div>
+      <div class="alloc-row total"><span>Inventory (this project's share)</span><span class="${inventory<0?'flag-note':''}">${finMoney(inventory)}</span></div>
+      <div class="alloc-row sub"><span>Tithe (10% of keep)</span><span>${finMoney(tithe)}</span></div>
+      <button class="mini-btn" style="margin-top:6px" onclick="financeExcludeProject('${esc(p.invnum)}')">✕ Remove from this month</button>
+    </div>`;
+  }).join('');
+}
+
+function renderFinanceOverrideOptions(){
+  const sel = document.getElementById('fin-override-add'); if(!sel) return;
+  const shown = new Set([..._lastFinanceSummary.jobsThisMonthList.map(j=>j.invnum), ..._lastFinanceSummary.committed.map(c=>c.invnum)]);
+  const opts = _financeInvoices.filter(inv=>!shown.has(inv.invnum)).map(inv=>`<option value="${esc(inv.invnum)}">${esc(jobLabelFor(inv))}</option>`).join('');
+  sel.innerHTML = '<option value="">Add a project to this month…</option>' + opts;
+}
 
 function renderFinanceReconciliation(){
   if(!_lastFinanceSummary) return;
