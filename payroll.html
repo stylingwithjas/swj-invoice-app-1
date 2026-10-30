@@ -232,7 +232,7 @@ tr.paid-row { opacity:0.55; }
       <div id="fin-reconcile-result" style="font-size:13px"></div>
     </div>
 
-    <div class="disclaimer">Revenue is cash-basis (signed invoices, payment-received month — same basis as the Tax Report). Mover pay is actual, from logged hours this month. Truck and warehouse costs use the editable assumptions above, since this app doesn't track per-job truck receipts yet — correct the defaults above if your actual costs differ. Tax set-aside reuses the Tax Report's B&amp;O + sales-tax method (not CPA-certified — see TAX_METHODOLOGY.md). "Jasmine keep (actual net)" is real profit; "Jasmine keep (target)" is a benchmark line only — the two are never blended. Inventory (shopping budget) is derived, never entered: whatever is left after costs and the keep target. A month with unreconciled revenue is flagged, not presented as final. Viewing this page never changes a stored record — only the Manual Override controls write anything.</div>
+    <div class="disclaimer">Revenue is cash-basis (signed invoices, payment-received month — same basis as the Tax Report). Mover pay is actual, from logged hours this month. Truck and warehouse costs use the editable assumptions above, since this app doesn't track per-job truck receipts yet — correct the defaults above if your actual costs differ. Tax set-aside reuses the Tax Report's B&amp;O + sales-tax method (not CPA-certified — see TAX_METHODOLOGY.md). "Jasmine keep (actual net)" is real profit; "Jasmine keep (target)" is a benchmark line only — the two are never blended, and the target is capped at actual profit so it can never exceed what the month really made. Inventory (shopping budget) is derived, never entered: whatever is left after costs and the keep target. A month with unreconciled revenue is flagged, not presented as final. Viewing this page never changes a stored record — only the Manual Override controls write anything.</div>
   </div>
 
   <div class="card">
@@ -1125,8 +1125,16 @@ async function runFinanceView(){
   const netCashAfterFees = revenue - stripeFee;
   const operatingNet = netCashAfterFees - moverCost - truckCost - warehouseCost - taxSetAside; // "Jasmine keep (actual net)"
   const marginPct = revenue>0.009 ? (operatingNet/revenue*100) : 0;
-  const keepTarget = revenue * FINANCE_CONFIG.profit_target_pct/100; // benchmark line only, % of gross revenue
-  const inventoryBudget = operatingNet - keepTarget; // derived, never entered — a negative is a shortfall, shown plainly
+  // Keep target is 25% of revenue WHEN THE MONTH SUPPORTS IT — capped at actual Net so an
+  // aspirational benchmark can never manufacture a deficit on its own. In a healthy month this
+  // is the full 25% (unchanged from before). In a lean month, Jasmine's target keep shrinks to
+  // whatever profit actually exists — she takes all of it, Inventory lands at $0, not negative.
+  // Inventory only goes negative when Net itself is negative — a real operating loss, not a
+  // missed benchmark (Gabe, Oct 30: "is that how a business run?" — no).
+  const keepTargetUncapped = revenue * FINANCE_CONFIG.profit_target_pct/100;
+  const keepTarget = Math.min(keepTargetUncapped, Math.max(0, operatingNet));
+  const keepTargetCapped = keepTarget < keepTargetUncapped - 0.009;
+  const inventoryBudget = operatingNet - keepTarget; // derived, never entered — a negative here is a real loss, shown plainly
   const titheAmount = keepTarget * FINANCE_CONFIG.tithe_pct/100; // tithe comes out of what Jasmine personally keeps, not the business leftover
   const personallyRetained = keepTarget - titheAmount;
 
@@ -1136,10 +1144,10 @@ async function runFinanceView(){
   const moverOverIdeal = moverCostExOneOff - moverIdealTarget;
 
   _lastFinanceSummary = { revenue, salesTax, boEstimate, taxSetAside, moverCost, moverByType, moverOnSite, moverGeneral,
-    moverByProject, truckCost, warehouseCost, netCashAfterFees, operatingNet, marginPct, keepTarget, inventoryBudget,
-    titheAmount, personallyRetained, stripeFee, jobsThisMonth, jobsThisMonthList, received, expected, committed,
-    paidButUnsigned, noStagingDate, moverCostExOneOff, moverIdealTarget, moverOverIdeal, overrides,
-    oneOff:{ flagged:oneOffFlagged, amount:oneOffAmount, baseline:sharedBaseline, raw:sharedLaborTotal, autoFlagged } };
+    moverByProject, truckCost, warehouseCost, netCashAfterFees, operatingNet, marginPct, keepTarget, keepTargetUncapped,
+    keepTargetCapped, inventoryBudget, titheAmount, personallyRetained, stripeFee, jobsThisMonth, jobsThisMonthList,
+    received, expected, committed, paidButUnsigned, noStagingDate, moverCostExOneOff, moverIdealTarget, moverOverIdeal,
+    overrides, oneOff:{ flagged:oneOffFlagged, amount:oneOffAmount, baseline:sharedBaseline, raw:sharedLaborTotal, autoFlagged } };
 
   renderFinanceSummary();
   renderFinanceCashBreakdown();
@@ -1172,7 +1180,7 @@ function renderFinanceSummary(){
     <div class="stat-item"><div class="lbl">Taxes set aside — owed, not paid</div><div class="val">${finMoney(s.taxSetAside)}</div></div>
     <div class="stat-item"><div class="lbl">Jasmine keep — actual net</div><div class="val ${s.operatingNet<0?'neg':''}">${finMoney(s.operatingNet)}</div></div>
     <div class="stat-item"><div class="lbl">Margin — actual %</div><div class="val ${s.marginPct<0?'neg':''}">${s.marginPct.toFixed(1)}%</div></div>
-    <div class="stat-item"><div class="lbl">Jasmine keep — target (${FINANCE_CONFIG.profit_target_pct}% of revenue, benchmark only)</div><div class="val">${finMoney(s.keepTarget)}</div></div>
+    <div class="stat-item"><div class="lbl">Jasmine keep — target (${FINANCE_CONFIG.profit_target_pct}% of revenue when the month supports it)</div><div class="val">${finMoney(s.keepTarget)}</div>${s.keepTargetCapped?`<div class="name-list flag-note">capped — full target would be ${finMoney(s.keepTargetUncapped)}, more than this month's actual profit</div>`:''}</div>
     <div class="stat-item"><div class="lbl">Inventory — derived shopping budget</div><div class="val ${s.inventoryBudget<0?'neg':''}">${finMoney(s.inventoryBudget)}</div></div>
     <div class="stat-item"><div class="lbl">Tithe — 10% of keep target</div><div class="val">${finMoney(s.titheAmount)}</div></div>
     <div class="stat-item"><div class="lbl">Personally retained (keep − tithe)</div><div class="val">${finMoney(s.personallyRetained)}</div></div>
@@ -1189,7 +1197,7 @@ function renderFinanceCashBreakdown(){
     : 'Mover ideal check: no revenue this period to check against.';
   document.getElementById('fin-cash-breakdown').innerHTML = `
     Revenue ${finMoney(s.revenue)} − Stripe ${finMoney(s.stripeFee)} − Movers ${finMoney(s.moverCost)} − Truck ${finMoney(s.truckCost)} − Warehouse ${finMoney(s.warehouseCost)} − Taxes ${finMoney(s.taxSetAside)} = <strong>Net ${finMoney(s.operatingNet)}</strong><br>
-    − Jasmine keep target (${FINANCE_CONFIG.profit_target_pct}% of revenue) ${finMoney(s.keepTarget)} = <strong>Inventory (shopping budget) ${finMoney(s.inventoryBudget)}</strong>${s.inventoryBudget<0?' <span class="flag-note">— shortfall</span>':''}<br><br>
+    − Jasmine keep target (${FINANCE_CONFIG.profit_target_pct}% of revenue${s.keepTargetCapped?', capped to actual profit — full target would be '+finMoney(s.keepTargetUncapped):''}) ${finMoney(s.keepTarget)} = <strong>Inventory (shopping budget) ${finMoney(s.inventoryBudget)}</strong>${s.inventoryBudget<0?' <span class="flag-note">— real operating loss, not a missed benchmark</span>':''}<br><br>
     Tithe (10% of keep target, from keep — never a business cost, never reducing inventory): <strong>${finMoney(s.titheAmount)}</strong><br>
     Personally retained (keep target − tithe): <strong>${finMoney(s.personallyRetained)}</strong>
     <div style="font-size:11px;color:var(--taupe-dk);margin-top:6px">${idealNote}</div>
@@ -1258,7 +1266,10 @@ function renderFinanceAllocationCards(){
     const taxEst = salesTaxShare + boShare;
     const truck = truckCostPerJob();
     const net = p.revenue - stripe - p.mover - truck - p.warehouseShare - taxEst;
-    const keepTarget = p.revenue * FINANCE_CONFIG.profit_target_pct/100;
+    // Capped the same way as the monthly chain: the target can't exceed this project's own
+    // actual/projected net, so a high-cost project shows $0 inventory, not a manufactured deficit.
+    const keepTargetUncapped = p.revenue * FINANCE_CONFIG.profit_target_pct/100;
+    const keepTarget = Math.min(keepTargetUncapped, Math.max(0, net));
     const inventory = net - keepTarget;
     const tithe = keepTarget * FINANCE_CONFIG.tithe_pct/100;
     const idealMover = p.revenue * FINANCE_CONFIG.mover_ideal_pct/100;
@@ -1273,7 +1284,7 @@ function renderFinanceAllocationCards(){
       <div class="alloc-row sub"><span>Warehouse (split ÷${projectCount})</span><span>-${finMoney(p.warehouseShare)}</span></div>
       <div class="alloc-row sub"><span>Taxes set aside (estimate)</span><span>-${finMoney(taxEst)}</span></div>
       <div class="alloc-row total"><span>Net</span><span>${finMoney(net)}</span></div>
-      <div class="alloc-row sub"><span>Jasmine keep (target ${FINANCE_CONFIG.profit_target_pct}%)</span><span>${finMoney(keepTarget)}</span></div>
+      <div class="alloc-row sub"><span>Jasmine keep (target ${FINANCE_CONFIG.profit_target_pct}%${keepTarget<keepTargetUncapped-0.009?', capped to this project\'s profit':''})</span><span>${finMoney(keepTarget)}</span></div>
       <div class="alloc-row total"><span>Inventory (this project's share)</span><span class="${inventory<0?'flag-note':''}">${finMoney(inventory)}</span></div>
       <div class="alloc-row sub"><span>Tithe (10% of keep)</span><span>${finMoney(tithe)}</span></div>
       <button class="mini-btn" style="margin-top:6px" onclick="financeExcludeProject('${esc(p.invnum)}')">✕ Remove from this month</button>
