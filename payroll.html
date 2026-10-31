@@ -111,10 +111,6 @@ tr.paid-row { opacity:0.55; }
 .msg.err { color:var(--red); }
 
 /* Business Finances */
-.stat-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:12px; margin-top:6px; }
-.stat-item .lbl { font-size:9.5px; color:var(--taupe-dk); text-transform:uppercase; letter-spacing:0.5px; }
-.stat-item .val { font-family:'Cormorant Garamond',serif; font-size:21px; margin-top:2px; }
-.stat-item .val.neg { color:var(--red); }
 .sub-hdr { font-size:11px; font-weight:700; color:var(--taupe-dk); text-transform:uppercase; letter-spacing:0.6px; margin:16px 0 8px; }
 .sub-hdr:first-child { margin-top:0; }
 .fin-settings-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin-bottom:12px; }
@@ -125,10 +121,8 @@ tr.paid-row { opacity:0.55; }
 .calc-card .calc-row { display:flex; justify-content:space-between; font-size:12.5px; padding:3px 0; }
 .calc-card .calc-row.total { border-top:0.5px solid var(--taupe-lt); margin-top:4px; padding-top:6px; font-weight:700; }
 .disclaimer { font-size:10.5px; color:var(--taupe-dk); line-height:1.6; background:var(--warm); border-radius:8px; padding:10px 12px; margin-top:12px; }
-.flag-note { color:var(--red); font-weight:600; }
-.special-flag { background:#fdf0e3; border:1px solid var(--amber); color:#8a5a1f; border-radius:8px; padding:8px 12px; font-size:12px; margin:8px 0; }
-.name-list { font-size:11px; color:var(--taupe-dk); margin-top:2px; line-height:1.5; }
-.name-list .nm { display:block; }
+.flag-note { color:var(--red); font-weight:600; } /* reserved for the Overdue section only — see item 13 */
+.note-strong { font-weight:700; color:var(--ink-soft); }
 .budget-row { display:flex; justify-content:space-between; font-size:12.5px; padding:4px 0; border-bottom:0.5px solid var(--taupe-lt); }
 .budget-row:last-child { border-bottom:none; }
 .budget-row .ov { color:var(--red); font-weight:600; }
@@ -139,6 +133,31 @@ tr.paid-row { opacity:0.55; }
 .alloc-card .alloc-row.sub { padding-left:10px; color:var(--taupe-dk); }
 .override-row { display:flex; gap:8px; align-items:center; margin-top:8px; flex-wrap:wrap; }
 .override-row select, .override-row input { font-size:11.5px; padding:5px 8px; border-radius:7px; border:0.5px solid var(--taupe-lt); font-family:inherit; }
+
+/* Phase 3.3 layout pass (April's punch list, Oct 30 evening) */
+.fin-num { font-variant-numeric:tabular-nums; font-feature-settings:"tnum"; }
+.headline-strip { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin:8px 0 14px; }
+.headline-strip .h-item { text-align:center; }
+.headline-strip .h-lbl { font-size:10px; color:var(--taupe-dk); text-transform:uppercase; letter-spacing:0.4px; }
+.headline-strip .h-val { font-family:'Cormorant Garamond',serif; font-size:26px; margin-top:2px; }
+.headline-strip .h-val.neg { color:var(--red); }
+@media (max-width:480px) {
+  .headline-strip { grid-template-columns:repeat(2,1fr); row-gap:14px; }
+  .headline-strip .h-val { font-size:22px; }
+}
+.waterfall { background:var(--warm); border-radius:10px; padding:12px 14px; font-size:13px; line-height:1.9; }
+.waterfall .wf-sub { font-size:12px; color:var(--taupe-dk); margin-top:6px; }
+.flag-line { font-size:12px; color:#8a5a1f; background:#fdf0e3; border-radius:7px; padding:6px 10px; margin:6px 0; }
+.fin-details { margin:10px 0; border:0.5px solid var(--taupe-lt); border-radius:9px; padding:0 12px; }
+.fin-details summary { cursor:pointer; padding:9px 0; font-size:11px; font-weight:700; color:var(--taupe-dk); text-transform:uppercase; letter-spacing:0.5px; }
+.fin-details[open] summary { border-bottom:0.5px solid var(--taupe-lt); }
+.fin-details-body { padding:10px 0 12px; font-size:12px; line-height:1.7; color:var(--ink-soft); }
+.cap-line { font-size:12.5px; margin:4px 0 10px; }
+.overdue-row { background:#fdf0e0; border-radius:8px; padding:8px 10px; margin-bottom:6px; }
+.overdue-row .o-top { display:flex; justify-content:space-between; font-size:12.5px; font-weight:600; color:#8a3a1f; }
+.overdue-row .o-meta { font-size:11px; color:var(--taupe-dk); margin-top:2px; }
+.remove-btn { font-size:10.5px; padding:3px 9px; border-radius:10px; border:0.5px solid var(--red); color:var(--red); background:transparent; cursor:pointer; margin-top:4px; }
+.quiet-line { font-size:12.5px; color:var(--taupe-dk); padding:4px 0; }
 </style>
 </head>
 <body>
@@ -202,15 +221,20 @@ tr.paid-row { opacity:0.55; }
 
     <div class="sub-hdr">Monthly Summary — <span id="fin-period"></span></div>
     <div id="fin-oneoff-banner"></div>
-    <div class="stat-grid" id="fin-summary-stats"></div>
+    <div class="headline-strip" id="fin-headline"></div>
+    <div class="waterfall fin-num" id="fin-waterfall"></div>
+    <details class="fin-details" id="fin-details">
+      <summary>Details — composition, special-month math, mover-ideal check</summary>
+      <div class="fin-details-body" id="fin-details-body"></div>
+    </details>
 
-    <div class="sub-hdr">Keep / Inventory / Tithe</div>
-    <div id="fin-cash-breakdown" style="font-size:13px;line-height:1.9"></div>
-
-    <div class="sub-hdr">Monthly Budget — Received + Expected</div>
+    <div class="sub-hdr">Monthly Budget</div>
     <div id="fin-budget"></div>
 
-    <div class="sub-hdr">Committed — signed &amp; scheduled, next 60 days</div>
+    <div class="sub-hdr">Overdue — needs action</div>
+    <div id="fin-overdue"></div>
+
+    <div class="sub-hdr">Committed — next 60 days</div>
     <div id="fin-committed"></div>
 
     <div class="sub-hdr">Per-Project Allocation</div>
@@ -222,7 +246,7 @@ tr.paid-row { opacity:0.55; }
       <button class="filter-btn" onclick="financeIncludeProject()">+ Add</button>
       <button class="filter-btn" onclick="financeToggleOneOff()" id="fin-oneoff-toggle-btn">Toggle one-off flag</button>
     </div>
-    <div style="font-size:10.5px;color:var(--taupe-dk);margin-top:4px">Add a project the automatic rules missed, remove one with the ✕ next to it below, or flip the one-off flag for a month the auto-check got wrong. No confirmation needed — this is the correction mechanism, not a gate.</div>
+    <div style="font-size:10.5px;color:var(--taupe-dk);margin-top:4px">Add a job the automatic rules missed, remove one with its "Remove from budget" button, or flip a wrong one-off flag. This never deletes anything — it only changes what shows for this month.</div>
 
     <div id="fin-reconcile-wrap">
       <div class="sub-hdr">Reconciliation</div>
@@ -969,6 +993,7 @@ function currentOverrideBucket(){
   return FINANCE_OVERRIDES[k];
 }
 async function financeExcludeProject(invnum){
+  if(!confirm(`Remove #${invnum} from this month's budget list?\n\nThis only changes what shows for this month here — it never deletes the job, invoice, or any payment record.`)) return;
   const ov = currentOverrideBucket(); if(!ov) return;
   if(!ov.excludeInvnums.includes(invnum)) ov.excludeInvnums.push(invnum);
   ov.includeInvnums = (ov.includeInvnums||[]).filter(n=>n!==invnum);
@@ -1027,20 +1052,24 @@ async function runFinanceView(){
     const split = finInvoiceSplit(d);
     const events = finPaymentEvents(d).filter(e=>e.date>=periodStart && e.date<=periodEnd);
     events.forEach(e=>{
-      revenue += e.amount;
+      // Round to the cent right here, once — every downstream total (Revenue header, Budget
+      // total) is built from this same rounded figure, so a displayed total always equals the
+      // sum of the displayed lines (Punch list item 7 — no more 1¢ drift from float math).
+      const amt = Math.round(e.amount*100)/100;
+      revenue += amt;
       const taxFraction = split.grand>0.009 ? split.tax/split.grand : 0;
-      const tax = e.amount*taxFraction;
+      const tax = amt*taxFraction;
       salesTax += tax;
-      const net = e.amount-tax;
+      const net = amt-tax;
       retailRev += net*split.rentalShare;
       serviceRev += net*(1-split.rentalShare);
-      if(e.method==='Stripe (Card)') stripeFee += e.amount*FINANCE_CONFIG.stripe_pct/100 + FINANCE_CONFIG.stripe_flat;
-      received.push({ invnum:inv.invnum, client:inv.client||'Client', amount:e.amount, method:e.method, date:e.date });
+      if(e.method==='Stripe (Card)') stripeFee += amt*FINANCE_CONFIG.stripe_pct/100 + FINANCE_CONFIG.stripe_flat;
+      received.push({ invnum:inv.invnum, client:inv.client||'Client', amount:amt, method:e.method, date:e.date });
     });
     (d.extensions||[]).forEach(ext=>{
       if(!ext.paid || !ext.paid_date) return;
       if(ext.paid_date<periodStart || ext.paid_date>periodEnd) return;
-      const amt = parseFloat(ext.amount)||0; if(amt<=0.009) return;
+      const amt = Math.round((parseFloat(ext.amount)||0)*100)/100; if(amt<=0.009) return;
       const r=(parseFloat(d.taxrate)||0)/100;
       const tax = r>0 ? amt-amt/(1+r) : 0;
       revenue += amt; salesTax += tax; retailRev += (amt-tax);
@@ -1063,7 +1092,7 @@ async function runFinanceView(){
     const paidSoFar = (d.payments||[]).length
       ? (d.payments||[]).filter(p=>p.status==='paid').reduce((s,p)=>s+(parseFloat(p.amount)||0),0)
       : (d.paid ? split.grand : 0);
-    const balance = Math.max(0, split.grand - paidSoFar);
+    const balance = Math.round(Math.max(0, split.grand - paidSoFar)*100)/100;
     if(balance<=0.009) return;
     if(d.startdate<=periodEnd){
       expected.push({ invnum:inv.invnum, client:inv.client||'Client', balance, startdate:d.startdate, overdue:d.startdate<periodStart });
@@ -1150,7 +1179,6 @@ async function runFinanceView(){
     overrides, oneOff:{ flagged:oneOffFlagged, amount:oneOffAmount, baseline:sharedBaseline, raw:sharedLaborTotal, autoFlagged } };
 
   renderFinanceSummary();
-  renderFinanceCashBreakdown();
   renderFinanceBudget();
   renderFinanceAllocationCards();
   renderFinanceOverrideOptions();
@@ -1160,70 +1188,96 @@ let _lastFinanceSummary = null;
 let _lastFinancePeriod = null;
 
 function finMoney(n){ return '$'+Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
-function finNameList(items){ return items.length ? `<div class="name-list">${items.map(t=>`<span class="nm">${esc(t)}</span>`).join('')}</div>` : '<div class="name-list">none</div>'; }
 
+// Headline strip (4 numbers) + one waterfall derivation + a collapsed Details block — replaces
+// the old two-column tile grid and the separate "Keep/Inventory/Tithe" paragraph that restated
+// the same chain twice (April's layout punch list, Oct 30 evening: "your eyes need to look for
+// things"). No calculation changed here — this is presentation only.
 function renderFinanceSummary(){
   const s = _lastFinanceSummary;
   const banner = document.getElementById('fin-oneoff-banner');
   banner.innerHTML = s.oneOff.flagged
-    ? `<div class="special-flag">⚠ Special / one-off month${s.oneOff.autoFlagged && s.overrides.oneOff.force!==true ? ' (auto-flagged)' : ' (manually forced)'} — ${finMoney(s.oneOff.amount)} in shared/warehouse-organizing labor is excluded from the mover-ideal check and from per-project splits below (normal baseline for ${s.jobsThisMonth} job(s): ${finMoney(s.oneOff.baseline)}). This does not change what's actually owed above.</div>`
+    ? `<div class="flag-line">⚠ Special month: ${finMoney(s.oneOff.amount)} one-off warehouse labor excluded from the ideal check and project splits (details below).</div>`
     : '';
-  const grid = document.getElementById('fin-summary-stats');
-  const moverBreakdown = Object.entries(s.moverByType).map(([k,v])=>`${LABEL_BY_KEY[k]||k}: ${finMoney(v)}`).join(' · ') || 'none logged';
-  const receivedNames = s.received.map(r=>`${r.client} #${r.invnum} — ${finMoney(r.amount)} (${r.method==='Stripe (Card)'?'Stripe':'manual'}, ${fmtDate(r.date)})`);
-  grid.innerHTML = `
-    <div class="stat-item"><div class="lbl">Revenue — actual</div><div class="val">${finMoney(s.revenue)}</div>${finNameList(receivedNames)}</div>
-    <div class="stat-item"><div class="lbl">Stripe fee — actual</div><div class="val">${finMoney(s.stripeFee)}</div></div>
-    <div class="stat-item"><div class="lbl">Mover cost — actual</div><div class="val">${finMoney(s.moverCost)}</div><div class="name-list">On-site $35: ${finMoney(s.moverOnSite)} · General $25: ${finMoney(s.moverGeneral)}</div></div>
-    <div class="stat-item"><div class="lbl">Truck — estimate (${s.jobsThisMonth} job(s))</div><div class="val">${finMoney(s.truckCost)}</div>${finNameList(s.jobsThisMonthList.map(j=>`${j.client||'Client'} #${j.invnum}`))}</div>
-    <div class="stat-item"><div class="lbl">Warehouse — flat</div><div class="val">${finMoney(s.warehouseCost)}</div></div>
-    <div class="stat-item"><div class="lbl">Taxes set aside — owed, not paid</div><div class="val">${finMoney(s.taxSetAside)}</div></div>
-    <div class="stat-item"><div class="lbl">Jasmine keep — actual net</div><div class="val ${s.operatingNet<0?'neg':''}">${finMoney(s.operatingNet)}</div></div>
-    <div class="stat-item"><div class="lbl">Margin — actual %</div><div class="val ${s.marginPct<0?'neg':''}">${s.marginPct.toFixed(1)}%</div></div>
-    <div class="stat-item"><div class="lbl">Jasmine keep — target (${FINANCE_CONFIG.profit_target_pct}% of revenue when the month supports it)</div><div class="val">${finMoney(s.keepTarget)}</div>${s.keepTargetCapped?`<div class="name-list flag-note">capped — full target would be ${finMoney(s.keepTargetUncapped)}, more than this month's actual profit</div>`:''}</div>
-    <div class="stat-item"><div class="lbl">Inventory — derived shopping budget</div><div class="val ${s.inventoryBudget<0?'neg':''}">${finMoney(s.inventoryBudget)}</div></div>
-    <div class="stat-item"><div class="lbl">Tithe — 10% of keep target</div><div class="val">${finMoney(s.titheAmount)}</div></div>
-    <div class="stat-item"><div class="lbl">Personally retained (keep − tithe)</div><div class="val">${finMoney(s.personallyRetained)}</div></div>
-  `;
-  grid.insertAdjacentHTML('beforeend', `<div class="stat-item" style="grid-column:1/-1"><div class="lbl">Mover pay by raw type</div><div style="font-size:12px;margin-top:2px">${moverBreakdown}</div></div>`);
-  if(s.paidButUnsigned.length) grid.insertAdjacentHTML('beforeend', `<div class="stat-item" style="grid-column:1/-1"><div class="lbl flag-note">⚠ Paid but unsigned — $0 counted above, not dropped</div>${finNameList(s.paidButUnsigned)}</div>`);
-  if(s.noStagingDate.length) grid.insertAdjacentHTML('beforeend', `<div class="stat-item" style="grid-column:1/-1"><div class="lbl flag-note">⚠ Signed, unpaid, no staging date — not in Expected or Committed below</div>${finNameList(s.noStagingDate)}</div>`);
-}
 
-function renderFinanceCashBreakdown(){
-  const s = _lastFinanceSummary;
-  const idealNote = s.revenue>0.009
-    ? `Mover ideal check: ${finMoney(s.moverCostExOneOff)} actual vs ${finMoney(s.moverIdealTarget)} ideal (${FINANCE_CONFIG.mover_ideal_pct}% of revenue)${s.oneOff.flagged?' — one-off labor excluded':''} — ${s.moverOverIdeal>0.009?`<span class="flag-note">${finMoney(s.moverOverIdeal)} over ideal, comes out of keep + inventory</span>`:'within ideal'}.`
-    : 'Mover ideal check: no revenue this period to check against.';
-  document.getElementById('fin-cash-breakdown').innerHTML = `
+  document.getElementById('fin-headline').innerHTML = `
+    <div class="h-item"><div class="h-lbl">Received</div><div class="h-val fin-num">${finMoney(s.revenue)}</div></div>
+    <div class="h-item"><div class="h-lbl">Net</div><div class="h-val fin-num ${s.operatingNet<0?'neg':''}">${finMoney(s.operatingNet)}</div></div>
+    <div class="h-item"><div class="h-lbl">Keep</div><div class="h-val fin-num">${finMoney(s.keepTarget)}</div></div>
+    <div class="h-item"><div class="h-lbl">Inventory</div><div class="h-val fin-num ${s.inventoryBudget<0?'neg':''}">${finMoney(s.inventoryBudget)}</div></div>
+  `;
+
+  const keepLine = s.keepTargetCapped
+    ? `− Keep target ${finMoney(s.keepTargetUncapped)} → <strong>capped to actual net ${finMoney(s.keepTarget)}</strong>`
+    : `− Keep target (${FINANCE_CONFIG.profit_target_pct}% of revenue) ${finMoney(s.keepTarget)}`;
+  document.getElementById('fin-waterfall').innerHTML = `
     Revenue ${finMoney(s.revenue)} − Stripe ${finMoney(s.stripeFee)} − Movers ${finMoney(s.moverCost)} − Truck ${finMoney(s.truckCost)} − Warehouse ${finMoney(s.warehouseCost)} − Taxes ${finMoney(s.taxSetAside)} = <strong>Net ${finMoney(s.operatingNet)}</strong><br>
-    − Jasmine keep target (${FINANCE_CONFIG.profit_target_pct}% of revenue${s.keepTargetCapped?', capped to actual profit — full target would be '+finMoney(s.keepTargetUncapped):''}) ${finMoney(s.keepTarget)} = <strong>Inventory (shopping budget) ${finMoney(s.inventoryBudget)}</strong>${s.inventoryBudget<0?' <span class="flag-note">— real operating loss, not a missed benchmark</span>':''}<br><br>
-    Tithe (10% of keep target, from keep — never a business cost, never reducing inventory): <strong>${finMoney(s.titheAmount)}</strong><br>
-    Personally retained (keep target − tithe): <strong>${finMoney(s.personallyRetained)}</strong>
-    <div style="font-size:11px;color:var(--taupe-dk);margin-top:6px">${idealNote}</div>
-    <div style="font-size:11px;color:var(--taupe-dk);margin-top:4px">Inventory is whatever is left after costs and the keep target — not a tracked balance, not entered by hand. If costs rise and keep stays at target, inventory shrinks dollar-for-dollar.</div>
+    ${keepLine} = <strong>Inventory ${finMoney(s.inventoryBudget)}</strong>${s.inventoryBudget<0?' — real operating loss':''}
+    <div class="wf-sub">Tithe ${finMoney(s.titheAmount)} (10% of keep, from keep) · Personally retained ${finMoney(s.personallyRetained)}</div>
+  `;
+
+  const moverBreakdown = Object.entries(s.moverByType).map(([k,v])=>`${LABEL_BY_KEY[k]||k}: ${finMoney(v)}`).join(' · ') || 'none logged';
+  const truckNames = s.jobsThisMonthList.length
+    ? s.jobsThisMonthList.map(j=>`${j.client||'Client'} #${j.invnum}`).join(', ')
+    : 'No job has a staging date in this month — shown as 1 job (default) so there\'s a non-zero estimate. A job paid this month but staged elsewhere won\'t count here; add it in Manual Override below to see it.';
+  const idealLine = s.revenue>0.009
+    ? `Mover ideal check: ${finMoney(s.moverCostExOneOff)} actual vs ${finMoney(s.moverIdealTarget)} ideal (${FINANCE_CONFIG.mover_ideal_pct}% of revenue)${s.oneOff.flagged?' — one-off labor excluded':''} — ${s.moverOverIdeal>0.009?`${finMoney(s.moverOverIdeal)} over ideal, comes out of keep + inventory`:'within ideal'}.`
+    : 'Mover ideal check: no revenue this period to check against.';
+  document.getElementById('fin-details-body').innerHTML = `
+    <div>Mover pay by raw type: ${moverBreakdown}</div>
+    <div>Mover piles: On-site $35: ${finMoney(s.moverOnSite)} · General $25: ${finMoney(s.moverGeneral)}</div>
+    <div>Truck is estimated for ${s.jobsThisMonth} job(s): ${esc(truckNames)}</div>
+    <div>${idealLine}</div>
+    ${s.oneOff.flagged?`<div>Special month baseline: normal shared labor for ${s.jobsThisMonth} job(s) is ${finMoney(s.oneOff.baseline)}; this month's shared/warehouse-organizing labor was ${finMoney(s.oneOff.raw)}${s.overrides.oneOff.force===true?' (manually forced)':s.overrides.oneOff.force===false?' (auto-flag manually cleared — not shown as special)':' (auto-flagged)'}. This does not change what's actually owed above — it only changes what's excluded from the ideal check and project splits.</div>`:''}
+    ${s.paidButUnsigned.length?`<div>⚠ Paid but unsigned — $0 counted in Revenue, not dropped: ${esc(s.paidButUnsigned.join(', '))}</div>`:''}
+    ${s.noStagingDate.length?`<div>⚠ Signed, unpaid, no staging date — not in Expected, Overdue, or Committed: ${esc(s.noStagingDate.join(', '))}</div>`:''}
+    <div>Inventory is whatever is left after costs and the keep target — not a tracked balance, not entered by hand. If costs rise and keep stays at target, inventory shrinks dollar-for-dollar. Keep target is capped at actual profit, so it can never exceed what the month really made.</div>
   `;
 }
 
 function renderFinanceBudget(){
   const s = _lastFinanceSummary;
-  const budgetTotal = s.revenue + s.expected.reduce((t,e)=>t+e.balance,0);
+  const expectedCurrent = s.expected.filter(e=>!e.overdue);
+  const overdueList = s.expected.filter(e=>e.overdue);
+  const expectedSubtotal = expectedCurrent.reduce((t,e)=>t+e.balance,0);
+  const overdueSubtotal = overdueList.reduce((t,e)=>t+e.balance,0);
+  const budgetTotal = s.revenue + expectedSubtotal + overdueSubtotal;
   const receivedRows = s.received.map(r=>`<div class="budget-row"><span>${esc(r.client)} #${esc(r.invnum)} — ${fmtDate(r.date)}${r.note==='extension'?' (extension)':''}</span><span>${finMoney(r.amount)}</span></div>`).join('') || '<div class="budget-row"><span>None received this period</span><span>$0.00</span></div>';
-  const expectedRows = s.expected.map(e=>`<div class="budget-row"><span>${e.overdue?'<span class="ov">⚠ overdue — </span>':''}${esc(e.client)} #${esc(e.invnum)} — staged ${fmtDate(e.startdate)} <button class="mini-btn" onclick="financeExcludeProject('${esc(e.invnum)}')" title="Remove from this month">✕</button></span><span>${finMoney(e.balance)}</span></div>`).join('') || '<div class="budget-row"><span>None expected this period</span><span>$0.00</span></div>';
+  const expectedRows = expectedCurrent.map(e=>`<div class="budget-row"><span>${esc(e.client)} #${esc(e.invnum)} — staged ${fmtDate(e.startdate)}</span><span>${finMoney(e.balance)}</span></div>`).join('') || '<div class="budget-row"><span>None expected this period</span><span>$0.00</span></div>';
   document.getElementById('fin-budget').innerHTML = `
     <div class="sub-hdr" style="margin-top:0">Received — ${finMoney(s.revenue)}</div>
     ${receivedRows}
-    <div class="sub-hdr">Expected — unpaid balance, staged by period end</div>
+    <div class="sub-hdr">Expected — due this period, not yet overdue</div>
     ${expectedRows}
-    <div class="budget-row" style="font-weight:700;border-top:1px solid var(--taupe-lt);margin-top:6px;padding-top:6px"><span>Budget total (Received + Expected, each job counted once)</span><span>${finMoney(budgetTotal)}</span></div>
+    ${overdueList.length?`<div class="budget-row"><span>Overdue, carried forward (see Overdue section below)</span><span>${finMoney(overdueSubtotal)}</span></div>`:''}
+    <div class="budget-row" style="font-weight:700;border-top:1px solid var(--taupe-lt);margin-top:6px;padding-top:6px"><span>Budget total</span><span>${finMoney(budgetTotal)}</span></div>
+    <div style="font-size:10.5px;color:var(--taupe-dk);margin-top:4px">Received + Expected + Overdue, each job counted once. Overdue balances roll forward until paid — that's why an earlier month's job can still appear here.</div>
   `;
-  const committedRows = s.committed.map(c=>`<div class="budget-row"><span>${esc(c.client)} #${esc(c.invnum)} — staged ${fmtDate(c.startdate)}</span><span>${finMoney(c.balance)}</span></div>`).join('') || '<div class="budget-row"><span>Nothing signed &amp; scheduled beyond this period in the next 60 days</span><span>$0.00</span></div>';
+
+  const overdueEl = document.getElementById('fin-overdue');
+  if(!overdueList.length){ overdueEl.innerHTML = '<div class="quiet-line">Nothing overdue this month.</div>'; }
+  else{
+    overdueEl.innerHTML = overdueList.map(e=>`
+      <div class="overdue-row">
+        <div class="o-top"><span>${esc(e.client)} #${esc(e.invnum)}</span><span>${finMoney(e.balance)}</span></div>
+        <div class="o-meta">Staged ${fmtDate(e.startdate)}</div>
+        <button class="remove-btn" onclick="financeExcludeProject('${esc(e.invnum)}')">Remove from budget</button>
+      </div>`).join('')
+      + `<div style="font-size:10.5px;color:var(--taupe-dk);margin-top:2px">"Remove from budget" only takes this job out of this month's list above — it never deletes the job, invoice, or payment record.</div>`;
+  }
+
   const committedTotal = s.committed.reduce((t,c)=>t+c.balance,0);
-  document.getElementById('fin-committed').innerHTML = `
-    ${committedRows}
-    <div class="budget-row" style="font-weight:700;border-top:1px solid var(--taupe-lt);margin-top:6px;padding-top:6px"><span>Already locked in, next 60 days</span><span>${finMoney(committedTotal)}</span></div>
-    <div style="font-size:10.5px;color:var(--taupe-dk);margin-top:4px">Not counted in this month's Budget total above — shown so a big Inventory number this month isn't treated as fully spendable if upcoming months are thin.</div>
-  `;
+  const committedEl = document.getElementById('fin-committed');
+  if(!s.committed.length){
+    committedEl.innerHTML = '<div class="quiet-line">Nothing locked in for the next 60 days — $0.00.</div>';
+  } else {
+    const committedRows = s.committed.map(c=>`<div class="budget-row"><span>${esc(c.client)} #${esc(c.invnum)} — staged ${fmtDate(c.startdate)}</span><span>${finMoney(c.balance)}</span></div>`).join('');
+    committedEl.innerHTML = `
+      ${committedRows}
+      <div class="budget-row" style="font-weight:700;border-top:1px solid var(--taupe-lt);margin-top:6px;padding-top:6px"><span>Already locked in, next 60 days</span><span>${finMoney(committedTotal)}</span></div>
+      <div style="font-size:10.5px;color:var(--taupe-dk);margin-top:4px">Not counted in this month's Budget total above — shown so a big Inventory number this month isn't treated as fully spendable if upcoming months are thin.</div>
+    `;
+  }
 }
 
 // Per-project allocation (§1B) — same line structure as the Monthly Summary, computed per
@@ -1252,7 +1306,7 @@ function renderFinanceAllocationCards(){
     projects.push({ invnum:c.invnum, client:c.client, revenue:c.balance, mover: actualMover!=null?actualMover:moverPlanningPerJob(), moverIsActual: actualMover!=null, warehouseShare: warehouse, status:'upcoming — projected', split });
   });
 
-  if(!projects.length){ el.innerHTML = '<div class="empty-note">No projects to allocate this period.</div>'; return; }
+  if(!projects.length){ el.innerHTML = '<div class="empty-note">No jobs have a staging date in this month, and nothing is committed in the next 60 days — Allocation cards are built from the staging date, not the payment date, so a job paid this month but staged outside it won\'t appear automatically. Add it by hand in Manual Override below.</div>'; return; }
 
   el.innerHTML = projects.map(p=>{
     const stripe = p.status==='this month' ? (s.received.filter(r=>r.invnum===p.invnum && r.method==='Stripe (Card)').reduce((t,r)=>t+(r.amount*FINANCE_CONFIG.stripe_pct/100+FINANCE_CONFIG.stripe_flat),0)) : 0;
@@ -1285,9 +1339,9 @@ function renderFinanceAllocationCards(){
       <div class="alloc-row sub"><span>Taxes set aside (estimate)</span><span>-${finMoney(taxEst)}</span></div>
       <div class="alloc-row total"><span>Net</span><span>${finMoney(net)}</span></div>
       <div class="alloc-row sub"><span>Jasmine keep (target ${FINANCE_CONFIG.profit_target_pct}%${keepTarget<keepTargetUncapped-0.009?', capped to this project\'s profit':''})</span><span>${finMoney(keepTarget)}</span></div>
-      <div class="alloc-row total"><span>Inventory (this project's share)</span><span class="${inventory<0?'flag-note':''}">${finMoney(inventory)}</span></div>
+      <div class="alloc-row total"><span>Inventory (this project's share)</span><span class="${inventory<0?'note-strong':''}">${finMoney(inventory)}</span></div>
       <div class="alloc-row sub"><span>Tithe (10% of keep)</span><span>${finMoney(tithe)}</span></div>
-      <button class="mini-btn" style="margin-top:6px" onclick="financeExcludeProject('${esc(p.invnum)}')">✕ Remove from this month</button>
+      <button class="remove-btn" style="margin-top:6px" onclick="financeExcludeProject('${esc(p.invnum)}')">Remove from budget</button>
     </div>`;
   }).join('');
 }
@@ -1309,7 +1363,7 @@ function renderFinanceReconciliation(){
   const clean = Math.abs(diff) < 1;
   el.innerHTML = clean
     ? `<strong style="color:var(--green)">✓ Reconciled</strong> — app revenue ${finMoney(_lastFinanceSummary.revenue)} matches actual deposits within $1.`
-    : `<strong class="flag-note">⚠ Diverges by ${finMoney(Math.abs(diff))}</strong> — app shows ${finMoney(_lastFinanceSummary.revenue)}, actual deposits ${finMoney(actual)}. Do not treat this month as final until explained.`;
+    : `<strong class="note-strong">⚠ Diverges by ${finMoney(Math.abs(diff))}</strong> — app shows ${finMoney(_lastFinanceSummary.revenue)}, actual deposits ${finMoney(actual)}. Do not treat this month as final until explained.`;
 }
 
 document.addEventListener('DOMContentLoaded', async ()=>{
