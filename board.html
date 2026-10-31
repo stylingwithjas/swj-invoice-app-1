@@ -64,6 +64,25 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
    overflow-x:auto never gets a chance to engage and the whole page overflows instead
    (confirmed: pushed the page 36px past the viewport at tablet width). */
 .hdr-right { display:flex; align-items:center; gap:10px; min-width:0; flex-wrap:wrap; justify-content:flex-end; }
+/* Search + bell + user badge — desktop only (>=1200px, alongside the sidebar). The mobile
+   header is already tight with the brand + action buttons; search there is reachable via the
+   same stage-filter tabs/scroll instead of adding a fourth thing to squeeze in. */
+.swj-hdr-search { display:none; }
+.swj-hdr-bell { display:none; }
+.swj-hdr-user { display:none; }
+@media (min-width:1200px){
+  .swj-hdr-search { display:flex; align-items:center; gap:8px; background:rgba(255,255,255,0.07); border-radius:20px; padding:7px 14px; flex:1; max-width:360px; margin-right:auto; }
+  .swj-hdr-search input { background:none; border:none; outline:none; color:#fff; font-family:'Inter',sans-serif; font-size:12.5px; width:100%; }
+  .swj-hdr-search input::placeholder { color:rgba(255,255,255,0.35); }
+  .swj-hdr-search svg { flex-shrink:0; opacity:0.4; }
+  .swj-hdr-bell { display:flex; position:relative; align-items:center; justify-content:center; width:32px; height:32px; border-radius:50%; background:rgba(255,255,255,0.07); border:none; cursor:pointer; flex-shrink:0; }
+  .swj-hdr-bell-dot { display:none; position:absolute; top:6px; right:7px; width:7px; height:7px; border-radius:50%; background:var(--gold); border:1.5px solid var(--ink); }
+  .swj-hdr-bell-dot.on { display:block; }
+  .swj-hdr-user { display:flex; align-items:center; gap:8px; flex-shrink:0; }
+  .swj-hdr-user-av { width:28px; height:28px; border-radius:50%; background:var(--gold); color:var(--ink); display:flex; align-items:center; justify-content:center; font-family:'Cormorant Garamond',serif; font-weight:600; font-size:12px; }
+  .swj-hdr-user-name { font-size:12px; color:rgba(255,255,255,0.7); }
+}
+.hdr-card-hidden { display:none !important; }
 .compact-toggle {
   font-size:11px; font-weight:500; color:rgba(255,255,255,0.45);
   background:rgba(255,255,255,0.07); border:none; border-radius:16px;
@@ -522,10 +541,18 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
       <div class="brand-sep"></div>
       <div class="brand-sub">Project Board</div>
     </div>
+    <div class="swj-hdr-search">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      <input type="text" id="swj-hdr-search-input" placeholder="Search projects, clients, addresses…" oninput="swjHeaderSearch(this.value)">
+    </div>
     <div class="hdr-right">
       <button class="compact-toggle" onclick="addPastJob()" title="Add a past/legacy job to the board">+ Past Job</button>
       <button class="compact-toggle" id="refresh-btn" onclick="loadBoard()" title="Refresh board">↻ Refresh</button>
       <button class="compact-toggle" id="compact-btn" onclick="toggleCompact()">Compact</button>
+      <button class="swj-hdr-bell" onclick="document.getElementById('today-items')?.scrollIntoView({behavior:'smooth',block:'center'})" title="Needs Attention">
+        🔔<span class="swj-hdr-bell-dot" id="swj-hdr-bell-dot"></span>
+      </button>
+      <div class="swj-hdr-user"><div class="swj-hdr-user-av">J</div><div class="swj-hdr-user-name">Jasmine</div></div>
       <div class="nav-sw">
         <button class="nav-btn off" onclick="window.location.href='/today.html'">Today</button>
         <button class="nav-btn on">Board</button>
@@ -2151,6 +2178,19 @@ function buildCardHTML(inv){
   `;
 }
 
+// Header search (desktop) — a lightweight filter layered on top of whatever's already
+// rendered, by client/project/address/invoice# (all of it lives in each card's own text).
+// Doesn't touch the stage-filter system or re-fetch anything; clearing the box just removes
+// this layer's own inline override and lets the existing filter state show back through.
+// Resets on the next board refresh, same as the stage filter does.
+function swjHeaderSearch(q){
+  const query = q.trim().toLowerCase();
+  document.querySelectorAll('.card, .tsv-card').forEach(el=>{
+    if(!query){ el.style.display=''; return; }
+    el.style.display = el.textContent.toLowerCase().includes(query) ? '' : 'none';
+  });
+}
+
 function escapeHtml(s){
   if(s===null||s===undefined) return '';
   return String(s).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
@@ -2448,7 +2488,12 @@ function updateTodayStrip(invoices){
   // job can produce more than one item here, e.g. both "Payment overdue" and "Find mover";
   // the tile counts the JOB once). One shared definition instead of two that disagree.
   const attentionTile = document.getElementById('stat-attention-count');
-  if(attentionTile) attentionTile.textContent = new Set(items.map(it=>it.invnum)).size;
+  const attentionCount = new Set(items.map(it=>it.invnum)).size;
+  if(attentionTile) attentionTile.textContent = attentionCount;
+  // Header bell badge — same shared count, never a second computation (same reasoning as the
+  // tile above: two independently-computed "needs attention" numbers is the bug we already
+  // fixed once).
+  document.getElementById('swj-hdr-bell-dot')?.classList.toggle('on', attentionCount > 0);
 
   if(items.length === 0){
     stripEl.innerHTML = '<div style="color:rgba(255,255,255,0.4);font-size:11px;font-style:italic;padding:6px 4px">Nothing urgent today.</div>';
