@@ -158,9 +158,78 @@ tr.paid-row { opacity:0.55; }
 .overdue-row .o-meta { font-size:11px; color:var(--taupe-dk); margin-top:2px; }
 .remove-btn { font-size:10.5px; padding:3px 9px; border-radius:10px; border:0.5px solid var(--red); color:var(--red); background:transparent; cursor:pointer; margin-top:4px; }
 .quiet-line { font-size:12.5px; color:var(--taupe-dk); padding:4px 0; }
+
+/* ── SWJ SIDEBAR + BOTTOM NAV (responsive nav shell, shared across pages) ──
+   Desktop >=1200px: persistent left sidebar, existing top nav-sw hidden.
+   Mobile <768px: fixed bottom nav + More sheet, existing top nav-sw hidden.
+   Tablet 768-1199px: the existing top nav-sw (already horizontal-scroll-safe)
+   stays as the nav for that range. */
+:root{ --swj-nav-bg:#191917; --swj-nav-ink:#f7f5f0; --swj-nav-muted:rgba(247,245,240,0.45); --swj-nav-gold:#c9aa70; --swj-nav-line:rgba(247,245,240,0.08); }
+.swj-sidebar{ display:none; }
+.swj-bottom-nav{ display:none; }
+@media (min-width:1200px){
+  body{ padding-left:220px; }
+  .nav-sw{ display:none; }
+  .swj-sidebar{ display:flex; flex-direction:column; position:fixed; top:0; left:0; bottom:0; width:220px; background:var(--swj-nav-bg); z-index:100; padding:22px 0 16px; }
+  .swj-sb-brand{ font-family:'Cormorant Garamond',serif; font-size:20px; color:var(--swj-nav-ink); letter-spacing:3px; padding:0 22px 20px; }
+  .swj-sb-brand span{ display:block; font-family:'Inter',sans-serif; font-size:9px; letter-spacing:2px; text-transform:uppercase; color:var(--swj-nav-muted); margin-top:3px; }
+  .swj-sb-link{ display:flex; align-items:center; gap:10px; padding:10px 22px; font-size:13px; font-weight:500; color:var(--swj-nav-muted); text-decoration:none; border-left:3px solid transparent; transition:all 0.15s; }
+  .swj-sb-link:hover{ color:var(--swj-nav-ink); background:rgba(255,255,255,0.03); }
+  .swj-sb-link.on{ color:var(--swj-nav-ink); border-left-color:var(--swj-nav-gold); background:rgba(255,255,255,0.04); }
+  .swj-sb-spacer{ flex:1; }
+  .swj-sb-foot{ padding:10px 22px; font-size:10px; color:var(--swj-nav-muted); border-top:1px solid var(--swj-nav-line); margin-top:8px; padding-top:14px; }
+}
+@media (max-width:767px){
+  body{ padding-bottom:calc(64px + env(safe-area-inset-bottom,0px)); }
+  .nav-sw{ display:none; }
+  .swj-bottom-nav{ display:flex; position:fixed; left:0; right:0; bottom:0; z-index:100; background:var(--swj-nav-bg); padding:6px 4px calc(6px + env(safe-area-inset-bottom,0px)); border-top:1px solid var(--swj-nav-line); }
+  .swj-bn-link{ flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; padding:6px 2px; min-height:44px; justify-content:center; color:var(--swj-nav-muted); text-decoration:none; font-size:9.5px; font-weight:500; background:none; border:none; font-family:'Inter',sans-serif; }
+  .swj-bn-link.on{ color:var(--swj-nav-gold); }
+  .swj-bn-ic{ font-size:17px; line-height:1; }
+}
+.swj-more-sheet{ position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:150; display:none; align-items:flex-end; justify-content:center; }
+.swj-more-sheet.open{ display:flex; }
+.swj-more-card{ background:#fff; border-radius:18px 18px 0 0; width:100%; max-width:480px; padding:10px 10px calc(16px + env(safe-area-inset-bottom,0px)); }
+.swj-more-handle{ width:36px; height:4px; background:#d4cfc9; border-radius:2px; margin:6px auto 12px; }
+.swj-more-link{ display:flex; align-items:center; gap:12px; padding:13px 16px; font-size:14px; color:#1a1814; text-decoration:none; border-radius:10px; }
+.swj-more-link:active{ background:#f5f2ed; }
 </style>
 </head>
 <body>
+
+<nav class="swj-sidebar">
+  <div class="swj-sb-brand">Styling With Jas<span>Staging Operations</span></div>
+  <a class="swj-sb-link" href="/today.html">🏠 Today</a>
+  <a class="swj-sb-link" href="/board.html">📋 Board</a>
+  <a class="swj-sb-link" href="/shop.html">🛍 Shopping</a>
+  <a class="swj-sb-link" href="/archive.html">🧾 Invoices</a>
+  <a class="swj-sb-link on" href="/payroll.html">💼 Payroll</a>
+  <a class="swj-sb-link" href="/tax-report.html">📊 Reports</a>
+  <div class="swj-sb-spacer"></div>
+  <div class="swj-sb-foot">Styling With Jas</div>
+</nav>
+
+<nav class="swj-bottom-nav">
+  <a class="swj-bn-link" href="/today.html"><span class="swj-bn-ic">🏠</span>Today</a>
+  <a class="swj-bn-link" href="/board.html"><span class="swj-bn-ic">📋</span>Board</a>
+  <a class="swj-bn-link" href="/shop.html"><span class="swj-bn-ic">🛍</span>Shop</a>
+  <a class="swj-bn-link on" href="/payroll.html"><span class="swj-bn-ic">💼</span>Payroll</a>
+  <button class="swj-bn-link" onclick="swjToggleMore()" type="button"><span class="swj-bn-ic">⋯</span>More</button>
+</nav>
+
+<div class="swj-more-sheet" id="swj-more-sheet" onclick="if(event.target===this)swjToggleMore()">
+  <div class="swj-more-card">
+    <div class="swj-more-handle"></div>
+    <a class="swj-more-link" href="/archive.html">🧾 Invoices (Archive)</a>
+    <a class="swj-more-link" href="/tax-report.html">📊 Reports (Tax Report)</a>
+    <a class="swj-more-link" href="/index.html">✚ New Invoice</a>
+    <a class="swj-more-link" href="/luxury.html">✚ New Luxury Invoice</a>
+    <a class="swj-more-link" href="/gs-invoice.html">🖤 GS Photography Invoice</a>
+    <a class="swj-more-link" href="/hours.html">🕒 My Hours</a>
+  </div>
+</div>
+<script>function swjToggleMore(){document.getElementById('swj-more-sheet').classList.toggle('open');}</script>
+
 
 <div class="hdr">
   <div class="hdr-top">
