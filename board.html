@@ -215,6 +215,11 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
 .pipe-val.g { color:var(--green); }
 .pipe-val.r { color:var(--red); }
 .pipe-note { font-size:10px; color:var(--taupe); margin-top:2px; }
+/* MTD Revenue trend sparkline — last 5 months, same "paid this month" definition as the
+   figure above it (never a second, differently-defined revenue number). */
+.pipe-spark { display:flex; align-items:flex-end; gap:3px; height:20px; margin-top:6px; }
+.pipe-spark-bar { flex:1; background:rgba(162,156,150,0.3); border-radius:2px 2px 0 0; min-height:2px; }
+.pipe-spark-bar.now { background:var(--gold); }
 
 /* ── BOARD ── */
 .board { display:flex; gap:12px; padding:16px; overflow-x:auto; align-items:flex-start; width:100%; }
@@ -630,6 +635,7 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
     <div class="pipe-lbl">MTD Revenue</div>
     <div class="pipe-val g" id="stat-mtd-total">$0</div>
     <div class="pipe-note" id="stat-mtd-count">0 completed</div>
+    <div class="pipe-spark" id="stat-mtd-spark"></div>
   </div>
   <div class="pipe" onclick="showAttention()">
     <div class="pipe-lbl">Needs Attention</div>
@@ -2410,11 +2416,41 @@ function updatePipelineStats(grouped){
   // dimension from the Completed STAGE column, which only counts stage==='done'. The two
   // were never meant to match; "completed" here was misleading wording (audit finding).
   document.getElementById('stat-mtd-count').textContent = mtdCount + ' paid';
+  renderMtdSpark();
 
   // Needs Attention tile: set inside updateTodayStrip(), from the SAME items list the strip
   // itself renders — counting rendered card tags here was a SEPARATE, disagreeing
   // computation (Build 2 AND Item #6 audit findings: tile vs strip never matched). One
   // definition, one place it's computed, used by both.
+}
+
+// 5-month revenue trend sparkline under the MTD Revenue tile — same "paid this month" rule as
+// mtdTotal above (paid_date in range, grand total, payer_unknown excluded), just evaluated
+// across each of the last 5 calendar months instead of only the current one.
+function renderMtdSpark(){
+  const el = document.getElementById('stat-mtd-spark');
+  if(!el) return;
+  const now = new Date();
+  const months = [];
+  for(let i=4; i>=0; i--){
+    const start = new Date(now.getFullYear(), now.getMonth()-i, 1);
+    const end = new Date(now.getFullYear(), now.getMonth()-i+1, 1);
+    months.push({ start, end, total:0 });
+  }
+  Object.values(CARDS).forEach(inv=>{
+    const d = inv.data || {};
+    if(!d.paid || !d.paid_date || d.payer_unknown) return;
+    const pd = new Date(d.paid_date + 'T00:00:00');
+    const m = months.find(m => pd >= m.start && pd < m.end);
+    if(m) m.total += computeGrand(d);
+  });
+  const max = Math.max(1, ...months.map(m=>m.total));
+  el.innerHTML = months.map((m,i)=>{
+    const h = Math.max(2, Math.round(m.total/max*20));
+    const label = m.start.toLocaleDateString('en-US',{month:'short'});
+    const isNow = i === months.length-1;
+    return `<div class="pipe-spark-bar ${isNow?'now':''}" style="height:${h}px" title="${label}: ${fmtMoney(m.total)}"></div>`;
+  }).join('');
 }
 
 function updateTodayStrip(invoices){
