@@ -55,11 +55,34 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
 /* ── HEADER ── */
 .hdr { background:var(--ink); position:sticky; top:0; z-index:60; }
 .hdr-top { display:flex; align-items:center; justify-content:space-between; padding:14px 20px 10px; }
-.brand { display:flex; align-items:baseline; gap:10px; }
+.brand { display:flex; align-items:baseline; gap:10px; flex-shrink:0; }
 .brand-name { font-family:'Cormorant Garamond',serif; font-size:24px; font-weight:300; color:#fff; letter-spacing:4px; }
 .brand-sep { width:1px; height:16px; background:rgba(255,255,255,0.18); }
 .brand-sub { font-size:10px; color:rgba(255,255,255,0.35); letter-spacing:2.5px; text-transform:uppercase; }
-.hdr-right { display:flex; align-items:center; gap:10px; }
+/* min-width:0 overrides the flex-item default of min-width:auto, which otherwise refuses to
+   shrink hdr-right below nav-sw's unwrapped content width — without it, nav-sw's own
+   overflow-x:auto never gets a chance to engage and the whole page overflows instead
+   (confirmed: pushed the page 36px past the viewport at tablet width). */
+.hdr-right { display:flex; align-items:center; gap:10px; min-width:0; flex-wrap:wrap; justify-content:flex-end; }
+/* Search + bell + user badge — desktop only (>=1200px, alongside the sidebar). The mobile
+   header is already tight with the brand + action buttons; search there is reachable via the
+   same stage-filter tabs/scroll instead of adding a fourth thing to squeeze in. */
+.swj-hdr-search { display:none; }
+.swj-hdr-bell { display:none; }
+.swj-hdr-user { display:none; }
+@media (min-width:1200px){
+  .swj-hdr-search { display:flex; align-items:center; gap:8px; background:rgba(255,255,255,0.07); border-radius:20px; padding:7px 14px; flex:1; max-width:360px; margin-right:auto; }
+  .swj-hdr-search input { background:none; border:none; outline:none; color:#fff; font-family:'Inter',sans-serif; font-size:12.5px; width:100%; }
+  .swj-hdr-search input::placeholder { color:rgba(255,255,255,0.35); }
+  .swj-hdr-search svg { flex-shrink:0; opacity:0.4; }
+  .swj-hdr-bell { display:flex; position:relative; align-items:center; justify-content:center; width:32px; height:32px; border-radius:50%; background:rgba(255,255,255,0.07); border:none; cursor:pointer; flex-shrink:0; }
+  .swj-hdr-bell-dot { display:none; position:absolute; top:6px; right:7px; width:7px; height:7px; border-radius:50%; background:var(--gold); border:1.5px solid var(--ink); }
+  .swj-hdr-bell-dot.on { display:block; }
+  .swj-hdr-user { display:flex; align-items:center; gap:8px; flex-shrink:0; }
+  .swj-hdr-user-av { width:28px; height:28px; border-radius:50%; background:var(--gold); color:var(--ink); display:flex; align-items:center; justify-content:center; font-family:'Cormorant Garamond',serif; font-weight:600; font-size:12px; }
+  .swj-hdr-user-name { font-size:12px; color:rgba(255,255,255,0.7); }
+}
+.hdr-card-hidden { display:none !important; }
 .compact-toggle {
   font-size:11px; font-weight:500; color:rgba(255,255,255,0.45);
   background:rgba(255,255,255,0.07); border:none; border-radius:16px;
@@ -67,7 +90,7 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
   transition:all 0.18s;
 }
 .compact-toggle.on { background:var(--gold); color:var(--ink); }
-.nav-sw { display:flex; gap:2px; background:rgba(255,255,255,0.07); border-radius:20px; padding:3px; }
+.nav-sw { display:flex; gap:2px; background:rgba(255,255,255,0.07); border-radius:20px; padding:3px; min-width:0; }
 .nav-btn { padding:5px 14px; border-radius:16px; border:none; font-size:11px; font-weight:500; cursor:pointer; font-family:'Inter',sans-serif; transition:all 0.18s; }
 .nav-btn.on { background:#fff; color:var(--ink); }
 .nav-btn.off { background:transparent; color:rgba(255,255,255,0.4); }
@@ -111,8 +134,12 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
 .tsv-greeting { font-family:'Cormorant Garamond',serif; font-size:17px; font-weight:300; color:var(--ink); padding:14px 16px 4px; }
 .tsv-section { padding:12px 16px; border-bottom:1px solid rgba(162,156,150,0.15); }
 .tsv-section-hdr { font-size:11px; font-weight:700; color:var(--taupe-dk); text-transform:uppercase; letter-spacing:1px; margin-bottom:8px; }
-.tsv-card { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; background:var(--warm); border-radius:10px; padding:10px 12px; margin-bottom:6px; cursor:pointer; }
+.tsv-card { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; background:var(--warm); border-radius:10px; padding:10px 12px; margin-bottom:6px; cursor:pointer; box-shadow:0 1px 2px rgba(26,24,20,0.03); transition:box-shadow 0.15s; }
+.tsv-card:hover { box-shadow:0 4px 14px rgba(26,24,20,0.08); }
 .tsv-card:last-child { margin-bottom:0; }
+.tsv-card-main { display:flex; align-items:center; gap:9px; min-width:0; }
+.tsv-mono { width:28px; height:28px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-family:'Cormorant Garamond',serif; font-size:12px; font-weight:600; color:var(--ink); background:var(--gold); }
+.tsv-name-wrap { min-width:0; }
 .tsv-card-name { font-size:13px; font-weight:600; color:var(--ink); }
 .tsv-card-addr { font-size:11px; color:var(--taupe-dk); margin-top:1px; }
 .tsv-card-side { text-align:right; flex-shrink:0; }
@@ -129,10 +156,11 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
   .board.kanban-hidden { display:none; }
 }
 
-/* Main nav: 9 tabs are too many to fit on a phone screen without crowding — make the strip
-   horizontally scrollable there instead of wrapping/squeezing (Phase 7 mobile nav). Tab
-   order, labels, and destinations are unchanged; this is presentation only. */
-@media (max-width: 680px) {
+/* Main nav: 9 tabs are too many to fit without crowding below the new sidebar's 1200px
+   breakpoint (confirmed: at 900px-wide tablet, the un-scrollable row pushed the whole page
+   36px past the viewport) — make the strip horizontally scrollable there instead of
+   wrapping/squeezing. Tab order, labels, and destinations are unchanged; presentation only. */
+@media (max-width: 1199px) {
   .nav-sw { max-width:100%; overflow-x:auto; scrollbar-width:none; -webkit-overflow-scrolling:touch; }
   .nav-sw::-webkit-scrollbar { display:none; }
   .nav-btn { flex-shrink:0; }
@@ -187,9 +215,14 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
 .pipe-val.g { color:var(--green); }
 .pipe-val.r { color:var(--red); }
 .pipe-note { font-size:10px; color:var(--taupe); margin-top:2px; }
+/* MTD Revenue trend sparkline — last 5 months, same "paid this month" definition as the
+   figure above it (never a second, differently-defined revenue number). */
+.pipe-spark { display:flex; align-items:flex-end; gap:3px; height:20px; margin-top:6px; }
+.pipe-spark-bar { flex:1; background:rgba(162,156,150,0.3); border-radius:2px 2px 0 0; min-height:2px; }
+.pipe-spark-bar.now { background:var(--gold); }
 
 /* ── BOARD ── */
-.board { display:flex; gap:12px; padding:16px; overflow-x:auto; align-items:flex-start; }
+.board { display:flex; gap:12px; padding:16px; overflow-x:auto; align-items:flex-start; width:100%; }
 .board.single { display:block; overflow-x:visible; }
 .col { min-width:252px; max-width:265px; flex-shrink:0; }
 .col.single { min-width:unset; max-width:unset; }
@@ -201,9 +234,16 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
 .col-subhdr { font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.8px; color:var(--taupe); padding:10px 2px 5px; }
 .col-subhdr:first-child { padding-top:0; }
 
-/* ── CARDS ── */
-.card { border-radius:13px; padding:13px 14px 11px; margin-bottom:8px; cursor:pointer; transition:transform 0.12s,box-shadow 0.12s; border:1px solid transparent; }
+/* ── CARDS ──
+   No cover photos in this app — the client name IS the card's visual anchor: a serif
+   monogram badge + larger name type, standing in for a photo rather than an empty
+   placeholder for one. */
+.card { border-radius:13px; padding:13px 14px 11px; margin-bottom:8px; cursor:pointer; transition:transform 0.12s,box-shadow 0.15s; border:1px solid transparent; box-shadow:0 1px 2px rgba(26,24,20,0.03); }
+.card:hover { box-shadow:0 6px 18px rgba(26,24,20,0.09); }
 .card:active { transform:scale(0.976); }
+.c-head { display:flex; align-items:center; gap:10px; min-width:0; flex:1; }
+.c-mono { width:34px; height:34px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-family:'Cormorant Garamond',serif; font-size:14px; font-weight:600; color:var(--ink); background:var(--gold); letter-spacing:0.3px; }
+.c-name-wrap { min-width:0; }
 .card.proposal  { background:var(--proposal-bg);  border-color:rgba(122,111,105,0.14); }
 .card.confirmed { background:var(--confirmed-bg); border-color:rgba(74,124,80,0.14); }
 .card.staged    { background:var(--staged-bg);    border-color:rgba(47,143,111,0.18); }
@@ -211,8 +251,8 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
 .card.done      { background:var(--done-bg);      border-color:rgba(162,156,150,0.1); opacity:0.6; }
 .card.denied    { background:var(--denied-bg);    border-color:rgba(181,53,53,0.12); opacity:0.55; }
 
-.c-row1 { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:3px; }
-.c-name { font-family:'Cormorant Garamond',serif; font-size:16px; font-weight:400; line-height:1.2; }
+.c-row1 { display:flex; justify-content:space-between; align-items:center; margin-bottom:3px; gap:8px; }
+.c-name { font-family:'Cormorant Garamond',serif; font-size:18px; font-weight:400; line-height:1.2; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
 .card.proposal  .c-name { color:var(--ink); }
 .card.confirmed .c-name { color:#1e3d21; }
 .card.staged    .c-name { color:#123a2c; }
@@ -426,9 +466,77 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
 .spv-send:disabled { opacity:0.6; cursor:default; }
 .spv-status { font-size:12px; text-align:center; margin-top:10px; min-height:16px; }
 
+/* ── SWJ SIDEBAR + BOTTOM NAV (responsive nav shell, shared across pages) ──
+   Desktop >=1200px: persistent left sidebar, existing top nav-sw hidden.
+   Mobile <768px: fixed bottom nav + More sheet, existing top nav-sw hidden.
+   Tablet 768-1199px: neither — the existing top nav-sw (already horizontal-
+   scroll-safe) stays as the nav for that range, reusing tested code instead
+   of adding a third nav pattern. */
+:root{ --swj-nav-bg:#191917; --swj-nav-ink:#f7f5f0; --swj-nav-muted:rgba(247,245,240,0.45); --swj-nav-gold:#c9aa70; --swj-nav-line:rgba(247,245,240,0.08); }
+.swj-sidebar{ display:none; }
+.swj-bottom-nav{ display:none; }
+@media (min-width:1200px){
+  body{ padding-left:220px; }
+  .nav-sw{ display:none; }
+  .swj-sidebar{ display:flex; flex-direction:column; position:fixed; top:0; left:0; bottom:0; width:220px; background:var(--swj-nav-bg); z-index:100; padding:22px 0 16px; }
+  .swj-sb-brand{ font-family:'Cormorant Garamond',serif; font-size:20px; color:var(--swj-nav-ink); letter-spacing:3px; padding:0 22px 20px; }
+  .swj-sb-brand span{ display:block; font-family:'Inter',sans-serif; font-size:9px; letter-spacing:2px; text-transform:uppercase; color:var(--swj-nav-muted); margin-top:3px; }
+  .swj-sb-link{ display:flex; align-items:center; gap:10px; padding:10px 22px; font-size:13px; font-weight:500; color:var(--swj-nav-muted); text-decoration:none; border-left:3px solid transparent; transition:all 0.15s; }
+  .swj-sb-link:hover{ color:var(--swj-nav-ink); background:rgba(255,255,255,0.03); }
+  .swj-sb-link.on{ color:var(--swj-nav-ink); border-left-color:var(--swj-nav-gold); background:rgba(255,255,255,0.04); }
+  .swj-sb-spacer{ flex:1; }
+  .swj-sb-foot{ padding:10px 22px; font-size:10px; color:var(--swj-nav-muted); border-top:1px solid var(--swj-nav-line); margin-top:8px; padding-top:14px; }
+}
+@media (max-width:767px){
+  body{ padding-bottom:calc(64px + env(safe-area-inset-bottom,0px)); }
+  .nav-sw{ display:none; }
+  .swj-bottom-nav{ display:flex; position:fixed; left:0; right:0; bottom:0; z-index:100; background:var(--swj-nav-bg); padding:6px 4px calc(6px + env(safe-area-inset-bottom,0px)); border-top:1px solid var(--swj-nav-line); }
+  .swj-bn-link{ flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; padding:6px 2px; min-height:44px; justify-content:center; color:var(--swj-nav-muted); text-decoration:none; font-size:9.5px; font-weight:500; background:none; border:none; font-family:'Inter',sans-serif; }
+  .swj-bn-link.on{ color:var(--swj-nav-gold); }
+  .swj-bn-ic{ font-size:17px; line-height:1; }
+}
+.swj-more-sheet{ position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:150; display:none; align-items:flex-end; justify-content:center; }
+.swj-more-sheet.open{ display:flex; }
+.swj-more-card{ background:#fff; border-radius:18px 18px 0 0; width:100%; max-width:480px; padding:10px 10px calc(16px + env(safe-area-inset-bottom,0px)); }
+.swj-more-handle{ width:36px; height:4px; background:#d4cfc9; border-radius:2px; margin:6px auto 12px; }
+.swj-more-link{ display:flex; align-items:center; gap:12px; padding:13px 16px; font-size:14px; color:#1a1814; text-decoration:none; border-radius:10px; }
+.swj-more-link:active{ background:#f5f2ed; }
+
 </style>
 </head>
 <body>
+
+<nav class="swj-sidebar">
+  <div class="swj-sb-brand">Styling With Jas<span>Staging Operations</span></div>
+  <a class="swj-sb-link" href="/today.html">🏠 Today</a>
+  <a class="swj-sb-link on" href="/board.html">📋 Board</a>
+  <a class="swj-sb-link" href="/shop.html">🛍 Shopping</a>
+  <a class="swj-sb-link" href="/archive.html">🧾 Invoices</a>
+  <a class="swj-sb-link" href="/payroll.html">💼 Payroll</a>
+  <a class="swj-sb-link" href="/tax-report.html">📊 Reports</a>
+  <div class="swj-sb-spacer"></div>
+  <div class="swj-sb-foot">Styling With Jas</div>
+</nav>
+
+<nav class="swj-bottom-nav">
+  <a class="swj-bn-link" href="/today.html"><span class="swj-bn-ic">🏠</span>Today</a>
+  <a class="swj-bn-link on" href="/board.html"><span class="swj-bn-ic">📋</span>Board</a>
+  <a class="swj-bn-link" href="/shop.html"><span class="swj-bn-ic">🛍</span>Shop</a>
+  <a class="swj-bn-link" href="/payroll.html"><span class="swj-bn-ic">💼</span>Payroll</a>
+  <button class="swj-bn-link" onclick="swjToggleMore()" type="button"><span class="swj-bn-ic">⋯</span>More</button>
+</nav>
+
+<div class="swj-more-sheet" id="swj-more-sheet" onclick="if(event.target===this)swjToggleMore()">
+  <div class="swj-more-card">
+    <div class="swj-more-handle"></div>
+    <a class="swj-more-link" href="/archive.html">🧾 Invoices (Archive)</a>
+    <a class="swj-more-link" href="/tax-report.html">📊 Reports (Tax Report)</a>
+    <a class="swj-more-link" href="/index.html">✚ New Invoice</a>
+    <a class="swj-more-link" href="/luxury.html">✚ New Luxury Invoice</a>
+    <a class="swj-more-link" href="/hours.html">🕒 My Hours</a>
+  </div>
+</div>
+<script>function swjToggleMore(){document.getElementById('swj-more-sheet').classList.toggle('open');}</script>
 
 <!-- HEADER -->
 <div class="hdr">
@@ -438,10 +546,18 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
       <div class="brand-sep"></div>
       <div class="brand-sub">Project Board</div>
     </div>
+    <div class="swj-hdr-search">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      <input type="text" id="swj-hdr-search-input" placeholder="Search projects, clients, addresses…" oninput="swjHeaderSearch(this.value)">
+    </div>
     <div class="hdr-right">
       <button class="compact-toggle" onclick="addPastJob()" title="Add a past/legacy job to the board">+ Past Job</button>
       <button class="compact-toggle" id="refresh-btn" onclick="loadBoard()" title="Refresh board">↻ Refresh</button>
       <button class="compact-toggle" id="compact-btn" onclick="toggleCompact()">Compact</button>
+      <button class="swj-hdr-bell" onclick="document.getElementById('today-items')?.scrollIntoView({behavior:'smooth',block:'center'})" title="Needs Attention">
+        🔔<span class="swj-hdr-bell-dot" id="swj-hdr-bell-dot"></span>
+      </button>
+      <div class="swj-hdr-user"><div class="swj-hdr-user-av">J</div><div class="swj-hdr-user-name">Jasmine</div></div>
       <div class="nav-sw">
         <button class="nav-btn off" onclick="window.location.href='/today.html'">Today</button>
         <button class="nav-btn on">Board</button>
@@ -519,6 +635,7 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
     <div class="pipe-lbl">MTD Revenue</div>
     <div class="pipe-val g" id="stat-mtd-total">$0</div>
     <div class="pipe-note" id="stat-mtd-count">0 completed</div>
+    <div class="pipe-spark" id="stat-mtd-spark"></div>
   </div>
   <div class="pipe" onclick="showAttention()">
     <div class="pipe-lbl">Needs Attention</div>
@@ -1953,6 +2070,17 @@ const STAGE_META = {
 };
 
 // Build a card HTML element from an invoice record
+// No cover photos in this app (see chat — deliberately skipped in favor of a name-forward
+// card design). Initials from the client/project name stand in as the card's visual anchor:
+// first + last word, skipping small connector words, so "Joe and Delee Baker" reads as "JB".
+const _MONO_STOPWORDS = new Set(['and','the','of','&']);
+function clientInitials(name){
+  const words = String(name||'').trim().split(/\s+/).filter(w => w && !_MONO_STOPWORDS.has(w.toLowerCase()));
+  if(!words.length) return '?';
+  if(words.length===1) return words[0].slice(0,2).toUpperCase();
+  return (words[0][0] + words[words.length-1][0]).toUpperCase();
+}
+
 function buildCardHTML(inv){
   const d = inv.data || {};
   const stage = d.stage || 'proposal';
@@ -2042,7 +2170,10 @@ function buildCardHTML(inv){
   return `
     <div class="card ${stage}" onclick="openCard('${inv.invnum}')">
       <div class="c-row1">
-        <div class="c-name">${escapeHtml(name)}</div>
+        <div class="c-head">
+          <div class="c-mono">${escapeHtml(clientInitials(name))}</div>
+          <div class="c-name-wrap"><div class="c-name">${escapeHtml(name)}</div></div>
+        </div>
         <div class="c-amt">${fmtMoney(grand)}</div>
       </div>
       <div class="c-addr">${escapeHtml(addr)}</div>
@@ -2051,6 +2182,19 @@ function buildCardHTML(inv){
       ${noteHTML}
     </div>
   `;
+}
+
+// Header search (desktop) — a lightweight filter layered on top of whatever's already
+// rendered, by client/project/address/invoice# (all of it lives in each card's own text).
+// Doesn't touch the stage-filter system or re-fetch anything; clearing the box just removes
+// this layer's own inline override and lets the existing filter state show back through.
+// Resets on the next board refresh, same as the stage filter does.
+function swjHeaderSearch(q){
+  const query = q.trim().toLowerCase();
+  document.querySelectorAll('.card, .tsv-card').forEach(el=>{
+    if(!query){ el.style.display=''; return; }
+    el.style.display = el.textContent.toLowerCase().includes(query) ? '' : 'none';
+  });
 }
 
 function escapeHtml(s){
@@ -2272,11 +2416,41 @@ function updatePipelineStats(grouped){
   // dimension from the Completed STAGE column, which only counts stage==='done'. The two
   // were never meant to match; "completed" here was misleading wording (audit finding).
   document.getElementById('stat-mtd-count').textContent = mtdCount + ' paid';
+  renderMtdSpark();
 
   // Needs Attention tile: set inside updateTodayStrip(), from the SAME items list the strip
   // itself renders — counting rendered card tags here was a SEPARATE, disagreeing
   // computation (Build 2 AND Item #6 audit findings: tile vs strip never matched). One
   // definition, one place it's computed, used by both.
+}
+
+// 5-month revenue trend sparkline under the MTD Revenue tile — same "paid this month" rule as
+// mtdTotal above (paid_date in range, grand total, payer_unknown excluded), just evaluated
+// across each of the last 5 calendar months instead of only the current one.
+function renderMtdSpark(){
+  const el = document.getElementById('stat-mtd-spark');
+  if(!el) return;
+  const now = new Date();
+  const months = [];
+  for(let i=4; i>=0; i--){
+    const start = new Date(now.getFullYear(), now.getMonth()-i, 1);
+    const end = new Date(now.getFullYear(), now.getMonth()-i+1, 1);
+    months.push({ start, end, total:0 });
+  }
+  Object.values(CARDS).forEach(inv=>{
+    const d = inv.data || {};
+    if(!d.paid || !d.paid_date || d.payer_unknown) return;
+    const pd = new Date(d.paid_date + 'T00:00:00');
+    const m = months.find(m => pd >= m.start && pd < m.end);
+    if(m) m.total += computeGrand(d);
+  });
+  const max = Math.max(1, ...months.map(m=>m.total));
+  el.innerHTML = months.map((m,i)=>{
+    const h = Math.max(2, Math.round(m.total/max*20));
+    const label = m.start.toLocaleDateString('en-US',{month:'short'});
+    const isNow = i === months.length-1;
+    return `<div class="pipe-spark-bar ${isNow?'now':''}" style="height:${h}px" title="${label}: ${fmtMoney(m.total)}"></div>`;
+  }).join('');
 }
 
 function updateTodayStrip(invoices){
@@ -2350,7 +2524,12 @@ function updateTodayStrip(invoices){
   // job can produce more than one item here, e.g. both "Payment overdue" and "Find mover";
   // the tile counts the JOB once). One shared definition instead of two that disagree.
   const attentionTile = document.getElementById('stat-attention-count');
-  if(attentionTile) attentionTile.textContent = new Set(items.map(it=>it.invnum)).size;
+  const attentionCount = new Set(items.map(it=>it.invnum)).size;
+  if(attentionTile) attentionTile.textContent = attentionCount;
+  // Header bell badge — same shared count, never a second computation (same reasoning as the
+  // tile above: two independently-computed "needs attention" numbers is the bug we already
+  // fixed once).
+  document.getElementById('swj-hdr-bell-dot')?.classList.toggle('on', attentionCount > 0);
 
   if(items.length === 0){
     stripEl.innerHTML = '<div style="color:rgba(255,255,255,0.4);font-size:11px;font-style:italic;padding:6px 4px">Nothing urgent today.</div>';
@@ -2437,8 +2616,11 @@ function renderOnSiteNow(invoices){
       : daysLeft+' day'+(daysLeft===1?'':'s')+' left';
     return `<div class="tsv-card" onclick="openCard('${inv.invnum}')">
       <div class="tsv-card-main">
-        <div class="tsv-card-name">${escapeHtml(client)}</div>
-        <div class="tsv-card-addr">${escapeHtml(addr)}${d.startdate?' · staged '+fmtDateShort(d.startdate):''}</div>
+        <div class="tsv-mono">${escapeHtml(clientInitials(client))}</div>
+        <div class="tsv-name-wrap">
+          <div class="tsv-card-name">${escapeHtml(client)}</div>
+          <div class="tsv-card-addr">${escapeHtml(addr)}${d.startdate?' · staged '+fmtDateShort(d.startdate):''}</div>
+        </div>
       </div>
       <div class="tsv-card-side">
         <div class="tsv-card-tag ${urgent?'a':''}">${tagText}</div>
@@ -2465,8 +2647,11 @@ function renderDestageNeedsScheduling(invoices){
     const tagText = hasDate ? fmtDateShort(d.destage_date) + (overdue?' · overdue':'') : 'Not scheduled';
     return `<div class="tsv-card">
       <div class="tsv-card-main" onclick="openCard('${inv.invnum}')" style="cursor:pointer">
-        <div class="tsv-card-name">${escapeHtml(client)}</div>
-        <div class="tsv-card-addr">${escapeHtml(addr)}</div>
+        <div class="tsv-mono">${escapeHtml(clientInitials(client))}</div>
+        <div class="tsv-name-wrap">
+          <div class="tsv-card-name">${escapeHtml(client)}</div>
+          <div class="tsv-card-addr">${escapeHtml(addr)}</div>
+        </div>
       </div>
       <div class="tsv-card-side">
         <div class="tsv-card-tag ${overdue?'a':(hasDate?'':'w')}">${tagText}</div>
@@ -2492,8 +2677,11 @@ function renderFutureHoldSection(invoices){
     const addr = shortAddr(inv.address || d.address || '');
     return `<div class="tsv-card" onclick="openCard('${inv.invnum}')">
       <div class="tsv-card-main">
-        <div class="tsv-card-name">${escapeHtml(client)}</div>
-        <div class="tsv-card-addr">${escapeHtml(addr)}${d.startdate&&d.startdate!=='TBD'?' · staging '+fmtDateShort(d.startdate):''}</div>
+        <div class="tsv-mono">${escapeHtml(clientInitials(client))}</div>
+        <div class="tsv-name-wrap">
+          <div class="tsv-card-name">${escapeHtml(client)}</div>
+          <div class="tsv-card-addr">${escapeHtml(addr)}${d.startdate&&d.startdate!=='TBD'?' · staging '+fmtDateShort(d.startdate):''}</div>
+        </div>
       </div>
       <div class="tsv-card-side"><div class="tsv-card-tag">${fmtMoney(computeGrand(d))}</div></div>
     </div>`;
