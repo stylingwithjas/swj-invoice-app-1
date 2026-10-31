@@ -55,11 +55,15 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
 /* ── HEADER ── */
 .hdr { background:var(--ink); position:sticky; top:0; z-index:60; }
 .hdr-top { display:flex; align-items:center; justify-content:space-between; padding:14px 20px 10px; }
-.brand { display:flex; align-items:baseline; gap:10px; }
+.brand { display:flex; align-items:baseline; gap:10px; flex-shrink:0; }
 .brand-name { font-family:'Cormorant Garamond',serif; font-size:24px; font-weight:300; color:#fff; letter-spacing:4px; }
 .brand-sep { width:1px; height:16px; background:rgba(255,255,255,0.18); }
 .brand-sub { font-size:10px; color:rgba(255,255,255,0.35); letter-spacing:2.5px; text-transform:uppercase; }
-.hdr-right { display:flex; align-items:center; gap:10px; }
+/* min-width:0 overrides the flex-item default of min-width:auto, which otherwise refuses to
+   shrink hdr-right below nav-sw's unwrapped content width — without it, nav-sw's own
+   overflow-x:auto never gets a chance to engage and the whole page overflows instead
+   (confirmed: pushed the page 36px past the viewport at tablet width). */
+.hdr-right { display:flex; align-items:center; gap:10px; min-width:0; flex-wrap:wrap; justify-content:flex-end; }
 .compact-toggle {
   font-size:11px; font-weight:500; color:rgba(255,255,255,0.45);
   background:rgba(255,255,255,0.07); border:none; border-radius:16px;
@@ -67,7 +71,7 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
   transition:all 0.18s;
 }
 .compact-toggle.on { background:var(--gold); color:var(--ink); }
-.nav-sw { display:flex; gap:2px; background:rgba(255,255,255,0.07); border-radius:20px; padding:3px; }
+.nav-sw { display:flex; gap:2px; background:rgba(255,255,255,0.07); border-radius:20px; padding:3px; min-width:0; }
 .nav-btn { padding:5px 14px; border-radius:16px; border:none; font-size:11px; font-weight:500; cursor:pointer; font-family:'Inter',sans-serif; transition:all 0.18s; }
 .nav-btn.on { background:#fff; color:var(--ink); }
 .nav-btn.off { background:transparent; color:rgba(255,255,255,0.4); }
@@ -129,10 +133,11 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
   .board.kanban-hidden { display:none; }
 }
 
-/* Main nav: 9 tabs are too many to fit on a phone screen without crowding — make the strip
-   horizontally scrollable there instead of wrapping/squeezing (Phase 7 mobile nav). Tab
-   order, labels, and destinations are unchanged; this is presentation only. */
-@media (max-width: 680px) {
+/* Main nav: 9 tabs are too many to fit without crowding below the new sidebar's 1200px
+   breakpoint (confirmed: at 900px-wide tablet, the un-scrollable row pushed the whole page
+   36px past the viewport) — make the strip horizontally scrollable there instead of
+   wrapping/squeezing. Tab order, labels, and destinations are unchanged; presentation only. */
+@media (max-width: 1199px) {
   .nav-sw { max-width:100%; overflow-x:auto; scrollbar-width:none; -webkit-overflow-scrolling:touch; }
   .nav-sw::-webkit-scrollbar { display:none; }
   .nav-btn { flex-shrink:0; }
@@ -189,7 +194,7 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
 .pipe-note { font-size:10px; color:var(--taupe); margin-top:2px; }
 
 /* ── BOARD ── */
-.board { display:flex; gap:12px; padding:16px; overflow-x:auto; align-items:flex-start; }
+.board { display:flex; gap:12px; padding:16px; overflow-x:auto; align-items:flex-start; width:100%; }
 .board.single { display:block; overflow-x:visible; }
 .col { min-width:252px; max-width:265px; flex-shrink:0; }
 .col.single { min-width:unset; max-width:unset; }
