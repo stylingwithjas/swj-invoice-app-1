@@ -115,8 +115,12 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
 .tsv-greeting { font-family:'Cormorant Garamond',serif; font-size:17px; font-weight:300; color:var(--ink); padding:14px 16px 4px; }
 .tsv-section { padding:12px 16px; border-bottom:1px solid rgba(162,156,150,0.15); }
 .tsv-section-hdr { font-size:11px; font-weight:700; color:var(--taupe-dk); text-transform:uppercase; letter-spacing:1px; margin-bottom:8px; }
-.tsv-card { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; background:var(--warm); border-radius:10px; padding:10px 12px; margin-bottom:6px; cursor:pointer; }
+.tsv-card { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; background:var(--warm); border-radius:10px; padding:10px 12px; margin-bottom:6px; cursor:pointer; box-shadow:0 1px 2px rgba(26,24,20,0.03); transition:box-shadow 0.15s; }
+.tsv-card:hover { box-shadow:0 4px 14px rgba(26,24,20,0.08); }
 .tsv-card:last-child { margin-bottom:0; }
+.tsv-card-main { display:flex; align-items:center; gap:9px; min-width:0; }
+.tsv-mono { width:28px; height:28px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-family:'Cormorant Garamond',serif; font-size:12px; font-weight:600; color:var(--ink); background:var(--gold); }
+.tsv-name-wrap { min-width:0; }
 .tsv-card-name { font-size:13px; font-weight:600; color:var(--ink); }
 .tsv-card-addr { font-size:11px; color:var(--taupe-dk); margin-top:1px; }
 .tsv-card-side { text-align:right; flex-shrink:0; }
@@ -206,9 +210,16 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
 .col-subhdr { font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.8px; color:var(--taupe); padding:10px 2px 5px; }
 .col-subhdr:first-child { padding-top:0; }
 
-/* ── CARDS ── */
-.card { border-radius:13px; padding:13px 14px 11px; margin-bottom:8px; cursor:pointer; transition:transform 0.12s,box-shadow 0.12s; border:1px solid transparent; }
+/* ── CARDS ──
+   No cover photos in this app — the client name IS the card's visual anchor: a serif
+   monogram badge + larger name type, standing in for a photo rather than an empty
+   placeholder for one. */
+.card { border-radius:13px; padding:13px 14px 11px; margin-bottom:8px; cursor:pointer; transition:transform 0.12s,box-shadow 0.15s; border:1px solid transparent; box-shadow:0 1px 2px rgba(26,24,20,0.03); }
+.card:hover { box-shadow:0 6px 18px rgba(26,24,20,0.09); }
 .card:active { transform:scale(0.976); }
+.c-head { display:flex; align-items:center; gap:10px; min-width:0; flex:1; }
+.c-mono { width:34px; height:34px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-family:'Cormorant Garamond',serif; font-size:14px; font-weight:600; color:var(--ink); background:var(--gold); letter-spacing:0.3px; }
+.c-name-wrap { min-width:0; }
 .card.proposal  { background:var(--proposal-bg);  border-color:rgba(122,111,105,0.14); }
 .card.confirmed { background:var(--confirmed-bg); border-color:rgba(74,124,80,0.14); }
 .card.staged    { background:var(--staged-bg);    border-color:rgba(47,143,111,0.18); }
@@ -216,8 +227,8 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
 .card.done      { background:var(--done-bg);      border-color:rgba(162,156,150,0.1); opacity:0.6; }
 .card.denied    { background:var(--denied-bg);    border-color:rgba(181,53,53,0.12); opacity:0.55; }
 
-.c-row1 { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:3px; }
-.c-name { font-family:'Cormorant Garamond',serif; font-size:16px; font-weight:400; line-height:1.2; }
+.c-row1 { display:flex; justify-content:space-between; align-items:center; margin-bottom:3px; gap:8px; }
+.c-name { font-family:'Cormorant Garamond',serif; font-size:18px; font-weight:400; line-height:1.2; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
 .card.proposal  .c-name { color:var(--ink); }
 .card.confirmed .c-name { color:#1e3d21; }
 .card.staged    .c-name { color:#123a2c; }
@@ -2026,6 +2037,17 @@ const STAGE_META = {
 };
 
 // Build a card HTML element from an invoice record
+// No cover photos in this app (see chat — deliberately skipped in favor of a name-forward
+// card design). Initials from the client/project name stand in as the card's visual anchor:
+// first + last word, skipping small connector words, so "Joe and Delee Baker" reads as "JB".
+const _MONO_STOPWORDS = new Set(['and','the','of','&']);
+function clientInitials(name){
+  const words = String(name||'').trim().split(/\s+/).filter(w => w && !_MONO_STOPWORDS.has(w.toLowerCase()));
+  if(!words.length) return '?';
+  if(words.length===1) return words[0].slice(0,2).toUpperCase();
+  return (words[0][0] + words[words.length-1][0]).toUpperCase();
+}
+
 function buildCardHTML(inv){
   const d = inv.data || {};
   const stage = d.stage || 'proposal';
@@ -2115,7 +2137,10 @@ function buildCardHTML(inv){
   return `
     <div class="card ${stage}" onclick="openCard('${inv.invnum}')">
       <div class="c-row1">
-        <div class="c-name">${escapeHtml(name)}</div>
+        <div class="c-head">
+          <div class="c-mono">${escapeHtml(clientInitials(name))}</div>
+          <div class="c-name-wrap"><div class="c-name">${escapeHtml(name)}</div></div>
+        </div>
         <div class="c-amt">${fmtMoney(grand)}</div>
       </div>
       <div class="c-addr">${escapeHtml(addr)}</div>
@@ -2510,8 +2535,11 @@ function renderOnSiteNow(invoices){
       : daysLeft+' day'+(daysLeft===1?'':'s')+' left';
     return `<div class="tsv-card" onclick="openCard('${inv.invnum}')">
       <div class="tsv-card-main">
-        <div class="tsv-card-name">${escapeHtml(client)}</div>
-        <div class="tsv-card-addr">${escapeHtml(addr)}${d.startdate?' · staged '+fmtDateShort(d.startdate):''}</div>
+        <div class="tsv-mono">${escapeHtml(clientInitials(client))}</div>
+        <div class="tsv-name-wrap">
+          <div class="tsv-card-name">${escapeHtml(client)}</div>
+          <div class="tsv-card-addr">${escapeHtml(addr)}${d.startdate?' · staged '+fmtDateShort(d.startdate):''}</div>
+        </div>
       </div>
       <div class="tsv-card-side">
         <div class="tsv-card-tag ${urgent?'a':''}">${tagText}</div>
@@ -2538,8 +2566,11 @@ function renderDestageNeedsScheduling(invoices){
     const tagText = hasDate ? fmtDateShort(d.destage_date) + (overdue?' · overdue':'') : 'Not scheduled';
     return `<div class="tsv-card">
       <div class="tsv-card-main" onclick="openCard('${inv.invnum}')" style="cursor:pointer">
-        <div class="tsv-card-name">${escapeHtml(client)}</div>
-        <div class="tsv-card-addr">${escapeHtml(addr)}</div>
+        <div class="tsv-mono">${escapeHtml(clientInitials(client))}</div>
+        <div class="tsv-name-wrap">
+          <div class="tsv-card-name">${escapeHtml(client)}</div>
+          <div class="tsv-card-addr">${escapeHtml(addr)}</div>
+        </div>
       </div>
       <div class="tsv-card-side">
         <div class="tsv-card-tag ${overdue?'a':(hasDate?'':'w')}">${tagText}</div>
@@ -2565,8 +2596,11 @@ function renderFutureHoldSection(invoices){
     const addr = shortAddr(inv.address || d.address || '');
     return `<div class="tsv-card" onclick="openCard('${inv.invnum}')">
       <div class="tsv-card-main">
-        <div class="tsv-card-name">${escapeHtml(client)}</div>
-        <div class="tsv-card-addr">${escapeHtml(addr)}${d.startdate&&d.startdate!=='TBD'?' · staging '+fmtDateShort(d.startdate):''}</div>
+        <div class="tsv-mono">${escapeHtml(clientInitials(client))}</div>
+        <div class="tsv-name-wrap">
+          <div class="tsv-card-name">${escapeHtml(client)}</div>
+          <div class="tsv-card-addr">${escapeHtml(addr)}${d.startdate&&d.startdate!=='TBD'?' · staging '+fmtDateShort(d.startdate):''}</div>
+        </div>
       </div>
       <div class="tsv-card-side"><div class="tsv-card-tag">${fmtMoney(computeGrand(d))}</div></div>
     </div>`;
