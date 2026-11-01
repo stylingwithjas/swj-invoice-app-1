@@ -963,8 +963,13 @@ def tax_categorize(desc):
 # best-effort parse this report has always used for those.
 def tax_resolve_location(inv, d):
     if d.get('price_led_tax') and d.get('zip'):
-        return {'city': d.get('city') or '(Unparsed)', 'zip': d.get('zip'), 'ok': bool(d.get('city'))}
+        return {'city': d.get('city') or '', 'zip': d.get('zip'), 'ok': bool(d.get('city'))}
     return tax_parse_address(inv.get('address') or d.get('address') or '')
+
+
+# Fix spec (Nov 2026): a job whose jurisdiction can't be confirmed is flagged clearly, not
+# merged into a vague "(Unparsed)" bucket — it still counts fully in every total.
+TAX_JURISDICTION_UNCONFIRMED = 'Jurisdiction unconfirmed — review'
 
 
 # B&O rates (Phase 5.3) — see TAX_METHODOLOGY.md. Not a certified classification.
@@ -1023,10 +1028,12 @@ def tax_payment_events(d):
     if splits:
         for p in splits:
             if p.get('status') == 'paid' and p.get('paid_date'):
+                # manual_method:'stripe' is a confirmed-after-the-fact correction (no real
+                # payment_id captured) — see archive.html's Cleanup Review. Never fabricated.
                 events.append({
                     'date': p['paid_date'],
                     'amount': float(p.get('amount', 0) or 0),
-                    'method': 'Stripe (Card)' if p.get('payment_id') else 'Other/Manual',
+                    'method': 'Stripe (Card)' if (p.get('payment_id') or p.get('manual_method') == 'stripe') else 'Other/Manual',
                 })
     elif d.get('paid') and d.get('paid_date'):
         amount = d.get('amount_paid')
@@ -1042,7 +1049,15 @@ def tax_payment_events(d):
     return events
 
 
-def _tax_list_signed_invoices():
+TAX_SYSTEM_INVNUMS = ('PRICING_DEFAULTS', 'TIER_PRICING', 'FINANCE_CONFIG', 'FINANCE_OVERRIDES')
+
+
+def _tax_list_invoices():
+    """Every Styling With Jas staging invoice, drafts/GS/system rows excluded. Fix spec (Nov
+    2026): the audit record must show every dollar received — signature status is a flag on
+    a line, never a filter that removes it, so this no longer requires signed is True (that
+    used to also incidentally exclude the system rows below, which now need an explicit
+    exclusion instead)."""
     key = os.environ.get('SUPABASE_KEY', '')
     req = urllib.request.Request(
         f'{SUPABASE_URL}/rest/v1/invoices?select=invnum,client,address,data&order=created_at.desc&limit=1000',
@@ -1053,37 +1068,43 @@ def _tax_list_signed_invoices():
     out = []
     for inv in invoices:
         invnum = str(inv.get('invnum', ''))
-        if invnum.startswith('DRAFT-') or invnum.startswith('GS'):
+        if invnum.startswith('DRAFT-') or invnum.startswith('GS') or invnum.startswith('TAX_REVIEW_'):
             continue
-        if (inv.get('data') or {}).get('signed') is True:
-            out.append(inv)
+        if invnum in TAX_SYSTEM_INVNUMS:
+            continue
+        out.append(inv)
     return out
 
 
 def build_monthly_tax_report(year, month):
     """Returns (summary_csv_bytes, detail_csv_bytes, stats_dict) for the given year/month,
-    same cash-basis / signed-only / SWJ-only rules as tax-report.html."""
+    same cash-basis / every-staging-payment-regardless-of-signature / SWJ-only rules as
+    tax-report.html — signature status is a flag per line, never a filter (fix spec, Nov 2026)."""
     period_start = f'{year:04d}-{month:02d}-01'
     last_day = calendar.monthrange(year, month)[1]
     period_end = f'{year:04d}-{month:02d}-{last_day:02d}'
     period_label = f'{MONTH_NAMES[month-1]} {year}'
 
-    invoices = _tax_list_signed_invoices()
+    invoices = _tax_list_invoices()
 
     city_map = {}  # city -> {rates:set, taxable:float, tax:float}
     gross_receipts = tax_collected = retail_total = service_total = extension_total = card_fees = 0.0
     detail_rows = []
     unparsed = []
+    unsigned = []
     exempt_rows = []  # (invnum, client, amount, reason, cert)
 
     for inv in invoices:
         d = inv.get('data') or {}
         client = inv.get('client') or d.get('client') or 'Client'
         loc = tax_resolve_location(inv, d)
-        if not loc['ok']:
-            unparsed.append(f"#{inv.get('invnum')} — {inv.get('address') or d.get('address') or '(no address)'}")
-        city_key = loc['city'] or '(Unparsed)'
+        city_key = loc['city'] or TAX_JURISDICTION_UNCONFIRMED
         is_exempt = bool(d.get('exempt_reason'))
+        # Signature is a flag on the line, never a filter — see _tax_list_invoices() above.
+        signed_flag = d.get('signed') is True
+        signed_label = 'Signed' if signed_flag else 'UNSIGNED — needs signature'
+        # Only flag unsigned/unconfirmed-jurisdiction for a job with receipts THIS period.
+        period_received_total = 0.0
 
         events = [e for e in tax_payment_events(d) if period_start <= e['date'] <= period_end]
         if events:
@@ -1095,6 +1116,7 @@ def build_monthly_tax_report(year, month):
             period_tax = 0.0 if is_exempt else period_received * tax_fraction
             gross_receipts += period_received
             tax_collected += period_tax
+            period_received_total += period_received
             for e in events:
                 if e['method'] == 'Stripe (Card)':
                     card_fees += e['amount'] * STRIPE_FEE_PCT + STRIPE_FEE_FLAT
@@ -1124,7 +1146,7 @@ def build_monthly_tax_report(year, month):
                 category = 'exempt' if is_exempt else (li['type'] or tax_categorize(li['desc']))
                 exemption = (d.get('exempt_reason', '') + (f" ({d.get('exempt_cert')})" if d.get('exempt_cert') else '')) if is_exempt else ''
                 detail_rows.append([
-                    inv.get('invnum'), d.get('invdate', inv.get('invdate', '')), due_date, client,
+                    inv.get('invnum'), d.get('invdate', inv.get('invdate', '')), due_date, client, signed_label,
                     loc['city'], loc['zip'], li['desc'], category,
                     f"{li['price']:.2f}", 'No' if is_exempt else 'Yes', exemption,
                     f'{tax_rate:.2f}%' if i == 0 else '', f"{split['tax']:.2f}" if i == 0 else '',
@@ -1136,7 +1158,7 @@ def build_monthly_tax_report(year, month):
             pet_deposit = d.get('pet_deposit') or {}
             if pet_deposit.get('enabled'):
                 detail_rows.append([
-                    inv.get('invnum'), d.get('invdate', inv.get('invdate', '')), due_date, client,
+                    inv.get('invnum'), d.get('invdate', inv.get('invdate', '')), due_date, client, signed_label,
                     loc['city'], loc['zip'], 'Refundable Pet Deposit', 'deposit (not revenue)',
                     f"{float(pet_deposit.get('amount', 0) or 0):.2f}", 'No', 'Refundable deposit — not a sale',
                     '', '', '', '', '', '', '',
@@ -1158,9 +1180,10 @@ def build_monthly_tax_report(year, month):
             ext_subtotal = amt - ext_tax
             gross_receipts += amt
             tax_collected += ext_tax
+            period_received_total += amt
             retail_total += ext_subtotal
             extension_total += ext_subtotal
-            method = 'Stripe (Card)' if ext.get('payment_id') else 'Other/Manual'
+            method = 'Stripe (Card)' if (ext.get('payment_id') or ext.get('manual_method') == 'stripe') else 'Other/Manual'
             if method == 'Stripe (Card)':
                 card_fees += amt * STRIPE_FEE_PCT + STRIPE_FEE_FLAT
             if is_exempt:
@@ -1172,13 +1195,25 @@ def build_monthly_tax_report(year, month):
                 bucket['tax'] += ext_tax
             exemption = (d.get('exempt_reason', '') + (f" ({d.get('exempt_cert')})" if d.get('exempt_cert') else '')) if is_exempt else ''
             detail_rows.append([
-                ext.get('invnum'), ext.get('created', ''), '', client, loc['city'], loc['zip'],
+                ext.get('invnum'), ext.get('created', ''), '', client, signed_label, loc['city'], loc['zip'],
                 f"Extension ({ext.get('days', '?')} days, of #{inv.get('invnum')})", 'exempt' if is_exempt else 'extension',
                 f'{ext_subtotal:.2f}', 'No' if is_exempt else 'Yes', exemption,
                 f'{tax_rate:.2f}%', f'{ext_tax:.2f}', f'{ext_subtotal:.2f}', f'{amt:.2f}',
                 f'{amt:.2f}', method,
                 f'{(amt*STRIPE_FEE_PCT+STRIPE_FEE_FLAT):.2f}' if method == 'Stripe (Card)' else '0.00',
             ])
+
+        # Flag unsigned/unconfirmed-jurisdiction once per job, only when it actually has
+        # receipts counted THIS period — never silently, since both are still counted in full.
+        if period_received_total > 0.009:
+            if not signed_flag:
+                unsigned.append(f"#{inv.get('invnum')} — {client} ({period_received_total:,.2f})")
+            if not loc['ok']:
+                blank_rate_suspect = abs(float(d.get('taxrate', 0) or 0) - 10.25) < 0.005
+                note = f"#{inv.get('invnum')} — {client} — {inv.get('address') or d.get('address') or '(no address)'}"
+                if blank_rate_suspect:
+                    note += ' — rate shown is the 10.25% blank-form default, not a confirmed jurisdiction rate'
+                unparsed.append(note)
 
     bo_retail = retail_total * BO_RETAIL_RATE
     bo_service = service_total * BO_SERVICE_RATE
@@ -1205,11 +1240,12 @@ def build_monthly_tax_report(year, month):
     w.writerow(['Total B&O', f'{(bo_retail+bo_service):.2f}'])
     w.writerow(['Exempt Sales Count', str(len(exempt_rows))])
     w.writerow(['Exempt Sales Total', f"{sum(r[2] for r in exempt_rows):.2f}"])
+    w.writerow(['Unsigned Jobs Count (counted in totals, flagged for paperwork)', str(len(unsigned))])
 
     # Detail CSV
     detail_buf = io.StringIO()
     w2 = csv.writer(detail_buf)
-    w2.writerow(['Invoice #', 'Invoice Date', 'Due Date', 'Customer', 'City', 'Zip', 'Line Item',
+    w2.writerow(['Invoice #', 'Invoice Date', 'Due Date', 'Customer', 'Signature', 'City', 'Zip', 'Line Item',
                  'Category', 'Item Amount', 'Taxable', 'Exemption Reason', 'Tax Rate',
                  'Invoice Tax Total', 'Invoice Subtotal', 'Invoice Grand Total',
                  'Received This Period', 'Payment Method', 'Processing Fee (benchmark est.)'])
@@ -1221,7 +1257,7 @@ def build_monthly_tax_report(year, month):
         'card_fees': card_fees, 'net_revenue': net_revenue, 'bo_retail': bo_retail, 'bo_service': bo_service,
         'bo_total': bo_retail + bo_service, 'exempt_count': len(exempt_rows),
         'exempt_total': sum(r[2] for r in exempt_rows),
-        'invoice_count': len({r[0] for r in detail_rows}), 'unparsed': unparsed,
+        'invoice_count': len({r[0] for r in detail_rows}), 'unparsed': unparsed, 'unsigned': unsigned,
     }
     return summary_buf.getvalue().encode(), detail_buf.getvalue().encode(), stats
 
@@ -1237,14 +1273,20 @@ def send_monthly_tax_report_email(summary_csv, detail_csv, stats):
         msg['To'] = JASMINE_EMAIL
         msg['Subject'] = f"Monthly Tax Report — {stats['period_label']}"
 
+        unsigned_note = ''
+        if stats['unsigned']:
+            unsigned_note = ("\n\n⚠ " + str(len(stats['unsigned'])) + " job(s) this period are paid but have "
+                              "no signed contract on file — counted in full above, not dropped. Follow up for "
+                              "paperwork:\n" + '\n'.join(stats['unsigned']))
         unparsed_note = ''
         if stats['unparsed']:
-            unparsed_note = ("\n\n⚠ " + str(len(stats['unparsed'])) + " address(es) couldn't be "
-                              "confidently parsed for city — check the (Unparsed) row in the summary "
-                              "and review these manually:\n" + '\n'.join(stats['unparsed']))
+            unparsed_note = ("\n\n⚠ " + str(len(stats['unparsed'])) + " job(s) — \"" + TAX_JURISDICTION_UNCONFIRMED
+                              + "\" — counted in full above, but grouped together in the city breakdown because "
+                              "the jurisdiction isn't confirmed. Review and correct the property address/city "
+                              "manually:\n" + '\n'.join(stats['unparsed']))
         body = (
-            f"Monthly tax report for {stats['period_label']} (cash basis — signed invoices only, "
-            f"Styling With Jas only).\n\n"
+            f"Monthly tax report for {stats['period_label']} (cash basis — every Styling With Jas staging job "
+            f"with a payment received this month, signature status flagged per line, not filtered out).\n\n"
             f"Gross Receipts: ${stats['gross_receipts']:,.2f}\n"
             f"Sales Tax Collected: ${stats['tax_collected']:,.2f}\n"
             f"Retailing (Rental, incl. extensions ${stats['extension_total']:,.2f}): ${stats['retail_total']:,.2f}\n"
@@ -1259,8 +1301,9 @@ def send_monthly_tax_report_email(summary_csv, detail_csv, stats):
             f"Full breakdown attached as CSV. Category tags and B&O amounts are a best-effort "
             f"allocation per the method documented in TAX_METHODOLOGY.md, not CPA-certified — "
             f"have this reviewed before filing. This has NOT been marked reviewed — do that from "
-            f"/tax-report.html before treating it as final."
-            f"{unparsed_note}\n\n"
+            f"/tax-report.html before treating it as final (reconciling actual bank/Stripe deposits "
+            f"against this total is required before that gate opens)."
+            f"{unsigned_note}{unparsed_note}\n\n"
             f"See the full interactive report (including reconciliation and the pre-filing pull) "
             f"anytime at /tax-report.html."
         )
@@ -1283,12 +1326,477 @@ def send_monthly_tax_report_email(summary_csv, detail_csv, stats):
         return False
 
 
+# ── GOOGLE DRIVE (fix spec addendum #2, Nov 1 2026) ──────────────────────────────────────
+# Saves the monthly audit packet + backup export into "Styling With Jas - Tax Backups" in
+# Drive, so they survive even a total loss of the app database/email. Pure HTTPS calls, no
+# Google client library, matching how this file already talks to Supabase/Stripe/WA DOR.
+#
+# Needs a ONE-TIME OAuth consent (there is no credential configured yet, confirmed with
+# Gabe Nov 1 2026) done by whoever's Google account already has edit access to that Drive
+# folder: run that account through an OAuth "installed app" flow for scope
+# https://www.googleapis.com/auth/drive.file (e.g. via Google's OAuth Playground, or a tiny
+# local script) to get back a client_id, client_secret, and refresh_token, then set those as
+# GOOGLE_DRIVE_CLIENT_ID / GOOGLE_DRIVE_CLIENT_SECRET / GOOGLE_DRIVE_REFRESH_TOKEN in Vercel's
+# env vars. Until all three exist, every call below no-ops cleanly (drive_saved=0, an error
+# string) — same as EMAIL_PASSWORD being unset: a missing credential skips the save, it
+# never fails the cron run.
+GOOGLE_DRIVE_FOLDER_ROOT = 'Styling With Jas - Tax Backups'
+_drive_folder_id_cache = {}
+
+
+def _drive_access_token():
+    client_id = os.environ.get('GOOGLE_DRIVE_CLIENT_ID', '')
+    client_secret = os.environ.get('GOOGLE_DRIVE_CLIENT_SECRET', '')
+    refresh_token = os.environ.get('GOOGLE_DRIVE_REFRESH_TOKEN', '')
+    if not (client_id and client_secret and refresh_token):
+        return None
+    try:
+        body = urllib.parse.urlencode({
+            'client_id': client_id, 'client_secret': client_secret,
+            'refresh_token': refresh_token, 'grant_type': 'refresh_token',
+        }).encode()
+        req = urllib.request.Request('https://oauth2.googleapis.com/token', data=body, method='POST')
+        req.add_header('Content-Type', 'application/x-www-form-urlencoded')
+        with urllib.request.urlopen(req, timeout=15) as r:
+            return json.loads(r.read()).get('access_token')
+    except Exception as e:
+        print(f'[drive] token refresh error: {e}')
+        return None
+
+
+def _drive_find_or_create_folder(access_token, name, parent_id=None):
+    """Finds a folder by name under parent_id (Drive root if None), creating it if missing.
+    Cached per invocation only — cheap enough to re-resolve on every cold start otherwise."""
+    cache_key = f'{parent_id}/{name}'
+    if cache_key in _drive_folder_id_cache:
+        return _drive_folder_id_cache[cache_key]
+    parent_clause = f"'{parent_id}' in parents" if parent_id else "'root' in parents"
+    q = f"name = '{name}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false and {parent_clause}"
+    params = urllib.parse.urlencode({'q': q, 'fields': 'files(id,name)'})
+    req = urllib.request.Request(f'https://www.googleapis.com/drive/v3/files?{params}')
+    req.add_header('Authorization', f'Bearer {access_token}')
+    with urllib.request.urlopen(req, timeout=15) as r:
+        found = json.loads(r.read()).get('files') or []
+    if found:
+        folder_id = found[0]['id']
+    else:
+        metadata = {'name': name, 'mimeType': 'application/vnd.google-apps.folder'}
+        if parent_id:
+            metadata['parents'] = [parent_id]
+        req2 = urllib.request.Request(
+            'https://www.googleapis.com/drive/v3/files', data=json.dumps(metadata).encode(), method='POST'
+        )
+        req2.add_header('Authorization', f'Bearer {access_token}')
+        req2.add_header('Content-Type', 'application/json')
+        with urllib.request.urlopen(req2, timeout=15) as r2:
+            folder_id = json.loads(r2.read())['id']
+    _drive_folder_id_cache[cache_key] = folder_id
+    return folder_id
+
+
+def _drive_upload_file(access_token, folder_id, filename, content_bytes, mime_type='text/csv'):
+    """Uploads one file, overwriting (PATCH) a same-named file already in that folder instead
+    of duplicating it, so re-running a test send doesn't pile up copies."""
+    q = f"name = '{filename}' and '{folder_id}' in parents and trashed = false"
+    params = urllib.parse.urlencode({'q': q, 'fields': 'files(id)'})
+    req = urllib.request.Request(f'https://www.googleapis.com/drive/v3/files?{params}')
+    req.add_header('Authorization', f'Bearer {access_token}')
+    existing_id = None
+    try:
+        with urllib.request.urlopen(req, timeout=15) as r:
+            found = json.loads(r.read()).get('files') or []
+        if found:
+            existing_id = found[0]['id']
+    except Exception:
+        pass
+
+    boundary = '----swjdrive'
+    metadata = {'name': filename}
+    if not existing_id:
+        metadata['parents'] = [folder_id]
+    body = (
+        f'--{boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n{json.dumps(metadata)}\r\n'
+        f'--{boundary}\r\nContent-Type: {mime_type}\r\n\r\n'
+    ).encode() + content_bytes + f'\r\n--{boundary}--'.encode()
+
+    url = (f'https://www.googleapis.com/upload/drive/v3/files/{existing_id}?uploadType=multipart' if existing_id
+           else 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart')
+    req2 = urllib.request.Request(url, data=body, method='PATCH' if existing_id else 'POST')
+    req2.add_header('Authorization', f'Bearer {access_token}')
+    req2.add_header('Content-Type', f'multipart/related; boundary={boundary}')
+    with urllib.request.urlopen(req2, timeout=30) as r2:
+        return json.loads(r2.read())
+
+
+def save_files_to_drive(subfolder, files):
+    """Saves {filename: bytes} into GOOGLE_DRIVE_FOLDER_ROOT/<subfolder>. Returns
+    (saved_count, error) — never raises; a Drive problem skips the save, it doesn't fail the
+    cron run. Each file is tried independently so one failure doesn't block the rest."""
+    token = _drive_access_token()
+    if not token:
+        return 0, 'Google Drive not configured (GOOGLE_DRIVE_CLIENT_ID/SECRET/REFRESH_TOKEN unset)'
+    try:
+        root_id = _drive_find_or_create_folder(token, GOOGLE_DRIVE_FOLDER_ROOT)
+        sub_id = _drive_find_or_create_folder(token, subfolder, root_id)
+    except Exception as e:
+        print(f'[drive] folder resolve error: {e}')
+        return 0, str(e)
+    saved = 0
+    last_error = None
+    for filename, content in files.items():
+        try:
+            _drive_upload_file(token, sub_id, filename, content)
+            saved += 1
+        except Exception as e:
+            print(f'[drive] upload error for {filename}: {e}')
+            last_error = str(e)
+    return saved, (last_error if saved < len(files) else None)
+
+
+def _tax_list_all_rows():
+    """Every row in the invoices table, no exclusions — used only for the full-table backup
+    export below, which needs the config/review rows every other tax-report query in this
+    file deliberately excludes (fix spec addendum, Nov 1 2026)."""
+    key = os.environ.get('SUPABASE_KEY', '')
+    req = urllib.request.Request(
+        f'{SUPABASE_URL}/rest/v1/invoices?select=*&order=created_at.desc&limit=5000',
+        headers={'apikey': key, 'Authorization': f'Bearer {key}'}
+    )
+    with urllib.request.urlopen(req, timeout=25) as r:
+        return json.loads(r.read())
+
+
+def _csv_bytes(header, row_iter):
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(header)
+    for row in row_iter:
+        w.writerow(row)
+    return buf.getvalue().encode()
+
+
+def build_tax_backup_export():
+    """Full-table export of tax-critical data to CSV, outside Supabase — the recovery copy
+    behind the monthly audit packet (fix spec addendum, Nov 1 2026: 'an untested export is
+    not a backup' — see the restore-test script kept alongside this fix, verified against a
+    mock October fixture since this sandbox has no live Supabase access to test against the
+    real data). No credentials, API keys, or card data ever appear here: this app never
+    stores card numbers (Stripe tokenizes all of that) and env vars are never touched here —
+    payment rows carry only amount, date, method and the Stripe reference id, never a secret."""
+    rows = _tax_list_all_rows()
+
+    real_invoices, config_rows, review_rows = [], [], []
+    for inv in rows:
+        invnum = str(inv.get('invnum', ''))
+        if invnum.startswith('DRAFT-') or invnum.startswith('GS'):
+            continue
+        if invnum.startswith('TAX_REVIEW_'):
+            review_rows.append(inv)
+        elif invnum in TAX_SYSTEM_INVNUMS:
+            config_rows.append(inv)
+        else:
+            real_invoices.append(inv)
+
+    invoices_csv = _csv_bytes(
+        ['invnum', 'client', 'address', 'city', 'zip', 'invdate', 'base_price', 'taxrate',
+         'price_led_tax', 'signed', 'stage', 'exempt_reason', 'exempt_cert', 'created_at'],
+        (
+            [
+                inv.get('invnum'), inv.get('client'), inv.get('address'),
+                (inv.get('data') or {}).get('city', ''), (inv.get('data') or {}).get('zip', ''),
+                inv.get('invdate'), (inv.get('data') or {}).get('base_price', ''),
+                (inv.get('data') or {}).get('taxrate', ''), (inv.get('data') or {}).get('price_led_tax', False),
+                (inv.get('data') or {}).get('signed', False), (inv.get('data') or {}).get('stage', ''),
+                (inv.get('data') or {}).get('exempt_reason', ''), (inv.get('data') or {}).get('exempt_cert', ''),
+                inv.get('created_at'),
+            ] for inv in real_invoices
+        )
+    )
+
+    payments_rows = []
+    for inv in real_invoices:
+        for p in ((inv.get('data') or {}).get('payments') or []):
+            payments_rows.append([inv.get('invnum'), p.get('amount'), p.get('paid_date'), p.get('status'),
+                                   p.get('payment_id', ''), p.get('manual_method', ''), p.get('label', '')])
+    payments_csv = _csv_bytes(['invnum', 'amount', 'paid_date', 'status', 'payment_id', 'manual_method', 'label'], payments_rows)
+
+    extensions_rows = []
+    for inv in real_invoices:
+        for ext in ((inv.get('data') or {}).get('extensions') or []):
+            extensions_rows.append([inv.get('invnum'), ext.get('invnum', ''), ext.get('days', ''),
+                                     ext.get('amount'), ext.get('paid', False), ext.get('paid_date', ''),
+                                     ext.get('payment_id', ''), ext.get('manual_method', ''), ext.get('created', '')])
+    extensions_csv = _csv_bytes(['parent_invnum', 'ext_invnum', 'days', 'amount', 'paid', 'paid_date',
+                                  'payment_id', 'manual_method', 'created'], extensions_rows)
+
+    signatures_rows = []
+    for inv in real_invoices:
+        for sig in ((inv.get('data') or {}).get('signatures') or []):
+            signatures_rows.append([inv.get('invnum'), sig.get('label', sig.get('role', '')), sig.get('signed_by', ''),
+                                     sig.get('signed_date', ''), sig.get('signed_time', ''), sig.get('ip_address', '')])
+    signatures_csv = _csv_bytes(['invnum', 'role', 'signed_by', 'signed_date', 'signed_time', 'ip_address'], signatures_rows)
+
+    reviews_csv = _csv_bytes(
+        ['period_key', 'reviewed', 'reviewed_at', 'reconciled_actual', 'reconciled_diff',
+         'reconciled_clean', 'reconciled_explain', 'dor_confirmation_number'],
+        (
+            [
+                str(inv.get('invnum', '')).replace('TAX_REVIEW_', ''),
+                (inv.get('data') or {}).get('reviewed', False), (inv.get('data') or {}).get('reviewed_at', ''),
+                (inv.get('data') or {}).get('reconciled_actual', ''), (inv.get('data') or {}).get('reconciled_diff', ''),
+                (inv.get('data') or {}).get('reconciled_clean', ''), (inv.get('data') or {}).get('reconciled_explain', ''),
+                (inv.get('data') or {}).get('dor_confirmation_number', ''),
+            ] for inv in review_rows
+        )
+    )
+
+    config_csv = _csv_bytes(
+        ['config_key', 'json_value'],
+        ([inv.get('invnum'), json.dumps(inv.get('data') or {})] for inv in config_rows)
+    )
+
+    return (
+        {
+            'invoices.csv': invoices_csv, 'payments.csv': payments_csv, 'extensions.csv': extensions_csv,
+            'signatures.csv': signatures_csv, 'tax_reviews.csv': reviews_csv, 'config.csv': config_csv,
+        },
+        {
+            'invoice_count': len(real_invoices), 'payment_count': len(payments_rows),
+            'extension_count': len(extensions_rows), 'exported_at': datetime.datetime.now().isoformat(),
+        }
+    )
+
+
+def send_monthly_tax_backup_email(csvs, stats):
+    password = os.environ.get('EMAIL_PASSWORD', '')
+    if not password:
+        print('[tax_backup] EMAIL_PASSWORD not set')
+        return False
+    try:
+        msg = MIMEMultipart('mixed')
+        msg['From'] = FROM_EMAIL
+        msg['To'] = JASMINE_EMAIL
+        msg['Subject'] = f"Monthly Tax Data Backup — {datetime.date.today().strftime('%B %Y')}"
+        body = (
+            f"Full off-app export of tax-critical data, generated {stats['exported_at']}.\n\n"
+            f"{stats['invoice_count']} invoices, {stats['payment_count']} payment records, "
+            f"{stats['extension_count']} extensions — attached as CSV, re-importable without "
+            f"this app. No credentials, API keys, or card data are included.\n\n"
+            f"This is the recovery copy for the tax reporting system, separate from the lighter "
+            f"monthly audit packet (its own email) — keep this even if nothing seems wrong; "
+            f"it's only useful on the day something goes wrong with the app's own database."
+        )
+        msg.attach(MIMEText(body, 'plain'))
+        for filename, content in csvs.items():
+            part = MIMEApplication(content, _subtype='csv')
+            part.add_header('Content-Disposition', 'attachment', filename=filename)
+            msg.attach(part)
+        with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=30) as server:
+            server.login(FROM_EMAIL, password)
+            server.sendmail(FROM_EMAIL, [JASMINE_EMAIL], msg.as_string())
+        return True
+    except Exception as e:
+        print(f'[tax_backup] send error: {e}')
+        return False
+
+
+def run_monthly_tax_backup():
+    csvs, stats = build_tax_backup_export()
+    sent = send_monthly_tax_backup_email(csvs, stats)
+    drive_saved, drive_error = save_files_to_drive('Full Table Exports', csvs)
+    stats = {**stats, 'drive_saved': drive_saved, 'drive_error': drive_error}
+    return sent, stats
+
+
+# Signed-contract links are meant to be permanent archive links, not short-lived download
+# tokens — 10 years so they effectively never expire. Duplicated from api/sign.py's
+# _sign_contract_url() rather than imported across files (that cross-file import pattern
+# exists elsewhere in this app but is wrapped in a try/except as best-effort, not guaranteed
+# — too fragile for an unattended monthly cron). Keep in sync with sign.py's version.
+TAX_CONTRACT_LINK_TTL = 315360000  # 10 years, in seconds
+
+
+def _tax_sign_contract_url(invnum, expires_in=TAX_CONTRACT_LINK_TTL):
+    key = os.environ.get('SUPABASE_KEY', '')
+    if not key:
+        return None
+    filename = f'{invnum}-signed.pdf'
+    sign_url_endpoint = f'{SUPABASE_URL}/storage/v1/object/sign/signed-contracts/{filename}'
+    sign_req = urllib.request.Request(
+        sign_url_endpoint, data=json.dumps({'expiresIn': expires_in}).encode(), method='POST'
+    )
+    sign_req.add_header('apikey', key)
+    sign_req.add_header('Authorization', f'Bearer {key}')
+    sign_req.add_header('Content-Type', 'application/json')
+    try:
+        with urllib.request.urlopen(sign_req, timeout=15) as r:
+            sign_resp = json.loads(r.read())
+        signed_path = sign_resp.get('signedURL', '') or sign_resp.get('signedUrl', '')
+        if signed_path:
+            if signed_path.startswith('/'):
+                return f'{SUPABASE_URL}/storage/v1{signed_path}'
+            return f'{SUPABASE_URL}/storage/v1/{signed_path.lstrip("/")}'
+    except Exception as e:
+        print(f'[audit_packet] contract link error for #{invnum}: {e}')
+    return None
+
+
+def _tax_get_review_record(period_key):
+    """Reads the SAME TAX_REVIEW_<period> record tax-report.html's Monthly Review writes to,
+    so the packet's reconciliation line and DOR confirmation slot never drift from what Gabe
+    actually entered on-screen — one record, read by both."""
+    key = os.environ.get('SUPABASE_KEY', '')
+    try:
+        req = urllib.request.Request(
+            f"{SUPABASE_URL}/rest/v1/invoices?invnum=eq.TAX_REVIEW_{period_key}&select=data",
+            headers={'apikey': key, 'Authorization': f'Bearer {key}'}
+        )
+        with urllib.request.urlopen(req, timeout=15) as r:
+            rows = json.loads(r.read())
+        return (rows[0].get('data') or {}) if rows else {}
+    except Exception as e:
+        print(f'[audit_packet] review lookup error: {e}')
+        return {}
+
+
+def build_monthly_audit_packet(year, month):
+    """Assembles the monthly audit packet (fix spec addendum, Nov 1 2026): that month's
+    staging invoices with tax stated, links to that month's signed contracts, payment
+    records, the corrected tax report totals, the reconciliation line, and a slot for the
+    DOR filing confirmation number. Reuses build_monthly_tax_report()'s own figures so the
+    packet can never disagree with the tax report or its email — one source of truth."""
+    summary_csv, detail_csv, stats = build_monthly_tax_report(year, month)
+    period_start = f'{year:04d}-{month:02d}-01'
+    last_day = calendar.monthrange(year, month)[1]
+    period_end = f'{year:04d}-{month:02d}-{last_day:02d}'
+    period_key = f'{year:04d}-{month:02d}'
+
+    invoices = _tax_list_invoices()
+    contract_rows = []
+    for inv in invoices:
+        d = inv.get('data') or {}
+        signed_date = d.get('signed_date')
+        if not signed_date or not (period_start <= signed_date <= period_end):
+            continue
+        contract_rows.append([
+            inv.get('invnum'), inv.get('client') or d.get('client') or 'Client',
+            signed_date, d.get('signed_by', ''), _tax_sign_contract_url(inv.get('invnum')) or '(link unavailable — see signed-contracts storage bucket)',
+        ])
+    contracts_csv = _csv_bytes(['invnum', 'client', 'signed_date', 'signed_by', 'contract_link'], contract_rows)
+
+    review = _tax_get_review_record(period_key)
+
+    return summary_csv, detail_csv, contracts_csv, stats, contract_rows, review, period_key
+
+
+def send_monthly_audit_packet_email(summary_csv, detail_csv, contracts_csv, stats, contract_rows, review, period_key):
+    password = os.environ.get('EMAIL_PASSWORD', '')
+    if not password:
+        print('[audit_packet] EMAIL_PASSWORD not set')
+        return False
+    try:
+        msg = MIMEMultipart('mixed')
+        msg['From'] = FROM_EMAIL
+        msg['To'] = JASMINE_EMAIL
+        msg['Subject'] = f"Monthly Audit Packet — {stats['period_label']}"
+
+        if review.get('reconciled_actual') is not None:
+            recon_line = (
+                f"Reconciliation: app total {stats['gross_receipts']:,.2f} vs. actual deposits "
+                f"{review['reconciled_actual']:,.2f} — "
+                + ('clean.' if review.get('reconciled_clean') else f"diverged by {abs(review.get('reconciled_diff') or 0):,.2f}, explained as: \"{review.get('reconciled_explain', '')}\".")
+            )
+        else:
+            recon_line = "Reconciliation: not yet entered — do that from the Reconciliation card on /tax-report.html."
+        dor_line = (
+            f"DOR filing confirmation number: {review['dor_confirmation_number']}"
+            if review.get('dor_confirmation_number')
+            else "DOR filing confirmation number: (not yet filed — enter it on /tax-report.html once the return is filed in My DOR)."
+        )
+
+        contracts_line = (
+            f"{len(contract_rows)} contract(s) fully executed this period — links attached in contracts.csv."
+            if contract_rows else "No contracts were fully executed this period."
+        )
+
+        body = (
+            f"Monthly audit packet for {stats['period_label']} — the business record for this month's "
+            f"close, assembled automatically. Nothing in this email goes to a client.\n\n"
+            f"Gross Receipts: ${stats['gross_receipts']:,.2f}\n"
+            f"Sales Tax Collected: ${stats['tax_collected']:,.2f}\n"
+            f"Total B&O: ${stats['bo_total']:,.2f}\n"
+            f"Invoices with activity this period: {stats['invoice_count']}\n\n"
+            f"{contracts_line}\n\n"
+            f"{recon_line}\n"
+            f"{dor_line}\n\n"
+            f"Full tax report (invoices.csv-equivalent detail) and contract links attached. This "
+            f"packet is also the minimum monthly off-app copy of this month's figures — the "
+            f"separate Monthly Tax Data Backup email is the full recovery copy of all tax-critical "
+            f"data, not just this one month."
+        )
+        msg.attach(MIMEText(body, 'plain'))
+
+        for content, filename in (
+            (summary_csv, f"SWJ_Tax_Summary_{stats['period_label'].replace(' ', '_')}.csv"),
+            (detail_csv, f"SWJ_Tax_Invoice_Detail_{stats['period_label'].replace(' ', '_')}.csv"),
+            (contracts_csv, f"SWJ_Signed_Contracts_{stats['period_label'].replace(' ', '_')}.csv"),
+        ):
+            part = MIMEApplication(content, _subtype='csv')
+            part.add_header('Content-Disposition', 'attachment', filename=filename)
+            msg.attach(part)
+
+        with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=30) as server:
+            server.login(FROM_EMAIL, password)
+            server.sendmail(FROM_EMAIL, [JASMINE_EMAIL], msg.as_string())
+        return True
+    except Exception as e:
+        print(f'[audit_packet] send error: {e}')
+        return False
+
+
+def run_monthly_audit_packet():
+    """Assembles on the month that JUST ENDED, same as run_monthly_tax_report()."""
+    today = datetime.date.today()
+    prev_last_day = today.replace(day=1) - datetime.timedelta(days=1)
+    summary_csv, detail_csv, contracts_csv, stats, contract_rows, review, period_key = build_monthly_audit_packet(
+        prev_last_day.year, prev_last_day.month
+    )
+    sent = send_monthly_audit_packet_email(summary_csv, detail_csv, contracts_csv, stats, contract_rows, review, period_key)
+    drive_saved, drive_error = save_files_to_drive('Monthly Audit Packets', {
+        f"SWJ_Tax_Summary_{stats['period_label'].replace(' ', '_')}.csv": summary_csv,
+        f"SWJ_Tax_Invoice_Detail_{stats['period_label'].replace(' ', '_')}.csv": detail_csv,
+        f"SWJ_Signed_Contracts_{stats['period_label'].replace(' ', '_')}.csv": contracts_csv,
+    })
+    stats = {**stats, 'drive_saved': drive_saved, 'drive_error': drive_error}
+    return sent, stats
+
+
 def run_monthly_tax_report():
     """Reports on the month that JUST ENDED, since this fires on the 1st of the new month."""
     today = datetime.date.today()
     prev_last_day = today.replace(day=1) - datetime.timedelta(days=1)
     summary_csv, detail_csv, stats = build_monthly_tax_report(prev_last_day.year, prev_last_day.month)
     return send_monthly_tax_report_email(summary_csv, detail_csv, stats), stats
+
+
+def run_monthly_close():
+    """The real monthly close, fired by the ONE monthly cron entry this project has (Vercel
+    Hobby plan caps a project at 2 cron jobs; both are already spoken for — see the comment
+    on the daily job dispatch below). Sends all three monthly emails in one run: the tax
+    report, the audit packet, and the full backup export — mirroring exactly how the daily
+    no-job-param path already bundles multiple jobs under one shared firing instead of
+    adding more cron entries. Each piece's own ?job= value still exists below for isolated
+    on-demand testing of just that one piece, same relationship as weekly_digest/quote_sweep
+    have to the bundled daily path."""
+    report_sent, report_stats = run_monthly_tax_report()
+    packet_sent, packet_stats = run_monthly_audit_packet()
+    backup_sent, backup_stats = run_monthly_tax_backup()
+    return {
+        'report_emailed': report_sent, 'packet_emailed': packet_sent, 'backup_emailed': backup_sent,
+        'packet_drive_saved': packet_stats.get('drive_saved', 0), 'packet_drive_error': packet_stats.get('drive_error'),
+        'backup_drive_saved': backup_stats.get('drive_saved', 0), 'backup_drive_error': backup_stats.get('drive_error'),
+        'period': report_stats['period_label'],
+    }
 
 
 # ════════════════════════════════════════════════════════════════
@@ -1314,9 +1822,35 @@ class handler(BaseHTTPRequestHandler):
         query = urllib.parse.urlparse(self.path).query
         job = urllib.parse.parse_qs(query).get('job', [''])[0]
         try:
+            if job == 'monthly_close':
+                # This is what the one monthly cron entry in vercel.json actually calls — the
+                # whole monthly close (tax report + audit packet + backup export) in one
+                # firing, since there's no spare cron slot to schedule the other two
+                # separately (Hobby plan caps a project at 2 cron jobs; both are already
+                # spoken for — this monthly one and the daily one below).
+                result = run_monthly_close()
+                self._respond(200, {'ok': True, **result})
+                return
             if job == 'monthly_tax_report':
+                # Isolated on-demand trigger for testing just the tax report email, same
+                # relationship weekly_digest/quote_sweep have to the bundled daily path below
+                # — the real monthly cron fires monthly_close above, not this directly.
                 sent, stats = run_monthly_tax_report()
                 self._respond(200, {'ok': True, 'emailed': sent, 'period': stats['period_label']})
+                return
+            if job == 'monthly_audit_packet':
+                sent, stats = run_monthly_audit_packet()
+                self._respond(200, {
+                    'ok': True, 'emailed': sent, 'period': stats['period_label'],
+                    'drive_saved': stats.get('drive_saved', 0), 'drive_error': stats.get('drive_error'),
+                })
+                return
+            if job == 'monthly_backup_export':
+                sent, stats = run_monthly_tax_backup()
+                self._respond(200, {
+                    'ok': True, 'emailed': sent,
+                    'drive_saved': stats.get('drive_saved', 0), 'drive_error': stats.get('drive_error'),
+                })
                 return
             if job == 'weekly_digest':
                 # Manual on-demand trigger (Build 2 audit: the Monday-only digest had no way

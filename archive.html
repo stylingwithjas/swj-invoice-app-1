@@ -195,6 +195,7 @@ const STAGE_LABEL = { proposal:'Proposal', future_hold:'Future Hold', confirmed:
 
 let _allInvoices = [];
 let _activeTab = 'signed';
+const STRIPE_FEE_PCT = 0.029, STRIPE_FEE_FLAT = 0.30;
 
 function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function fmtMoney(n){ return '$' + Math.round(n||0).toLocaleString(); }
@@ -352,7 +353,28 @@ function renderCleanupReport(){
     return !zipMatch;
   });
 
-  note.textContent = `${versionFlagged.length} versioned/duplicate-named, ${dupGroups.length} duplicate group(s), ${dollarOne.length} $1-or-less signed, ${neverSent.length} never emailed, ${missingLocation.length} missing city/ZIP — nothing deleted or changed`;
+  // 6) Paid via "Other/Manual" — confirm if actually processed via Stripe/card (fix spec
+  // addendum, Nov 1 2026: "all SWJ client payments process through Stripe" per Gabe, but each
+  // correction gets confirmed individually, never silently rewritten in bulk). Flags a specific
+  // payment/extension entry, not the whole invoice — one job can have several payment events.
+  const otherMethodFlagged = [];
+  rows.forEach(inv=>{
+    if(isSystemRow(inv.invnum) || String(inv.invnum||'').startsWith('DRAFT-') || String(inv.invnum||'').startsWith('GS')) return;
+    const d = inv.data||{};
+    (d.payments||[]).forEach((p,idx)=>{
+      if(p.status==='paid' && p.paid_date && !p.payment_id && p.manual_method!=='stripe'){
+        otherMethodFlagged.push({ inv, kind:'payment', idx, amount:parseFloat(p.amount)||0, date:p.paid_date, approved: inv.invnum==='2020128' });
+      }
+    });
+    (d.extensions||[]).forEach((ext,idx)=>{
+      if(ext.paid && ext.paid_date && !ext.payment_id && ext.manual_method!=='stripe'){
+        otherMethodFlagged.push({ inv, kind:'extension', idx, amount:parseFloat(ext.amount)||0, date:ext.paid_date, approved:false });
+      }
+    });
+  });
+  otherMethodFlagged.sort((a,b)=> (b.approved-a.approved) || (b.date||'').localeCompare(a.date||''));
+
+  note.textContent = `${versionFlagged.length} versioned/duplicate-named, ${dupGroups.length} duplicate group(s), ${dollarOne.length} $1-or-less signed, ${neverSent.length} never emailed, ${missingLocation.length} missing city/ZIP, ${otherMethodFlagged.length} paid via Other/Manual — nothing deleted or changed`;
 
   const rowHtml = (inv, reason)=>{
     const d = inv.data||{};
@@ -369,6 +391,23 @@ function renderCleanupReport(){
 
   const section = (title, html)=> html ? `<h3 style="margin:20px 0 8px;font-size:14px;color:var(--taupe-dk)">${esc(title)}</h3>${html}` : '';
 
+  const confirmRowHtml = (item)=>{
+    const d = item.inv.data||{};
+    const client = item.inv.client || d.client || 'Client';
+    const estFee = item.amount*STRIPE_FEE_PCT + STRIPE_FEE_FLAT;
+    return `<div class="arc-card"${item.approved?' style="border-color:var(--gold);background:var(--gold-lt)"':''}>
+      <div class="arc-top">
+        <div><div class="arc-name">${esc(client)}${item.approved?' <span style="font-size:10px;color:var(--gold-dk);font-weight:700">· APPROVED BY GABE, NOV 1 2026</span>':''}</div><div class="arc-addr">${esc(item.inv.address||d.address||'')}</div></div>
+        <div class="arc-amt">$${item.amount.toFixed(2)}</div>
+      </div>
+      <div class="arc-meta"><span>#${esc(item.inv.invnum)}</span><span>${esc(fmtDate(item.date))}</span><span>${item.kind==='extension'?'extension payment':'payment'} — currently "Other/Manual"</span></div>
+      <div class="arc-actions">
+        <a href="/proposal.html?inv=${encodeURIComponent(item.inv.invnum)}" target="_blank">View Details</a>
+        <button class="primary" onclick="confirmStripeMethod('${esc(item.inv.invnum)}','${item.kind}',${item.idx},this)">Confirm paid via Stripe/card (+${'$'+estFee.toFixed(2)} fee)</button>
+      </div>
+    </div>`;
+  };
+
   body.innerHTML = `
     <div class="empty-note" style="margin-bottom:12px;">This is a dry-run review only — nothing here has been deleted. Each section below lists candidates with the reason they were flagged. Have Gabe/Jasmine confirm before anything is removed. Deleting a confirmed record is intentionally only possible from its card in the board drawer (Remove from Board / Delete) — Archive has no delete path by design, so nothing can be removed from here by accident.</div>
     ${section(`Versioned or duplicate-named (${versionFlagged.length})`, versionFlagged.map(inv=>rowHtml(inv,'invoice # looks like a duplicate/version/test')).join(''))}
@@ -376,7 +415,42 @@ function renderCleanupReport(){
     ${section(`Signed contracts totaling $1 or less (${dollarOne.length})`, dollarOne.map(inv=>rowHtml(inv,'signed, total ≤ $1 — likely a test signature')).join(''))}
     ${section(`Never emailed to a client (${neverSent.length})`, neverSent.map(inv=>rowHtml(inv,'no send_log entry on record')).join(''))}
     ${section(`Missing structured city/ZIP — needs manual backfill (${missingLocation.length})`, missingLocation.map(inv=>rowHtml(inv,'no ZIP found in address — add city/ZIP by hand')).join(''))}
+    ${section(`Paid via "Other/Manual" — confirm if actually Stripe/card (${otherMethodFlagged.length})`, otherMethodFlagged.map(confirmRowHtml).join(''))}
   ` || `<div class="empty-note">No cleanup candidates found.</div>`;
+}
+
+// Applies manual_method:'stripe' to ONE specific payment or extension entry, never in bulk —
+// each correction is its own explicit click (fix spec addendum, Nov 1 2026). Never fabricates
+// a Stripe payment_id; this is an honest "confirmed after the fact, no webhook id captured"
+// flag that the fee/report logic treats the same as a real payment_id.
+async function confirmStripeMethod(invnum, kind, idx, btn){
+  const inv = _cleanupAll.find(i=>i.invnum===invnum);
+  if(!inv) return;
+  const d = inv.data||{};
+  const entry = kind==='extension' ? (d.extensions||[])[idx] : (d.payments||[])[idx];
+  if(!entry){ alert('Could not find that payment entry — try reloading the Cleanup Review tab.'); return; }
+  const amount = parseFloat(entry.amount)||0;
+  const estFee = amount*STRIPE_FEE_PCT + STRIPE_FEE_FLAT;
+  const ok = await customConfirm(
+    `Mark ${esc(inv.client||d.client||'this client')} #${esc(invnum)}'s ${fmtDate(entry.paid_date)} payment of $${amount.toFixed(2)} as Stripe/Card? `
+    + `This adds an estimated $${estFee.toFixed(2)} processing fee to the Payroll Finance and Tax Report views. `
+    + `No invoice total, tax amount, or DOR filing figure changes — this only corrects the payment method.`,
+    { confirmLabel:'Confirm Stripe/Card' }
+  );
+  if(!ok) return;
+  const orig = btn.textContent;
+  btn.textContent = 'Saving…'; btn.disabled = true;
+  try{
+    entry.manual_method = 'stripe';
+    const { error } = await _sb.from('invoices').upsert({
+      invnum: inv.invnum, client: inv.client, address: inv.address, invdate: inv.invdate, data: d,
+    }, { onConflict:'invnum' });
+    if(error) throw error;
+    renderCleanupReport();
+  }catch(e){
+    alert('Could not save: '+e.message);
+    btn.textContent = orig; btn.disabled = false;
+  }
 }
 
 function renderList(){
