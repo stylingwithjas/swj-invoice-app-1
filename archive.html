@@ -541,7 +541,12 @@ function renderRawLookup(){
         ${paidNow
           ? `<div style="font-size:11.5px;color:var(--green);margin-top:4px">✓ Paid ${esc(ext.paid_date||'')}${methodNote}</div>`
           : `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px">
-              <input type="date" id="ext-paiddate-${i}" value="${esc(ext.paid_date||'')}" style="${inputStyle}">
+              <label style="font-size:10.5px;color:var(--taupe-dk);display:flex;flex-direction:column;gap:2px">Amount actually paid
+                <input type="number" step="0.01" id="ext-amount-${i}" value="${(parseFloat(ext.amount)||0).toFixed(2)}" style="${inputStyle};width:100px">
+              </label>
+              <label style="font-size:10.5px;color:var(--taupe-dk);display:flex;flex-direction:column;gap:2px">Date paid
+                <input type="date" id="ext-paiddate-${i}" value="${esc(ext.paid_date||'')}" style="${inputStyle}">
+              </label>
               <label style="font-size:11.5px;display:flex;align-items:center;gap:4px"><input type="checkbox" id="ext-stripe-${i}" checked> paid via Stripe/card</label>
               <button style="${btnStyle}" onclick="markExtensionPaid(${i})">Mark Paid</button>
             </div>`
@@ -561,16 +566,25 @@ async function markExtensionPaid(idx){
   if(!ext) return;
   const paidDate = document.getElementById(`ext-paiddate-${idx}`).value;
   const viaStripe = document.getElementById(`ext-stripe-${idx}`).checked;
+  const enteredAmount = parseFloat(document.getElementById(`ext-amount-${idx}`).value);
   if(!paidDate){ alert('Enter the date this extension was actually paid before marking it.'); return; }
-  const amount = parseFloat(ext.amount)||0;
+  if(!enteredAmount || enteredAmount<=0){ alert('Enter the amount actually paid before marking it.'); return; }
+  const storedAmount = parseFloat(ext.amount)||0;
+  // The entry's stored amount can be wrong (e.g. billed $1,237.86, client actually paid
+  // $1,280.54) — Mark Paid records what was ACTUALLY paid, never silently restates the
+  // entry's original amount, and says so explicitly when the two differ (fix spec note,
+  // Nov 1 2026: "Do not silently restate the entry amount as the paid amount").
+  const amountChanged = Math.abs(enteredAmount - storedAmount) > 0.009;
   const ok = await customConfirm(
-    `Mark ${esc(cur.client||cur.data.client||'this client')} #${esc(cur.invnum)}'s extension [${idx}] ($${amount.toFixed(2)}, ${ext.days||'?'} days) as paid on ${paidDate}? `
-    + `This is a correction for a payment already verified outside the app (Stripe/bank) — it makes this extension count in the Tax Report for that period. No other invoice field changes.`,
+    `Mark ${esc(cur.client||cur.data.client||'this client')} #${esc(cur.invnum)}'s extension [${idx}] as paid on ${paidDate}, amount $${enteredAmount.toFixed(2)}`
+    + (amountChanged ? ` — this entry currently says $${storedAmount.toFixed(2)}; confirming this correction will update it to $${enteredAmount.toFixed(2)} to match what was actually paid.` : '.')
+    + ` This is a correction for a payment already verified outside the app (Stripe/bank) — it makes this extension count in the Tax Report for that period at the amount entered above. No other invoice field changes.`,
     { confirmLabel:'Mark Paid' }
   );
   if(!ok) return;
   ext.paid = true;
   ext.paid_date = paidDate;
+  ext.amount = enteredAmount;
   if(viaStripe) ext.manual_method = 'stripe';
   try{
     const { error } = await _sb.from('invoices').upsert({
