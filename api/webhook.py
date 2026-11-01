@@ -1524,22 +1524,42 @@ def _csv_bytes(header, row_iter):
     return buf.getvalue().encode()
 
 
-def build_tax_backup_export():
-    """Full-table export of tax-critical data to CSV, outside Supabase — the recovery copy
-    behind the monthly audit packet (fix spec addendum, Nov 1 2026: 'an untested export is
-    not a backup' — see the restore-test script kept alongside this fix, verified against a
-    mock October fixture since this sandbox has no live Supabase access to test against the
-    real data). No credentials, API keys, or card data ever appear here: this app never
-    stores card numbers (Stripe tokenizes all of that) and env vars are never touched here —
-    payment rows carry only amount, date, method and the Stripe reference id, never a secret."""
+def _fetch_table_rows(table, select, limit=5000):
+    """Generic fetch for the full-website backup's non-invoices tables (tasks, time_entries,
+    employees) — these have no existing shared query to reuse. `select` is always an
+    explicit column list, never '*', so a sensitive column (employees.password_hash) can
+    never even be fetched into memory, let alone exported. Raises on error; callers decide
+    how to handle it (the backup degrades to an empty section rather than failing outright)."""
+    key = os.environ.get('SUPABASE_KEY', '')
+    req = urllib.request.Request(
+        f'{SUPABASE_URL}/rest/v1/{table}?select={urllib.parse.quote(select)}&limit={limit}',
+        headers={'apikey': key, 'Authorization': f'Bearer {key}'}
+    )
+    with urllib.request.urlopen(req, timeout=25) as r:
+        return json.loads(r.read())
+
+
+def build_full_backup_export():
+    """Full-website backup export to CSV, outside Supabase — every real record this app
+    holds, not just the tax-critical subset (fix spec addendum, Nov 1 2026, scoped this to
+    tax tables; broadened per Gabe's follow-up request: "a way to back up our entire
+    website ... retrieve all the invoices and data and all the work we had done"). The
+    website's own CODE is already fully preserved by git/GitHub, independent of both Vercel
+    and Supabase, with full history — nothing extra is needed for that side. This covers
+    the LIVE DATA, which isn't backed up anywhere else. No credentials, API keys, or card
+    data ever appear here: this app never stores card numbers (Stripe tokenizes all of
+    that), env vars are never touched here, and employees.csv explicitly excludes
+    password_hash (see the restore-test script, which asserts it never appears)."""
     rows = _tax_list_all_rows()
 
-    real_invoices, config_rows, review_rows = [], [], []
+    real_invoices, draft_rows, gs_rows, config_rows, review_rows = [], [], [], [], []
     for inv in rows:
         invnum = str(inv.get('invnum', ''))
-        if invnum.startswith('DRAFT-') or invnum.startswith('GS'):
-            continue
-        if invnum.startswith('TAX_REVIEW_'):
+        if invnum.startswith('DRAFT-'):
+            draft_rows.append(inv)
+        elif invnum.startswith('GS'):
+            gs_rows.append(inv)
+        elif invnum.startswith('TAX_REVIEW_'):
             review_rows.append(inv)
         elif invnum in TAX_SYSTEM_INVNUMS:
             config_rows.append(inv)
@@ -1604,36 +1624,113 @@ def build_tax_backup_export():
         ([inv.get('invnum'), json.dumps(inv.get('data') or {})] for inv in config_rows)
     )
 
+    # Drafts — not yet real jobs, but still real work; kept in their own file rather than
+    # mixed into invoices.csv so that file's shape stays exactly what the restore-test
+    # already proves rebuilds the tax figures.
+    drafts_csv = _csv_bytes(
+        ['invnum', 'client', 'address', 'invdate', 'created_at'],
+        (
+            [inv.get('invnum'), inv.get('client') or (inv.get('data') or {}).get('client', ''),
+             inv.get('address') or (inv.get('data') or {}).get('address', ''), inv.get('invdate'), inv.get('created_at')]
+            for inv in draft_rows
+        )
+    )
+
+    # GS Photography — Gabe's separate business, same database. Its invoices don't use the
+    # same paid/signed/payments[] shape as SWJ's (confirmed by reading gs-invoice.html), so
+    # this dumps each one's full data as JSON rather than guessing fields that may not apply.
+    gs_invoices_csv = _csv_bytes(
+        ['invnum', 'client', 'address', 'invdate', 'created_at', 'data_json'],
+        (
+            [inv.get('invnum'), inv.get('client') or (inv.get('data') or {}).get('client', ''),
+             inv.get('address') or (inv.get('data') or {}).get('address', ''), inv.get('invdate'), inv.get('created_at'),
+             json.dumps(inv.get('data') or {})]
+            for inv in gs_rows
+        )
+    )
+
+    # Signed-contract links for every SWJ invoice ever fully executed — not period-scoped
+    # like the monthly audit packet, since this is the full archive, not one month's slice.
+    contract_rows = []
+    for inv in real_invoices:
+        d = inv.get('data') or {}
+        if d.get('signed_date'):
+            contract_rows.append([
+                inv.get('invnum'), inv.get('client') or d.get('client', ''), d.get('signed_date'), d.get('signed_by', ''),
+                _tax_sign_contract_url(inv.get('invnum')) or '(link unavailable)',
+            ])
+    contract_links_csv = _csv_bytes(['invnum', 'client', 'signed_date', 'signed_by', 'contract_link'], contract_rows)
+
+    task_cols = ('id', 'date', 'type', 'status', 'title', 'notes', 'invnum', 'scheduled_time', 'price', 'room', 'sort_order', 'created_at')
+    try:
+        task_rows = _fetch_table_rows('tasks', select=','.join(task_cols))
+    except Exception as e:
+        print(f'[full_backup] tasks fetch error: {e}')
+        task_rows = []
+    tasks_csv = _csv_bytes(list(task_cols), ([t.get(k, '') for k in task_cols] for t in task_rows))
+
+    time_cols = ('id', 'employee_name', 'work_type', 'rate', 'invnum', 'job_label', 'source',
+                 'clock_in', 'clock_out', 'hours', 'amount', 'approved', 'approved_at', 'paid')
+    try:
+        time_rows = _fetch_table_rows('time_entries', select=','.join(time_cols))
+    except Exception as e:
+        print(f'[full_backup] time_entries fetch error: {e}')
+        time_rows = []
+    time_entries_csv = _csv_bytes(list(time_cols), ([t.get(k, '') for k in time_cols] for t in time_rows))
+
+    # Explicit column allow-list, never select=* — password_hash must never be fetched into
+    # this process at all, let alone exported. See scripts/verify_full_backup_restore.py,
+    # which asserts it never appears anywhere in the export.
+    try:
+        employee_rows = _fetch_table_rows('employees', select='id,name,active')
+    except Exception as e:
+        print(f'[full_backup] employees fetch error: {e}')
+        employee_rows = []
+    employees_csv = _csv_bytes(
+        ['id', 'name', 'active'],
+        ([e.get('id', ''), e.get('name', ''), e.get('active', '')] for e in employee_rows)
+    )
+
     return (
         {
             'invoices.csv': invoices_csv, 'payments.csv': payments_csv, 'extensions.csv': extensions_csv,
-            'signatures.csv': signatures_csv, 'tax_reviews.csv': reviews_csv, 'config.csv': config_csv,
+            'signatures.csv': signatures_csv, 'contract_links.csv': contract_links_csv,
+            'tax_reviews.csv': reviews_csv, 'config.csv': config_csv,
+            'drafts.csv': drafts_csv, 'gs_invoices.csv': gs_invoices_csv,
+            'tasks.csv': tasks_csv, 'time_entries.csv': time_entries_csv, 'employees.csv': employees_csv,
         },
         {
             'invoice_count': len(real_invoices), 'payment_count': len(payments_rows),
-            'extension_count': len(extensions_rows), 'exported_at': datetime.datetime.now().isoformat(),
+            'extension_count': len(extensions_rows), 'draft_count': len(draft_rows),
+            'gs_invoice_count': len(gs_rows), 'contract_count': len(contract_rows),
+            'task_count': len(task_rows), 'time_entry_count': len(time_rows),
+            'employee_count': len(employee_rows), 'exported_at': datetime.datetime.now().isoformat(),
         }
     )
 
 
-def send_monthly_tax_backup_email(csvs, stats):
+def send_monthly_backup_email(csvs, stats):
     password = os.environ.get('EMAIL_PASSWORD', '')
     if not password:
-        print('[tax_backup] EMAIL_PASSWORD not set')
+        print('[full_backup] EMAIL_PASSWORD not set')
         return False
     try:
         msg = MIMEMultipart('mixed')
         msg['From'] = FROM_EMAIL
         msg['To'] = JASMINE_EMAIL
-        msg['Subject'] = f"Monthly Tax Data Backup — {datetime.date.today().strftime('%B %Y')}"
+        msg['Subject'] = f"Monthly Full Website Backup — {datetime.date.today().strftime('%B %Y')}"
         body = (
-            f"Full off-app export of tax-critical data, generated {stats['exported_at']}.\n\n"
-            f"{stats['invoice_count']} invoices, {stats['payment_count']} payment records, "
-            f"{stats['extension_count']} extensions — attached as CSV, re-importable without "
-            f"this app. No credentials, API keys, or card data are included.\n\n"
-            f"This is the recovery copy for the tax reporting system, separate from the lighter "
-            f"monthly audit packet (its own email) — keep this even if nothing seems wrong; "
-            f"it's only useful on the day something goes wrong with the app's own database."
+            f"Full off-app export of everything this app's database holds, generated {stats['exported_at']}.\n\n"
+            f"{stats['invoice_count']} Styling With Jas invoices, {stats['payment_count']} payment records, "
+            f"{stats['extension_count']} extensions, {stats['contract_count']} signed-contract links, "
+            f"{stats['draft_count']} drafts, {stats['gs_invoice_count']} GS Photography invoices, "
+            f"{stats['task_count']} tasks, {stats['time_entry_count']} time entries, "
+            f"{stats['employee_count']} employee records — attached as CSV, re-importable without this app. "
+            f"No credentials, API keys, or card data are included.\n\n"
+            f"The website's own code is already fully preserved by git/GitHub, independent of both "
+            f"Vercel and Supabase — this covers the live data, which isn't backed up anywhere else. "
+            f"Keep this even if nothing seems wrong; it's only useful on the day something goes wrong "
+            f"with the app's own database."
         )
         msg.attach(MIMEText(body, 'plain'))
         for filename, content in csvs.items():
@@ -1645,13 +1742,13 @@ def send_monthly_tax_backup_email(csvs, stats):
             server.sendmail(FROM_EMAIL, [JASMINE_EMAIL], msg.as_string())
         return True
     except Exception as e:
-        print(f'[tax_backup] send error: {e}')
+        print(f'[full_backup] send error: {e}')
         return False
 
 
-def run_monthly_tax_backup():
-    csvs, stats = build_tax_backup_export()
-    sent = send_monthly_tax_backup_email(csvs, stats)
+def run_monthly_backup():
+    csvs, stats = build_full_backup_export()
+    sent = send_monthly_backup_email(csvs, stats)
     drive_saved, drive_error = save_files_to_drive('Full Table Exports', csvs)
     stats = {**stats, 'drive_saved': drive_saved, 'drive_error': drive_error}
     return sent, stats
@@ -1839,7 +1936,7 @@ def run_monthly_close():
     have to the bundled daily path."""
     report_sent, report_stats = run_monthly_tax_report()
     packet_sent, packet_stats = run_monthly_audit_packet()
-    backup_sent, backup_stats = run_monthly_tax_backup()
+    backup_sent, backup_stats = run_monthly_backup()
     return {
         'report_emailed': report_sent, 'packet_emailed': packet_sent, 'backup_emailed': backup_sent,
         'packet_drive_saved': packet_stats.get('drive_saved', 0), 'packet_drive_error': packet_stats.get('drive_error'),
@@ -1895,7 +1992,7 @@ class handler(BaseHTTPRequestHandler):
                 })
                 return
             if job == 'monthly_backup_export':
-                sent, stats = run_monthly_tax_backup()
+                sent, stats = run_monthly_backup()
                 self._respond(200, {
                     'ok': True, 'emailed': sent,
                     'drive_saved': stats.get('drive_saved', 0), 'drive_error': stats.get('drive_error'),

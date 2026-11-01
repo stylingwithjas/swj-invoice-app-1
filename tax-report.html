@@ -194,12 +194,12 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
       <button class="period-btn" onclick="exportPreFilingCsv()">⬇ Pre-Filing Pull CSV</button>
       <button class="period-btn" id="test-email-btn" onclick="sendTestEmail()">✉ Send Last Month's Report by Email</button>
       <button class="period-btn" id="test-packet-btn" onclick="sendTestAuditPacket()">✉ Send Last Month's Audit Packet</button>
-      <button class="period-btn" id="test-backup-btn" onclick="sendTestBackupExport()">✉ Send Tax Data Backup Export</button>
+      <button class="period-btn" id="test-backup-btn" onclick="sendTestBackupExport()">✉ Send Full Website Backup Export</button>
     </div>
     <div class="disclaimer">
       Basis: <strong>cash</strong> — revenue and tax are attributed to the month payment was actually received, not the invoice date. <strong>Every Styling With Jas staging job with a payment received this month is included</strong> — signature status is shown as a flag on each line, not a filter; an unsigned-but-paid job is counted in full and flagged for paperwork follow-up, never dropped. A job with no payment event this period (a draft, an open quote, a declined/closed-lost proposal) stays out because it has no payment, not because of its signature. Styling With Jas invoices only — GS Photography has its own separate numbering and isn't included here. Category tags (Retailing vs. Service &amp; Other) and B&amp;O amounts are a best-effort allocation per the method documented in TAX_METHODOLOGY.md, not a CPA-certified classification — please have this reviewed before filing. Card processing fees are a benchmark estimate (2.9% + $0.30 per card payment) — this app has no live Stripe fee feed, so check your Stripe dashboard for actuals.
       <br><br>
-      This report, the monthly audit packet (invoices + signed-contract links + payments + reconciliation + DOR filing slot), and the full tax-data backup export are all emailed automatically to info@stylingwithjas.com on the 1st of every month, covering the month that just ended — three emails from the same monthly run. The buttons above trigger each one on demand, for testing.
+      This report, the monthly audit packet (invoices + signed-contract links + payments + reconciliation + DOR filing slot), and the full website backup (every invoice — including drafts and GS Photography — plus tasks, time entries, and employee records, excluding any credential) are all emailed automatically to info@stylingwithjas.com on the 1st of every month, covering the month that just ended — three emails from the same monthly run, also saved to Google Drive once connected. The buttons above trigger each one on demand, for testing.
     </div>
   </div>
 
@@ -1087,7 +1087,7 @@ async function sendTestBackupExport(){
     const r = await fetch('/api/webhook?job=monthly_backup_export');
     const j = await r.json();
     if(!r.ok) throw new Error(j.error || `Server error ${r.status}`);
-    const emailMsg = j.emailed ? `Sent! Check info@stylingwithjas.com for the full tax-data backup export.` : `The export ran but the email failed to send — check that EMAIL_PASSWORD is configured.`;
+    const emailMsg = j.emailed ? `Sent! Check info@stylingwithjas.com for the full website backup export.` : `The export ran but the email failed to send — check that EMAIL_PASSWORD is configured.`;
     const driveMsg = j.drive_saved>0 ? ` Saved ${j.drive_saved} file(s) to Drive.` : ` Drive save skipped: ${j.drive_error||'not configured'}.`;
     alert(emailMsg + driveMsg);
   }catch(e){
