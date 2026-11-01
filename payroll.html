@@ -1242,7 +1242,10 @@ function finPaymentEvents(d){
   const splits = d.payments || [];
   if(splits.length){
     splits.filter(p=>p.status==='paid' && p.paid_date).forEach(p=>{
-      events.push({ date:p.paid_date, amount:parseFloat(p.amount)||0, method:p.payment_id?'Stripe (Card)':'Other/Manual' });
+      // manual_method:'stripe' is a confirmed-after-the-fact correction (no real Stripe
+      // payment_id captured, e.g. a Stripe Payment Link paid before this field existed) — see
+      // archive.html's Cleanup Review "Other/Manual" section. Never fabricate a payment_id.
+      events.push({ date:p.paid_date, amount:parseFloat(p.amount)||0, method:(p.payment_id||p.manual_method==='stripe')?'Stripe (Card)':'Other/Manual' });
     });
   } else if(d.paid && d.paid_date){
     // Falls back to the invoice's own total when neither amount_paid nor stripe_amount is
@@ -1393,7 +1396,7 @@ async function runFinanceView(){
       const tax = r>0 ? amt-amt/(1+r) : 0;
       revenue += amt; salesTax += tax; retailRev += (amt-tax);
       if(ext.payment_id) stripeFee += amt*FINANCE_CONFIG.stripe_pct/100 + FINANCE_CONFIG.stripe_flat;
-      received.push({ invnum:inv.invnum, client:inv.client||'Client', amount:amt, method:ext.payment_id?'Stripe (Card)':'Other/Manual', date:ext.paid_date, note:'extension' });
+      received.push({ invnum:inv.invnum, client:inv.client||'Client', amount:amt, method:(ext.payment_id||ext.manual_method==='stripe')?'Stripe (Card)':'Other/Manual', date:ext.paid_date, note:'extension' });
     });
   });
 

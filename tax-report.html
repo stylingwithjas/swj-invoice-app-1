@@ -193,11 +193,13 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
       <button class="period-btn" onclick="exportDetailCsv()">⬇ Invoice Detail CSV</button>
       <button class="period-btn" onclick="exportPreFilingCsv()">⬇ Pre-Filing Pull CSV</button>
       <button class="period-btn" id="test-email-btn" onclick="sendTestEmail()">✉ Send Last Month's Report by Email</button>
+      <button class="period-btn" id="test-packet-btn" onclick="sendTestAuditPacket()">✉ Send Last Month's Audit Packet</button>
+      <button class="period-btn" id="test-backup-btn" onclick="sendTestBackupExport()">✉ Send Tax Data Backup Export</button>
     </div>
     <div class="disclaimer">
       Basis: <strong>cash</strong> — revenue and tax are attributed to the month payment was actually received, not the invoice date. <strong>Every Styling With Jas staging job with a payment received this month is included</strong> — signature status is shown as a flag on each line, not a filter; an unsigned-but-paid job is counted in full and flagged for paperwork follow-up, never dropped. A job with no payment event this period (a draft, an open quote, a declined/closed-lost proposal) stays out because it has no payment, not because of its signature. Styling With Jas invoices only — GS Photography has its own separate numbering and isn't included here. Category tags (Retailing vs. Service &amp; Other) and B&amp;O amounts are a best-effort allocation per the method documented in TAX_METHODOLOGY.md, not a CPA-certified classification — please have this reviewed before filing. Card processing fees are a benchmark estimate (2.9% + $0.30 per card payment) — this app has no live Stripe fee feed, so check your Stripe dashboard for actuals.
       <br><br>
-      This report is also emailed automatically to info@stylingwithjas.com on the 1st of every month, covering the month that just ended. The button above triggers that exact same email on demand, for testing.
+      This report, the monthly audit packet (invoices + signed-contract links + payments + reconciliation + DOR filing slot), and the full tax-data backup export are all emailed automatically to info@stylingwithjas.com on the 1st of every month, covering the month that just ended — three emails from the same monthly run. The buttons above trigger each one on demand, for testing.
     </div>
   </div>
 
@@ -206,6 +208,11 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
     <div id="review-status" style="font-size:13px;margin-bottom:10px"></div>
     <button class="period-btn primary" id="review-btn" onclick="markReviewed()">Mark This Report Reviewed</button>
     <div id="review-gate-note" style="font-size:11.5px;color:var(--red);margin-top:8px"></div>
+    <div class="period-field" style="margin-top:14px;max-width:320px">
+      <label>DOR filing confirmation number — enter once filed in My DOR</label>
+      <input type="text" id="f-dor-confirmation" placeholder="(not yet filed)" oninput="saveDorConfirmation()">
+    </div>
+    <div id="dor-save-note" style="font-size:11px;color:var(--taupe-dk);margin-top:4px"></div>
   </div>
 
   <div class="card" id="summary-card" style="display:none">
@@ -467,7 +474,10 @@ function paymentEvents(d){
       events.push({
         date: p.paid_date,
         amount: parseFloat(p.amount)||0,
-        method: p.payment_id ? 'Stripe (Card)' : 'Other/Manual',
+        // manual_method:'stripe' is a confirmed-after-the-fact correction (no payment_id
+        // captured) — see archive.html's Cleanup Review. Never fabricated, only ever set via
+        // an explicit confirm action on a specific payment.
+        method: (p.payment_id || p.manual_method==='stripe') ? 'Stripe (Card)' : 'Other/Manual',
         label: p.label || 'Payment',
       });
     });
@@ -634,7 +644,7 @@ async function runReport(){
       grossReceipts += amt; taxCollected += extTax;
       periodReceivedTotal += amt;
       retailTotal += extSubtotal; extensionTotal += extSubtotal;
-      const method = ext.payment_id ? 'Stripe (Card)' : 'Other/Manual';
+      const method = (ext.payment_id || ext.manual_method==='stripe') ? 'Stripe (Card)' : 'Other/Manual';
       if(method==='Stripe (Card)') cardFees += amt*STRIPE_FEE_PCT + STRIPE_FEE_FLAT;
       if(isExempt){
         exemptRows.push({ invnum: ext.invnum, client, amount: amt, reason: d.exempt_reason, cert: d.exempt_cert||'' });
@@ -766,6 +776,8 @@ async function renderReview(periodKey){
   statusEl.textContent = 'Checking…';
   document.getElementById('f-actual-deposits').value = '';
   document.getElementById('f-reconcile-explain').value = '';
+  document.getElementById('f-dor-confirmation').value = '';
+  document.getElementById('dor-save-note').textContent = '';
   try{
     const { data } = await _sb.from('invoices').select('data').eq('invnum', `TAX_REVIEW_${periodKey}`).maybeSingle();
     _lastReviewData = (data && data.data) || null;
@@ -785,7 +797,31 @@ async function renderReview(periodKey){
       statusEl.style.color = 'var(--amber)';
       btn.textContent = 'Mark This Report Reviewed';
     }
+    // DOR confirmation is its own slot, filled in once the return is actually filed — days or
+    // weeks after review, so it's prefilled/saved independently of the reviewed flag above.
+    if(_lastReviewData && _lastReviewData.dor_confirmation_number) document.getElementById('f-dor-confirmation').value = _lastReviewData.dor_confirmation_number;
   }catch(e){ statusEl.textContent = ''; _lastReviewData = null; }
+}
+
+let _dorSaveTimer = null;
+function saveDorConfirmation(){
+  clearTimeout(_dorSaveTimer);
+  const periodKey = _lastSummary && _lastSummary.periodKey;
+  const note = document.getElementById('dor-save-note');
+  if(!periodKey) return;
+  note.textContent = 'Saving…';
+  _dorSaveTimer = setTimeout(async ()=>{
+    const value = document.getElementById('f-dor-confirmation').value.trim();
+    try{
+      const merged = { ...(_lastReviewData||{}), dor_confirmation_number: value };
+      await _sb.from('invoices').upsert({
+        invnum: `TAX_REVIEW_${periodKey}`, client: `TAX_REVIEW_${periodKey}`, address: '',
+        invdate: new Date().toISOString().split('T')[0], data: merged,
+      }, { onConflict: 'invnum' });
+      _lastReviewData = merged;
+      note.textContent = value ? 'Saved.' : '';
+    }catch(e){ note.textContent = 'Could not save: '+e.message; }
+  }, 500);
 }
 
 async function markReviewed(){
@@ -805,6 +841,7 @@ async function markReviewed(){
       invnum: `TAX_REVIEW_${periodKey}`, client: `TAX_REVIEW_${periodKey}`, address: '',
       invdate: new Date().toISOString().split('T')[0],
       data: {
+        ...(_lastReviewData||{}),
         reviewed: true, reviewed_at: new Date().toISOString(),
         reconciled_actual: actual, reconciled_diff: diff, reconciled_clean: clean, reconciled_explain: explain,
       },
@@ -1015,6 +1052,38 @@ async function sendTestEmail(){
     alert(j.emailed ? `Sent! Check info@stylingwithjas.com for the ${j.period} report.` : `The report ran but the email failed to send — check that EMAIL_PASSWORD is configured.`);
   }catch(e){
     alert('Could not send the test email: '+e.message);
+  }finally{
+    btn.disabled = false; btn.textContent = orig;
+  }
+}
+
+async function sendTestAuditPacket(){
+  const btn = document.getElementById('test-packet-btn');
+  const orig = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Sending…';
+  try{
+    const r = await fetch('/api/webhook?job=monthly_audit_packet');
+    const j = await r.json();
+    if(!r.ok) throw new Error(j.error || `Server error ${r.status}`);
+    alert(j.emailed ? `Sent! Check info@stylingwithjas.com for the ${j.period} audit packet.` : `The packet ran but the email failed to send — check that EMAIL_PASSWORD is configured.`);
+  }catch(e){
+    alert('Could not send the test audit packet: '+e.message);
+  }finally{
+    btn.disabled = false; btn.textContent = orig;
+  }
+}
+
+async function sendTestBackupExport(){
+  const btn = document.getElementById('test-backup-btn');
+  const orig = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Sending…';
+  try{
+    const r = await fetch('/api/webhook?job=monthly_backup_export');
+    const j = await r.json();
+    if(!r.ok) throw new Error(j.error || `Server error ${r.status}`);
+    alert(j.emailed ? `Sent! Check info@stylingwithjas.com for the full tax-data backup export.` : `The export ran but the email failed to send — check that EMAIL_PASSWORD is configured.`);
+  }catch(e){
+    alert('Could not send the test backup export: '+e.message);
   }finally{
     btn.disabled = false; btn.textContent = orig;
   }

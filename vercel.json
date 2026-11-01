@@ -50,6 +50,6 @@
   ],
   "crons": [
     { "path": "/api/webhook", "schedule": "0 15 * * *" },
-    { "path": "/api/webhook?job=monthly_tax_report", "schedule": "0 15 1 * *" }
+    { "path": "/api/webhook?job=monthly_close", "schedule": "0 15 1 * *" }
   ]
 }
