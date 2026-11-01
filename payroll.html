@@ -1252,7 +1252,9 @@ function finPaymentEvents(d){
     // recorded (the common case for a manually-marked-paid invoice, e.g. cash/check/Venmo) —
     // this app's $0 revenue bug (audit finding) was exactly this falling back to 0 instead,
     // unlike tax-report.html's paymentEvents(), which has always used this fallback.
-    events.push({ date:d.paid_date, amount:parseFloat(d.amount_paid ?? d.stripe_amount ?? finComputeGrandForEvents(d)) || 0, method:d.stripe_payment_id?'Stripe (Card)':'Other/Manual' });
+    // manual_method:'stripe' on the invoice itself is the legacy-shape counterpart to the
+    // payments[]-entry correction above — confirmed live Nov 2026 as the common case.
+    events.push({ date:d.paid_date, amount:parseFloat(d.amount_paid ?? d.stripe_amount ?? finComputeGrandForEvents(d)) || 0, method:(d.stripe_payment_id||d.manual_method==='stripe')?'Stripe (Card)':'Other/Manual' });
   }
   return events;
 }

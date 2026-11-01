@@ -181,6 +181,13 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
   <label id="payer-filter-row" style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--taupe-dk);margin:-6px 0 12px;cursor:pointer">
     <input type="checkbox" id="payer-unknown-filter" onchange="renderList()"> Needs a payer only
   </label>
+  <div id="raw-lookup-row" style="display:none;margin-bottom:14px">
+    <div style="display:flex;gap:8px">
+      <input type="text" id="raw-lookup-invnum" placeholder="Invoice # — look up its raw payment/extension data" style="flex:1;padding:9px 12px;border:0.5px solid var(--taupe-lt);border-radius:8px;font-size:13px;font-family:inherit">
+      <button onclick="lookupRawData()" style="padding:9px 16px;border-radius:8px;border:none;background:var(--ink);color:#fff;font-size:12.5px;cursor:pointer;font-family:inherit;white-space:nowrap">Look Up</button>
+    </div>
+    <div id="raw-lookup-result" style="display:none;margin-top:10px;background:var(--warm);border:0.5px solid var(--taupe-lt);border-radius:8px;padding:12px 14px;font-size:11.5px;line-height:1.6;color:var(--ink-soft)"></div>
+  </div>
   <div class="summary-note" id="summary-note">Loading…</div>
   <div id="list-body"></div>
 </div>
@@ -260,6 +267,7 @@ function switchTab(tab){
   document.getElementById('tab-cleanup').classList.toggle('on', tab==='cleanup');
   document.getElementById('search-input').closest('.search-row').style.display = tab==='cleanup' ? 'none' : '';
   document.getElementById('payer-filter-row').style.display = tab==='cleanup' ? 'none' : '';
+  document.getElementById('raw-lookup-row').style.display = tab==='cleanup' ? 'block' : 'none';
   if(tab==='cleanup') loadCleanupCandidates();
   else renderList();
 }
@@ -371,6 +379,14 @@ function renderCleanupReport(){
         otherMethodFlagged.push({ inv, kind:'extension', idx, amount:parseFloat(ext.amount)||0, date:ext.paid_date, approved:false });
       }
     });
+    // Legacy single-payment shape — no payments[] array at all, just top-level paid/paid_date/
+    // stripe_payment_id. Confirmed live Nov 2026 as the COMMON case for an ordinary one-time
+    // payment (this is how Baker #2020128 is actually stored, not payments[]) — the original
+    // version of this section only checked payments[] and missed every invoice shaped this way.
+    if(!(d.payments||[]).length && d.paid && d.paid_date && !d.stripe_payment_id && d.manual_method!=='stripe'){
+      const amount = parseFloat(d.amount_paid ?? d.stripe_amount ?? computeGrand(d)) || 0;
+      otherMethodFlagged.push({ inv, kind:'legacy', idx:-1, amount, date:d.paid_date, approved: inv.invnum==='2020128' });
+    }
   });
   otherMethodFlagged.sort((a,b)=> (b.approved-a.approved) || (b.date||'').localeCompare(a.date||''));
 
@@ -427,12 +443,15 @@ async function confirmStripeMethod(invnum, kind, idx, btn){
   const inv = _cleanupAll.find(i=>i.invnum===invnum);
   if(!inv) return;
   const d = inv.data||{};
-  const entry = kind==='extension' ? (d.extensions||[])[idx] : (d.payments||[])[idx];
+  // 'legacy' = the top-level paid/paid_date/stripe_payment_id shape (no payments[] array) —
+  // confirmed live Nov 2026 as the common case for an ordinary one-time payment.
+  const entry = kind==='legacy' ? d : (kind==='extension' ? (d.extensions||[])[idx] : (d.payments||[])[idx]);
   if(!entry){ alert('Could not find that payment entry — try reloading the Cleanup Review tab.'); return; }
-  const amount = parseFloat(entry.amount)||0;
+  const amount = kind==='legacy' ? (parseFloat(d.amount_paid ?? d.stripe_amount ?? computeGrand(d))||0) : (parseFloat(entry.amount)||0);
+  const paidDate = kind==='legacy' ? d.paid_date : entry.paid_date;
   const estFee = amount*STRIPE_FEE_PCT + STRIPE_FEE_FLAT;
   const ok = await customConfirm(
-    `Mark ${esc(inv.client||d.client||'this client')} #${esc(invnum)}'s ${fmtDate(entry.paid_date)} payment of $${amount.toFixed(2)} as Stripe/Card? `
+    `Mark ${esc(inv.client||d.client||'this client')} #${esc(invnum)}'s ${fmtDate(paidDate)} payment of $${amount.toFixed(2)} as Stripe/Card? `
     + `This adds an estimated $${estFee.toFixed(2)} processing fee to the Payroll Finance and Tax Report views. `
     + `No invoice total, tax amount, or DOR filing figure changes — this only corrects the payment method.`,
     { confirmLabel:'Confirm Stripe/Card' }
@@ -451,6 +470,181 @@ async function confirmStripeMethod(invnum, kind, idx, btn){
     alert('Could not save: '+e.message);
     btn.textContent = orig; btn.disabled = false;
   }
+}
+
+// Read-only raw-data lookup — for diagnosing exactly why a specific invoice isn't showing up
+// where expected (e.g. a Tax Report period miss), without needing direct Supabase console
+// access. Fetches fresh from the DB (not the cached cleanup list), never writes anything.
+let _rawLookupCurrent = null;
+
+async function lookupRawData(){
+  const invnum = document.getElementById('raw-lookup-invnum').value.trim();
+  const out = document.getElementById('raw-lookup-result');
+  if(!invnum){ out.style.display='none'; _rawLookupCurrent=null; return; }
+  out.style.display = 'block';
+  out.textContent = 'Looking up #'+invnum+'…';
+  try{
+    const { data, error } = await _sb.from('invoices').select('invnum,client,address,invdate,created_at,data').eq('invnum', invnum).maybeSingle();
+    if(error) throw error;
+    if(!data){ out.textContent = `No invoice found with #${invnum}.`; _rawLookupCurrent=null; return; }
+    _rawLookupCurrent = { invnum: data.invnum, client: data.client, address: data.address, invdate: data.invdate, data: data.data||{} };
+    renderRawLookup();
+  }catch(e){
+    out.textContent = 'Lookup failed: '+e.message;
+    _rawLookupCurrent = null;
+  }
+}
+
+// Renders the looked-up invoice's payment/extension facts, plus — this is the actionable
+// part — a confirm-gated correction control per gap found: "Mark Paid" on an existing
+// unpaid extension entry, or "Add & Mark Paid" when no extension entry exists at all (the
+// Deji #2020107v1 case live Nov 1 2026: the real payment existed but no record of it did).
+// Every action requires the person to enter/confirm the date themselves and confirm in a
+// dialog — nothing here is inferred or auto-applied, same rule as confirmStripeMethod().
+function renderRawLookup(){
+  const cur = _rawLookupCurrent;
+  const out = document.getElementById('raw-lookup-result');
+  if(!cur) return;
+  const d = cur.data;
+
+  const summaryLines = [];
+  summaryLines.push(`#${cur.invnum} — ${cur.client||d.client||'Client'}`);
+  summaryLines.push(`signed: ${!!d.signed}${d.signed_date?' (signed_date: '+d.signed_date+')':''}`);
+  summaryLines.push(`paid (legacy, top-level): ${!!d.paid}  paid_date: ${d.paid_date||'(none)'}  stripe_payment_id: ${d.stripe_payment_id||'(none)'}  manual_method: ${d.manual_method||'(none)'}`);
+  summaryLines.push(`amount_paid: ${d.amount_paid!=null?d.amount_paid:'(none)'}  stripe_amount: ${d.stripe_amount!=null?d.stripe_amount:'(none)'}`);
+  summaryLines.push('');
+  summaryLines.push(`payments[] (${(d.payments||[]).length} entries):`);
+  (d.payments||[]).forEach((p,i)=>summaryLines.push(`  [${i}] status=${p.status} amount=${p.amount} paid_date=${p.paid_date||'(none)'} payment_id=${p.payment_id||'(none)'} manual_method=${p.manual_method||'(none)'}`));
+
+  const extensions = d.extensions||[];
+  const inputStyle = 'padding:7px 9px;border:0.5px solid var(--taupe-lt);border-radius:7px;font-size:12px;font-family:inherit';
+  const btnStyle = 'padding:7px 14px;border-radius:7px;border:none;background:var(--ink);color:#fff;font-size:12px;cursor:pointer;font-family:inherit';
+  let extHtml = `<div style="margin-top:10px;font-weight:600">extensions[] (${extensions.length} entries):</div>`;
+  if(!extensions.length){
+    extHtml += `
+      <div style="margin-top:6px;padding:10px;background:#fff;border:0.5px solid var(--taupe-lt);border-radius:8px">
+        <div style="font-size:11.5px;color:var(--taupe-dk);margin-bottom:8px">No extension entries on this invoice. If a real extension payment exists outside this record (already verified via Stripe/bank), add it here — this creates a new entry only, nothing else on the invoice changes.</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <input type="number" id="newext-days" placeholder="days" style="${inputStyle};width:70px">
+          <input type="number" id="newext-amount" placeholder="amount" step="0.01" style="${inputStyle};width:100px">
+          <input type="date" id="newext-paiddate" style="${inputStyle}">
+          <label style="font-size:11.5px;display:flex;align-items:center;gap:4px"><input type="checkbox" id="newext-stripe" checked> paid via Stripe/card</label>
+          <button style="${btnStyle}" onclick="addMissingExtension()">Add &amp; Mark Paid</button>
+        </div>
+      </div>`;
+  } else {
+    extHtml += extensions.map((ext,i)=>{
+      const paidNow = !!ext.paid;
+      const methodNote = ext.payment_id ? ' (Stripe id on file)' : (ext.manual_method==='stripe' ? ' (confirmed Stripe/card)' : ' (Other/Manual)');
+      return `<div style="margin-top:6px;padding:10px;background:#fff;border:0.5px solid var(--taupe-lt);border-radius:8px">
+        <div style="font-size:12px">[${i}] ${esc(ext.invnum||'(no sub-id)')} — ${esc(String(ext.days||'?'))} days, $${(parseFloat(ext.amount)||0).toFixed(2)}, created ${esc(ext.created||'(none)')}${ext.payment_url?' · has a Stripe payment link':''}</div>
+        ${paidNow
+          ? `<div style="font-size:11.5px;color:var(--green);margin-top:4px">✓ Paid ${esc(ext.paid_date||'')}${methodNote}</div>`
+          : `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px">
+              <label style="font-size:10.5px;color:var(--taupe-dk);display:flex;flex-direction:column;gap:2px">Amount actually paid
+                <input type="number" step="0.01" id="ext-amount-${i}" value="${(parseFloat(ext.amount)||0).toFixed(2)}" style="${inputStyle};width:100px">
+              </label>
+              <label style="font-size:10.5px;color:var(--taupe-dk);display:flex;flex-direction:column;gap:2px">Date paid
+                <input type="date" id="ext-paiddate-${i}" value="${esc(ext.paid_date||'')}" style="${inputStyle}">
+              </label>
+              <label style="font-size:11.5px;display:flex;align-items:center;gap:4px"><input type="checkbox" id="ext-stripe-${i}" checked> paid via Stripe/card</label>
+              <button style="${btnStyle}" onclick="markExtensionPaid(${i})">Mark Paid</button>
+            </div>`
+        }
+      </div>`;
+    }).join('');
+  }
+
+  out.innerHTML = `<div style="white-space:pre-wrap">${esc(summaryLines.join('\n'))}</div>${extHtml}
+    <details style="margin-top:10px"><summary style="cursor:pointer;font-size:11.5px;color:var(--taupe-dk)">Full raw data (JSON)</summary><pre style="white-space:pre-wrap;word-break:break-word;font-size:11px;margin-top:6px">${esc(JSON.stringify(d,null,2))}</pre></details>`;
+}
+
+async function markExtensionPaid(idx){
+  const cur = _rawLookupCurrent;
+  if(!cur) return;
+  const ext = (cur.data.extensions||[])[idx];
+  if(!ext) return;
+  const paidDate = document.getElementById(`ext-paiddate-${idx}`).value;
+  const viaStripe = document.getElementById(`ext-stripe-${idx}`).checked;
+  const enteredAmount = parseFloat(document.getElementById(`ext-amount-${idx}`).value);
+  if(!paidDate){ alert('Enter the date this extension was actually paid before marking it.'); return; }
+  if(!enteredAmount || enteredAmount<=0){ alert('Enter the amount actually paid before marking it.'); return; }
+  const storedAmount = parseFloat(ext.amount)||0;
+  // The entry's stored amount can be wrong (e.g. billed $1,237.86, client actually paid
+  // $1,280.54) — Mark Paid records what was ACTUALLY paid, never silently restates the
+  // entry's original amount, and says so explicitly when the two differ (fix spec note,
+  // Nov 1 2026: "Do not silently restate the entry amount as the paid amount").
+  const amountChanged = Math.abs(enteredAmount - storedAmount) > 0.009;
+  const ok = await customConfirm(
+    `Mark ${esc(cur.client||cur.data.client||'this client')} #${esc(cur.invnum)}'s extension [${idx}] as paid on ${paidDate}, amount $${enteredAmount.toFixed(2)}`
+    + (amountChanged ? ` — this entry currently says $${storedAmount.toFixed(2)}; confirming this correction will update it to $${enteredAmount.toFixed(2)} to match what was actually paid.` : '.')
+    + ` This is a correction for a payment already verified outside the app (Stripe/bank) — it makes this extension count in the Tax Report for that period at the amount entered above. No other invoice field changes.`,
+    { confirmLabel:'Mark Paid' }
+  );
+  if(!ok) return;
+  // Prefer the atomic mark_extension_paid() DB function (sql/mark_extension_paid.sql, live
+  // in production as of Nov 1 2026) — a single read+change+write step the database
+  // guarantees can't be interleaved with another save to the same invoice, closing the
+  // race that dropped Hill's EXT1/EXT2 flags in the first place. Falls back to the old
+  // whole-row upsert only if the RPC call itself fails for some reason.
+  try{
+    const { error } = await _sb.rpc('mark_extension_paid', {
+      p_invnum: cur.invnum, p_ext_invnum: ext.invnum, p_paid_date: paidDate,
+      p_amount: enteredAmount, ...(viaStripe ? { p_manual_method:'stripe' } : {}),
+    });
+    if(error) throw error;
+    ext.paid = true; ext.paid_date = paidDate; ext.amount = enteredAmount;
+    if(viaStripe) ext.manual_method = 'stripe';
+    renderRawLookup();
+    alert('Saved (atomic DB update). Re-run the Tax Report for that period on tax-report.html to see it reflected.');
+    return;
+  }catch(e){
+    console.warn('mark_extension_paid RPC failed, falling back to whole-row upsert:', e.message);
+  }
+  ext.paid = true;
+  ext.paid_date = paidDate;
+  ext.amount = enteredAmount;
+  if(viaStripe) ext.manual_method = 'stripe';
+  try{
+    const { error } = await _sb.from('invoices').upsert({
+      invnum: cur.invnum, client: cur.client, address: cur.address, invdate: cur.invdate, data: cur.data,
+    }, { onConflict:'invnum' });
+    if(error) throw error;
+    renderRawLookup();
+    alert('Saved. Re-run the Tax Report for that period on tax-report.html to see it reflected.');
+  }catch(e){ alert('Could not save: '+e.message); }
+}
+
+async function addMissingExtension(){
+  const cur = _rawLookupCurrent;
+  if(!cur) return;
+  const days = document.getElementById('newext-days').value;
+  const amount = parseFloat(document.getElementById('newext-amount').value);
+  const paidDate = document.getElementById('newext-paiddate').value;
+  const viaStripe = document.getElementById('newext-stripe').checked;
+  if(!paidDate || !amount){ alert('Enter at least the amount and the date it was paid before adding this record.'); return; }
+  const ok = await customConfirm(
+    `Add a NEW extension payment record to ${esc(cur.client||cur.data.client||'this client')} #${esc(cur.invnum)}: $${amount.toFixed(2)}, ${days||'?'} days, paid ${paidDate}? `
+    + `This is a correction for a payment already verified outside the app — nothing else on this invoice changes.`,
+    { confirmLabel:'Add & Mark Paid' }
+  );
+  if(!ok) return;
+  const extensions = cur.data.extensions || [];
+  const newEntry = {
+    invnum: `${cur.invnum}-EXT${extensions.length+1}`, days: parseInt(days)||0, amount, type:'extension',
+    paid: true, paid_date: paidDate, created: new Date().toISOString().split('T')[0],
+  };
+  if(viaStripe) newEntry.manual_method = 'stripe';
+  extensions.push(newEntry);
+  cur.data.extensions = extensions;
+  try{
+    const { error } = await _sb.from('invoices').upsert({
+      invnum: cur.invnum, client: cur.client, address: cur.address, invdate: cur.invdate, data: cur.data,
+    }, { onConflict:'invnum' });
+    if(error) throw error;
+    renderRawLookup();
+    alert('Saved. Re-run the Tax Report for that period on tax-report.html to see it reflected.');
+  }catch(e){ alert('Could not save: '+e.message); }
 }
 
 function renderList(){
