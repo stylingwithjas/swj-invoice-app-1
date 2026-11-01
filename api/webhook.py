@@ -963,8 +963,13 @@ def tax_categorize(desc):
 # best-effort parse this report has always used for those.
 def tax_resolve_location(inv, d):
     if d.get('price_led_tax') and d.get('zip'):
-        return {'city': d.get('city') or '(Unparsed)', 'zip': d.get('zip'), 'ok': bool(d.get('city'))}
+        return {'city': d.get('city') or '', 'zip': d.get('zip'), 'ok': bool(d.get('city'))}
     return tax_parse_address(inv.get('address') or d.get('address') or '')
+
+
+# Fix spec (Nov 2026): a job whose jurisdiction can't be confirmed is flagged clearly, not
+# merged into a vague "(Unparsed)" bucket — it still counts fully in every total.
+TAX_JURISDICTION_UNCONFIRMED = 'Jurisdiction unconfirmed — review'
 
 
 # B&O rates (Phase 5.3) — see TAX_METHODOLOGY.md. Not a certified classification.
@@ -1042,7 +1047,15 @@ def tax_payment_events(d):
     return events
 
 
-def _tax_list_signed_invoices():
+TAX_SYSTEM_INVNUMS = ('PRICING_DEFAULTS', 'TIER_PRICING', 'FINANCE_CONFIG', 'FINANCE_OVERRIDES')
+
+
+def _tax_list_invoices():
+    """Every Styling With Jas staging invoice, drafts/GS/system rows excluded. Fix spec (Nov
+    2026): the audit record must show every dollar received — signature status is a flag on
+    a line, never a filter that removes it, so this no longer requires signed is True (that
+    used to also incidentally exclude the system rows below, which now need an explicit
+    exclusion instead)."""
     key = os.environ.get('SUPABASE_KEY', '')
     req = urllib.request.Request(
         f'{SUPABASE_URL}/rest/v1/invoices?select=invnum,client,address,data&order=created_at.desc&limit=1000',
@@ -1053,37 +1066,43 @@ def _tax_list_signed_invoices():
     out = []
     for inv in invoices:
         invnum = str(inv.get('invnum', ''))
-        if invnum.startswith('DRAFT-') or invnum.startswith('GS'):
+        if invnum.startswith('DRAFT-') or invnum.startswith('GS') or invnum.startswith('TAX_REVIEW_'):
             continue
-        if (inv.get('data') or {}).get('signed') is True:
-            out.append(inv)
+        if invnum in TAX_SYSTEM_INVNUMS:
+            continue
+        out.append(inv)
     return out
 
 
 def build_monthly_tax_report(year, month):
     """Returns (summary_csv_bytes, detail_csv_bytes, stats_dict) for the given year/month,
-    same cash-basis / signed-only / SWJ-only rules as tax-report.html."""
+    same cash-basis / every-staging-payment-regardless-of-signature / SWJ-only rules as
+    tax-report.html — signature status is a flag per line, never a filter (fix spec, Nov 2026)."""
     period_start = f'{year:04d}-{month:02d}-01'
     last_day = calendar.monthrange(year, month)[1]
     period_end = f'{year:04d}-{month:02d}-{last_day:02d}'
     period_label = f'{MONTH_NAMES[month-1]} {year}'
 
-    invoices = _tax_list_signed_invoices()
+    invoices = _tax_list_invoices()
 
     city_map = {}  # city -> {rates:set, taxable:float, tax:float}
     gross_receipts = tax_collected = retail_total = service_total = extension_total = card_fees = 0.0
     detail_rows = []
     unparsed = []
+    unsigned = []
     exempt_rows = []  # (invnum, client, amount, reason, cert)
 
     for inv in invoices:
         d = inv.get('data') or {}
         client = inv.get('client') or d.get('client') or 'Client'
         loc = tax_resolve_location(inv, d)
-        if not loc['ok']:
-            unparsed.append(f"#{inv.get('invnum')} — {inv.get('address') or d.get('address') or '(no address)'}")
-        city_key = loc['city'] or '(Unparsed)'
+        city_key = loc['city'] or TAX_JURISDICTION_UNCONFIRMED
         is_exempt = bool(d.get('exempt_reason'))
+        # Signature is a flag on the line, never a filter — see _tax_list_invoices() above.
+        signed_flag = d.get('signed') is True
+        signed_label = 'Signed' if signed_flag else 'UNSIGNED — needs signature'
+        # Only flag unsigned/unconfirmed-jurisdiction for a job with receipts THIS period.
+        period_received_total = 0.0
 
         events = [e for e in tax_payment_events(d) if period_start <= e['date'] <= period_end]
         if events:
@@ -1095,6 +1114,7 @@ def build_monthly_tax_report(year, month):
             period_tax = 0.0 if is_exempt else period_received * tax_fraction
             gross_receipts += period_received
             tax_collected += period_tax
+            period_received_total += period_received
             for e in events:
                 if e['method'] == 'Stripe (Card)':
                     card_fees += e['amount'] * STRIPE_FEE_PCT + STRIPE_FEE_FLAT
@@ -1124,7 +1144,7 @@ def build_monthly_tax_report(year, month):
                 category = 'exempt' if is_exempt else (li['type'] or tax_categorize(li['desc']))
                 exemption = (d.get('exempt_reason', '') + (f" ({d.get('exempt_cert')})" if d.get('exempt_cert') else '')) if is_exempt else ''
                 detail_rows.append([
-                    inv.get('invnum'), d.get('invdate', inv.get('invdate', '')), due_date, client,
+                    inv.get('invnum'), d.get('invdate', inv.get('invdate', '')), due_date, client, signed_label,
                     loc['city'], loc['zip'], li['desc'], category,
                     f"{li['price']:.2f}", 'No' if is_exempt else 'Yes', exemption,
                     f'{tax_rate:.2f}%' if i == 0 else '', f"{split['tax']:.2f}" if i == 0 else '',
@@ -1136,7 +1156,7 @@ def build_monthly_tax_report(year, month):
             pet_deposit = d.get('pet_deposit') or {}
             if pet_deposit.get('enabled'):
                 detail_rows.append([
-                    inv.get('invnum'), d.get('invdate', inv.get('invdate', '')), due_date, client,
+                    inv.get('invnum'), d.get('invdate', inv.get('invdate', '')), due_date, client, signed_label,
                     loc['city'], loc['zip'], 'Refundable Pet Deposit', 'deposit (not revenue)',
                     f"{float(pet_deposit.get('amount', 0) or 0):.2f}", 'No', 'Refundable deposit — not a sale',
                     '', '', '', '', '', '', '',
@@ -1158,6 +1178,7 @@ def build_monthly_tax_report(year, month):
             ext_subtotal = amt - ext_tax
             gross_receipts += amt
             tax_collected += ext_tax
+            period_received_total += amt
             retail_total += ext_subtotal
             extension_total += ext_subtotal
             method = 'Stripe (Card)' if ext.get('payment_id') else 'Other/Manual'
@@ -1172,13 +1193,25 @@ def build_monthly_tax_report(year, month):
                 bucket['tax'] += ext_tax
             exemption = (d.get('exempt_reason', '') + (f" ({d.get('exempt_cert')})" if d.get('exempt_cert') else '')) if is_exempt else ''
             detail_rows.append([
-                ext.get('invnum'), ext.get('created', ''), '', client, loc['city'], loc['zip'],
+                ext.get('invnum'), ext.get('created', ''), '', client, signed_label, loc['city'], loc['zip'],
                 f"Extension ({ext.get('days', '?')} days, of #{inv.get('invnum')})", 'exempt' if is_exempt else 'extension',
                 f'{ext_subtotal:.2f}', 'No' if is_exempt else 'Yes', exemption,
                 f'{tax_rate:.2f}%', f'{ext_tax:.2f}', f'{ext_subtotal:.2f}', f'{amt:.2f}',
                 f'{amt:.2f}', method,
                 f'{(amt*STRIPE_FEE_PCT+STRIPE_FEE_FLAT):.2f}' if method == 'Stripe (Card)' else '0.00',
             ])
+
+        # Flag unsigned/unconfirmed-jurisdiction once per job, only when it actually has
+        # receipts counted THIS period — never silently, since both are still counted in full.
+        if period_received_total > 0.009:
+            if not signed_flag:
+                unsigned.append(f"#{inv.get('invnum')} — {client} ({period_received_total:,.2f})")
+            if not loc['ok']:
+                blank_rate_suspect = abs(float(d.get('taxrate', 0) or 0) - 10.25) < 0.005
+                note = f"#{inv.get('invnum')} — {client} — {inv.get('address') or d.get('address') or '(no address)'}"
+                if blank_rate_suspect:
+                    note += ' — rate shown is the 10.25% blank-form default, not a confirmed jurisdiction rate'
+                unparsed.append(note)
 
     bo_retail = retail_total * BO_RETAIL_RATE
     bo_service = service_total * BO_SERVICE_RATE
@@ -1205,11 +1238,12 @@ def build_monthly_tax_report(year, month):
     w.writerow(['Total B&O', f'{(bo_retail+bo_service):.2f}'])
     w.writerow(['Exempt Sales Count', str(len(exempt_rows))])
     w.writerow(['Exempt Sales Total', f"{sum(r[2] for r in exempt_rows):.2f}"])
+    w.writerow(['Unsigned Jobs Count (counted in totals, flagged for paperwork)', str(len(unsigned))])
 
     # Detail CSV
     detail_buf = io.StringIO()
     w2 = csv.writer(detail_buf)
-    w2.writerow(['Invoice #', 'Invoice Date', 'Due Date', 'Customer', 'City', 'Zip', 'Line Item',
+    w2.writerow(['Invoice #', 'Invoice Date', 'Due Date', 'Customer', 'Signature', 'City', 'Zip', 'Line Item',
                  'Category', 'Item Amount', 'Taxable', 'Exemption Reason', 'Tax Rate',
                  'Invoice Tax Total', 'Invoice Subtotal', 'Invoice Grand Total',
                  'Received This Period', 'Payment Method', 'Processing Fee (benchmark est.)'])
@@ -1221,7 +1255,7 @@ def build_monthly_tax_report(year, month):
         'card_fees': card_fees, 'net_revenue': net_revenue, 'bo_retail': bo_retail, 'bo_service': bo_service,
         'bo_total': bo_retail + bo_service, 'exempt_count': len(exempt_rows),
         'exempt_total': sum(r[2] for r in exempt_rows),
-        'invoice_count': len({r[0] for r in detail_rows}), 'unparsed': unparsed,
+        'invoice_count': len({r[0] for r in detail_rows}), 'unparsed': unparsed, 'unsigned': unsigned,
     }
     return summary_buf.getvalue().encode(), detail_buf.getvalue().encode(), stats
 
@@ -1237,14 +1271,20 @@ def send_monthly_tax_report_email(summary_csv, detail_csv, stats):
         msg['To'] = JASMINE_EMAIL
         msg['Subject'] = f"Monthly Tax Report — {stats['period_label']}"
 
+        unsigned_note = ''
+        if stats['unsigned']:
+            unsigned_note = ("\n\n⚠ " + str(len(stats['unsigned'])) + " job(s) this period are paid but have "
+                              "no signed contract on file — counted in full above, not dropped. Follow up for "
+                              "paperwork:\n" + '\n'.join(stats['unsigned']))
         unparsed_note = ''
         if stats['unparsed']:
-            unparsed_note = ("\n\n⚠ " + str(len(stats['unparsed'])) + " address(es) couldn't be "
-                              "confidently parsed for city — check the (Unparsed) row in the summary "
-                              "and review these manually:\n" + '\n'.join(stats['unparsed']))
+            unparsed_note = ("\n\n⚠ " + str(len(stats['unparsed'])) + " job(s) — \"" + TAX_JURISDICTION_UNCONFIRMED
+                              + "\" — counted in full above, but grouped together in the city breakdown because "
+                              "the jurisdiction isn't confirmed. Review and correct the property address/city "
+                              "manually:\n" + '\n'.join(stats['unparsed']))
         body = (
-            f"Monthly tax report for {stats['period_label']} (cash basis — signed invoices only, "
-            f"Styling With Jas only).\n\n"
+            f"Monthly tax report for {stats['period_label']} (cash basis — every Styling With Jas staging job "
+            f"with a payment received this month, signature status flagged per line, not filtered out).\n\n"
             f"Gross Receipts: ${stats['gross_receipts']:,.2f}\n"
             f"Sales Tax Collected: ${stats['tax_collected']:,.2f}\n"
             f"Retailing (Rental, incl. extensions ${stats['extension_total']:,.2f}): ${stats['retail_total']:,.2f}\n"
@@ -1259,8 +1299,9 @@ def send_monthly_tax_report_email(summary_csv, detail_csv, stats):
             f"Full breakdown attached as CSV. Category tags and B&O amounts are a best-effort "
             f"allocation per the method documented in TAX_METHODOLOGY.md, not CPA-certified — "
             f"have this reviewed before filing. This has NOT been marked reviewed — do that from "
-            f"/tax-report.html before treating it as final."
-            f"{unparsed_note}\n\n"
+            f"/tax-report.html before treating it as final (reconciling actual bank/Stripe deposits "
+            f"against this total is required before that gate opens)."
+            f"{unsigned_note}{unparsed_note}\n\n"
             f"See the full interactive report (including reconciliation and the pre-filing pull) "
             f"anytime at /tax-report.html."
         )

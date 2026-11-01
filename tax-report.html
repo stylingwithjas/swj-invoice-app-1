@@ -62,6 +62,8 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
 .period-btn.primary { background:var(--ink); color:#fff; border:none; }
 
 .disclaimer { font-size:10.5px; color:var(--taupe-dk); line-height:1.6; background:var(--warm); border-radius:8px; padding:10px 12px; margin-top:12px; }
+.warn-note { font-size:12px; color:var(--ink); line-height:1.7; background:var(--amber-lt); border:1px solid var(--amber); border-radius:8px; padding:12px 14px; }
+.warn-note strong { color:var(--amber); }
 
 .stat-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:14px; margin-top:6px; }
 .stat-item .lbl { font-size:10px; color:var(--taupe-dk); text-transform:uppercase; letter-spacing:0.6px; }
@@ -193,7 +195,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
       <button class="period-btn" id="test-email-btn" onclick="sendTestEmail()">✉ Send Last Month's Report by Email</button>
     </div>
     <div class="disclaimer">
-      Basis: <strong>cash</strong> — revenue and tax are attributed to the month payment was actually received, not the invoice date. Only <strong>signed/approved</strong> invoices are included (unsigned quotes and declined proposals are excluded). Styling With Jas invoices only — GS Photography has its own separate numbering and isn't included here. Category tags (Retailing vs. Service &amp; Other) and B&amp;O amounts are a best-effort allocation per the method documented in TAX_METHODOLOGY.md, not a CPA-certified classification — please have this reviewed before filing. Card processing fees are a benchmark estimate (2.9% + $0.30 per card payment) — this app has no live Stripe fee feed, so check your Stripe dashboard for actuals.
+      Basis: <strong>cash</strong> — revenue and tax are attributed to the month payment was actually received, not the invoice date. <strong>Every Styling With Jas staging job with a payment received this month is included</strong> — signature status is shown as a flag on each line, not a filter; an unsigned-but-paid job is counted in full and flagged for paperwork follow-up, never dropped. A job with no payment event this period (a draft, an open quote, a declined/closed-lost proposal) stays out because it has no payment, not because of its signature. Styling With Jas invoices only — GS Photography has its own separate numbering and isn't included here. Category tags (Retailing vs. Service &amp; Other) and B&amp;O amounts are a best-effort allocation per the method documented in TAX_METHODOLOGY.md, not a CPA-certified classification — please have this reviewed before filing. Card processing fees are a benchmark estimate (2.9% + $0.30 per card payment) — this app has no live Stripe fee feed, so check your Stripe dashboard for actuals.
       <br><br>
       This report is also emailed automatically to info@stylingwithjas.com on the 1st of every month, covering the month that just ended. The button above triggers that exact same email on demand, for testing.
     </div>
@@ -203,6 +205,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
     <div class="card-hdr">Monthly Review</div>
     <div id="review-status" style="font-size:13px;margin-bottom:10px"></div>
     <button class="period-btn primary" id="review-btn" onclick="markReviewed()">Mark This Report Reviewed</button>
+    <div id="review-gate-note" style="font-size:11.5px;color:var(--red);margin-top:8px"></div>
   </div>
 
   <div class="card" id="summary-card" style="display:none">
@@ -242,11 +245,12 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
       <div class="empty-note" id="exempt-empty" style="display:none">No exemptions recorded this period. (Mark one from the invoice's Payment section on the board if a sale is exempt.)</div>
     </div>
 
-    <div id="unparsed-note" style="display:none" class="disclaimer" style="margin-top:14px"></div>
+    <div id="unsigned-note" style="display:none;margin-top:14px"></div>
+    <div id="unparsed-note" style="display:none;margin-top:14px"></div>
   </div>
 
   <div class="card" id="reconcile-card" style="display:none">
-    <div class="card-hdr">Reconciliation — App Totals vs. Actual Deposits</div>
+    <div class="card-hdr">Reconciliation — App Totals vs. Actual Deposits <span style="color:var(--red);font-weight:400;text-transform:none;letter-spacing:0;font-size:11px">Required before this report can be marked reviewed</span></div>
     <div class="period-row">
       <div class="period-field">
         <label>Actual bank/Stripe deposits this period</label>
@@ -254,6 +258,10 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
       </div>
     </div>
     <div id="reconcile-result" style="margin-top:12px;font-size:13px"></div>
+    <div class="period-field" id="reconcile-explain-wrap" style="display:none;margin-top:10px;max-width:520px">
+      <label>Difference doesn't reconcile — explain before marking reviewed</label>
+      <textarea id="f-reconcile-explain" rows="2" style="padding:8px 10px;border:0.5px solid var(--taupe-lt);border-radius:8px;font-size:13px;font-family:inherit;resize:vertical" oninput="renderReconciliation()" placeholder="e.g. a payment landed in the bank one day after month-end and will show next period"></textarea>
+    </div>
     <div class="disclaimer" style="margin-top:10px">Entered manually from your bank/Stripe statements — this app doesn't have a live feed into either. A month is never final from the app's numbers alone.</div>
   </div>
 
@@ -286,7 +294,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
       <table>
         <thead>
           <tr>
-            <th>Invoice #</th><th>Inv. Date</th><th>Due Date</th><th>Customer</th><th>City</th><th>Zip</th>
+            <th>Invoice #</th><th>Inv. Date</th><th>Due Date</th><th>Customer</th><th>Signature</th><th>City</th><th>Zip</th>
             <th>Line Item</th><th>Category</th><th>Item Amt</th><th>Taxable</th><th>Exemption</th>
             <th>Tax Rate</th><th>Tax Total</th><th>Subtotal</th><th>Grand Total</th>
             <th>Received This Period</th><th>Payment Method</th><th>Processing Fee</th>
@@ -307,6 +315,9 @@ const _sb = supabase.createClient(
 );
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+// Fix spec (Nov 2026): a job whose jurisdiction can't be confirmed is flagged clearly, not
+// merged into a vague "(Unparsed)" bucket — it still counts fully in every total below.
+const JURISDICTION_UNCONFIRMED = 'Jurisdiction unconfirmed — review';
 
 function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function fmtMoney(n){return '$'+Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
@@ -350,7 +361,7 @@ function parseAddress(address){
 // creation; older invoices only have them inside the free-text address, so fall back to the
 // same best-effort parse the report has always used for those.
 function resolveLocation(inv, d){
-  if(d.price_led_tax && d.zip) return { city: d.city||'(Unparsed)', zip: d.zip, ok: !!d.city };
+  if(d.price_led_tax && d.zip) return { city: d.city||'', zip: d.zip, ok: !!d.city };
   return parseAddress(inv.address || d.address || '');
 }
 
@@ -487,7 +498,12 @@ async function runReport(){
       .not('invnum','like','DRAFT-%').not('invnum','like','GS%').neq('invnum','PRICING_DEFAULTS').neq('invnum','TIER_PRICING').not('invnum','like','TAX_REVIEW_%').neq('invnum','FINANCE_CONFIG').neq('invnum','FINANCE_OVERRIDES')
       .order('created_at',{ascending:false}).limit(1000);
     if(error) throw error;
-    invoices = (data||[]).filter(inv => (inv.data||{}).signed === true);
+    // Revenue rule (fix spec, Nov 2026): the audit record must show every dollar received.
+    // Signature status is a flag on a line, never a filter that removes it — DOR taxes gross
+    // receipts whether or not a contract got signed in the app. A declined/closed-lost or
+    // draft job still stays out, but only because it has no payment event this period, never
+    // because of its signed flag (see the events.length check below).
+    invoices = data||[];
   }catch(e){
     alert('Could not load invoices: '+e.message);
     return;
@@ -501,14 +517,21 @@ async function runReport(){
   const unparsedAddrs = [];
   const savingsRows = [];
   const exemptRows = [];
+  const unsignedInvnums = [];
 
   invoices.forEach(inv=>{
     const d = inv.data || {};
     const client = inv.client || d.client || 'Client';
     const loc = resolveLocation(inv, d);
-    if(!loc.ok) unparsedAddrs.push(`#${inv.invnum} — ${inv.address||d.address||'(no address)'}`);
-    const cityKey = loc.city || '(Unparsed)';
+    const cityKey = loc.city || JURISDICTION_UNCONFIRMED;
     const isExempt = !!d.exempt_reason;
+    // Signature is a flag on the line, never a filter — see the invoices query above.
+    const signedFlag = d.signed === true;
+    const signedLabel = signedFlag ? 'Signed' : 'UNSIGNED — needs signature';
+    // Only flag unsigned/unconfirmed-jurisdiction for a job that actually has receipts THIS
+    // period (main payment and/or a paid extension) — a job with no activity this period has
+    // nothing to flag in THIS report, even if its address/signature is still outstanding.
+    let periodReceivedTotal = 0;
 
     const events = paymentEvents(d).filter(e => e.date >= periodStart && e.date <= periodEnd);
     if(events.length){
@@ -520,6 +543,7 @@ async function runReport(){
       const periodTax = isExempt ? 0 : periodReceived * taxFraction;
       grossReceipts += periodReceived;
       taxCollected += periodTax;
+      periodReceivedTotal += periodReceived;
 
       events.forEach(e=>{ if(e.method==='Stripe (Card)') cardFees += e.amount*STRIPE_FEE_PCT + STRIPE_FEE_FLAT; });
 
@@ -580,7 +604,7 @@ async function runReport(){
           amount: li.price, taxable: isExempt?'No':'Yes', exemption: isExempt?(d.exempt_reason+(d.exempt_cert?' ('+d.exempt_cert+')':'')):'',
           taxRate, taxTotal: split.tax, subtotal: split.subtotal, grand: split.grand,
           received: i===0?periodReceived:null, method: i===0?methods:'',
-          showTotalsOnce: i===0,
+          showTotalsOnce: i===0, signed: signedLabel,
         });
       });
       if(d.pet_deposit && d.pet_deposit.enabled){
@@ -588,7 +612,7 @@ async function runReport(){
           invnum: inv.invnum, invdate: d.invdate||inv.invdate||'', dueDate, client, city:loc.city, zip:loc.zip,
           desc: 'Refundable Pet Deposit', category: 'deposit (not revenue)', amount: parseFloat(d.pet_deposit.amount)||0,
           taxable: 'No', exemption: 'Refundable deposit — not a sale',
-          taxRate: 0, taxTotal: 0, subtotal: 0, grand: 0, received: null, method: '', showTotalsOnce:false,
+          taxRate: 0, taxTotal: 0, subtotal: 0, grand: 0, received: null, method: '', showTotalsOnce:false, signed: signedLabel,
         });
       }
     }
@@ -608,6 +632,7 @@ async function runReport(){
       const extTax = isExempt ? 0 : (r>0 ? amt - amt/(1+r) : 0);
       const extSubtotal = amt - extTax;
       grossReceipts += amt; taxCollected += extTax;
+      periodReceivedTotal += amt;
       retailTotal += extSubtotal; extensionTotal += extSubtotal;
       const method = ext.payment_id ? 'Stripe (Card)' : 'Other/Manual';
       if(method==='Stripe (Card)') cardFees += amt*STRIPE_FEE_PCT + STRIPE_FEE_FLAT;
@@ -624,9 +649,21 @@ async function runReport(){
         desc: `Extension (${ext.days||'?'} days, of #${inv.invnum})`, category: isExempt?'exempt':'extension',
         amount: extSubtotal, taxable: isExempt?'No':'Yes', exemption: isExempt?(d.exempt_reason+(d.exempt_cert?' ('+d.exempt_cert+')':'')):'',
         taxRate, taxTotal: extTax, subtotal: extSubtotal, grand: amt,
-        received: amt, method, showTotalsOnce: true,
+        received: amt, method, showTotalsOnce: true, signed: signedLabel,
       });
     });
+
+    // Flag unsigned/unconfirmed-jurisdiction once per job, only when that job actually has
+    // receipts counted THIS period (main payment and/or extension) — never for a job sitting
+    // quiet this month, and never silently, since both are still counted in full above.
+    if(periodReceivedTotal > 0.009){
+      if(!signedFlag) unsignedInvnums.push(`#${inv.invnum} — ${client} (${fmtMoney(periodReceivedTotal)})`);
+      if(!loc.ok){
+        const blankRateSuspect = Math.abs((parseFloat(d.taxrate)||0) - 10.25) < 0.005;
+        unparsedAddrs.push(`#${inv.invnum} — ${client} — ${inv.address||d.address||'(no address)'}`
+          + (blankRateSuspect ? ' — rate shown is the 10.25% blank-form default, not a confirmed jurisdiction rate' : ''));
+      }
+    }
   });
 
   const boRetail = retailTotal * BO_RETAIL_RATE;
@@ -637,7 +674,7 @@ async function runReport(){
     period: `${MONTHS[month-1]} ${year}`, periodKey: `${year}-${pad2(month)}`,
     grossReceipts, taxCollected, retailTotal, serviceTotal, extensionTotal, cardFees, netRevenue,
     boRetail, boService, boTotal: boRetail+boService,
-    cityMap, unparsedAddrs, exemptRows,
+    cityMap, unparsedAddrs, exemptRows, unsignedInvnums,
     totalTaxSaved, totalExtraBO, totalNetGain: totalTaxSaved-totalExtraBO, savingsRows,
   };
   _lastDetail = detailRows;
@@ -675,7 +712,7 @@ function renderSummary(){
     cityBody.innerHTML = cities.map(c=>{
       const row = s.cityMap[c];
       return `<tr>
-        <td>${esc(c)}${c==='(Unparsed)'?' <span class="flag">⚠</span>':''}</td>
+        <td>${esc(c)}${c===JURISDICTION_UNCONFIRMED?' <span class="flag">⚠</span>':''}</td>
         <td>${esc([...row.rates].join(', '))}</td>
         <td>${fmtMoney(row.taxable)}</td>
         <td>${fmtMoney(row.tax)}</td>
@@ -695,10 +732,20 @@ function renderSummary(){
     </tr>`).join('');
   }
 
+  const unsignedNote = document.getElementById('unsigned-note');
+  if(s.unsignedInvnums.length){
+    unsignedNote.style.display = 'block';
+    unsignedNote.className = 'warn-note';
+    unsignedNote.innerHTML = `<strong>⚠ ${s.unsignedInvnums.length} job(s) this period are paid but have no signed contract on file</strong> — counted in full above, per line, not dropped. Follow up for paperwork:<br>${s.unsignedInvnums.map(esc).join('<br>')}`;
+  } else {
+    unsignedNote.style.display = 'none';
+  }
+
   const unparsedNote = document.getElementById('unparsed-note');
   if(s.unparsedAddrs.length){
     unparsedNote.style.display = 'block';
-    unparsedNote.innerHTML = `<strong>⚠ ${s.unparsedAddrs.length} address(es) couldn't be confidently parsed for city</strong> — grouped under "(Unparsed)" above. Please review and correct manually:<br>${s.unparsedAddrs.map(esc).join('<br>')}`;
+    unparsedNote.className = 'warn-note';
+    unparsedNote.innerHTML = `<strong>⚠ ${s.unparsedAddrs.length} job(s) — "${JURISDICTION_UNCONFIRMED}"</strong> — counted in full in every total above, but grouped together in the city table because the jurisdiction isn't confirmed. Review and correct the property address/city manually:<br>${s.unparsedAddrs.map(esc).join('<br>')}`;
   } else {
     unparsedNote.style.display = 'none';
   }
@@ -710,47 +757,81 @@ function renderSummary(){
 // (a system/config row in the invoices table, excluded from every real-invoice list/total by
 // the same filters used everywhere else), since there's no separate table for this and no
 // per-user accounts to attach a review to.
+let _lastReviewData = null;
+
 async function renderReview(periodKey){
   document.getElementById('review-card').style.display = 'block';
   const statusEl = document.getElementById('review-status');
   const btn = document.getElementById('review-btn');
   statusEl.textContent = 'Checking…';
+  document.getElementById('f-actual-deposits').value = '';
+  document.getElementById('f-reconcile-explain').value = '';
   try{
     const { data } = await _sb.from('invoices').select('data').eq('invnum', `TAX_REVIEW_${periodKey}`).maybeSingle();
-    if(data && data.data && data.data.reviewed){
-      statusEl.innerHTML = `✓ Reviewed on ${esc(data.data.reviewed_at ? new Date(data.data.reviewed_at).toLocaleString('en-US',{dateStyle:'medium',timeStyle:'short'}) : '')}`;
+    _lastReviewData = (data && data.data) || null;
+    if(_lastReviewData && _lastReviewData.reviewed){
+      const reconLine = _lastReviewData.reconciled_actual!=null
+        ? `<br>Reconciliation on file: actual deposits ${fmtMoney(_lastReviewData.reconciled_actual)}`
+          + (_lastReviewData.reconciled_clean ? ' — clean.' : ` — diverged by ${fmtMoney(Math.abs(_lastReviewData.reconciled_diff||0))}, explained as: "${esc(_lastReviewData.reconciled_explain||'')}"`)
+        : '';
+      statusEl.innerHTML = `✓ Reviewed on ${esc(_lastReviewData.reviewed_at ? new Date(_lastReviewData.reviewed_at).toLocaleString('en-US',{dateStyle:'medium',timeStyle:'short'}) : '')}${reconLine}`;
       statusEl.style.color = 'var(--green)';
-      btn.textContent = 'Mark Reviewed Again'; btn.disabled = false;
+      btn.textContent = 'Mark Reviewed Again';
+      // Prefill from the saved review so the figures that justified passing the gate stay visible.
+      if(_lastReviewData.reconciled_actual!=null) document.getElementById('f-actual-deposits').value = _lastReviewData.reconciled_actual;
+      if(_lastReviewData.reconciled_explain) document.getElementById('f-reconcile-explain').value = _lastReviewData.reconciled_explain;
     } else {
       statusEl.innerHTML = '⚠ Not yet reviewed — category tags and B&amp;O amounts are a best-effort allocation. Confirm the category mappings below before treating this as final or filing from it.';
       statusEl.style.color = 'var(--amber)';
-      btn.textContent = 'Mark This Report Reviewed'; btn.disabled = false;
+      btn.textContent = 'Mark This Report Reviewed';
     }
-  }catch(e){ statusEl.textContent = ''; }
+  }catch(e){ statusEl.textContent = ''; _lastReviewData = null; }
 }
 
 async function markReviewed(){
   const periodKey = _lastSummary && _lastSummary.periodKey;
   if(!periodKey) return;
+  const raw = document.getElementById('f-actual-deposits').value;
+  const explain = (document.getElementById('f-reconcile-explain').value||'').trim();
+  if(raw===''){ alert('Enter actual bank/Stripe deposits in the Reconciliation card before marking this report reviewed.'); return; }
+  const actual = parseFloat(raw)||0;
+  const diff = actual - _lastSummary.grossReceipts;
+  const clean = Math.abs(diff) < 1;
+  if(!clean && !explain){ alert("The reconciliation difference isn't explained yet — add a note in the Reconciliation card before marking this report reviewed."); return; }
   const btn = document.getElementById('review-btn');
   btn.disabled = true;
   try{
     await _sb.from('invoices').upsert({
       invnum: `TAX_REVIEW_${periodKey}`, client: `TAX_REVIEW_${periodKey}`, address: '',
       invdate: new Date().toISOString().split('T')[0],
-      data: { reviewed: true, reviewed_at: new Date().toISOString() },
+      data: {
+        reviewed: true, reviewed_at: new Date().toISOString(),
+        reconciled_actual: actual, reconciled_diff: diff, reconciled_clean: clean, reconciled_explain: explain,
+      },
     }, { onConflict: 'invnum' });
     await renderReview(periodKey);
+    renderReconciliation();
   }catch(e){ alert('Could not save review status: '+e.message); btn.disabled = false; }
 }
 
-// Phase 5.3 reconciliation — purely a manual comparison; this app has no live bank/Stripe
-// feed, so a month is never treated as final from app totals alone.
+// Fix spec (Nov 2026): reconciliation is required, not optional, before a report can be
+// marked reviewed — purely a manual comparison, since this app has no live bank/Stripe feed.
 function renderReconciliation(){
   if(!_lastSummary) return;
   const el = document.getElementById('reconcile-result');
+  const explainWrap = document.getElementById('reconcile-explain-wrap');
+  const explainEl = document.getElementById('f-reconcile-explain');
+  const gateNote = document.getElementById('review-gate-note');
+  const btn = document.getElementById('review-btn');
   const raw = document.getElementById('f-actual-deposits').value;
-  if(raw===''){ el.innerHTML = ''; return; }
+
+  if(raw===''){
+    el.innerHTML = '';
+    explainWrap.style.display = 'none';
+    if(btn) btn.disabled = true;
+    if(gateNote) gateNote.textContent = 'Enter actual bank/Stripe deposits in the Reconciliation card above before this report can be marked reviewed.';
+    return;
+  }
   const actual = parseFloat(raw)||0;
   const appTotal = _lastSummary.grossReceipts;
   const diff = actual - appTotal;
@@ -759,6 +840,11 @@ function renderReconciliation(){
     + (clean
       ? `<strong style="color:var(--green)">✓ Reconciled (within $1)</strong>`
       : `<strong style="color:var(--red)">⚠ Diverges by ${fmtMoney(Math.abs(diff))}</strong> — do not treat this month as final until this is explained.`);
+
+  explainWrap.style.display = clean ? 'none' : 'block';
+  const explained = clean || (explainEl.value||'').trim()!=='';
+  if(btn) btn.disabled = !explained;
+  if(gateNote) gateNote.textContent = explained ? '' : "Explain the reconciliation difference in the Reconciliation card above before this report can be marked reviewed.";
 }
 
 // Phase 5.3 pre-filing pull — every filing number in one place, with the reconciliation
@@ -822,7 +908,8 @@ function renderDetail(){
       <td>${esc(r.invdate)}</td>
       <td>${esc(r.dueDate)}</td>
       <td>${esc(r.client)}</td>
-      <td>${esc(r.city)||'<span class="flag">?</span>'}</td>
+      <td>${r.signed==='Signed'?esc(r.signed):`<span class="flag">${esc(r.signed)}</span>`}</td>
+      <td>${esc(r.city)||`<span class="flag">${JURISDICTION_UNCONFIRMED}</span>`}</td>
       <td>${esc(r.zip)}</td>
       <td>${esc(r.desc)}</td>
       <td><span class="pill ${r.category==='service'?'service':(r.category.startsWith('deposit')||r.category==='exempt'?'':'retailing')}">${esc(r.category)}</span></td>
@@ -871,14 +958,15 @@ function exportSummaryCsv(){
   rows.push(['Total B&O', s.boTotal.toFixed(2)]);
   rows.push(['Exempt Sales Count', String(s.exemptRows.length)]);
   rows.push(['Exempt Sales Total', s.exemptRows.reduce((sum,r)=>sum+r.amount,0).toFixed(2)]);
+  rows.push(['Unsigned Jobs Count (counted in totals, flagged for paperwork)', String(s.unsignedInvnums.length)]);
   downloadCsv(toCsv(header, rows), `SWJ_Tax_Summary_${s.period.replace(' ','_')}.csv`);
 }
 
 function exportDetailCsv(){
   if(!_lastDetail){ alert('Run the report first.'); return; }
-  const header = ['Invoice #','Invoice Date','Due Date','Customer','City','Zip','Line Item','Category','Item Amount','Taxable','Exemption Reason','Tax Rate','Invoice Tax Total','Invoice Subtotal','Invoice Grand Total','Received This Period','Payment Method','Processing Fee (benchmark est.)'];
+  const header = ['Invoice #','Invoice Date','Due Date','Customer','Signature','City','Zip','Line Item','Category','Item Amount','Taxable','Exemption Reason','Tax Rate','Invoice Tax Total','Invoice Subtotal','Invoice Grand Total','Received This Period','Payment Method','Processing Fee (benchmark est.)'];
   const rows = _lastDetail.map(r=>[
-    r.invnum, r.invdate, r.dueDate, r.client, r.city, r.zip, r.desc, r.category, r.amount.toFixed(2), r.taxable, r.exemption,
+    r.invnum, r.invdate, r.dueDate, r.client, r.signed, r.city, r.zip, r.desc, r.category, r.amount.toFixed(2), r.taxable, r.exemption,
     r.showTotalsOnce?r.taxRate.toFixed(2)+'%':'', r.showTotalsOnce?r.taxTotal.toFixed(2):'', r.showTotalsOnce?r.subtotal.toFixed(2):'', r.showTotalsOnce?r.grand.toFixed(2):'',
     r.received!=null?r.received.toFixed(2):'', r.method,
     r.showTotalsOnce ? (r.method&&r.method.includes('Stripe') ? ((r.received||0)*STRIPE_FEE_PCT+STRIPE_FEE_FLAT).toFixed(2) : '0.00') : '',
@@ -905,6 +993,8 @@ function exportPreFilingCsv(){
     ['Net Revenue', s.netRevenue.toFixed(2)],
     ['Exemptions — count', String(s.exemptRows.length)],
     ['Exemptions — total', s.exemptRows.reduce((sum,r)=>sum+r.amount,0).toFixed(2)],
+    ['Unsigned jobs — count (counted in totals above, flagged for paperwork)', String(s.unsignedInvnums.length)],
+    ['Jurisdiction unconfirmed — count (counted in totals above, flagged for review)', String(s.unparsedAddrs.length)],
     ['Actual Bank/Stripe Deposits (entered)', reconcileRaw||'(not entered)'],
     ['Reconciliation Status', reconcileRaw==='' ? 'Not entered' : (Math.abs((parseFloat(reconcileRaw)||0)-s.grossReceipts)<1 ? 'Clean' : 'DIVERGES — review before filing')],
   ];
