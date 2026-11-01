@@ -582,6 +582,25 @@ async function markExtensionPaid(idx){
     { confirmLabel:'Mark Paid' }
   );
   if(!ok) return;
+  // Prefer the atomic mark_extension_paid() DB function (sql/mark_extension_paid.sql, live
+  // in production as of Nov 1 2026) — a single read+change+write step the database
+  // guarantees can't be interleaved with another save to the same invoice, closing the
+  // race that dropped Hill's EXT1/EXT2 flags in the first place. Falls back to the old
+  // whole-row upsert only if the RPC call itself fails for some reason.
+  try{
+    const { error } = await _sb.rpc('mark_extension_paid', {
+      p_invnum: cur.invnum, p_ext_invnum: ext.invnum, p_paid_date: paidDate,
+      p_amount: enteredAmount, ...(viaStripe ? { p_manual_method:'stripe' } : {}),
+    });
+    if(error) throw error;
+    ext.paid = true; ext.paid_date = paidDate; ext.amount = enteredAmount;
+    if(viaStripe) ext.manual_method = 'stripe';
+    renderRawLookup();
+    alert('Saved (atomic DB update). Re-run the Tax Report for that period on tax-report.html to see it reflected.');
+    return;
+  }catch(e){
+    console.warn('mark_extension_paid RPC failed, falling back to whole-row upsert:', e.message);
+  }
   ext.paid = true;
   ext.paid_date = paidDate;
   ext.amount = enteredAmount;
