@@ -321,7 +321,7 @@ tr.paid-row { opacity:0.55; }
   <a class="swj-sb-link" href="/today.html">🏠 Today</a>
   <a class="swj-sb-link" href="/board.html">📋 Board</a>
   <a class="swj-sb-link" href="/shop.html">🛍 Shopping</a>
-  <a class="swj-sb-link" href="/archive.html">🧾 Invoices</a>
+  <a class="swj-sb-link" href="/index.html">✚ New Invoice</a>
   <a class="swj-sb-link on" href="/payroll.html">💼 Payroll</a>
   <a class="swj-sb-link" href="/tax-report.html">📊 Reports</a>
   <div class="swj-sb-spacer"></div>
@@ -330,7 +330,7 @@ tr.paid-row { opacity:0.55; }
 
 <nav class="swj-bottom-nav">
   <a class="swj-bn-link" href="/today.html"><span class="swj-bn-ic">🏠</span>Today</a>
-  <a class="swj-bn-link" href="/archive.html"><span class="swj-bn-ic">🧾</span>Invoices</a>
+  <a class="swj-bn-link" href="/index.html"><span class="swj-bn-ic">✚</span>Invoice</a>
   <a class="swj-bn-link" href="/board.html"><span class="swj-bn-ic">📋</span>Board</a>
   <a class="swj-bn-link on" href="/payroll.html"><span class="swj-bn-ic">💼</span>Payroll</a>
   <button class="swj-bn-link" onclick="swjToggleMore()" type="button"><span class="swj-bn-ic">⋯</span>More</button>
@@ -341,7 +341,7 @@ tr.paid-row { opacity:0.55; }
     <div class="swj-more-handle"></div>
     <a class="swj-more-link" href="/shop.html">🛍 Shopping</a>
     <a class="swj-more-link" href="/tax-report.html">📊 Reports (Tax Report)</a>
-    <a class="swj-more-link" href="/index.html">✚ New Invoice</a>
+    <a class="swj-more-link" href="/archive.html">🧾 Invoices (Archive)</a>
     <a class="swj-more-link" href="/luxury.html">✚ New Luxury Invoice</a>
     <a class="swj-more-link" href="/gs-invoice.html">🖤 GS Photography Invoice</a>
     <a class="swj-more-link" href="/hours.html">🕒 My Hours</a>
@@ -433,7 +433,10 @@ tr.paid-row { opacity:0.55; }
 
     <div class="pr-row2">
       <div class="pr-card">
-        <div class="pr-card-ttl">◐ Revenue Allocation <span class="info-ic" title="Each slice is from the same formulas shown below in &quot;See how this was calculated&quot; — nothing here is a separate calculation.">ⓘ</span></div>
+        <div class="pr-card-ttl" style="justify-content:space-between">
+          <span>◐ Revenue Allocation <span class="info-ic" title="Per project — where this one job's money should go. Pick a different job below; the KPI cards above stay for the whole month.">ⓘ</span></span>
+          <select id="pr-donut-job-picker" onchange="renderPrDonut()" style="font-size:11px;padding:5px 8px;border-radius:7px;border:0.5px solid var(--taupe-lt);font-family:inherit;max-width:180px"></select>
+        </div>
         <div class="pr-donut-wrap">
           <div class="pr-donut" id="pr-donut"><div class="pr-donut-center" id="pr-donut-center"></div></div>
           <div class="pr-legend" id="pr-legend"></div>
@@ -1809,35 +1812,64 @@ function renderPrKpiRow(){
     </div>`).join('');
 }
 
-// Revenue Allocation donut (§ Finance & Allocation) — slices are Movers/Truck/Warehouse/
-// Taxes/[Stripe fee if >0]/Net-Keep(capped target)/Inventory. These sum to exactly Revenue:
-// Net/Keep here is the CAPPED keep target (what Jasmine actually takes), not the full
-// operating net — operating net = keepTarget + inventoryBudget already, so charting both
-// operatingNet AND inventoryBudget as separate slices would double-count the inventory
-// portion. This is the one place that distinction matters; the KPI card above still shows
-// the full operating net as its own headline figure.
+// Revenue Allocation donut (§ Finance & Allocation) — PER PROJECT, not month-wide. Gabe,
+// Nov 1: the KPI cards above stay for the whole month ("the total is right for the months"),
+// but this card should show one job at a time — defaulting to the most recent one — "so
+// Jasmine can look over and get an idea how she should spend the money per job." Reuses
+// prBuildProjectList()'s already-verified per-job math (the same numbers Project Budgets'
+// detail drill-in shows) rather than a second, separately-written calculation.
+// Slices sum to exactly that job's revenue: Net/Keep here is the CAPPED per-job keep target
+// (what she actually takes from THIS job), not its full net — net = keepTarget + inventory
+// already, so charting both as separate slices would double-count the inventory portion.
 const PR_DONUT_COLORS = { movers:'#8a7355', truck:'#4a7c50', warehouse:'#c9a96e', taxes:'#a29c96', stripe:'#b53535', keep:'#2f6b3f', inventory:'#e8dcc5' };
+function prDonutProjectList(){
+  const projects = prBuildProjectList();
+  // Most recent first: this month's real jobs by staging date descending, then upcoming/
+  // projected jobs by staging date ascending (soonest-upcoming next) — "the last one" reads
+  // naturally as the most recently active real job, not a far-future projection.
+  const thisMonth = projects.filter(p=>p.status==='this month').sort((a,b)=>(b.startdate||'').localeCompare(a.startdate||''));
+  const upcoming = projects.filter(p=>p.status!=='this month').sort((a,b)=>(a.startdate||'').localeCompare(b.startdate||''));
+  return [...thisMonth, ...upcoming];
+}
 function renderPrDonut(){
-  const s = _lastFinanceSummary;
   const donut = document.getElementById('pr-donut');
   const center = document.getElementById('pr-donut-center');
   const legend = document.getElementById('pr-legend');
-  if(!s || !donut) return;
-  const rev = s.revenue;
+  const picker = document.getElementById('pr-donut-job-picker');
+  if(!_lastFinanceSummary || !donut) return;
+  const projects = prDonutProjectList();
+
+  if(picker){
+    const prevValue = picker.value;
+    picker.innerHTML = projects.map(p=>`<option value="${esc(p.invnum)}">${esc(p.client)} #${esc(p.invnum)}${p.status!=='this month'?' (upcoming)':''}</option>`).join('');
+    // Keep whatever was selected if it's still in the list; otherwise default to the first
+    // (most recent) job — never silently jump away from what the user was looking at.
+    if(projects.some(p=>p.invnum===prevValue)) picker.value = prevValue;
+  }
+
+  if(!projects.length){
+    donut.style.background = '#e7e1d9';
+    center.innerHTML = `<div class="dv">${finMoney(0)}</div><div class="dl">Revenue</div>`;
+    legend.innerHTML = '<div class="empty-note">No jobs to allocate this period — staged or paid jobs for the selected month will appear here.</div>';
+    return;
+  }
+
+  const p = projects.find(x=>x.invnum===picker?.value) || projects[0];
+  const rev = p.revenue;
   const slices = [
-    { key:'movers', label:'Movers (On-Site/Destage)', amt:s.moverCost },
-    { key:'truck', label:'Truck', amt:s.truckCost },
-    { key:'warehouse', label:'Warehouse', amt:s.warehouseCost },
-    { key:'taxes', label:'Taxes', amt:s.taxSetAside },
+    { key:'movers', label:`Movers${p.moverIsActual?' (actual)':' (planning avg)'}`, amt:p.mover },
+    { key:'truck', label:'Truck (estimate)', amt:p.truck },
+    { key:'warehouse', label:`Warehouse (split ÷${p.projectCount})`, amt:p.warehouseShare },
+    { key:'taxes', label:'Taxes (estimate)', amt:p.taxEst },
   ];
-  if(s.stripeFee>0.009) slices.push({ key:'stripe', label:'Stripe Fee', amt:s.stripeFee });
-  slices.push({ key:'keep', label:'Net / Keep (Actual)', amt:s.keepTarget });
-  slices.push({ key:'inventory', label:'Inventory', amt:s.inventoryBudget });
+  if(p.stripe>0.009) slices.push({ key:'stripe', label:'Stripe Fee', amt:p.stripe });
+  slices.push({ key:'keep', label:'Net / Keep (This Job)', amt:p.keepTarget });
+  slices.push({ key:'inventory', label:"This Job's Share", amt:p.inventory });
 
   if(rev<=0.009){
     donut.style.background = '#e7e1d9';
-    center.innerHTML = `<div class="dv">${finMoney(0)}</div><div class="dl">Revenue</div>`;
-    legend.innerHTML = '<div class="empty-note">No revenue this period to allocate.</div>';
+    center.innerHTML = `<div class="dv">${finMoney(0)}</div><div class="dl">${esc(p.client)}</div>`;
+    legend.innerHTML = '<div class="empty-note">No revenue on this job to allocate.</div>';
     return;
   }
   let acc = 0;
@@ -1847,7 +1879,7 @@ function renderPrDonut(){
     return `${PR_DONUT_COLORS[sl.key]} ${from.toFixed(2)}% ${acc.toFixed(2)}%`;
   });
   donut.style.background = `conic-gradient(${stops.join(',')})`;
-  center.innerHTML = `<div class="dv">${finMoney(rev)}</div><div class="dl">Revenue</div>`;
+  center.innerHTML = `<div class="dv">${finMoney(rev)}</div><div class="dl">${esc(p.client)}</div>`;
   legend.innerHTML = slices.map(sl=>{
     const row = `
     <div class="pr-legend-row">
@@ -1858,22 +1890,23 @@ function renderPrDonut(){
     </div>`;
     // Tithe is a cut OF the Keep slice, not a separate dollar amount on top of it — shown as a
     // sub-line under Keep, never its own pie slice (that would double-count the same revenue).
-    // It's never a flat/hardcoded number: titheAmount = keepTarget * 10%, and keepTarget is
-    // already capped at actual net (and floored at $0) upstream, so a month where costs exceed
-    // revenue — no green, no keep — produces $0 tithe automatically, not a guess.
+    // Never a flat/hardcoded number: tithe = this job's capped keep * 10%, and keepTarget is
+    // already capped at this job's own net (and floored at $0), so a job that lost money
+    // produces $0 tithe automatically, not a guess.
     if(sl.key==='keep'){
-      const inGreen = s.keepTarget > 0.009;
+      const inGreen = p.keepTarget > 0.009;
+      const retained = p.keepTarget - p.tithe;
       return row + `
     <div class="pr-legend-row pr-legend-sub">
       <span class="pr-legend-dot"></span>
-      <span class="pr-legend-name">↳ Tithe — 10% of keep${inGreen?'':' (no keep this month — $0)'}</span>
-      <span class="pr-legend-amt">${finMoney(s.titheAmount)}</span>
+      <span class="pr-legend-name">↳ Tithe — 10% of keep${inGreen?'':' (no keep on this job — $0)'}</span>
+      <span class="pr-legend-amt">${finMoney(p.tithe)}</span>
       <span class="pr-legend-pct"></span>
     </div>
     <div class="pr-legend-row pr-legend-sub">
       <span class="pr-legend-dot"></span>
       <span class="pr-legend-name">↳ Personally retained</span>
-      <span class="pr-legend-amt">${finMoney(s.personallyRetained)}</span>
+      <span class="pr-legend-amt">${finMoney(retained)}</span>
       <span class="pr-legend-pct"></span>
     </div>`;
     }
