@@ -301,6 +301,59 @@ textarea:focus { border-color:var(--gold); background:var(--warm); }
 .swj-more-handle{ width:36px; height:4px; background:#d4cfc9; border-radius:2px; margin:6px auto 12px; }
 .swj-more-link{ display:flex; align-items:center; gap:12px; padding:13px 16px; font-size:14px; color:#1a1814; text-decoration:none; border-radius:10px; }
 .swj-more-link:active{ background:#f5f2ed; }
+
+/* ── Invoice Generator redesign (Nov 1) — page header, Create/Drafts/Recent tabs,
+   collapsible sections, desktop 2-column layout, mobile sticky total bar.
+   Presentation only: every field, id, and onhandler below is unchanged; this only adds
+   collapse/expand chrome and layout around them. ── */
+.gen-hdr{ display:flex; align-items:flex-start; justify-content:space-between; gap:14px; margin:0 0 14px; flex-wrap:wrap; }
+.gen-hdr-left{ display:flex; align-items:flex-start; gap:12px; }
+.gen-hdr-ic{ width:38px; height:38px; border-radius:11px; background:var(--gold-lt,#f5ead8); color:var(--gold-dk,#9d7a44); display:flex; align-items:center; justify-content:center; font-size:17px; flex-shrink:0; }
+.gen-hdr-ttl{ font-family:"Cormorant Garamond",serif; font-size:24px; font-weight:400; color:var(--ink); line-height:1.1; }
+.gen-hdr-sub{ font-size:11.5px; color:var(--taupe); margin-top:3px; }
+
+.gen-tabs{ display:flex; gap:4px; background:var(--warm); border-radius:12px; padding:4px; margin-bottom:14px; overflow-x:auto; scrollbar-width:none; }
+.gen-tabs::-webkit-scrollbar{ display:none; }
+.gen-tab{ flex-shrink:0; padding:9px 15px; border-radius:9px; border:none; background:none; font-family:"Inter",sans-serif; font-size:12px; font-weight:600; color:var(--taupe); cursor:pointer; white-space:nowrap; min-height:38px; }
+.gen-tab.on{ background:var(--gold-lt,#f5ead8); color:var(--gold-dk,#9d7a44); }
+.gen-panel{ display:none; }
+.gen-panel.on{ display:block; }
+
+/* Collapsible section chrome — reuses the drafts-arr rotate animation, scoped to a new
+   class so it can't accidentally affect the unrelated .card-body elsewhere (modals etc). */
+.sec-toggle{ display:flex; align-items:center; gap:10px; flex:1; min-width:0; background:none; border:none; padding:0; cursor:pointer; text-align:left; font-family:"Inter",sans-serif; min-height:44px; }
+.sec-summary{ font-size:11px; color:var(--taupe); font-weight:400; text-transform:none; letter-spacing:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; min-width:0; }
+.sec-arr{ font-size:11px; color:var(--taupe-lt); transition:transform 0.2s; flex-shrink:0; padding:10px; margin:-10px; cursor:pointer; }
+.sec-arr.open{ transform:rotate(180deg); }
+.card-body.collapsible{ display:none; }
+.card-body.collapsible.open{ display:block; }
+@media (min-width:1200px){
+  /* Desktop: every section stays expanded — no accordion, no arrow, full use of the width. */
+  .card-body.collapsible{ display:block !important; }
+  .sec-arr{ display:none; }
+  .sec-summary{ display:none; }
+}
+
+/* Desktop 2-column layout: form left, sticky summary right. */
+@media (min-width:1200px){
+  .gen-grid{ display:grid; grid-template-columns:1fr 360px; gap:22px; align-items:start; }
+  .gen-summary-col{ position:sticky; top:20px; }
+}
+
+/* Mobile sticky total bar — stacks above the existing bottom nav the same way today.html's
+   quick-add bar does (see that page's note on this exact pattern). */
+.gen-sticky-bar{ display:none; }
+@media (max-width:767px){
+  body.has-gen-sticky{ padding-bottom:calc(140px + env(safe-area-inset-bottom,0px)) !important; }
+  .gen-sticky-bar{
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+    position:fixed; left:0; right:0; bottom:calc(58px + env(safe-area-inset-bottom,0px)); z-index:90;
+    background:var(--ink); padding:12px 16px; box-shadow:0 -4px 16px rgba(0,0,0,0.12);
+  }
+  .gen-sticky-total-lbl{ font-size:9px; color:rgba(255,255,255,0.4); text-transform:uppercase; letter-spacing:1px; }
+  .gen-sticky-total-val{ font-family:"Cormorant Garamond",serif; font-size:19px; color:#fff; }
+  .gen-sticky-btn{ background:var(--gold-lt,#f5ead8); color:var(--gold-dk,#9d7a44); border:none; border-radius:10px; padding:11px 16px; font-size:12.5px; font-weight:600; font-family:"Inter",sans-serif; cursor:pointer; min-height:44px; }
+}
 </style>
 </head>
 <body>
@@ -366,13 +419,27 @@ textarea:focus { border-color:var(--gold); background:var(--warm); }
 
 <div class="content">
 
+  <div class="gen-hdr">
+    <div class="gen-hdr-left">
+      <div class="gen-hdr-ic">📄</div>
+      <div>
+        <div class="gen-hdr-ttl">Invoice Generator</div>
+        <div class="gen-hdr-sub">Create, edit, and send staging invoices with payment links.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="gen-tabs">
+    <button class="gen-tab on" onclick="genShowTab('create')">Create Invoice</button>
+    <button class="gen-tab" onclick="genShowTab('drafts')">Saved Drafts</button>
+    <button class="gen-tab" onclick="genShowTab('recent')">Recent Invoices</button>
+  </div>
+
+  <div class="gen-panel" id="gen-panel-recent">
   <!-- RECENT INVOICES -->
   <div class="card" id="recent-card">
     <div class="card-hdr" style="padding-bottom:12px">
-      <button class="drafts-toggle" onclick="toggleRecent()">
-        <span class="sec-lbl">Recent Invoices</span>
-        <span class="drafts-arr" id="recent-arr">▼</span>
-      </button>
+      <span class="sec-lbl">Recent Invoices</span>
     </div>
     <div class="drafts-body open" id="recent-body">
       <div style="padding:0 18px 14px">
@@ -381,27 +448,31 @@ textarea:focus { border-color:var(--gold); background:var(--warm); }
       </div>
     </div>
   </div>
+  </div><!-- /gen-panel-recent -->
 
+  <div class="gen-panel" id="gen-panel-drafts">
   <!-- SAVED DRAFTS (collapsible) -->
   <div class="card" id="drafts-card">
     <div class="card-hdr" style="padding-bottom:12px">
-      <button class="drafts-toggle" onclick="toggleDrafts()">
-        <span class="sec-lbl">Saved Drafts</span>
-        <span class="drafts-arr" id="drafts-arr">▼</span>
-      </button>
+      <span class="sec-lbl">Saved Drafts</span>
     </div>
-    <div class="drafts-body" id="drafts-body">
+    <div class="drafts-body open" id="drafts-body">
       <div style="padding:0 18px 14px">
         <div id="drafts-list" style="font-size:12px;color:var(--taupe);font-style:italic">No drafts saved.</div>
         <button class="add-btn" onclick="saveDraft()" style="margin-top:8px">+ Save current as draft</button>
       </div>
     </div>
   </div>
+  </div><!-- /gen-panel-drafts -->
+
+  <div class="gen-panel on" id="gen-panel-create">
+  <div class="gen-grid">
+  <div class="gen-form">
 
   <!-- INVOICE DETAILS -->
   <div class="card">
-    <div class="card-hdr"><span class="sec-lbl">Invoice Details</span><div class="sec-accent"></div></div>
-    <div class="card-body">
+    <div class="card-hdr"><button class="sec-toggle" onclick="toggleSection('invdetails')"><span class="sec-lbl">Invoice Details</span><span class="sec-summary" id="gsum-invdetails"></span></button><span class="sec-arr open" id="arr-invdetails" onclick="toggleSection('invdetails')">▼</span></div>
+    <div class="card-body collapsible open" id="body-invdetails">
       <div class="field-row">
         <div class="field" id="f-invdate">
           <div class="field-lbl">Invoice Date</div>
@@ -421,8 +492,8 @@ textarea:focus { border-color:var(--gold); background:var(--warm); }
 
   <!-- CLIENT & PROPERTY -->
   <div class="card">
-    <div class="card-hdr"><span class="sec-lbl">Client & Property</span><div class="sec-accent"></div></div>
-    <div class="card-body">
+    <div class="card-hdr"><button class="sec-toggle" onclick="toggleSection('client')"><span class="sec-lbl">Client & Property</span><span class="sec-summary" id="gsum-client"></span></button><span class="sec-arr open" id="arr-client" onclick="toggleSection('client')">▼</span></div>
+    <div class="card-body collapsible open" id="body-client">
       <div class="field" id="f-client">
         <div class="field-lbl">Client Name</div>
         <input class="field-input client-input" id="client" type="text" placeholder="Jane Smith" autocomplete="name">
@@ -458,8 +529,8 @@ textarea:focus { border-color:var(--gold); background:var(--warm); }
 
   <!-- BASE PACKAGE -->
   <div class="card">
-    <div class="card-hdr"><span class="sec-lbl">Base Package — Select Rooms</span><div class="sec-accent"></div></div>
-    <div class="card-body">
+    <div class="card-hdr"><button class="sec-toggle" onclick="toggleSection('basepkg')"><span class="sec-lbl">Base Package — Select Rooms</span><span class="sec-summary" id="gsum-basepkg"></span></button><span class="sec-arr" id="arr-basepkg" onclick="toggleSection('basepkg')">▼</span></div>
+    <div class="card-body collapsible" id="body-basepkg">
       <div class="base-row">
         <span class="base-lbl">Base package price</span>
         <div style="display:inline-flex;align-items:center;gap:6px"><input class="base-input" id="base_price" type="number" step="100" inputmode="decimal" autocomplete="off" oninput="onBasePriceEdit(this)"><button class="price-save-check" id="base-save-check" onclick="saveBasePriceClicked(this)" title="Save as new default" style="font-size:14px">✓</button></div>
@@ -475,8 +546,8 @@ textarea:focus { border-color:var(--gold); background:var(--warm); }
 
   <!-- ADD-ONS -->
   <div class="card">
-    <div class="card-hdr"><span class="sec-lbl">Add-ons by Room</span><div class="sec-accent"></div></div>
-    <div class="card-body" style="padding-top:8px">
+    <div class="card-hdr"><button class="sec-toggle" onclick="toggleSection('addons')"><span class="sec-lbl">Add-ons by Room</span><span class="sec-summary" id="gsum-addons"></span></button><span class="sec-arr" id="arr-addons" onclick="toggleSection('addons')">▼</span></div>
+    <div class="card-body collapsible" id="body-addons" style="padding-top:8px">
       <div id="addon-categories"></div>
       <div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(162,156,150,0.08)">
         <div class="sec-lbl" style="margin-bottom:8px">Additional Bedrooms</div>
@@ -494,8 +565,8 @@ textarea:focus { border-color:var(--gold); background:var(--warm); }
 
   <!-- PROMOTIONS -->
   <div class="card">
-    <div class="card-hdr"><span class="sec-lbl">Promotions</span><div class="sec-accent"></div></div>
-    <div class="card-body">
+    <div class="card-hdr"><button class="sec-toggle" onclick="toggleSection('promos')"><span class="sec-lbl">Promotions</span><span class="sec-summary" id="gsum-promos"></span></button><span class="sec-arr" id="arr-promos" onclick="toggleSection('promos')">▼</span></div>
+    <div class="card-body collapsible" id="body-promos">
       <div class="promo-row">
         <input type="checkbox" id="promo1">
         <label for="promo1">Monthly Special — complimentary staging for Kitchen & all Bathrooms</label>
@@ -517,8 +588,8 @@ textarea:focus { border-color:var(--gold); background:var(--warm); }
 
   <!-- TAX -->
   <div class="card">
-    <div class="card-hdr"><span class="sec-lbl">Tax Rate</span><div class="sec-accent"></div></div>
-    <div class="card-body">
+    <div class="card-hdr"><button class="sec-toggle" onclick="toggleSection('tax')"><span class="sec-lbl">Tax Rate</span><span class="sec-summary" id="gsum-tax"></span></button><span class="sec-arr" id="arr-tax" onclick="toggleSection('tax')">▼</span></div>
+    <div class="card-body collapsible" id="body-tax">
       <div class="field" style="max-width:160px">
         <div class="field-lbl">Rate (%)</div>
         <input class="field-input" id="taxrate" type="number" value="10.25" step="0.01" inputmode="decimal" oninput="recalc()">
@@ -528,8 +599,8 @@ textarea:focus { border-color:var(--gold); background:var(--warm); }
 
   <!-- MANUAL TOTAL OVERRIDES -->
   <div class="card">
-    <div class="card-hdr"><span class="sec-lbl">Manual Totals (optional)</span><div class="sec-accent"></div></div>
-    <div class="card-body">
+    <div class="card-hdr"><button class="sec-toggle" onclick="toggleSection('manualtotals')"><span class="sec-lbl">Manual Totals (optional)</span><span class="sec-summary" id="gsum-manualtotals"></span></button><span class="sec-arr" id="arr-manualtotals" onclick="toggleSection('manualtotals')">▼</span></div>
+    <div class="card-body collapsible" id="body-manualtotals">
       <div style="display:flex;gap:10px;flex-wrap:wrap">
         <div class="field" style="flex:1;min-width:90px"><div class="field-lbl">Subtotal $</div><input class="field-input" id="ov-subtotal" type="number" step="0.01" inputmode="decimal" placeholder="auto" oninput="recalc()"></div>
         <div class="field" style="flex:1;min-width:90px"><div class="field-lbl">Tax $</div><input class="field-input" id="ov-tax" type="number" step="0.01" inputmode="decimal" placeholder="auto" oninput="recalc()"></div>
@@ -541,8 +612,8 @@ textarea:focus { border-color:var(--gold); background:var(--warm); }
 
   <!-- OTHER CONTRIBUTIONS -->
   <div class="card">
-    <div class="card-hdr"><span class="sec-lbl">Other Contributions (optional)</span><div class="sec-accent"></div></div>
-    <div class="card-body">
+    <div class="card-hdr"><button class="sec-toggle" onclick="toggleSection('contrib')"><span class="sec-lbl">Other Contributions (optional)</span><span class="sec-summary" id="gsum-contrib"></span></button><span class="sec-arr" id="arr-contrib" onclick="toggleSection('contrib')">▼</span></div>
+    <div class="card-body collapsible" id="body-contrib">
       <div id="contributions-list"></div>
       <button class="add-btn" onclick="addContribution()">+ Add contribution</button>
       <div style="font-size:10px;color:#888;margin-top:6px">Money coming from someone other than the client (e.g. an agent). Reduces what the client is billed &amp; gets its own separate payment link — never shown to the client. Wording is yours to write.</div>
@@ -551,8 +622,8 @@ textarea:focus { border-color:var(--gold); background:var(--warm); }
 
   <!-- PET DEPOSIT -->
   <div class="card">
-    <div class="card-hdr"><span class="sec-lbl">Refundable Pet Deposit (optional)</span><div class="sec-accent"></div></div>
-    <div class="card-body">
+    <div class="card-hdr"><button class="sec-toggle" onclick="toggleSection('petdeposit')"><span class="sec-lbl">Refundable Pet Deposit (optional)</span><span class="sec-summary" id="gsum-petdeposit"></span></button><span class="sec-arr" id="arr-petdeposit" onclick="toggleSection('petdeposit')">▼</span></div>
+    <div class="card-body collapsible" id="body-petdeposit">
       <div class="toggle-row">
         <input type="checkbox" id="pet-deposit-enabled" onchange="togglePetDeposit()">
         <label for="pet-deposit-enabled">Collect a fully refundable pet deposit — billed separately from the invoice, not taxed</label>
@@ -569,8 +640,8 @@ textarea:focus { border-color:var(--gold); background:var(--warm); }
 
   <!-- CO-SIGNER -->
   <div class="card">
-    <div class="card-hdr"><span class="sec-lbl">Co-Signer (optional)</span><div class="sec-accent"></div></div>
-    <div class="card-body">
+    <div class="card-hdr"><button class="sec-toggle" onclick="toggleSection('cosigner')"><span class="sec-lbl">Co-Signer (optional)</span><span class="sec-summary" id="gsum-cosigner"></span></button><span class="sec-arr" id="arr-cosigner" onclick="toggleSection('cosigner')">▼</span></div>
+    <div class="card-body collapsible" id="body-cosigner">
       <div class="field-row">
         <div class="field" style="max-width:150px">
           <div class="field-lbl">Role label</div>
@@ -595,8 +666,8 @@ textarea:focus { border-color:var(--gold); background:var(--warm); }
 
   <!-- OPTIONS -->
   <div class="card">
-    <div class="card-hdr"><span class="sec-lbl">Options</span><div class="sec-accent"></div></div>
-    <div class="card-body">
+    <div class="card-hdr"><button class="sec-toggle" onclick="toggleSection('options')"><span class="sec-lbl">Options</span><span class="sec-summary" id="gsum-options"></span></button><span class="sec-arr" id="arr-options" onclick="toggleSection('options')">▼</span></div>
+    <div class="card-body collapsible" id="body-options">
       <div class="toggle-row">
         <input type="checkbox" id="cover_page" onchange="toggleCover()">
         <label for="cover_page">Include cover page</label>
@@ -620,6 +691,8 @@ textarea:focus { border-color:var(--gold); background:var(--warm); }
     </div>
   </div>
 
+  </div><!-- /gen-form -->
+  <div class="gen-summary-col" id="gen-summary-review">
   <!-- SUMMARY -->
   <div class="summary-card">
     <div class="summary-hdr">
@@ -649,6 +722,17 @@ textarea:focus { border-color:var(--gold); background:var(--warm); }
     <button class="gen-btn" id="download-btn" onclick="downloadPdfNow()" style="background:#fff;color:var(--ink)">⬇ Download PDF</button>
     <button class="gen-btn" id="gen-btn" onclick="generate()" style="background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.7)">Generate Invoice + Payment Link</button>
     <button class="gen-btn" id="email-btn" onclick="generateAndEmail()">Generate + Email to Client</button>  </div>
+  </div><!-- /gen-summary-col -->
+  </div><!-- /gen-grid -->
+  </div><!-- /gen-panel-create -->
+
+  <div class="gen-sticky-bar" id="gen-sticky-bar">
+    <div>
+      <div class="gen-sticky-total-lbl">Total</div>
+      <div class="gen-sticky-total-val" id="gen-sticky-total">—</div>
+    </div>
+    <button class="gen-sticky-btn" onclick="genReviewInvoice()">Review Invoice</button>
+  </div>
 
 </div>
 
@@ -669,6 +753,89 @@ textarea:focus { border-color:var(--gold); background:var(--warm); }
     </div>
 
 <script>
+// ── Invoice Generator redesign (Nov 1) — tabs + collapsible sections. Presentation only:
+// toggling never touches form values, never calls recalc() with different inputs, never
+// submits. Desktop (>=1200px) ignores the open/closed state entirely via CSS (every section
+// shows), so this only matters below that width.
+function genShowTab(name){
+  document.querySelectorAll('.gen-tab').forEach(b=>b.classList.remove('on'));
+  document.querySelectorAll('.gen-panel').forEach(p=>p.classList.remove('on'));
+  const idx = {create:0, drafts:1, recent:2}[name];
+  document.querySelectorAll('.gen-tab')[idx]?.classList.add('on');
+  document.getElementById('gen-panel-'+name)?.classList.add('on');
+  document.body.classList.toggle('has-gen-sticky', name==='create');
+  if(name==='drafts' && typeof loadDrafts==='function') loadDrafts();
+  if(name==='recent' && typeof loadRecent==='function') loadRecent();
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+function toggleSection(id){
+  const body = document.getElementById('body-'+id);
+  const arr = document.getElementById('arr-'+id);
+  if(!body) return;
+  const opening = !body.classList.contains('open');
+  // Mobile accordion: opening a section collapses whichever other one was open. Desktop
+  // ignores this entirely (CSS forces every .collapsible open there), so this only runs
+  // below the 1200px breakpoint in practice.
+  if(opening && window.innerWidth < 1200){
+    document.querySelectorAll('.card-body.collapsible.open').forEach(b=>{
+      if(b===body) return;
+      b.classList.remove('open');
+      document.getElementById('arr-'+b.id.replace('body-',''))?.classList.remove('open');
+    });
+  }
+  body.classList.toggle('open', opening);
+  arr?.classList.toggle('open', opening);
+}
+
+function genReviewInvoice(){
+  document.getElementById('gen-summary-review')?.scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+// Live collapsed-section summaries — read-only glance text, computed from the same global
+// state recalc()/captureState() already use. Never itself a source of truth.
+function updateSectionSummaries(){
+  const set = (id, text) => { const el = document.getElementById('gsum-'+id); if(el) el.textContent = text; };
+  try{
+    const startEl = document.getElementById('startdate');
+    const tbd = document.getElementById('startdate-tbd')?.checked;
+    set('invdetails', tbd ? 'Start date TBD' : (startEl?.value ? new Date(startEl.value+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : ''));
+
+    const clientName = document.getElementById('client')?.value || (document.getElementById('payer-unknown')?.checked ? 'Payer unknown' : '');
+    const city = document.getElementById('city')?.value || '';
+    set('client', [clientName, city].filter(Boolean).join(' · '));
+
+    const basePrice = parseFloat(document.getElementById('base_price')?.value)||0;
+    const roomCount = typeof selRooms!=='undefined' ? selRooms.size : 0;
+    set('basepkg', `$${basePrice.toLocaleString('en-US')} · ${roomCount} room${roomCount===1?'':'s'} selected`);
+
+    const addonCount = (typeof selAddons!=='undefined'?selAddons.size:0) + (typeof customs!=='undefined'?customs.length:0) + (typeof extraBedrooms!=='undefined'?extraBedrooms.length:0);
+    set('addons', addonCount ? `${addonCount} selected` : 'None selected');
+
+    const promoCount = ['promo1','promo2','promo3','promo4'].filter(id=>document.getElementById(id)?.checked).length;
+    set('promos', promoCount ? `${promoCount} active` : 'None active');
+
+    set('tax', (document.getElementById('taxrate')?.value||'0') + '%');
+
+    const hasOverride = ['ov-subtotal','ov-tax','ov-total'].some(id=>document.getElementById(id)?.value);
+    set('manualtotals', hasOverride ? 'Overridden' : 'Auto-calculated');
+
+    const contribCount = typeof contributions!=='undefined' ? contributions.length : 0;
+    set('contrib', contribCount ? `${contribCount} contribution${contribCount===1?'':'s'}` : 'None');
+
+    const petOn = document.getElementById('pet-deposit-enabled')?.checked;
+    set('petdeposit', petOn ? `Enabled · $${document.getElementById('pet-deposit-amount')?.value||'0'}` : 'Off');
+
+    const cosignerName = document.getElementById('cosigner-name')?.value;
+    set('cosigner', cosignerName ? `${cosignerName} (2 signers)` : '1 signer');
+
+    const opts = [];
+    if(document.getElementById('cover_page')?.checked) opts.push('Cover page');
+    if(document.getElementById('paid')?.checked) opts.push('Marked paid');
+    set('options', opts.length ? opts.join(' · ') : 'Defaults');
+  }catch(e){ /* summaries are a convenience only — never block the form on an error here */ }
+}
+
 function toggleDrafts(){
   const body = document.getElementById('drafts-body');
   const arr = document.getElementById('drafts-arr');
@@ -1120,6 +1287,9 @@ function recalc(){
       document.getElementById('t-balance').textContent=fmt(Math.max(0,grandShown-contribTotal));
     }
   }
+  const stickyTotal = document.getElementById('gen-sticky-total');
+  if(stickyTotal) stickyTotal.textContent = fmt(grandShown);
+  updateSectionSummaries();
 }
 // Parse a manual-override input: returns a number only when the field has real content, else null.
 function _ov(id){const el=document.getElementById(id);if(!el)return null;const v=el.value;if(v===''||v==null)return null;const n=parseFloat(v);return isNaN(n)?null:n;}
@@ -2301,5 +2471,16 @@ document.addEventListener('DOMContentLoaded', async function(){
 });
 </script>
 <script>document.addEventListener('DOMContentLoaded',()=>{try{document.querySelector('.nav-sw .nav-btn.on')?.scrollIntoView({inline:'center',block:'nearest'});}catch(e){}});</script>
+<script>
+// Delegated listener so collapsed-section summaries stay live on any field change, without
+// touching any existing onchange/oninput handler already wired to a field.
+document.addEventListener('DOMContentLoaded', () => {
+  try {
+    document.getElementById('gen-panel-create')?.addEventListener('input', () => updateSectionSummaries());
+    document.getElementById('gen-panel-create')?.addEventListener('change', () => updateSectionSummaries());
+    updateSectionSummaries();
+  } catch(e) {}
+});
+</script>
 </body>
 </html>
