@@ -132,7 +132,8 @@ tr.paid-row { opacity:0.55; }
 .alloc-card .alloc-row.total { border-top:0.5px solid var(--taupe-lt); margin-top:4px; padding-top:5px; font-weight:700; }
 .alloc-card .alloc-row.sub { padding-left:10px; color:var(--taupe-dk); }
 .override-row { display:flex; gap:8px; align-items:center; margin-top:8px; flex-wrap:wrap; }
-.override-row select, .override-row input { font-size:11.5px; padding:5px 8px; border-radius:7px; border:0.5px solid var(--taupe-lt); font-family:inherit; }
+.override-row select, .override-row input { font-size:11.5px; padding:5px 8px; border-radius:7px; border:0.5px solid var(--taupe-lt); font-family:inherit; min-width:0; max-width:100%; }
+#fin-override-add { flex:1 1 180px; }
 
 /* Phase 3.3 layout pass (April's punch list, Oct 30 evening) */
 .fin-num { font-variant-numeric:tabular-nums; font-feature-settings:"tnum"; }
@@ -193,6 +194,121 @@ tr.paid-row { opacity:0.55; }
 .swj-more-handle{ width:36px; height:4px; background:#d4cfc9; border-radius:2px; margin:6px auto 12px; }
 .swj-more-link{ display:flex; align-items:center; gap:12px; padding:13px 16px; font-size:14px; color:#1a1814; text-decoration:none; border-radius:10px; }
 .swj-more-link:active{ background:#f5f2ed; }
+
+/* ── Payroll redesign (Nov 1 mockup) — page header, tabs, KPI cards, donut chart,
+   employee-pay table, monthly performance chart, project budget table, history list. ── */
+.pr-hdr{ display:flex; align-items:flex-start; justify-content:space-between; gap:14px; margin-bottom:16px; flex-wrap:wrap; }
+.pr-hdr-left{ display:flex; align-items:flex-start; gap:12px; }
+.pr-hdr-ic{ width:40px; height:40px; border-radius:11px; background:var(--gold-lt); color:var(--gold-dk); display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0; }
+.pr-hdr-ttl{ font-family:'Cormorant Garamond',serif; font-size:28px; font-weight:400; color:var(--ink); line-height:1.1; }
+.pr-hdr-sub{ font-size:12.5px; color:var(--taupe-dk); margin-top:3px; }
+.pr-hdr-right{ display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap; }
+.pr-gear{ width:36px; height:36px; border-radius:50%; border:0.5px solid var(--taupe-lt); background:#fff; cursor:pointer; font-size:14px; display:flex; align-items:center; justify-content:center; }
+
+.pr-tabs{ display:flex; gap:4px; background:var(--warm); border-radius:12px; padding:4px; margin-bottom:18px; overflow-x:auto; scrollbar-width:none; }
+.pr-tabs::-webkit-scrollbar{ display:none; }
+.pr-tab{ flex-shrink:0; padding:9px 16px; border-radius:9px; border:none; background:none; font-family:'Inter',sans-serif; font-size:12.5px; font-weight:600; color:var(--taupe-dk); cursor:pointer; white-space:nowrap; transition:all 0.15s; }
+.pr-tab.on{ background:var(--gold-lt); color:var(--gold-dk); }
+.pr-panel{ display:none; }
+.pr-panel.on{ display:block; }
+
+.pr-overdue-alert{ display:flex; align-items:center; justify-content:space-between; gap:10px; background:#fdf0e0; border:0.5px solid rgba(201,124,46,0.3); border-radius:11px; padding:12px 16px; margin-bottom:16px; cursor:pointer; flex-wrap:wrap; }
+.pr-overdue-alert .oa-amt{ font-family:'Cormorant Garamond',serif; font-size:19px; color:#8a3a1f; }
+.pr-overdue-alert .oa-note{ font-size:11.5px; color:#8a5a1f; margin-top:1px; }
+.pr-overdue-alert .oa-go{ font-size:11px; font-weight:600; color:#8a3a1f; white-space:nowrap; }
+
+.pr-kpi-row{ display:grid; grid-template-columns:repeat(5,1fr); gap:10px; margin-bottom:18px; }
+@media (max-width:900px){ .pr-kpi-row{ grid-template-columns:repeat(2,1fr); } }
+.pr-kpi{ background:#fff; border:0.5px solid var(--taupe-lt); border-radius:13px; padding:14px 15px; }
+.pr-kpi-top{ display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+.pr-kpi-ic{ width:26px; height:26px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:12px; flex-shrink:0; }
+.pr-kpi-lbl{ font-size:10px; color:var(--taupe-dk); text-transform:uppercase; letter-spacing:0.5px; }
+.pr-kpi-val{ font-family:'Cormorant Garamond',serif; font-size:22px; color:var(--ink); line-height:1; }
+.pr-kpi-val.neg{ color:var(--red); }
+.pr-kpi-note{ font-size:10.5px; color:var(--taupe-dk); margin-top:4px; }
+.pr-kpi-note.g{ color:var(--green); }
+.pr-kpi-note.a{ color:var(--amber); }
+
+.pr-row2{ display:grid; grid-template-columns:1.3fr 1fr; gap:14px; margin-bottom:18px; align-items:start; }
+@media (max-width:900px){ .pr-row2{ grid-template-columns:1fr; } }
+.pr-card{ background:#fff; border:0.5px solid var(--taupe-lt); border-radius:14px; padding:18px 20px; }
+.pr-card-ttl{ font-size:13px; font-weight:600; color:var(--ink); display:flex; align-items:center; gap:7px; margin-bottom:14px; }
+.pr-card-ttl .info-ic{ font-size:11px; color:var(--taupe); cursor:help; }
+.pr-donut-wrap{ display:flex; gap:20px; align-items:center; flex-wrap:wrap; }
+.pr-donut{ width:150px; height:150px; border-radius:50%; flex-shrink:0; position:relative; display:flex; align-items:center; justify-content:center; }
+.pr-donut::before{ content:''; position:absolute; inset:22px; background:#fff; border-radius:50%; }
+.pr-donut-center{ position:relative; text-align:center; }
+.pr-donut-center .dv{ font-family:'Cormorant Garamond',serif; font-size:18px; color:var(--ink); }
+.pr-donut-center .dl{ font-size:9px; color:var(--taupe-dk); text-transform:uppercase; letter-spacing:0.4px; margin-top:1px; }
+.pr-legend{ flex:1; min-width:180px; font-size:12.5px; }
+.pr-legend-row{ display:flex; align-items:center; gap:8px; padding:5px 0; }
+.pr-legend-dot{ width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+.pr-legend-name{ flex:1; color:var(--ink-soft); }
+.pr-legend-amt{ font-weight:600; color:var(--ink); white-space:nowrap; }
+.pr-legend-pct{ color:var(--taupe-dk); width:40px; text-align:right; flex-shrink:0; }
+
+.pr-badge{ font-size:10px; font-weight:700; padding:3px 9px; border-radius:20px; background:var(--amber-lt); color:var(--amber); text-transform:uppercase; letter-spacing:0.4px; }
+.pr-notes-body{ font-size:12.5px; color:var(--ink-soft); line-height:1.6; margin:10px 0 14px; }
+.pr-qa-row{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+.pr-qa-btn{ display:flex; flex-direction:column; align-items:center; gap:5px; padding:11px 6px; border-radius:10px; border:0.5px solid var(--taupe-lt); background:var(--warm); cursor:pointer; font-family:'Inter',sans-serif; font-size:10.5px; color:var(--ink-soft); font-weight:500; }
+.pr-qa-btn .ic{ font-size:15px; }
+.pr-qa-btn:hover{ background:var(--gold-lt); border-color:var(--gold); }
+
+.pr-table{ width:100%; border-collapse:collapse; font-size:13px; }
+.pr-table th{ text-align:left; font-size:10px; color:var(--taupe-dk); text-transform:uppercase; letter-spacing:0.5px; padding:8px 8px; border-bottom:1px solid var(--taupe-lt); }
+.pr-table td{ padding:10px 8px; border-bottom:0.5px solid var(--warm); vertical-align:middle; }
+.pr-table tr.total-row td{ font-weight:700; border-top:1.5px solid var(--taupe-lt); border-bottom:none; background:var(--warm); }
+.pr-proj-thumb{ width:34px; height:34px; border-radius:9px; background:var(--gold); color:var(--ink); font-family:'Cormorant Garamond',serif; font-weight:600; font-size:13px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.pr-proj-cell{ display:flex; align-items:center; gap:10px; }
+.pr-status-pill{ font-size:10px; font-weight:600; padding:3px 9px; border-radius:20px; }
+.pr-status-pill.paid{ background:var(--green-lt); color:var(--green); }
+.pr-status-pill.unpaid{ background:var(--red-lt); color:var(--red); }
+
+.pr-gauge{ width:120px; height:120px; border-radius:50%; margin:0 auto; position:relative; display:flex; align-items:center; justify-content:center; }
+.pr-gauge::before{ content:''; position:absolute; inset:14px; background:#fff; border-radius:50%; }
+.pr-gauge-center{ position:relative; text-align:center; }
+.pr-gauge-center .gv{ font-family:'Cormorant Garamond',serif; font-size:20px; color:var(--ink); }
+.pr-gauge-center .gl{ font-size:8.5px; color:var(--taupe-dk); text-transform:uppercase; }
+.pr-impact-rows{ font-size:12.5px; margin-top:12px; }
+.pr-impact-row{ display:flex; justify-content:space-between; padding:4px 0; }
+.pr-impact-row .ok{ color:var(--green); }
+
+#pr-emp-cards-mobile{ display:none; }
+@media (max-width:680px){
+  #pr-emp-table-desktop{ display:none; }
+  #pr-emp-cards-mobile{ display:block; }
+}
+.pr-emp-card{ background:var(--warm); border-radius:11px; padding:12px 14px; margin-bottom:8px; }
+.pr-emp-top{ display:flex; justify-content:space-between; align-items:center; }
+.pr-emp-name{ font-weight:600; font-size:13.5px; color:var(--ink); }
+.pr-emp-role{ font-size:11px; color:var(--taupe-dk); margin-top:1px; }
+.pr-emp-pay{ font-family:'Cormorant Garamond',serif; font-size:18px; color:var(--ink); }
+
+.pr-chart-wrap{ height:180px; display:flex; align-items:flex-end; gap:10px; padding:10px 4px 0; position:relative; }
+.pr-chart-col{ flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; min-width:0; }
+.pr-chart-bars{ display:flex; align-items:flex-end; gap:3px; height:140px; width:100%; justify-content:center; }
+.pr-chart-bar{ width:40%; border-radius:3px 3px 0 0; }
+.pr-chart-bar.rev{ background:#2a2a28; }
+.pr-chart-bar.cost{ background:var(--gold); }
+.pr-chart-lbl{ font-size:10px; color:var(--taupe-dk); }
+.pr-chart-legend{ display:flex; gap:16px; font-size:11px; color:var(--taupe-dk); margin-top:8px; }
+.pr-chart-legend span{ display:inline-flex; align-items:center; gap:5px; }
+.pr-chart-legend i{ width:9px; height:9px; border-radius:2px; display:inline-block; }
+.pr-range-pick{ display:flex; gap:4px; }
+.pr-range-btn{ font-size:10.5px; padding:4px 10px; border-radius:14px; border:0.5px solid var(--taupe-lt); background:#fff; cursor:pointer; color:var(--taupe-dk); }
+.pr-range-btn.on{ background:var(--ink); color:#fff; border-color:var(--ink); }
+
+.pr-hist-row{ display:flex; justify-content:space-between; align-items:center; padding:11px 0; border-bottom:0.5px solid var(--warm); cursor:pointer; }
+.pr-hist-row:hover{ background:var(--warm); margin:0 -8px; padding:11px 8px; border-radius:8px; }
+.pr-hist-month{ font-weight:600; color:var(--ink); font-size:13px; }
+.pr-hist-meta{ font-size:11px; color:var(--taupe-dk); margin-top:2px; }
+
+@media (max-width:480px){
+  .pr-kpi-row{ grid-template-columns:repeat(2,1fr); }
+  .pr-hdr-ttl{ font-size:22px; }
+  .pr-donut{ width:120px; height:120px; }
+  .pr-donut::before{ inset:18px; }
+}
 </style>
 </head>
 <body>
@@ -254,16 +370,35 @@ tr.paid-row { opacity:0.55; }
 
 <div class="wrap">
 
-  <div class="card" id="finance-card">
-    <div class="card-hdr">
-      <span>💰 Business Finances</span>
-      <button class="filter-btn" onclick="toggleFinanceSettings()">⚙ Settings</button>
+  <div class="pr-hdr">
+    <div class="pr-hdr-left">
+      <div class="pr-hdr-ic">💼</div>
+      <div>
+        <div class="pr-hdr-ttl">Payroll</div>
+        <div class="pr-hdr-sub">Employee payroll, business finances, and money allocation.</div>
+      </div>
     </div>
-    <div class="filter-row" style="margin-bottom:14px">
+    <div class="pr-hdr-right">
       <div class="filter-field"><label>Month</label><select id="fin-month"></select></div>
       <div class="filter-field"><label>Year</label><select id="fin-year"></select></div>
       <button class="filter-btn primary" onclick="runFinanceView()">Run</button>
+      <button class="pr-gear" onclick="toggleFinanceSettings()" title="Settings">⚙</button>
     </div>
+  </div>
+
+  <div class="pr-tabs" id="pr-tabs">
+    <button class="pr-tab on" onclick="prShowTab('finance')">Finance &amp; Allocation</button>
+    <button class="pr-tab" onclick="prShowTab('employee')">Employee Pay</button>
+    <button class="pr-tab" onclick="prShowTab('performance')">Monthly Performance</button>
+    <button class="pr-tab" onclick="prShowTab('projects')">Project Budgets</button>
+    <button class="pr-tab" onclick="prShowTab('history')">History</button>
+  </div>
+
+  <div class="pr-panel on" id="pr-panel-finance">
+
+  <div id="pr-overdue-alert-wrap"></div>
+
+  <div class="card" id="finance-card">
 
     <div id="finance-settings" style="display:none;background:var(--cream);border-radius:10px;padding:14px;margin-bottom:16px">
       <div style="font-size:11px;color:var(--taupe-dk);margin-bottom:10px">Every number below is editable — these are starting assumptions, not fixed constants. Mover rates are managed separately (Create a Day's Pay Schedule / /hours.html) and already feed in live from actual logged hours.</div>
@@ -288,12 +423,38 @@ tr.paid-row { opacity:0.55; }
       <span class="msg" id="fc-msg" style="display:inline-block;margin-left:8px"></span>
     </div>
 
-    <div class="sub-hdr">Monthly Summary — <span id="fin-period"></span></div>
+    <div class="sub-hdr" style="margin-top:0">Finance &amp; Allocation — <span id="fin-period"></span></div>
     <div id="fin-oneoff-banner"></div>
-    <div class="headline-strip" id="fin-headline"></div>
-    <div class="waterfall fin-num" id="fin-waterfall"></div>
+
+    <div class="pr-kpi-row" id="pr-kpi-row"></div>
+
+    <div class="pr-row2">
+      <div class="pr-card">
+        <div class="pr-card-ttl">◐ Revenue Allocation <span class="info-ic" title="Each slice is from the same formulas shown below in &quot;See how this was calculated&quot; — nothing here is a separate calculation.">ⓘ</span></div>
+        <div class="pr-donut-wrap">
+          <div class="pr-donut" id="pr-donut"><div class="pr-donut-center" id="pr-donut-center"></div></div>
+          <div class="pr-legend" id="pr-legend"></div>
+        </div>
+      </div>
+      <div class="pr-card">
+        <div class="pr-card-ttl" style="justify-content:space-between">
+          <span>This Month's Notes</span>
+          <span class="pr-badge" id="pr-notes-badge" style="display:none">Special Month</span>
+        </div>
+        <div class="pr-notes-body" id="pr-notes-body">Nothing unusual this month.</div>
+        <div class="sub-hdr" style="margin:0 0 8px">Quick Actions</div>
+        <div class="pr-qa-row">
+          <button class="pr-qa-btn" onclick="prScrollTo('fin-override-add')"><span class="ic">⚖</span>Adjust Allocation</button>
+          <button class="pr-qa-btn" onclick="financeToggleOneOff()"><span class="ic">📅</span>Edit Special Month</button>
+          <button class="pr-qa-btn" onclick="prAddNote()"><span class="ic">📝</span>Add Note</button>
+        </div>
+      </div>
+    </div>
+
     <details class="fin-details" id="fin-details">
-      <summary>Details — composition, special-month math, mover-ideal check</summary>
+      <summary>See how this was calculated</summary>
+      <div class="headline-strip" id="fin-headline"></div>
+      <div class="waterfall fin-num" id="fin-waterfall"></div>
       <div class="fin-details-body" id="fin-details-body"></div>
     </details>
 
@@ -305,9 +466,6 @@ tr.paid-row { opacity:0.55; }
 
     <div class="sub-hdr">Committed — next 60 days</div>
     <div id="fin-committed"></div>
-
-    <div class="sub-hdr">Per-Project Allocation</div>
-    <div id="fin-allocation"></div>
 
     <div class="sub-hdr">Manual Override</div>
     <div class="override-row">
@@ -326,6 +484,29 @@ tr.paid-row { opacity:0.55; }
     </div>
 
     <div class="disclaimer">Revenue is cash-basis (signed invoices, payment-received month — same basis as the Tax Report). Mover pay is actual, from logged hours this month. Truck and warehouse costs use the editable assumptions above, since this app doesn't track per-job truck receipts yet — correct the defaults above if your actual costs differ. Tax set-aside reuses the Tax Report's B&amp;O + sales-tax method (not CPA-certified — see TAX_METHODOLOGY.md). "Jasmine keep (actual net)" is real profit; "Jasmine keep (target)" is a benchmark line only — the two are never blended, and the target is capped at actual profit so it can never exceed what the month really made. Inventory (shopping budget) is derived, never entered: whatever is left after costs and the keep target. A month with unreconciled revenue is flagged, not presented as final. Viewing this page never changes a stored record — only the Manual Override controls write anything.</div>
+  </div>
+
+  </div><!-- /pr-panel-finance -->
+
+  <div class="pr-panel" id="pr-panel-employee">
+
+  <div class="pr-row2">
+    <div class="pr-card">
+      <div class="pr-card-ttl">Employee Pay — <span id="pr-emp-period"></span></div>
+      <div style="font-size:11px;color:var(--taupe-dk);margin-bottom:12px">Same hours and rates logged below, grouped per employee for the month selected on the Finance &amp; Allocation tab. These wages are the same dollars already counted in that tab's Movers allocation slice — not an additional cost on top of it.</div>
+      <div class="tbl-scroll">
+        <table class="pr-table" id="pr-emp-table-desktop">
+          <thead><tr><th>Employee</th><th>Role</th><th>Hours</th><th>Rate</th><th>Gross Pay</th><th>Status</th></tr></thead>
+          <tbody id="pr-emp-tbody"></tbody>
+        </table>
+      </div>
+      <div id="pr-emp-cards-mobile"></div>
+    </div>
+    <div class="pr-card">
+      <div class="pr-card-ttl" style="justify-content:center">Payroll Impact</div>
+      <div class="pr-gauge" id="pr-impact-gauge"><div class="pr-gauge-center" id="pr-impact-gauge-center"></div></div>
+      <div class="pr-impact-rows" id="pr-impact-rows"></div>
+    </div>
   </div>
 
   <div class="card">
@@ -421,6 +602,64 @@ tr.paid-row { opacity:0.55; }
         <tbody id="entries-body"></tbody>
       </table>
       <div class="empty-note" id="entries-empty" style="display:none">No entries match these filters.</div>
+    </div>
+  </div>
+
+  </div><!-- /pr-panel-employee -->
+
+  <div class="pr-panel" id="pr-panel-performance">
+    <div class="card">
+      <div class="card-hdr">
+        <span>Monthly Performance</span>
+        <div class="pr-range-pick" id="pr-perf-range">
+          <button class="pr-range-btn" onclick="prSetPerfRange(3)">3mo</button>
+          <button class="pr-range-btn on" onclick="prSetPerfRange(6)">6mo</button>
+          <button class="pr-range-btn" onclick="prSetPerfRange(12)">12mo</button>
+          <button class="pr-range-btn" onclick="prSetPerfRange('ytd')">YTD</button>
+        </div>
+      </div>
+      <div id="pr-perf-loading" class="empty-note">Run Finance &amp; Allocation once, then open this tab to load history.</div>
+      <div id="pr-perf-body" style="display:none">
+        <div class="pr-chart-wrap" id="pr-perf-chart"></div>
+        <div class="pr-chart-legend">
+          <span><i style="background:#2a2a28"></i>Revenue</span>
+          <span><i style="background:var(--gold)"></i>Total Costs</span>
+          <span><i style="background:var(--green);border-radius:50%;width:7px;height:7px"></i>Net / Keep (line)</span>
+        </div>
+        <div class="sub-hdr">This Month vs. Last Month</div>
+        <div id="pr-perf-compare"></div>
+        <div class="sub-hdr">Monthly Breakdown</div>
+        <div class="tbl-scroll">
+          <table class="pr-table">
+            <thead><tr><th>Month</th><th>Revenue</th><th>Costs</th><th>Net / Keep</th><th>Margin</th></tr></thead>
+            <tbody id="pr-perf-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="pr-panel" id="pr-panel-projects">
+    <div class="card">
+      <div class="card-hdr">Project Budgets — <span id="pr-proj-period"></span></div>
+      <div style="font-size:11px;color:var(--taupe-dk);margin-bottom:12px">Same per-project allocation the Finance tab's Manual Override controls affect — built from each job's own staging date for cost-splitting, not its payment date. A job paid this month but staged outside it won't appear here automatically; add it from Finance &amp; Allocation → Manual Override.</div>
+      <div class="tbl-scroll">
+        <table class="pr-table" id="pr-proj-table">
+          <thead><tr><th>Project</th><th>Staged</th><th>Revenue</th><th>Costs</th><th>Net / Keep</th><th>Margin</th><th>Status</th></tr></thead>
+          <tbody id="pr-proj-tbody"></tbody>
+        </table>
+      </div>
+      <div id="pr-proj-detail"></div>
+    </div>
+  </div>
+
+  <div class="pr-panel" id="pr-panel-history">
+    <div class="card">
+      <div class="card-hdr">History</div>
+      <div style="font-size:11px;color:var(--taupe-dk);margin-bottom:12px">These months are recalculated live from current records, not stored snapshots — the underlying invoices and time entries can still change. Click a month to open it on the Finance &amp; Allocation tab.</div>
+      <div id="pr-hist-list"></div>
+      <div class="sub-hdr">Manual Overrides on Record</div>
+      <div id="pr-hist-overrides"></div>
     </div>
   </div>
 
@@ -1184,10 +1423,12 @@ async function runFinanceView(){
   // job) are isolated so the one-off check below can pull them out of the baseline. ----
   let moverCost = 0; const moverByType = {}; const moverByProject = {}; let sharedLaborTotal = 0;
   const internalInvnums = INTERNAL_JOBS.map(j=>j.invnum);
+  let periodEntries = [];
   try{
-    const { data: entries } = await _sb.from('time_entries').select('id,work_type,amount,clock_in,invnum,job_label')
+    const { data: entries } = await _sb.from('time_entries').select('id,work_type,amount,clock_in,invnum,job_label,employee_name,approved,paid,hours,rate')
       .gte('clock_in', periodStart+'T00:00:00').lte('clock_in', periodEnd+'T23:59:59');
-    (entries||[]).forEach(e=>{
+    periodEntries = entries||[];
+    periodEntries.forEach(e=>{
       const amt = parseFloat(e.amount)||0;
       moverCost += amt;
       moverByType[e.work_type] = (moverByType[e.work_type]||0) + amt;
@@ -1245,13 +1486,20 @@ async function runFinanceView(){
     moverByProject, truckCost, warehouseCost, netCashAfterFees, operatingNet, marginPct, keepTarget, keepTargetUncapped,
     keepTargetCapped, inventoryBudget, titheAmount, personallyRetained, stripeFee, jobsThisMonth, jobsThisMonthList,
     received, expected, committed, paidButUnsigned, noStagingDate, moverCostExOneOff, moverIdealTarget, moverOverIdeal,
-    overrides, oneOff:{ flagged:oneOffFlagged, amount:oneOffAmount, baseline:sharedBaseline, raw:sharedLaborTotal, autoFlagged } };
+    overrides, periodEntries, totalCosts: stripeFee+moverCost+truckCost+warehouseCost+taxSetAside,
+    oneOff:{ flagged:oneOffFlagged, amount:oneOffAmount, baseline:sharedBaseline, raw:sharedLaborTotal, autoFlagged } };
 
   renderFinanceSummary();
   renderFinanceBudget();
-  renderFinanceAllocationCards();
+  renderProjectBudgetsTable();
   renderFinanceOverrideOptions();
   renderFinanceReconciliation();
+  renderPrOverdueAlert();
+  renderPrKpiRow();
+  renderPrDonut();
+  renderPrNotes();
+  renderEmployeePayTab();
+  renderPrHistory();
 }
 let _lastFinanceSummary = null;
 let _lastFinancePeriod = null;
@@ -1353,9 +1601,10 @@ function renderFinanceBudget(){
 // project. Covers this period's Received jobs (actuals) and Expected jobs (actual costs where
 // logged, the $560 planning average otherwise), plus Committed/upcoming jobs as a pure
 // projection so Jasmine can see where a signed-but-not-yet-due job's money should go before it happens.
-function renderFinanceAllocationCards(){
+// Pure data builder — no DOM. Shared by the Project Budgets table and its detail drill-in.
+function prBuildProjectList(){
   const s = _lastFinanceSummary;
-  const el = document.getElementById('fin-allocation');
+  if(!s) return [];
   const warehouse = FINANCE_CONFIG.warehouse_monthly;
   const projectCount = s.jobsThisMonth;
 
@@ -1367,17 +1616,15 @@ function renderFinanceAllocationCards(){
     const actualMover = s.moverByProject[inv.invnum];
     const mover = actualMover!=null ? actualMover : moverPlanningPerJob();
     const moverIsActual = actualMover!=null;
-    projects.push({ invnum:inv.invnum, client:inv.client||'Client', revenue, mover, moverIsActual, warehouseShare: warehouse/projectCount, status:'this month', split });
+    projects.push({ invnum:inv.invnum, client:inv.client||'Client', revenue, mover, moverIsActual, warehouseShare: warehouse/projectCount, status:'this month', split, startdate:d.startdate, paid:!!d.paid });
   });
   s.committed.forEach(c=>{
     const actualMover = s.moverByProject[c.invnum];
     const split = finInvoiceSplit(c.data||{});
-    projects.push({ invnum:c.invnum, client:c.client, revenue:c.balance, mover: actualMover!=null?actualMover:moverPlanningPerJob(), moverIsActual: actualMover!=null, warehouseShare: warehouse, status:'upcoming — projected', split });
+    projects.push({ invnum:c.invnum, client:c.client, revenue:c.balance, mover: actualMover!=null?actualMover:moverPlanningPerJob(), moverIsActual: actualMover!=null, warehouseShare: warehouse, status:'upcoming — projected', split, startdate:c.startdate, paid:false });
   });
 
-  if(!projects.length){ el.innerHTML = '<div class="empty-note">No jobs have a staging date in this month, and nothing is committed in the next 60 days — Allocation cards are built from the staging date, not the payment date, so a job paid this month but staged outside it won\'t appear automatically. Add it by hand in Manual Override below.</div>'; return; }
-
-  el.innerHTML = projects.map(p=>{
+  return projects.map(p=>{
     const stripe = p.status==='this month' ? (s.received.filter(r=>r.invnum===p.invnum && r.method==='Stripe (Card)').reduce((t,r)=>t+(r.amount*FINANCE_CONFIG.stripe_pct/100+FINANCE_CONFIG.stripe_flat),0)) : 0;
     // Same per-job tax method as the monthly set-aside: sales tax from this job's own price-led
     // split, then B&O on the retailing/service split of what's left — a real per-job figure, not
@@ -1388,7 +1635,8 @@ function renderFinanceAllocationCards(){
     const boShare = netOfSalesTax*p.split.rentalShare*0.00471 + netOfSalesTax*(1-p.split.rentalShare)*0.015;
     const taxEst = salesTaxShare + boShare;
     const truck = truckCostPerJob();
-    const net = p.revenue - stripe - p.mover - truck - p.warehouseShare - taxEst;
+    const totalCosts = stripe + p.mover + truck + p.warehouseShare + taxEst;
+    const net = p.revenue - totalCosts;
     // Capped the same way as the monthly chain: the target can't exceed this project's own
     // actual/projected net, so a high-cost project shows $0 inventory, not a manufactured deficit.
     const keepTargetUncapped = p.revenue * FINANCE_CONFIG.profit_target_pct/100;
@@ -1397,22 +1645,57 @@ function renderFinanceAllocationCards(){
     const tithe = keepTarget * FINANCE_CONFIG.tithe_pct/100;
     const idealMover = p.revenue * FINANCE_CONFIG.mover_ideal_pct/100;
     const overIdeal = p.mover - idealMover;
-    return `
-    <div class="alloc-card">
+    const margin = p.revenue>0.009 ? net/p.revenue*100 : 0;
+    return { ...p, stripe, taxEst, truck, totalCosts, net, keepTargetUncapped, keepTarget, inventory, tithe, idealMover, overIdeal, margin, projectCount, warehouse };
+  });
+}
+
+function renderProjectBudgetsTable(){
+  const tbody = document.getElementById('pr-proj-tbody');
+  const periodEl = document.getElementById('pr-proj-period');
+  if(!tbody) return;
+  if(periodEl) periodEl.textContent = document.getElementById('fin-period')?.textContent || '';
+  const projects = prBuildProjectList();
+  document.getElementById('pr-proj-detail').innerHTML = '';
+  if(!projects.length){
+    tbody.innerHTML = '<tr><td colspan="7" class="empty-note">No jobs have a staging date in this month, and nothing is committed in the next 60 days — this list is built from the staging date, not the payment date, so a job paid this month but staged outside it won\'t appear automatically. Add it by hand in Finance &amp; Allocation → Manual Override.</td></tr>';
+    return;
+  }
+  let totRev=0, totCost=0, totNet=0;
+  tbody.innerHTML = projects.map(p=>{
+    totRev+=p.revenue; totCost+=p.totalCosts; totNet+=p.net;
+    return `<tr style="cursor:pointer" onclick="prShowProjectDetail('${esc(p.invnum)}')">
+      <td><div class="pr-proj-cell"><div class="pr-proj-thumb">${esc(clientInitials ? clientInitials(p.client) : (p.client||'?').slice(0,2).toUpperCase())}</div><div><div style="font-weight:600">${esc(p.client)}</div><div style="font-size:10.5px;color:var(--taupe-dk)">#${esc(p.invnum)} · ${esc(p.status)}</div></div></div></td>
+      <td>${p.startdate && p.startdate!=='TBD' ? fmtDate(p.startdate) : '—'}</td>
+      <td>${finMoney(p.revenue)}</td>
+      <td>${finMoney(p.totalCosts)}</td>
+      <td class="${p.net<0?'note-strong':''}">${finMoney(p.net)}</td>
+      <td>${p.margin.toFixed(1)}%</td>
+      <td><span class="pr-status-pill ${p.paid?'paid':'unpaid'}">${p.paid?'Paid':'Unpaid'}</span></td>
+    </tr>`;
+  }).join('') + `<tr class="total-row"><td>Total — ${projects.length} project(s)</td><td></td><td>${finMoney(totRev)}</td><td>${finMoney(totCost)}</td><td>${finMoney(totNet)}</td><td>${totRev>0.009?(totNet/totRev*100).toFixed(1):'0.0'}%</td><td></td></tr>`;
+}
+
+function prShowProjectDetail(invnum){
+  const p = prBuildProjectList().find(x=>x.invnum===invnum);
+  const el = document.getElementById('pr-proj-detail');
+  if(!p || !el) return;
+  el.innerHTML = `
+    <div class="alloc-card" style="margin-top:14px">
       <div class="alloc-ttl">${esc(p.client)} #${esc(p.invnum)} — ${esc(p.status)}</div>
       <div class="alloc-row"><span>Revenue</span><span>${finMoney(p.revenue)}</span></div>
-      <div class="alloc-row sub"><span>Stripe fee</span><span>-${finMoney(stripe)}</span></div>
-      <div class="alloc-row sub"><span>Mover cost (${p.moverIsActual?'actual':'planning avg $'+moverPlanningPerJob()})${overIdeal>0.009?' ⚠ over ideal':''}</span><span>-${finMoney(p.mover)}</span></div>
-      <div class="alloc-row sub"><span>Truck (estimate)</span><span>-${finMoney(truck)}</span></div>
-      <div class="alloc-row sub"><span>Warehouse (split ÷${projectCount})</span><span>-${finMoney(p.warehouseShare)}</span></div>
-      <div class="alloc-row sub"><span>Taxes set aside (estimate)</span><span>-${finMoney(taxEst)}</span></div>
-      <div class="alloc-row total"><span>Net</span><span>${finMoney(net)}</span></div>
-      <div class="alloc-row sub"><span>Jasmine keep (target ${FINANCE_CONFIG.profit_target_pct}%${keepTarget<keepTargetUncapped-0.009?', capped to this project\'s profit':''})</span><span>${finMoney(keepTarget)}</span></div>
-      <div class="alloc-row total"><span>Inventory (this project's share)</span><span class="${inventory<0?'note-strong':''}">${finMoney(inventory)}</span></div>
-      <div class="alloc-row sub"><span>Tithe (10% of keep)</span><span>${finMoney(tithe)}</span></div>
+      <div class="alloc-row sub"><span>Stripe fee</span><span>-${finMoney(p.stripe)}</span></div>
+      <div class="alloc-row sub"><span>Mover cost (${p.moverIsActual?'actual':'planning avg $'+moverPlanningPerJob()})${p.overIdeal>0.009?' ⚠ over ideal':''}</span><span>-${finMoney(p.mover)}</span></div>
+      <div class="alloc-row sub"><span>Truck (estimate)</span><span>-${finMoney(p.truck)}</span></div>
+      <div class="alloc-row sub"><span>Warehouse (split ÷${p.projectCount})</span><span>-${finMoney(p.warehouseShare)}</span></div>
+      <div class="alloc-row sub"><span>Taxes set aside (estimate)</span><span>-${finMoney(p.taxEst)}</span></div>
+      <div class="alloc-row total"><span>Net</span><span>${finMoney(p.net)}</span></div>
+      <div class="alloc-row sub"><span>Jasmine keep (target ${FINANCE_CONFIG.profit_target_pct}%${p.keepTarget<p.keepTargetUncapped-0.009?', capped to this project\'s profit':''})</span><span>${finMoney(p.keepTarget)}</span></div>
+      <div class="alloc-row total"><span>Inventory (this project's share)</span><span class="${p.inventory<0?'note-strong':''}">${finMoney(p.inventory)}</span></div>
+      <div class="alloc-row sub"><span>Tithe (10% of keep)</span><span>${finMoney(p.tithe)}</span></div>
       <button class="remove-btn" style="margin-top:6px" onclick="financeExcludeProject('${esc(p.invnum)}')">Remove from budget</button>
     </div>`;
-  }).join('');
+  el.scrollIntoView({behavior:'smooth', block:'nearest'});
 }
 
 function renderFinanceOverrideOptions(){
@@ -1433,6 +1716,361 @@ function renderFinanceReconciliation(){
   el.innerHTML = clean
     ? `<strong style="color:var(--green)">✓ Reconciled</strong> — app revenue ${finMoney(_lastFinanceSummary.revenue)} matches actual deposits within $1.`
     : `<strong class="note-strong">⚠ Diverges by ${finMoney(Math.abs(diff))}</strong> — app shows ${finMoney(_lastFinanceSummary.revenue)}, actual deposits ${finMoney(actual)}. Do not treat this month as final until explained.`;
+}
+
+// ════════════════════════════════════════════════════════════════
+// Payroll redesign (Nov 1 mockup) — tabs, KPI row, donut chart, notes/quick actions,
+// Employee Pay summary, Monthly Performance, History. All of this reads from
+// _lastFinanceSummary / FINANCE_CONFIG / FINANCE_OVERRIDES that runFinanceView() already
+// computed — no new financial formulas, no new Supabase tables.
+// ════════════════════════════════════════════════════════════════
+const _PR_MONO_STOPWORDS = new Set(['and','the','of','&']);
+function clientInitials(name){
+  const words = String(name||'').trim().split(/\s+/).filter(w => w && !_PR_MONO_STOPWORDS.has(w.toLowerCase()));
+  if(!words.length) return '?';
+  if(words.length===1) return words[0].slice(0,2).toUpperCase();
+  return (words[0][0] + words[words.length-1][0]).toUpperCase();
+}
+
+function prShowTab(name){
+  document.querySelectorAll('.pr-tab').forEach(b=>b.classList.remove('on'));
+  document.querySelectorAll('.pr-panel').forEach(p=>p.classList.remove('on'));
+  const idx = {finance:0, employee:1, performance:2, projects:3, history:4}[name];
+  document.querySelectorAll('.pr-tab')[idx]?.classList.add('on');
+  document.getElementById('pr-panel-'+name)?.classList.add('on');
+  if(name==='performance') loadMonthlyPerformance();
+  if(name==='projects') renderProjectBudgetsTable();
+  if(name==='history') renderPrHistory();
+}
+
+function prScrollTo(id){
+  const el = document.getElementById(id);
+  if(!el) return;
+  el.scrollIntoView({behavior:'smooth', block:'center'});
+  el.style.transition = 'box-shadow 0.3s';
+  el.style.boxShadow = '0 0 0 3px var(--gold)';
+  setTimeout(()=>{ el.style.boxShadow = ''; }, 1200);
+}
+
+async function prAddNote(){
+  if(!_lastFinancePeriod) return;
+  const ov = currentOverrideBucket(); if(!ov) return;
+  const note = prompt('Note for ' + (document.getElementById('fin-period')?.textContent||'this month') + ':', ov.note||'');
+  if(note===null) return;
+  ov.note = note.trim();
+  await saveFinanceOverrides();
+  renderPrNotes();
+}
+
+function renderPrOverdueAlert(){
+  const s = _lastFinanceSummary;
+  const wrap = document.getElementById('pr-overdue-alert-wrap');
+  if(!s || !wrap) return;
+  const overdueList = s.expected.filter(e=>e.overdue);
+  if(!overdueList.length){ wrap.innerHTML = ''; return; }
+  const total = overdueList.reduce((t,e)=>t+e.balance,0);
+  wrap.innerHTML = `
+    <div class="pr-overdue-alert" onclick="prScrollTo('fin-overdue')">
+      <div>
+        <div class="oa-amt">${finMoney(total)} Overdue</div>
+        <div class="oa-note">${overdueList.length} invoice${overdueList.length===1?'':'s'} require attention — money owed, not cash on hand.</div>
+      </div>
+      <div class="oa-go">View details →</div>
+    </div>`;
+}
+
+function renderPrKpiRow(){
+  const s = _lastFinanceSummary;
+  const el = document.getElementById('pr-kpi-row');
+  if(!s || !el) return;
+  const cards = [
+    { ic:'💵', bg:'var(--green-lt)', fg:'var(--green)', lbl:'Revenue (Collected)', val:finMoney(s.revenue), note:`${s.received.length} payment${s.received.length===1?'':'s'}`, ncls:'' },
+    { ic:'📊', bg:'var(--gold-lt)', fg:'var(--gold-dk)', lbl:'Total Costs', val:finMoney(s.totalCosts), note: s.revenue>0.009 ? (s.totalCosts/s.revenue*100).toFixed(1)+'% of revenue' : '—', ncls:'' },
+    { ic:'📈', bg:'var(--green-lt)', fg:'var(--green)', lbl:'Net / Keep', val:finMoney(s.operatingNet), note: s.marginPct.toFixed(1)+'% margin', ncls: s.operatingNet<0?'neg':'' },
+    { ic:'🎯', bg:'var(--amber-lt)', fg:'var(--amber)', lbl:'Keep Target', val:finMoney(s.keepTarget), note: s.keepTargetCapped ? 'Capped to actual net' : FINANCE_CONFIG.profit_target_pct+'% of revenue', ncls:'' },
+    { ic:'📦', bg:'var(--cream)', fg:'var(--taupe-dk)', lbl:'Inventory', val:finMoney(s.inventoryBudget), note: s.revenue>0.009 ? (s.inventoryBudget/s.revenue*100).toFixed(1)+'% of revenue' : '0% of revenue', ncls: s.inventoryBudget<0?'neg':'' },
+  ];
+  el.innerHTML = cards.map(c=>`
+    <div class="pr-kpi">
+      <div class="pr-kpi-top"><div class="pr-kpi-ic" style="background:${c.bg};color:${c.fg}">${c.ic}</div><div class="pr-kpi-lbl">${c.lbl}</div></div>
+      <div class="pr-kpi-val ${c.ncls}">${c.val}</div>
+      <div class="pr-kpi-note">${c.note}</div>
+    </div>`).join('');
+}
+
+// Revenue Allocation donut (§ Finance & Allocation) — slices are Movers/Truck/Warehouse/
+// Taxes/[Stripe fee if >0]/Net-Keep(capped target)/Inventory. These sum to exactly Revenue:
+// Net/Keep here is the CAPPED keep target (what Jasmine actually takes), not the full
+// operating net — operating net = keepTarget + inventoryBudget already, so charting both
+// operatingNet AND inventoryBudget as separate slices would double-count the inventory
+// portion. This is the one place that distinction matters; the KPI card above still shows
+// the full operating net as its own headline figure.
+const PR_DONUT_COLORS = { movers:'#8a7355', truck:'#4a7c50', warehouse:'#c9a96e', taxes:'#a29c96', stripe:'#b53535', keep:'#2f6b3f', inventory:'#e8dcc5' };
+function renderPrDonut(){
+  const s = _lastFinanceSummary;
+  const donut = document.getElementById('pr-donut');
+  const center = document.getElementById('pr-donut-center');
+  const legend = document.getElementById('pr-legend');
+  if(!s || !donut) return;
+  const rev = s.revenue;
+  const slices = [
+    { key:'movers', label:'Movers (On-Site/Destage)', amt:s.moverCost },
+    { key:'truck', label:'Truck', amt:s.truckCost },
+    { key:'warehouse', label:'Warehouse', amt:s.warehouseCost },
+    { key:'taxes', label:'Taxes', amt:s.taxSetAside },
+  ];
+  if(s.stripeFee>0.009) slices.push({ key:'stripe', label:'Stripe Fee', amt:s.stripeFee });
+  slices.push({ key:'keep', label:'Net / Keep (Actual)', amt:s.keepTarget });
+  slices.push({ key:'inventory', label:'Inventory', amt:s.inventoryBudget });
+
+  if(rev<=0.009){
+    donut.style.background = '#e7e1d9';
+    center.innerHTML = `<div class="dv">${finMoney(0)}</div><div class="dl">Revenue</div>`;
+    legend.innerHTML = '<div class="empty-note">No revenue this period to allocate.</div>';
+    return;
+  }
+  let acc = 0;
+  const stops = slices.map(sl=>{
+    const pct = Math.max(0, sl.amt)/rev*100;
+    const from = acc; acc += pct;
+    return `${PR_DONUT_COLORS[sl.key]} ${from.toFixed(2)}% ${acc.toFixed(2)}%`;
+  });
+  donut.style.background = `conic-gradient(${stops.join(',')})`;
+  center.innerHTML = `<div class="dv">${finMoney(rev)}</div><div class="dl">Revenue</div>`;
+  legend.innerHTML = slices.map(sl=>`
+    <div class="pr-legend-row">
+      <span class="pr-legend-dot" style="background:${PR_DONUT_COLORS[sl.key]}"></span>
+      <span class="pr-legend-name">${esc(sl.label)}</span>
+      <span class="pr-legend-amt">${finMoney(sl.amt)}</span>
+      <span class="pr-legend-pct">${(Math.max(0,sl.amt)/rev*100).toFixed(1)}%</span>
+    </div>`).join('');
+}
+
+function renderPrNotes(){
+  const s = _lastFinanceSummary;
+  const badge = document.getElementById('pr-notes-badge');
+  const body = document.getElementById('pr-notes-body');
+  if(!s || !body) return;
+  const parts = [];
+  if(s.oneOff.flagged){
+    badge.style.display = '';
+    parts.push(`${finMoney(s.oneOff.amount)} in one-off warehouse/shared labor excluded from the ideal mover check and project splits (normal baseline for ${s.jobsThisMonth} job(s): ${finMoney(s.oneOff.baseline)}).`);
+  } else {
+    badge.style.display = 'none';
+  }
+  if(s.noStagingDate.length) parts.push(`⚠ Signed, unpaid, no staging date: ${esc(s.noStagingDate.join(', '))}.`);
+  if(s.paidButUnsigned.length) parts.push(`⚠ Paid but unsigned, $0 counted: ${esc(s.paidButUnsigned.join(', '))}.`);
+  const ov = getOverridesFor(_lastFinancePeriod.start);
+  if(ov.note) parts.push(`<em>"${esc(ov.note)}"</em>`);
+  body.innerHTML = parts.length ? parts.join('<br><br>') : 'Nothing unusual this month.';
+}
+
+// ── Employee Pay tab ── grouped from the same period-scoped time_entries query
+// runFinanceView() already ran for the Movers allocation slice — not a second fetch, and
+// explicitly the SAME dollars as that slice (see the note in the tab itself).
+function renderEmployeePayTab(){
+  const s = _lastFinanceSummary;
+  const tbody = document.getElementById('pr-emp-tbody');
+  const cardsEl = document.getElementById('pr-emp-cards-mobile');
+  const periodEl = document.getElementById('pr-emp-period');
+  if(!s || !tbody) return;
+  if(periodEl) periodEl.textContent = document.getElementById('fin-period')?.textContent || '';
+
+  const byEmp = {};
+  (s.periodEntries||[]).forEach(e=>{
+    const name = e.employee_name || 'Unknown';
+    const b = byEmp[name] = byEmp[name] || { name, types:new Set(), hours:0, amount:0, rates:new Set(), allPaid:true, anyEntry:false };
+    b.types.add(LABEL_BY_KEY[e.work_type]||e.work_type);
+    b.hours += parseFloat(e.hours)||0;
+    b.amount += parseFloat(e.amount)||0;
+    if(e.rate!=null) b.rates.add(parseFloat(e.rate));
+    if(!e.paid) b.allPaid = false;
+    b.anyEntry = true;
+  });
+  const emps = Object.values(byEmp).sort((a,b)=>b.amount-a.amount);
+
+  if(!emps.length){
+    tbody.innerHTML = '<tr><td colspan="6" class="empty-note">No hours logged this period.</td></tr>';
+    cardsEl.innerHTML = '';
+  } else {
+    let totGross = 0, totPaid = 0;
+    tbody.innerHTML = emps.map(e=>{
+      totGross += e.amount; if(e.allPaid) totPaid += e.amount;
+      const rateLbl = e.rates.size===1 ? '$'+[...e.rates][0].toFixed(2)+'/hr' : 'mixed';
+      return `<tr>
+        <td style="font-weight:600">${esc(e.name)}</td>
+        <td>${esc([...e.types].join(' / '))}</td>
+        <td>${e.hours.toFixed(1)}</td>
+        <td>${rateLbl}</td>
+        <td>${finMoney(e.amount)}</td>
+        <td><span class="pr-status-pill ${e.allPaid?'paid':'unpaid'}">${e.allPaid?'Paid':'Unpaid'}</span></td>
+      </tr>`;
+    }).join('') + `<tr class="total-row"><td>Total Payroll</td><td></td><td>${emps.reduce((t,e)=>t+e.hours,0).toFixed(1)}</td><td></td><td>${finMoney(totGross)}</td><td></td></tr>`;
+    cardsEl.innerHTML = emps.map(e=>`
+      <div class="pr-emp-card">
+        <div class="pr-emp-top">
+          <div><div class="pr-emp-name">${esc(e.name)}</div><div class="pr-emp-role">${esc([...e.types].join(' / '))} · ${e.hours.toFixed(1)}h</div></div>
+          <div style="text-align:right"><div class="pr-emp-pay">${finMoney(e.amount)}</div><span class="pr-status-pill ${e.allPaid?'paid':'unpaid'}">${e.allPaid?'Paid':'Unpaid'}</span></div>
+        </div>
+      </div>`).join('');
+  }
+
+  // Payroll Impact gauge — total payroll (= the same moverCost already in the allocation
+  // donut's Movers slice) as a % of revenue, against the mover-ideal benchmark.
+  const totalPayroll = (s.periodEntries||[]).reduce((t,e)=>t+(parseFloat(e.amount)||0),0);
+  const pct = s.revenue>0.009 ? totalPayroll/s.revenue*100 : 0;
+  const idealPct = FINANCE_CONFIG.mover_ideal_pct;
+  const gaugeColor = pct<=idealPct ? '#4a7c50' : '#c97c2e';
+  const gaugePct = Math.min(100, pct/Math.max(idealPct*1.5,1)*100);
+  const gauge = document.getElementById('pr-impact-gauge');
+  if(gauge){
+    gauge.style.background = `conic-gradient(${gaugeColor} 0% ${gaugePct}%, #e7e1d9 ${gaugePct}% 100%)`;
+    document.getElementById('pr-impact-gauge-center').innerHTML = `<div class="gv">${pct.toFixed(1)}%</div><div class="gl">of revenue</div>`;
+  }
+  const rowsEl = document.getElementById('pr-impact-rows');
+  if(rowsEl){
+    rowsEl.innerHTML = `
+      <div class="pr-impact-row"><span>Payroll</span><span>${finMoney(totalPayroll)}</span></div>
+      <div class="pr-impact-row"><span>Revenue</span><span>${finMoney(s.revenue)}</span></div>
+      <div class="pr-impact-row"><span>Target</span><span class="${pct<=idealPct?'ok':''}">≤${idealPct}% ${pct<=idealPct?'✓':'⚠'}</span></div>`;
+  }
+}
+
+// ── Monthly Performance tab ── lazy-loaded on first open. Fetches invoices + time_entries
+// once across the lookback window and buckets client-side, reusing the exact same per-event
+// revenue/cost logic as runFinanceView() (finInvoiceSplit, finPaymentEvents) rather than a
+// second, differently-written formula.
+let _prPerfRange = 6;
+let _prPerfCache = null;
+function prSetPerfRange(n){
+  _prPerfRange = n;
+  document.querySelectorAll('#pr-perf-range .pr-range-btn').forEach(b=>b.classList.remove('on'));
+  const idx = [3,6,12,'ytd'].indexOf(n);
+  document.querySelectorAll('#pr-perf-range .pr-range-btn')[idx]?.classList.add('on');
+  loadMonthlyPerformance();
+}
+async function loadMonthlyPerformance(){
+  const loading = document.getElementById('pr-perf-loading');
+  const body = document.getElementById('pr-perf-body');
+  if(!loading || !_lastFinanceSummary) return;
+  loading.style.display = ''; loading.textContent = 'Loading…'; body.style.display = 'none';
+
+  const now = new Date();
+  let months;
+  if(_prPerfRange==='ytd'){
+    months = []; for(let m=0; m<=now.getMonth(); m++) months.push(m);
+    months = months.map(m=>({ y:now.getFullYear(), m }));
+  } else {
+    months = []; for(let i=_prPerfRange-1; i>=0; i--) months.push({ y:now.getFullYear(), m:now.getMonth()-i });
+    months = months.map(x=>{ const d = new Date(x.y, x.m, 1); return { y:d.getFullYear(), m:d.getMonth() }; });
+  }
+  const rangeStart = `${months[0].y}-${String(months[0].m+1).padStart(2,'0')}-01`;
+  const rangeEndD = new Date(months[months.length-1].y, months[months.length-1].m+1, 0);
+  const rangeEnd = rangeEndD.toISOString().split('T')[0];
+
+  await loadFinanceInvoices();
+  const signed = _financeInvoices.filter(inv=>(inv.data||{}).signed===true);
+  let entries = [];
+  try{
+    const { data } = await _sb.from('time_entries').select('work_type,amount,clock_in,invnum')
+      .gte('clock_in', rangeStart+'T00:00:00').lte('clock_in', rangeEnd+'T23:59:59');
+    entries = data||[];
+  }catch(e){}
+
+  const results = months.map(({y,m})=>{
+    const periodStart = `${y}-${String(m+1).padStart(2,'0')}-01`;
+    const lastDay = new Date(y,m+1,0).getDate();
+    const periodEnd = `${y}-${String(m+1).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`;
+    let revenue=0;
+    signed.forEach(inv=>{
+      const d = inv.data||{};
+      finPaymentEvents(d).filter(e=>e.date>=periodStart && e.date<=periodEnd).forEach(e=>{ revenue += e.amount; });
+      (d.extensions||[]).forEach(ext=>{
+        if(ext.paid && ext.paid_date>=periodStart && ext.paid_date<=periodEnd) revenue += parseFloat(ext.amount)||0;
+      });
+    });
+    const moverCost = entries.filter(e=>e.clock_in>=periodStart+'T00:00:00' && e.clock_in<=periodEnd+'T23:59:59').reduce((t,e)=>t+(parseFloat(e.amount)||0),0);
+    const jobsCount = signed.filter(inv=>{ const d=inv.data||{}; return d.startdate && d.startdate!=='TBD' && d.startdate>=periodStart && d.startdate<=periodEnd; }).length || (revenue>0.009?1:0);
+    const truckCost = jobsCount * truckCostPerJob();
+    const warehouseCost = revenue>0.009 || moverCost>0.009 ? FINANCE_CONFIG.warehouse_monthly : 0;
+    const costs = moverCost + truckCost + warehouseCost;
+    const net = revenue - costs;
+    const margin = revenue>0.009 ? net/revenue*100 : 0;
+    const sharedBaseline = (jobsCount||1) * FINANCE_CONFIG.shared_labor_normal_per_job;
+    const internalInvnums = INTERNAL_JOBS.map(j=>j.invnum);
+    const sharedLabor = entries.filter(e=>e.clock_in>=periodStart+'T00:00:00' && e.clock_in<=periodEnd+'T23:59:59' && internalInvnums.includes(e.invnum)).reduce((t,e)=>t+(parseFloat(e.amount)||0),0);
+    const special = sharedLabor > sharedBaseline;
+    return { y, m, label: MONTH_NAMES[m].slice(0,3)+' '+String(y).slice(2), revenue, costs, net, margin, special };
+  });
+
+  _prPerfCache = results;
+  loading.style.display = 'none'; body.style.display = '';
+  const max = Math.max(1, ...results.map(r=>Math.max(r.revenue, r.costs)));
+  document.getElementById('pr-perf-chart').innerHTML = results.map(r=>`
+    <div class="pr-chart-col">
+      <div class="pr-chart-bars">
+        <div class="pr-chart-bar rev" style="height:${Math.max(2,Math.round(r.revenue/max*140))}px" title="Revenue ${finMoney(r.revenue)}"></div>
+        <div class="pr-chart-bar cost" style="height:${Math.max(2,Math.round(r.costs/max*140))}px" title="Costs ${finMoney(r.costs)}"></div>
+      </div>
+      <div class="pr-chart-lbl">${r.label}${r.special?' *':''}</div>
+    </div>`).join('');
+
+  const last = results[results.length-1], prev = results[results.length-2];
+  const cmp = document.getElementById('pr-perf-compare');
+  if(prev && cmp){
+    const pct = (a,b)=> b>0.009 ? ((a-b)/b*100) : (a>0.009?100:0);
+    const row = (lbl,a,b)=>{ const p=pct(a,b); return `<div class="budget-row"><span>${lbl}</span><span>${finMoney(a)} <span style="color:${p>=0?'var(--green)':'var(--red)'}">(${p>=0?'▲':'▼'}${Math.abs(p).toFixed(0)}%)</span></span></div>`; };
+    cmp.innerHTML = row('Revenue', last.revenue, prev.revenue) + row('Costs', last.costs, prev.costs) + row('Net / Keep', last.net, prev.net) + `<div class="budget-row"><span>Margin</span><span>${last.margin.toFixed(1)}% <span style="color:${last.margin>=prev.margin?'var(--green)':'var(--red)'}">(${last.margin>=prev.margin?'▲':'▼'}${Math.abs(last.margin-prev.margin).toFixed(1)}pt)</span></span></div>`;
+  } else if(cmp){
+    cmp.innerHTML = '<div class="empty-note">Not enough history yet to compare.</div>';
+  }
+
+  document.getElementById('pr-perf-tbody').innerHTML = results.slice().reverse().map(r=>`
+    <tr><td>${r.label}${r.special?' <span class="pr-badge" style="font-size:8.5px;padding:2px 7px">Special</span>':''}</td><td>${finMoney(r.revenue)}</td><td>${finMoney(r.costs)}</td><td class="${r.net<0?'note-strong':''}">${finMoney(r.net)}</td><td>${r.margin.toFixed(1)}%</td></tr>`).join('');
+}
+
+// ── History tab ── honest framing: these are recomputed live from current records each time,
+// not stored point-in-time snapshots. Clicking a month jumps the Finance tab's own selectors
+// there and switches tab, rather than faking a separate "history view" of different data.
+function renderPrHistory(){
+  const listEl = document.getElementById('pr-hist-list');
+  const ovEl = document.getElementById('pr-hist-overrides');
+  if(!listEl) return;
+  const now = new Date();
+  const rows = [];
+  for(let i=0;i<12;i++){
+    const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
+    rows.push({ y:d.getFullYear(), m:d.getMonth() });
+  }
+  listEl.innerHTML = rows.map(r=>`
+    <div class="pr-hist-row" onclick="prJumpToMonth(${r.y},${r.m})">
+      <div>
+        <div class="pr-hist-month">${MONTH_NAMES[r.m]} ${r.y}</div>
+        <div class="pr-hist-meta">Recalculated from current invoices &amp; time entries</div>
+      </div>
+      <div style="color:var(--taupe)">→</div>
+    </div>`).join('');
+
+  const keys = Object.keys(FINANCE_OVERRIDES||{}).sort().reverse();
+  if(!keys.length){ ovEl.innerHTML = '<div class="empty-note">No manual overrides on record.</div>'; return; }
+  ovEl.innerHTML = keys.map(k=>{
+    const ov = FINANCE_OVERRIDES[k];
+    const bits = [];
+    if(ov.excludeInvnums?.length) bits.push(`Excluded: ${ov.excludeInvnums.join(', ')}`);
+    if(ov.includeInvnums?.length) bits.push(`Added: ${ov.includeInvnums.join(', ')}`);
+    if(ov.oneOff?.force===true) bits.push('One-off: forced ON');
+    if(ov.oneOff?.force===false) bits.push('One-off: forced OFF');
+    if(ov.note) bits.push(`Note: "${esc(ov.note)}"`);
+    if(!bits.length) return '';
+    return `<div class="budget-row"><span>${esc(k)}</span><span style="text-align:right;font-size:11.5px">${bits.join(' · ')}</span></div>`;
+  }).filter(Boolean).join('') || '<div class="empty-note">No manual overrides on record.</div>';
+}
+function prJumpToMonth(y,m){
+  document.getElementById('fin-year').value = y;
+  document.getElementById('fin-month').value = m+1;
+  prShowTab('finance');
+  runFinanceView();
+  window.scrollTo({top:0, behavior:'smooth'});
 }
 
 document.addEventListener('DOMContentLoaded', async ()=>{
