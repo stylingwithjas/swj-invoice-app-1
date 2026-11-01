@@ -520,7 +520,7 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
 
 <nav class="swj-bottom-nav">
   <a class="swj-bn-link" href="/today.html"><span class="swj-bn-ic">🏠</span>Today</a>
-  <a class="swj-bn-link" href="/index.html"><span class="swj-bn-ic">✚</span>Invoice</a>
+  <a class="swj-bn-link" href="/index.html"><span class="swj-bn-ic">✚</span>New Invoice</a>
   <a class="swj-bn-link on" href="/board.html"><span class="swj-bn-ic">📋</span>Board</a>
   <a class="swj-bn-link" href="/payroll.html"><span class="swj-bn-ic">💼</span>Payroll</a>
   <button class="swj-bn-link" onclick="swjToggleMore()" type="button"><span class="swj-bn-ic">⋯</span>More</button>
@@ -536,7 +536,8 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
     <a class="swj-more-link" href="/hours.html">🕒 My Hours</a>
   </div>
 </div>
-<script>function swjToggleMore(){document.getElementById('swj-more-sheet').classList.toggle('open');}</script>
+<script>function swjToggleMore(){document.getElementById('swj-more-sheet').classList.toggle('open');}
+document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=document.getElementById('swj-more-sheet');if(m&&m.classList.contains('open'))m.classList.remove('open');}});</script>
 
 <!-- HEADER -->
 <div class="hdr">
@@ -1966,7 +1967,7 @@ function truckCostPerJobEstimate(){
 // each month's TAX_REVIEW_<year>_<month> record — fake "invoice" rows used to persist app
 // settings/state, not real jobs), and GS Photography (Gabe's separate business, which must
 // never mix into Jasmine's staging numbers).
-const SYSTEM_INVNUMS = ['PRICING_DEFAULTS', 'TIER_PRICING', 'FINANCE_CONFIG'];
+const SYSTEM_INVNUMS = ['PRICING_DEFAULTS', 'TIER_PRICING', 'FINANCE_CONFIG', 'FINANCE_OVERRIDES'];
 function isStagingEligible(invnum){
   invnum = String(invnum||'');
   return !invnum.startsWith('DRAFT-') && !invnum.startsWith('GS') && !invnum.startsWith('TAX_REVIEW_') && !SYSTEM_INVNUMS.includes(invnum);
@@ -2396,7 +2397,10 @@ function updatePipelineStats(grouped){
   document.getElementById('stat-staged-count').textContent = stagedCount;
   document.getElementById('stat-staged-total').textContent = fmtMoney(stagedTotal) + ' staged';
 
-  // MTD Revenue = sum of grand totals for invoices marked paid this month
+  // MTD Revenue = sum of grand totals for invoices marked paid this month. Paid counts
+  // regardless of signature status — confirmed with Gabe (Nov 2026) as the one revenue rule
+  // Finance & Allocation and Monthly Performance in payroll.html now also use, so this figure
+  // should agree with those views for the same period.
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   let mtdTotal = 0, mtdCount = 0;

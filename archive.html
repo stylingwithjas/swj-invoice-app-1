@@ -127,7 +127,7 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
 
 <nav class="swj-bottom-nav">
   <a class="swj-bn-link" href="/today.html"><span class="swj-bn-ic">🏠</span>Today</a>
-  <a class="swj-bn-link" href="/index.html"><span class="swj-bn-ic">✚</span>Invoice</a>
+  <a class="swj-bn-link" href="/index.html"><span class="swj-bn-ic">✚</span>New Invoice</a>
   <a class="swj-bn-link" href="/board.html"><span class="swj-bn-ic">📋</span>Board</a>
   <a class="swj-bn-link" href="/payroll.html"><span class="swj-bn-ic">💼</span>Payroll</a>
   <button class="swj-bn-link" onclick="swjToggleMore()" type="button"><span class="swj-bn-ic">⋯</span>More</button>
@@ -144,7 +144,8 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
     <a class="swj-more-link" href="/hours.html">🕒 My Hours</a>
   </div>
 </div>
-<script>function swjToggleMore(){document.getElementById('swj-more-sheet').classList.toggle('open');}</script>
+<script>function swjToggleMore(){document.getElementById('swj-more-sheet').classList.toggle('open');}
+document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=document.getElementById('swj-more-sheet');if(m&&m.classList.contains('open'))m.classList.remove('open');}});</script>
 
 
 <div class="hdr">
@@ -239,7 +240,7 @@ async function downloadSignedContract(invnum, btn){
 async function loadAll(){
   try{
     const {data,error} = await _sb.from('invoices').select('invnum,client,address,invdate,created_at,data')
-      .not('invnum','like','DRAFT-%').not('invnum','like','GS%').neq('invnum','PRICING_DEFAULTS').neq('invnum','TIER_PRICING').not('invnum','like','TAX_REVIEW_%').neq('invnum','FINANCE_CONFIG')
+      .not('invnum','like','DRAFT-%').not('invnum','like','GS%').neq('invnum','PRICING_DEFAULTS').neq('invnum','TIER_PRICING').not('invnum','like','TAX_REVIEW_%').neq('invnum','FINANCE_CONFIG').neq('invnum','FINANCE_OVERRIDES')
       .order('created_at',{ascending:false}).limit(1000);
     if(error) throw error;
     _allInvoices = data||[];
@@ -328,7 +329,7 @@ function renderCleanupReport(){
 
   // 4) Never emailed to a client at all (no send_log, not signed, not a draft/system row) —
   // informational only: send_log is new, so older legitimate invoices will also show up here.
-  const SYSTEM = ['PRICING_DEFAULTS','TIER_PRICING','FINANCE_CONFIG'];
+  const SYSTEM = ['PRICING_DEFAULTS','TIER_PRICING','FINANCE_CONFIG','FINANCE_OVERRIDES'];
   const isSystemRow = invnum => SYSTEM.includes(invnum) || String(invnum||'').startsWith('TAX_REVIEW_');
   const neverSent = rows.filter(inv=>{
     const d = inv.data||{};
