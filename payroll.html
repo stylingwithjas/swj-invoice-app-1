@@ -246,6 +246,9 @@ tr.paid-row { opacity:0.55; }
 .pr-legend-name{ flex:1; color:var(--ink-soft); }
 .pr-legend-amt{ font-weight:600; color:var(--ink); white-space:nowrap; }
 .pr-legend-pct{ color:var(--taupe-dk); width:40px; text-align:right; flex-shrink:0; }
+.pr-legend-sub{ padding-left:17px; font-size:11.5px; color:var(--taupe-dk); }
+.pr-legend-sub .pr-legend-dot{ background:none !important; width:0; }
+.pr-legend-sub .pr-legend-amt{ font-weight:500; color:var(--taupe-dk); }
 
 .pr-badge{ font-size:10px; font-weight:700; padding:3px 9px; border-radius:20px; background:var(--amber-lt); color:var(--amber); text-transform:uppercase; letter-spacing:0.4px; }
 .pr-notes-body{ font-size:12.5px; color:var(--ink-soft); line-height:1.6; margin:10px 0 14px; }
@@ -1439,9 +1442,17 @@ async function runFinanceView(){
   const moverOnSite = moverByType['staging']||0;
   const moverGeneral = (moverByType['destage']||0) + (moverByType['warehouse']||0) + (moverByType['travel']||0);
 
+  // A job counts toward "this month" if it was STAGED this period OR it generated REVENUE
+  // this period (by payment date) — not staging date alone. Revenue Allocation already sums
+  // every job with a payment this month; Truck/one-off-baseline/warehouse-split need to count
+  // those same jobs, or a job paid this month but staged in a different month would inflate
+  // revenue without its costs following — found live (Oct 30 build): revenue summed 2 jobs
+  // while Truck/baseline were still computed for 1.
+  const receivedInvnums = new Set(received.map(r=>r.invnum));
   const jobsThisMonthList = signed.filter(inv=>{
     const d = inv.data||{};
-    return d.startdate && d.startdate!=='TBD' && d.startdate>=periodStart && d.startdate<=periodEnd;
+    const stagedThisPeriod = d.startdate && d.startdate!=='TBD' && d.startdate>=periodStart && d.startdate<=periodEnd;
+    return stagedThisPeriod || receivedInvnums.has(inv.invnum);
   });
   const jobsThisMonth = jobsThisMonthList.length || 1;
 
@@ -1837,13 +1848,37 @@ function renderPrDonut(){
   });
   donut.style.background = `conic-gradient(${stops.join(',')})`;
   center.innerHTML = `<div class="dv">${finMoney(rev)}</div><div class="dl">Revenue</div>`;
-  legend.innerHTML = slices.map(sl=>`
+  legend.innerHTML = slices.map(sl=>{
+    const row = `
     <div class="pr-legend-row">
       <span class="pr-legend-dot" style="background:${PR_DONUT_COLORS[sl.key]}"></span>
       <span class="pr-legend-name">${esc(sl.label)}</span>
       <span class="pr-legend-amt">${finMoney(sl.amt)}</span>
       <span class="pr-legend-pct">${(Math.max(0,sl.amt)/rev*100).toFixed(1)}%</span>
-    </div>`).join('');
+    </div>`;
+    // Tithe is a cut OF the Keep slice, not a separate dollar amount on top of it — shown as a
+    // sub-line under Keep, never its own pie slice (that would double-count the same revenue).
+    // It's never a flat/hardcoded number: titheAmount = keepTarget * 10%, and keepTarget is
+    // already capped at actual net (and floored at $0) upstream, so a month where costs exceed
+    // revenue — no green, no keep — produces $0 tithe automatically, not a guess.
+    if(sl.key==='keep'){
+      const inGreen = s.keepTarget > 0.009;
+      return row + `
+    <div class="pr-legend-row pr-legend-sub">
+      <span class="pr-legend-dot"></span>
+      <span class="pr-legend-name">↳ Tithe — 10% of keep${inGreen?'':' (no keep this month — $0)'}</span>
+      <span class="pr-legend-amt">${finMoney(s.titheAmount)}</span>
+      <span class="pr-legend-pct"></span>
+    </div>
+    <div class="pr-legend-row pr-legend-sub">
+      <span class="pr-legend-dot"></span>
+      <span class="pr-legend-name">↳ Personally retained</span>
+      <span class="pr-legend-amt">${finMoney(s.personallyRetained)}</span>
+      <span class="pr-legend-pct"></span>
+    </div>`;
+    }
+    return row;
+  }).join('');
 }
 
 function renderPrNotes(){
