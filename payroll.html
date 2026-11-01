@@ -330,7 +330,7 @@ tr.paid-row { opacity:0.55; }
 
 <nav class="swj-bottom-nav">
   <a class="swj-bn-link" href="/today.html"><span class="swj-bn-ic">🏠</span>Today</a>
-  <a class="swj-bn-link" href="/index.html"><span class="swj-bn-ic">✚</span>Invoice</a>
+  <a class="swj-bn-link" href="/index.html"><span class="swj-bn-ic">✚</span>New Invoice</a>
   <a class="swj-bn-link" href="/board.html"><span class="swj-bn-ic">📋</span>Board</a>
   <a class="swj-bn-link on" href="/payroll.html"><span class="swj-bn-ic">💼</span>Payroll</a>
   <button class="swj-bn-link" onclick="swjToggleMore()" type="button"><span class="swj-bn-ic">⋯</span>More</button>
@@ -347,7 +347,8 @@ tr.paid-row { opacity:0.55; }
     <a class="swj-more-link" href="/hours.html">🕒 My Hours</a>
   </div>
 </div>
-<script>function swjToggleMore(){document.getElementById('swj-more-sheet').classList.toggle('open');}</script>
+<script>function swjToggleMore(){document.getElementById('swj-more-sheet').classList.toggle('open');}
+document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=document.getElementById('swj-more-sheet');if(m&&m.classList.contains('open'))m.classList.remove('open');}});</script>
 
 
 <div class="hdr">
@@ -779,7 +780,7 @@ async function loadProjects(){
   const internalOpts = INTERNAL_JOBS.map(j=>`<option value="${esc(j.invnum)}">${esc(j.label)}</option>`).join('');
   try{
     const {data} = await _sb.from('invoices').select('invnum,client,address,invdate,data')
-      .not('invnum','like','DRAFT-%').not('invnum','like','GS%').neq('invnum','PRICING_DEFAULTS').neq('invnum','TIER_PRICING').not('invnum','like','TAX_REVIEW_%').neq('invnum','FINANCE_CONFIG')
+      .not('invnum','like','DRAFT-%').not('invnum','like','GS%').neq('invnum','PRICING_DEFAULTS').neq('invnum','TIER_PRICING').not('invnum','like','TAX_REVIEW_%').neq('invnum','FINANCE_CONFIG').neq('invnum','FINANCE_OVERRIDES')
       .order('invdate',{ascending:false}).limit(50);
     _projectsCache = (data||[]).filter(j => { const s=(j.data||{}).stage||'proposal'; return s!=='denied' && s!=='closed_lost'; });
     const jobOpts = _projectsCache.map(j=>`<option value="${esc(j.invnum)}">${esc(jobLabelFor(j))}</option>`).join('');

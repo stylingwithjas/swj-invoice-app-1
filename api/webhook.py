@@ -431,7 +431,7 @@ def _list_business_invoices():
         invnum = str(inv.get('invnum', ''))
         if invnum.startswith('DRAFT-') or invnum.startswith('GS') or invnum.startswith('TAX_REVIEW_'):
             continue
-        if invnum in ('PRICING_DEFAULTS', 'TIER_PRICING', 'FINANCE_CONFIG'):
+        if invnum in ('PRICING_DEFAULTS', 'TIER_PRICING', 'FINANCE_CONFIG', 'FINANCE_OVERRIDES'):
             continue
         out.append(inv)
     return out
