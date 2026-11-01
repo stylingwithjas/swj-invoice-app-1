@@ -1347,11 +1347,15 @@ async function runFinanceView(){
   const overrides = getOverridesFor(periodStart);
   const excludeSet = new Set(overrides.excludeInvnums||[]);
   const includeSet = new Set(overrides.includeInvnums||[]);
-  const signedRaw = _financeInvoices.filter(inv => (inv.data||{}).signed === true);
-  const signed = signedRaw.filter(inv=>!excludeSet.has(inv.invnum));
-  _financeInvoices.forEach(inv=>{ if(includeSet.has(inv.invnum) && !signed.some(x=>x.invnum===inv.invnum)) signed.push(inv); });
+  // Revenue rule (confirmed with Gabe, Nov 2026): a paid job counts regardless of whether the
+  // contract is signed yet — signature status no longer gates revenue here, in Monthly
+  // Performance, or in the Board MTD strip (which already worked this way). excludeInvnums/
+  // includeInvnums overrides still let a specific job be pulled out of or forced into a month.
+  const counted = _financeInvoices.filter(inv=>!excludeSet.has(inv.invnum));
+  _financeInvoices.forEach(inv=>{ if(includeSet.has(inv.invnum) && !counted.some(x=>x.invnum===inv.invnum)) counted.push(inv); });
 
-  // Paid but unsigned — flagged, never silently dropped from view (it contributes $0 revenue).
+  // Paid without a signed contract on file — still counted in Revenue (signature doesn't gate
+  // revenue), but surfaced as a paperwork follow-up so a missing signature doesn't get lost.
   const paidButUnsigned = _financeInvoices.filter(inv=>{
     const d = inv.data||{};
     if(d.signed) return false;
@@ -1362,7 +1366,7 @@ async function runFinanceView(){
   // ---- Received: payment events this period, named ----
   let revenue=0, salesTax=0, retailRev=0, serviceRev=0, stripeFee=0;
   const received = [];
-  signed.forEach(inv=>{
+  counted.forEach(inv=>{
     const d = inv.data||{};
     const split = finInvoiceSplit(d);
     const events = finPaymentEvents(d).filter(e=>e.date>=periodStart && e.date<=periodEnd);
@@ -1400,7 +1404,7 @@ async function runFinanceView(){
   const today = new Date().toISOString().split('T')[0];
   const in60 = new Date(); in60.setDate(in60.getDate()+60);
   const in60Str = in60.toISOString().split('T')[0];
-  signed.forEach(inv=>{
+  counted.forEach(inv=>{
     const d = inv.data||{};
     if(!d.startdate || d.startdate==='TBD') return;
     const split = finInvoiceSplit(d);
@@ -1416,7 +1420,7 @@ async function runFinanceView(){
       committed.push({ invnum:inv.invnum, client:inv.client||'Client', balance, startdate:d.startdate, data:d });
     }
   });
-  const noStagingDate = signed.filter(inv=>{
+  const noStagingDate = counted.filter(inv=>{
     const d = inv.data||{};
     return (!d.startdate || d.startdate==='TBD') && !d.paid;
   }).map(inv=>`${inv.client||'Client'} #${inv.invnum}`);
@@ -1453,7 +1457,7 @@ async function runFinanceView(){
   // revenue without its costs following — found live (Oct 30 build): revenue summed 2 jobs
   // while Truck/baseline were still computed for 1.
   const receivedInvnums = new Set(received.map(r=>r.invnum));
-  const jobsThisMonthList = signed.filter(inv=>{
+  const jobsThisMonthList = counted.filter(inv=>{
     const d = inv.data||{};
     const stagedThisPeriod = d.startdate && d.startdate!=='TBD' && d.startdate>=periodStart && d.startdate<=periodEnd;
     return stagedThisPeriod || receivedInvnums.has(inv.invnum);
@@ -1561,7 +1565,7 @@ function renderFinanceSummary(){
     <div>Truck is estimated for ${s.jobsThisMonth} job(s): ${esc(truckNames)}</div>
     <div>${idealLine}</div>
     ${s.oneOff.flagged?`<div>Special month baseline: normal shared labor for ${s.jobsThisMonth} job(s) is ${finMoney(s.oneOff.baseline)}; this month's shared/warehouse-organizing labor was ${finMoney(s.oneOff.raw)}${s.overrides.oneOff.force===true?' (manually forced)':s.overrides.oneOff.force===false?' (auto-flag manually cleared — not shown as special)':' (auto-flagged)'}. This does not change what's actually owed above — it only changes what's excluded from the ideal check and project splits.</div>`:''}
-    ${s.paidButUnsigned.length?`<div>⚠ Paid but unsigned — $0 counted in Revenue, not dropped: ${esc(s.paidButUnsigned.join(', '))}</div>`:''}
+    ${s.paidButUnsigned.length?`<div>⚠ Paid, counted in Revenue, but no signed contract on file yet — follow up for paperwork: ${esc(s.paidButUnsigned.join(', '))}</div>`:''}
     ${s.noStagingDate.length?`<div>⚠ Signed, unpaid, no staging date — not in Expected, Overdue, or Committed: ${esc(s.noStagingDate.join(', '))}</div>`:''}
     <div>Inventory is whatever is left after costs and the keep target — not a tracked balance, not entered by hand. If costs rise and keep stays at target, inventory shrinks dollar-for-dollar. Keep target is capped at actual profit, so it can never exceed what the month really made.</div>
   `;
@@ -1928,7 +1932,7 @@ function renderPrNotes(){
     badge.style.display = 'none';
   }
   if(s.noStagingDate.length) parts.push(`⚠ Signed, unpaid, no staging date: ${esc(s.noStagingDate.join(', '))}.`);
-  if(s.paidButUnsigned.length) parts.push(`⚠ Paid but unsigned, $0 counted: ${esc(s.paidButUnsigned.join(', '))}.`);
+  if(s.paidButUnsigned.length) parts.push(`⚠ Paid, counted, but unsigned — needs paperwork follow-up: ${esc(s.paidButUnsigned.join(', '))}.`);
   const ov = getOverridesFor(_lastFinancePeriod.start);
   if(ov.note) parts.push(`<em>"${esc(ov.note)}"</em>`);
   body.innerHTML = parts.length ? parts.join('<br><br>') : 'Nothing unusual this month.';
@@ -2038,7 +2042,8 @@ async function loadMonthlyPerformance(){
   const rangeEnd = rangeEndD.toISOString().split('T')[0];
 
   await loadFinanceInvoices();
-  const signed = _financeInvoices.filter(inv=>(inv.data||{}).signed===true);
+  // Same revenue rule as Finance & Allocation: a paid job counts regardless of signature.
+  const counted = _financeInvoices;
   let entries = [];
   try{
     const { data } = await _sb.from('time_entries').select('work_type,amount,clock_in,invnum')
@@ -2051,7 +2056,7 @@ async function loadMonthlyPerformance(){
     const lastDay = new Date(y,m+1,0).getDate();
     const periodEnd = `${y}-${String(m+1).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`;
     let revenue=0;
-    signed.forEach(inv=>{
+    counted.forEach(inv=>{
       const d = inv.data||{};
       finPaymentEvents(d).filter(e=>e.date>=periodStart && e.date<=periodEnd).forEach(e=>{ revenue += e.amount; });
       (d.extensions||[]).forEach(ext=>{
@@ -2059,7 +2064,7 @@ async function loadMonthlyPerformance(){
       });
     });
     const moverCost = entries.filter(e=>e.clock_in>=periodStart+'T00:00:00' && e.clock_in<=periodEnd+'T23:59:59').reduce((t,e)=>t+(parseFloat(e.amount)||0),0);
-    const jobsCount = signed.filter(inv=>{ const d=inv.data||{}; return d.startdate && d.startdate!=='TBD' && d.startdate>=periodStart && d.startdate<=periodEnd; }).length || (revenue>0.009?1:0);
+    const jobsCount = counted.filter(inv=>{ const d=inv.data||{}; return d.startdate && d.startdate!=='TBD' && d.startdate>=periodStart && d.startdate<=periodEnd; }).length || (revenue>0.009?1:0);
     const truckCost = jobsCount * truckCostPerJob();
     const warehouseCost = revenue>0.009 || moverCost>0.009 ? FINANCE_CONFIG.warehouse_monthly : 0;
     const costs = moverCost + truckCost + warehouseCost;

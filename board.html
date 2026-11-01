@@ -2397,7 +2397,10 @@ function updatePipelineStats(grouped){
   document.getElementById('stat-staged-count').textContent = stagedCount;
   document.getElementById('stat-staged-total').textContent = fmtMoney(stagedTotal) + ' staged';
 
-  // MTD Revenue = sum of grand totals for invoices marked paid this month
+  // MTD Revenue = sum of grand totals for invoices marked paid this month. Paid counts
+  // regardless of signature status — confirmed with Gabe (Nov 2026) as the one revenue rule
+  // Finance & Allocation and Monthly Performance in payroll.html now also use, so this figure
+  // should agree with those views for the same period.
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   let mtdTotal = 0, mtdCount = 0;
