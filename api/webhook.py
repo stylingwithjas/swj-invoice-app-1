@@ -575,6 +575,35 @@ def supabase_update_split_payment(parent_invnum, pay_id, payment_info):
         return False
 
 
+def _call_mark_extension_paid_rpc(parent_invnum, ext_invnum, paid_date, payment_id=None, amount=None, manual_method=None):
+    """Atomic update via the mark_extension_paid() Postgres function (sql/mark_extension_paid.sql
+    — a migration Gabe runs once in Supabase's SQL editor, not something this app can run
+    itself). Returns the updated data dict on success, None if the function doesn't exist yet
+    (migration not run), raises on any other error so the caller can fall back either way."""
+    key = os.environ.get('SUPABASE_KEY', '')
+    body = {'p_invnum': parent_invnum, 'p_ext_invnum': ext_invnum, 'p_paid_date': paid_date}
+    if payment_id is not None:
+        body['p_payment_id'] = payment_id
+    if amount is not None:
+        body['p_amount'] = amount
+    if manual_method is not None:
+        body['p_manual_method'] = manual_method
+    req = urllib.request.Request(
+        f'{SUPABASE_URL}/rest/v1/rpc/mark_extension_paid',
+        data=json.dumps(body).encode(), method='POST'
+    )
+    req.add_header('apikey', key)
+    req.add_header('Authorization', f'Bearer {key}')
+    req.add_header('Content-Type', 'application/json')
+    try:
+        with urllib.request.urlopen(req, timeout=10) as r:
+            return json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return None  # function not created yet — caller falls back
+        raise
+
+
 def supabase_update_extension_payment(parent_invnum, ext_invnum, payment_info):
     """An extension payment link (invnum like '202092-EXT1') got paid. Extensions have never
     been their own row in the invoices table — they live only in the PARENT invoice's
@@ -582,7 +611,24 @@ def supabase_update_extension_payment(parent_invnum, ext_invnum, payment_info):
     for a Supabase row that doesn't exist (the gap supabase_update_payment's docstring notes).
     This is what makes extension revenue visible to cash-basis tax reporting at all (Phase 5.3:
     "Extension fees appear as their own visible category") — before this, a paid extension had
-    no recorded payment date anywhere, so it could never be picked up by period."""
+    no recorded payment date anywhere, so it could never be picked up by period.
+
+    Prefers the atomic mark_extension_paid() DB function (see sql/mark_extension_paid.sql) —
+    confirmed live Nov 1 2026 that the read-modify-write below can silently lose this exact
+    update (a real webhook fired, a receipt went out, but `paid` never stuck) if anything
+    else re-saves the same invoice's whole data blob in between. Falls back to the old
+    read-modify-write automatically if that SQL function hasn't been created yet, so this
+    keeps working either way."""
+    try:
+        rpc_result = _call_mark_extension_paid_rpc(
+            parent_invnum, ext_invnum, payment_info.get('paid_date', ''),
+            payment_id=payment_info.get('payment_id', ''), amount=payment_info.get('amount'),
+        )
+        if rpc_result is not None:
+            return True
+    except Exception as e:
+        print(f'Extension paid RPC error, falling back to read-modify-write: {e}')
+
     try:
         key = os.environ.get('SUPABASE_KEY', '')
         req = urllib.request.Request(
