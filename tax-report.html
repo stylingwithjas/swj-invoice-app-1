@@ -1065,7 +1065,9 @@ async function sendTestAuditPacket(){
     const r = await fetch('/api/webhook?job=monthly_audit_packet');
     const j = await r.json();
     if(!r.ok) throw new Error(j.error || `Server error ${r.status}`);
-    alert(j.emailed ? `Sent! Check info@stylingwithjas.com for the ${j.period} audit packet.` : `The packet ran but the email failed to send — check that EMAIL_PASSWORD is configured.`);
+    const emailMsg = j.emailed ? `Sent! Check info@stylingwithjas.com for the ${j.period} audit packet.` : `The packet ran but the email failed to send — check that EMAIL_PASSWORD is configured.`;
+    const driveMsg = j.drive_saved>0 ? ` Saved ${j.drive_saved} file(s) to Drive.` : ` Drive save skipped: ${j.drive_error||'not configured'}.`;
+    alert(emailMsg + driveMsg);
   }catch(e){
     alert('Could not send the test audit packet: '+e.message);
   }finally{
@@ -1081,7 +1083,9 @@ async function sendTestBackupExport(){
     const r = await fetch('/api/webhook?job=monthly_backup_export');
     const j = await r.json();
     if(!r.ok) throw new Error(j.error || `Server error ${r.status}`);
-    alert(j.emailed ? `Sent! Check info@stylingwithjas.com for the full tax-data backup export.` : `The export ran but the email failed to send — check that EMAIL_PASSWORD is configured.`);
+    const emailMsg = j.emailed ? `Sent! Check info@stylingwithjas.com for the full tax-data backup export.` : `The export ran but the email failed to send — check that EMAIL_PASSWORD is configured.`;
+    const driveMsg = j.drive_saved>0 ? ` Saved ${j.drive_saved} file(s) to Drive.` : ` Drive save skipped: ${j.drive_error||'not configured'}.`;
+    alert(emailMsg + driveMsg);
   }catch(e){
     alert('Could not send the test backup export: '+e.message);
   }finally{

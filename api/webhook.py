@@ -1326,6 +1326,133 @@ def send_monthly_tax_report_email(summary_csv, detail_csv, stats):
         return False
 
 
+# ── GOOGLE DRIVE (fix spec addendum #2, Nov 1 2026) ──────────────────────────────────────
+# Saves the monthly audit packet + backup export into "Styling With Jas - Tax Backups" in
+# Drive, so they survive even a total loss of the app database/email. Pure HTTPS calls, no
+# Google client library, matching how this file already talks to Supabase/Stripe/WA DOR.
+#
+# Needs a ONE-TIME OAuth consent (there is no credential configured yet, confirmed with
+# Gabe Nov 1 2026) done by whoever's Google account already has edit access to that Drive
+# folder: run that account through an OAuth "installed app" flow for scope
+# https://www.googleapis.com/auth/drive.file (e.g. via Google's OAuth Playground, or a tiny
+# local script) to get back a client_id, client_secret, and refresh_token, then set those as
+# GOOGLE_DRIVE_CLIENT_ID / GOOGLE_DRIVE_CLIENT_SECRET / GOOGLE_DRIVE_REFRESH_TOKEN in Vercel's
+# env vars. Until all three exist, every call below no-ops cleanly (drive_saved=0, an error
+# string) — same as EMAIL_PASSWORD being unset: a missing credential skips the save, it
+# never fails the cron run.
+GOOGLE_DRIVE_FOLDER_ROOT = 'Styling With Jas - Tax Backups'
+_drive_folder_id_cache = {}
+
+
+def _drive_access_token():
+    client_id = os.environ.get('GOOGLE_DRIVE_CLIENT_ID', '')
+    client_secret = os.environ.get('GOOGLE_DRIVE_CLIENT_SECRET', '')
+    refresh_token = os.environ.get('GOOGLE_DRIVE_REFRESH_TOKEN', '')
+    if not (client_id and client_secret and refresh_token):
+        return None
+    try:
+        body = urllib.parse.urlencode({
+            'client_id': client_id, 'client_secret': client_secret,
+            'refresh_token': refresh_token, 'grant_type': 'refresh_token',
+        }).encode()
+        req = urllib.request.Request('https://oauth2.googleapis.com/token', data=body, method='POST')
+        req.add_header('Content-Type', 'application/x-www-form-urlencoded')
+        with urllib.request.urlopen(req, timeout=15) as r:
+            return json.loads(r.read()).get('access_token')
+    except Exception as e:
+        print(f'[drive] token refresh error: {e}')
+        return None
+
+
+def _drive_find_or_create_folder(access_token, name, parent_id=None):
+    """Finds a folder by name under parent_id (Drive root if None), creating it if missing.
+    Cached per invocation only — cheap enough to re-resolve on every cold start otherwise."""
+    cache_key = f'{parent_id}/{name}'
+    if cache_key in _drive_folder_id_cache:
+        return _drive_folder_id_cache[cache_key]
+    parent_clause = f"'{parent_id}' in parents" if parent_id else "'root' in parents"
+    q = f"name = '{name}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false and {parent_clause}"
+    params = urllib.parse.urlencode({'q': q, 'fields': 'files(id,name)'})
+    req = urllib.request.Request(f'https://www.googleapis.com/drive/v3/files?{params}')
+    req.add_header('Authorization', f'Bearer {access_token}')
+    with urllib.request.urlopen(req, timeout=15) as r:
+        found = json.loads(r.read()).get('files') or []
+    if found:
+        folder_id = found[0]['id']
+    else:
+        metadata = {'name': name, 'mimeType': 'application/vnd.google-apps.folder'}
+        if parent_id:
+            metadata['parents'] = [parent_id]
+        req2 = urllib.request.Request(
+            'https://www.googleapis.com/drive/v3/files', data=json.dumps(metadata).encode(), method='POST'
+        )
+        req2.add_header('Authorization', f'Bearer {access_token}')
+        req2.add_header('Content-Type', 'application/json')
+        with urllib.request.urlopen(req2, timeout=15) as r2:
+            folder_id = json.loads(r2.read())['id']
+    _drive_folder_id_cache[cache_key] = folder_id
+    return folder_id
+
+
+def _drive_upload_file(access_token, folder_id, filename, content_bytes, mime_type='text/csv'):
+    """Uploads one file, overwriting (PATCH) a same-named file already in that folder instead
+    of duplicating it, so re-running a test send doesn't pile up copies."""
+    q = f"name = '{filename}' and '{folder_id}' in parents and trashed = false"
+    params = urllib.parse.urlencode({'q': q, 'fields': 'files(id)'})
+    req = urllib.request.Request(f'https://www.googleapis.com/drive/v3/files?{params}')
+    req.add_header('Authorization', f'Bearer {access_token}')
+    existing_id = None
+    try:
+        with urllib.request.urlopen(req, timeout=15) as r:
+            found = json.loads(r.read()).get('files') or []
+        if found:
+            existing_id = found[0]['id']
+    except Exception:
+        pass
+
+    boundary = '----swjdrive'
+    metadata = {'name': filename}
+    if not existing_id:
+        metadata['parents'] = [folder_id]
+    body = (
+        f'--{boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n{json.dumps(metadata)}\r\n'
+        f'--{boundary}\r\nContent-Type: {mime_type}\r\n\r\n'
+    ).encode() + content_bytes + f'\r\n--{boundary}--'.encode()
+
+    url = (f'https://www.googleapis.com/upload/drive/v3/files/{existing_id}?uploadType=multipart' if existing_id
+           else 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart')
+    req2 = urllib.request.Request(url, data=body, method='PATCH' if existing_id else 'POST')
+    req2.add_header('Authorization', f'Bearer {access_token}')
+    req2.add_header('Content-Type', f'multipart/related; boundary={boundary}')
+    with urllib.request.urlopen(req2, timeout=30) as r2:
+        return json.loads(r2.read())
+
+
+def save_files_to_drive(subfolder, files):
+    """Saves {filename: bytes} into GOOGLE_DRIVE_FOLDER_ROOT/<subfolder>. Returns
+    (saved_count, error) — never raises; a Drive problem skips the save, it doesn't fail the
+    cron run. Each file is tried independently so one failure doesn't block the rest."""
+    token = _drive_access_token()
+    if not token:
+        return 0, 'Google Drive not configured (GOOGLE_DRIVE_CLIENT_ID/SECRET/REFRESH_TOKEN unset)'
+    try:
+        root_id = _drive_find_or_create_folder(token, GOOGLE_DRIVE_FOLDER_ROOT)
+        sub_id = _drive_find_or_create_folder(token, subfolder, root_id)
+    except Exception as e:
+        print(f'[drive] folder resolve error: {e}')
+        return 0, str(e)
+    saved = 0
+    last_error = None
+    for filename, content in files.items():
+        try:
+            _drive_upload_file(token, sub_id, filename, content)
+            saved += 1
+        except Exception as e:
+            print(f'[drive] upload error for {filename}: {e}')
+            last_error = str(e)
+    return saved, (last_error if saved < len(files) else None)
+
+
 def _tax_list_all_rows():
     """Every row in the invoices table, no exclusions — used only for the full-table backup
     export below, which needs the config/review rows every other tax-report query in this
@@ -1475,7 +1602,10 @@ def send_monthly_tax_backup_email(csvs, stats):
 
 def run_monthly_tax_backup():
     csvs, stats = build_tax_backup_export()
-    return send_monthly_tax_backup_email(csvs, stats), stats
+    sent = send_monthly_tax_backup_email(csvs, stats)
+    drive_saved, drive_error = save_files_to_drive('Full Table Exports', csvs)
+    stats = {**stats, 'drive_saved': drive_saved, 'drive_error': drive_error}
+    return sent, stats
 
 
 # Signed-contract links are meant to be permanent archive links, not short-lived download
@@ -1632,6 +1762,12 @@ def run_monthly_audit_packet():
         prev_last_day.year, prev_last_day.month
     )
     sent = send_monthly_audit_packet_email(summary_csv, detail_csv, contracts_csv, stats, contract_rows, review, period_key)
+    drive_saved, drive_error = save_files_to_drive('Monthly Audit Packets', {
+        f"SWJ_Tax_Summary_{stats['period_label'].replace(' ', '_')}.csv": summary_csv,
+        f"SWJ_Tax_Invoice_Detail_{stats['period_label'].replace(' ', '_')}.csv": detail_csv,
+        f"SWJ_Signed_Contracts_{stats['period_label'].replace(' ', '_')}.csv": contracts_csv,
+    })
+    stats = {**stats, 'drive_saved': drive_saved, 'drive_error': drive_error}
     return sent, stats
 
 
@@ -1657,6 +1793,8 @@ def run_monthly_close():
     backup_sent, backup_stats = run_monthly_tax_backup()
     return {
         'report_emailed': report_sent, 'packet_emailed': packet_sent, 'backup_emailed': backup_sent,
+        'packet_drive_saved': packet_stats.get('drive_saved', 0), 'packet_drive_error': packet_stats.get('drive_error'),
+        'backup_drive_saved': backup_stats.get('drive_saved', 0), 'backup_drive_error': backup_stats.get('drive_error'),
         'period': report_stats['period_label'],
     }
 
@@ -1702,11 +1840,17 @@ class handler(BaseHTTPRequestHandler):
                 return
             if job == 'monthly_audit_packet':
                 sent, stats = run_monthly_audit_packet()
-                self._respond(200, {'ok': True, 'emailed': sent, 'period': stats['period_label']})
+                self._respond(200, {
+                    'ok': True, 'emailed': sent, 'period': stats['period_label'],
+                    'drive_saved': stats.get('drive_saved', 0), 'drive_error': stats.get('drive_error'),
+                })
                 return
             if job == 'monthly_backup_export':
                 sent, stats = run_monthly_tax_backup()
-                self._respond(200, {'ok': True, 'emailed': sent})
+                self._respond(200, {
+                    'ok': True, 'emailed': sent,
+                    'drive_saved': stats.get('drive_saved', 0), 'drive_error': stats.get('drive_error'),
+                })
                 return
             if job == 'weekly_digest':
                 # Manual on-demand trigger (Build 2 audit: the Monday-only digest had no way
