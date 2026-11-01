@@ -485,7 +485,11 @@ function paymentEvents(d){
     events.push({
       date: d.paid_date,
       amount: parseFloat(d.amount_paid ?? d.stripe_amount ?? computeGrand(d)) || 0,
-      method: d.stripe_payment_id ? 'Stripe (Card)' : 'Other/Manual',
+      // manual_method:'stripe' on the invoice itself (no payments[] array at all) is the
+      // same confirmed-after-the-fact correction as above, for the legacy single-payment
+      // shape — confirmed live Nov 2026 as the COMMON case for an ordinary one-time payment
+      // (Baker #2020128 uses exactly this shape, not payments[]).
+      method: (d.stripe_payment_id || d.manual_method==='stripe') ? 'Stripe (Card)' : 'Other/Manual',
       label: 'Full Payment',
     });
   }

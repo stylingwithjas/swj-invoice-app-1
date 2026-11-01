@@ -1044,7 +1044,10 @@ def tax_payment_events(d):
         events.append({
             'date': d['paid_date'],
             'amount': float(amount or 0),
-            'method': 'Stripe (Card)' if d.get('stripe_payment_id') else 'Other/Manual',
+            # manual_method:'stripe' on the invoice itself (legacy single-payment shape, no
+            # payments[] array) is the same confirmed-after-the-fact correction as above —
+            # confirmed live Nov 2026 as the common case for an ordinary one-time payment.
+            'method': 'Stripe (Card)' if (d.get('stripe_payment_id') or d.get('manual_method') == 'stripe') else 'Other/Manual',
         })
     return events
 

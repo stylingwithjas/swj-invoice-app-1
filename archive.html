@@ -181,6 +181,13 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
   <label id="payer-filter-row" style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--taupe-dk);margin:-6px 0 12px;cursor:pointer">
     <input type="checkbox" id="payer-unknown-filter" onchange="renderList()"> Needs a payer only
   </label>
+  <div id="raw-lookup-row" style="display:none;margin-bottom:14px">
+    <div style="display:flex;gap:8px">
+      <input type="text" id="raw-lookup-invnum" placeholder="Invoice # — look up its raw payment/extension data" style="flex:1;padding:9px 12px;border:0.5px solid var(--taupe-lt);border-radius:8px;font-size:13px;font-family:inherit">
+      <button onclick="lookupRawData()" style="padding:9px 16px;border-radius:8px;border:none;background:var(--ink);color:#fff;font-size:12.5px;cursor:pointer;font-family:inherit;white-space:nowrap">Look Up</button>
+    </div>
+    <pre id="raw-lookup-result" style="display:none;margin-top:10px;background:var(--warm);border:0.5px solid var(--taupe-lt);border-radius:8px;padding:12px 14px;font-size:11.5px;line-height:1.6;white-space:pre-wrap;word-break:break-word;color:var(--ink-soft)"></pre>
+  </div>
   <div class="summary-note" id="summary-note">Loading…</div>
   <div id="list-body"></div>
 </div>
@@ -260,6 +267,7 @@ function switchTab(tab){
   document.getElementById('tab-cleanup').classList.toggle('on', tab==='cleanup');
   document.getElementById('search-input').closest('.search-row').style.display = tab==='cleanup' ? 'none' : '';
   document.getElementById('payer-filter-row').style.display = tab==='cleanup' ? 'none' : '';
+  document.getElementById('raw-lookup-row').style.display = tab==='cleanup' ? 'block' : 'none';
   if(tab==='cleanup') loadCleanupCandidates();
   else renderList();
 }
@@ -371,6 +379,14 @@ function renderCleanupReport(){
         otherMethodFlagged.push({ inv, kind:'extension', idx, amount:parseFloat(ext.amount)||0, date:ext.paid_date, approved:false });
       }
     });
+    // Legacy single-payment shape — no payments[] array at all, just top-level paid/paid_date/
+    // stripe_payment_id. Confirmed live Nov 2026 as the COMMON case for an ordinary one-time
+    // payment (this is how Baker #2020128 is actually stored, not payments[]) — the original
+    // version of this section only checked payments[] and missed every invoice shaped this way.
+    if(!(d.payments||[]).length && d.paid && d.paid_date && !d.stripe_payment_id && d.manual_method!=='stripe'){
+      const amount = parseFloat(d.amount_paid ?? d.stripe_amount ?? computeGrand(d)) || 0;
+      otherMethodFlagged.push({ inv, kind:'legacy', idx:-1, amount, date:d.paid_date, approved: inv.invnum==='2020128' });
+    }
   });
   otherMethodFlagged.sort((a,b)=> (b.approved-a.approved) || (b.date||'').localeCompare(a.date||''));
 
@@ -427,12 +443,15 @@ async function confirmStripeMethod(invnum, kind, idx, btn){
   const inv = _cleanupAll.find(i=>i.invnum===invnum);
   if(!inv) return;
   const d = inv.data||{};
-  const entry = kind==='extension' ? (d.extensions||[])[idx] : (d.payments||[])[idx];
+  // 'legacy' = the top-level paid/paid_date/stripe_payment_id shape (no payments[] array) —
+  // confirmed live Nov 2026 as the common case for an ordinary one-time payment.
+  const entry = kind==='legacy' ? d : (kind==='extension' ? (d.extensions||[])[idx] : (d.payments||[])[idx]);
   if(!entry){ alert('Could not find that payment entry — try reloading the Cleanup Review tab.'); return; }
-  const amount = parseFloat(entry.amount)||0;
+  const amount = kind==='legacy' ? (parseFloat(d.amount_paid ?? d.stripe_amount ?? computeGrand(d))||0) : (parseFloat(entry.amount)||0);
+  const paidDate = kind==='legacy' ? d.paid_date : entry.paid_date;
   const estFee = amount*STRIPE_FEE_PCT + STRIPE_FEE_FLAT;
   const ok = await customConfirm(
-    `Mark ${esc(inv.client||d.client||'this client')} #${esc(invnum)}'s ${fmtDate(entry.paid_date)} payment of $${amount.toFixed(2)} as Stripe/Card? `
+    `Mark ${esc(inv.client||d.client||'this client')} #${esc(invnum)}'s ${fmtDate(paidDate)} payment of $${amount.toFixed(2)} as Stripe/Card? `
     + `This adds an estimated $${estFee.toFixed(2)} processing fee to the Payroll Finance and Tax Report views. `
     + `No invoice total, tax amount, or DOR filing figure changes — this only corrects the payment method.`,
     { confirmLabel:'Confirm Stripe/Card' }
@@ -450,6 +469,40 @@ async function confirmStripeMethod(invnum, kind, idx, btn){
   }catch(e){
     alert('Could not save: '+e.message);
     btn.textContent = orig; btn.disabled = false;
+  }
+}
+
+// Read-only raw-data lookup — for diagnosing exactly why a specific invoice isn't showing up
+// where expected (e.g. a Tax Report period miss), without needing direct Supabase console
+// access. Fetches fresh from the DB (not the cached cleanup list), never writes anything.
+async function lookupRawData(){
+  const invnum = document.getElementById('raw-lookup-invnum').value.trim();
+  const out = document.getElementById('raw-lookup-result');
+  if(!invnum){ out.style.display='none'; return; }
+  out.style.display = 'block';
+  out.textContent = 'Looking up #'+invnum+'…';
+  try{
+    const { data, error } = await _sb.from('invoices').select('invnum,client,address,invdate,created_at,data').eq('invnum', invnum).maybeSingle();
+    if(error) throw error;
+    if(!data){ out.textContent = `No invoice found with #${invnum}.`; return; }
+    const d = data.data||{};
+    const lines = [];
+    lines.push(`#${data.invnum} — ${data.client||d.client||'Client'}`);
+    lines.push(`signed: ${!!d.signed}${d.signed_date?' (signed_date: '+d.signed_date+')':''}`);
+    lines.push(`paid (legacy, top-level): ${!!d.paid}  paid_date: ${d.paid_date||'(none)'}  stripe_payment_id: ${d.stripe_payment_id||'(none)'}  manual_method: ${d.manual_method||'(none)'}`);
+    lines.push(`amount_paid: ${d.amount_paid!=null?d.amount_paid:'(none)'}  stripe_amount: ${d.stripe_amount!=null?d.stripe_amount:'(none)'}`);
+    lines.push('');
+    lines.push(`payments[] (${(d.payments||[]).length} entries):`);
+    (d.payments||[]).forEach((p,i)=>lines.push(`  [${i}] status=${p.status} amount=${p.amount} paid_date=${p.paid_date||'(none)'} payment_id=${p.payment_id||'(none)'} manual_method=${p.manual_method||'(none)'}`));
+    lines.push('');
+    lines.push(`extensions[] (${(d.extensions||[]).length} entries):`);
+    (d.extensions||[]).forEach((ext,i)=>lines.push(`  [${i}] invnum=${ext.invnum||'(none)'} days=${ext.days} amount=${ext.amount} paid=${!!ext.paid} paid_date=${ext.paid_date||'(none)'} payment_id=${ext.payment_id||'(none)'} manual_method=${ext.manual_method||'(none)'} created=${ext.created||'(none)'}`));
+    lines.push('');
+    lines.push('— Full raw data —');
+    lines.push(JSON.stringify(d, null, 2));
+    out.textContent = lines.join('\n');
+  }catch(e){
+    out.textContent = 'Lookup failed: '+e.message;
   }
 }
 
