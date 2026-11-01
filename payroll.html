@@ -1439,9 +1439,17 @@ async function runFinanceView(){
   const moverOnSite = moverByType['staging']||0;
   const moverGeneral = (moverByType['destage']||0) + (moverByType['warehouse']||0) + (moverByType['travel']||0);
 
+  // A job counts toward "this month" if it was STAGED this period OR it generated REVENUE
+  // this period (by payment date) — not staging date alone. Revenue Allocation already sums
+  // every job with a payment this month; Truck/one-off-baseline/warehouse-split need to count
+  // those same jobs, or a job paid this month but staged in a different month would inflate
+  // revenue without its costs following — found live (Oct 30 build): revenue summed 2 jobs
+  // while Truck/baseline were still computed for 1.
+  const receivedInvnums = new Set(received.map(r=>r.invnum));
   const jobsThisMonthList = signed.filter(inv=>{
     const d = inv.data||{};
-    return d.startdate && d.startdate!=='TBD' && d.startdate>=periodStart && d.startdate<=periodEnd;
+    const stagedThisPeriod = d.startdate && d.startdate!=='TBD' && d.startdate>=periodStart && d.startdate<=periodEnd;
+    return stagedThisPeriod || receivedInvnums.has(inv.invnum);
   });
   const jobsThisMonth = jobsThisMonthList.length || 1;
 
