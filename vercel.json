@@ -20,7 +20,8 @@
       "maxDuration": 60
     },
     "api/webhook.py": {
-      "includeFiles": "api/Parisienne-Regular.ttf"
+      "includeFiles": "{api/Parisienne-Regular.ttf,lib/**}",
+      "maxDuration": 60
     },
     "api/generate_receipt.py": {
       "includeFiles": "api/Parisienne-Regular.ttf"
@@ -43,6 +44,7 @@
     { "source": "/approve-hours.html", "destination": "/approve-hours.html" },
     { "source": "/archive.html", "destination": "/archive.html" },
     { "source": "/tax-report.html", "destination": "/tax-report.html" },
+    { "source": "/reconciliation.html", "destination": "/reconciliation.html" },
     { "source": "/sw.js", "destination": "/sw.js" },
     { "source": "/manifest.webmanifest", "destination": "/manifest.webmanifest" },
     { "source": "/assets/:path*", "destination": "/assets/:path*" },

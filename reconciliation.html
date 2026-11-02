@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'self'; object-src 'none'">
+<title>SWJ — Historical Invoice Check</title>
+<link rel="stylesheet" href="/assets/section7.css">
+<script src="/assets/section7.js" defer></script>
+</head>
+<body>
+<header class="top"><a class="brand" href="/tax-report.html">SWJ <span>STYLING WITH JAS</span></a><div class="top-actions"><span class="read-only">Read only</span><button id="logout" hidden>Sign out of report</button></div></header>
+<main>
+<a class="back" href="/tax-report.html">← Tax &amp; Reporting</a>
+<div class="intro"><div><p class="eyebrow">BUSINESS RECORDS · SECTION 7</p><h1>Historical invoice check</h1><p>Find figures that need a closer look. Your invoices stay exactly as they are.</p></div><span class="pill">No changes. No sends.</span></div>
+<div id="message" class="message" role="status" aria-live="polite">Checking secure report access…</div>
+<section id="login-panel" class="card login" hidden>
+<h2>Administrator sign-in</h2><p>This financial report uses secure server-side access, separate from the site's browser login.</p>
+<form id="login-form"><label for="password">Report administrator password</label><input id="password" name="password" type="password" autocomplete="current-password" required maxlength="512"><button class="primary" id="login-button" type="submit">Open report workspace</button></form>
+<p class="muted">This page uses a secure session and does not write your password to browser storage.</p>
+</section>
+<section id="setup-panel" class="card login" hidden><h2>Secure access needs configuration</h2><p>The report stays locked until its server-side administrator access is configured. No invoice records have been queried.</p><button id="retry">Check access again</button></section>
+<section id="workspace" hidden>
+<form id="scan-form" class="card controls"><div><label for="period">Highlight receipts in</label><input id="period" type="month" value="2026-10" min="1900-01" max="9999-12" required><p class="muted">This highlights the filing-review period. Every historical invoice is still scanned.</p></div><button class="primary" id="scan-button" type="submit">Run historical check</button></form>
+<div id="report" hidden>
+<div class="report-heading"><h2>Review snapshot</h2><p id="scanned-at" class="muted"></p></div>
+<div class="metrics">
+<div class="card metric"><span>Invoices checked</span><strong id="checked">—</strong><small>Across the complete stored inventory</small></div>
+<div class="card metric"><span>Arithmetic discrepancies</span><strong id="discrepancies">—</strong><small>Comparison at printed cents</small></div>
+<div class="card metric"><span>Needs more information</span><strong id="unverifiable">—</strong><small>Missing data is never treated as zero</small></div>
+<div class="card metric focus"><span id="period-label">Paid in review period</span><strong id="period-discrepancies">—</strong><small>Recorded paid invoices with discrepancies</small></div>
+</div>
+<div id="review-note" class="notice"></div>
+<div id="missing-dates" class="notice" hidden><p class="muted">Paid records with no usable receipt date — the period-matched paid count above cannot confirm these belong to, or are excluded from, the review period:</p><ul id="missing-dates-list"></ul></div>
+<div class="card toolbar"><label for="view">Show</label><select id="view"><option value="all">All flagged invoices</option><option value="paid_period">Receipts in review period</option><option value="paid">All recorded paid invoices</option><option value="unverifiable">Needs more information</option></select><span id="visible-count" class="muted"></span><button id="export" type="button">Download this list · CSV</button></div>
+<div id="results" aria-live="polite"></div>
+<details class="card method"><summary>Coverage, calculation basis &amp; limitations</summary><p id="coverage"></p><p id="basis"></p><p id="fingerprint" class="fingerprint"></p><ul id="limitations"></ul><p class="muted">Discrepancy and missing-information counts can overlap. A comparison figure is a diagnostic, not an authorized correction.</p></details>
+</div>
+</section>
+<footer>Paid findings are questions for owner/CPA review. This report never updates, regenerates, charges or emails an invoice.</footer>
+</main>
+</body>
+</html>
