@@ -1,6 +1,7 @@
--- Plaid integration (Amex spending snapshot, Nov 2026). Run once in the Supabase SQL editor
--- before the Spending tab can show any real data — nothing in the app will have written to
--- these tables until this has been run AND PLAID_CLIENT_ID/PLAID_SECRET are set in Vercel.
+-- Plaid integration (Amex spending + balance snapshot, Nov 2026). Run once in the Supabase SQL
+-- editor before the Spending tab or Home's Amex card can show any real data — nothing in the
+-- app will have written to these tables until this has been run AND
+-- PLAID_CLIENT_ID/PLAID_SECRET are set in Vercel.
 --
 -- Two tables, kept separate from the `invoices` table (which this app already queries with
 -- select('*') / broad selects from many client-side pages) so a stored Plaid access_token — a
@@ -12,6 +13,16 @@ create table if not exists plaid_items (
   item_id text not null unique,
   access_token text not null,
   institution_name text,
+  -- Credit card balance snapshot (Plaid's Liabilities product), refreshed by
+  -- plaid_refresh_balance() in api/webhook.py — on every Home page load and at the end of a
+  -- transactions sync. statement_balance is what to pay in full by next_payment_due_date to
+  -- avoid interest, same as the "Pay this much by this date" line on an Amex statement.
+  current_balance numeric,
+  statement_balance numeric,
+  minimum_payment numeric,
+  next_payment_due_date date,
+  last_statement_date date,
+  balance_synced_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -50,3 +61,15 @@ create policy "plaid_transactions_anon_select" on plaid_transactions
   for select using (true);
 create policy "plaid_transactions_anon_update" on plaid_transactions
   for update using (true) with check (true);
+
+-- Home's Amex balance card (today.html, buildS8) needs to read the balance snapshot above
+-- without touching access_token — plaid_items itself has zero anon policies, so instead this
+-- view selects only the non-sensitive columns. A view runs with its *owner's* privileges by
+-- default (not the querying role's), so it bypasses plaid_items' RLS for exactly these columns
+-- while access_token — never selected here — stays exactly as unreachable as before.
+create or replace view plaid_account_summary as
+  select item_id, institution_name, current_balance, statement_balance, minimum_payment,
+         next_payment_due_date, last_statement_date, balance_synced_at
+  from plaid_items;
+
+grant select on plaid_account_summary to anon;

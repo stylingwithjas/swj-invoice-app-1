@@ -416,6 +416,18 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
     <div id="s7-body"><div class="skel" style="height:70px"></div></div>
   </div>
 
+  <!-- S8: AMEX — balance/due-date snapshot via Plaid's Liabilities product (cached on
+       plaid_items, read through the anon-safe plaid_account_summary view — never the
+       access_token). payroll.html's Spending tab owns the actual connect/transaction-list UI;
+       this card is read-only and link-through only. -->
+  <div class="section" id="sec-amex">
+    <div class="sec-hdr">
+      <div class="sec-title">Amex</div>
+      <div class="sec-meta">snapshot</div>
+    </div>
+    <div id="s8-body"><div class="skel" style="height:70px"></div></div>
+  </div>
+
 </div>
 
 <!-- QUICK-ADD BAR -->
@@ -600,6 +612,7 @@ async function loadAll(){
   const followCount=buildS5();
   buildS6();
   buildS7();
+  buildS8();
   buildBriefing(urgentCount,schedCount,taskCount,shopCount,followCount);
   updateNavBadge(urgentCount);
   if(weekViewOpen) renderWeek();
@@ -836,6 +849,59 @@ async function buildS7(){
     <div class="fin-note">Checks every invoice's printed math — read-only</div>
   </div>`;
   el.innerHTML=`<div class="fin-grid">${taxCard}${reconCard}</div>`;
+}
+
+// Amex balance snapshot — reads the cached plaid_account_summary view (never recomputed from
+// raw plaid_transactions rows here), then fires a live ?job=plaid_balance refresh so the
+// numbers are current as of this visit. Plaid's own liability data only updates roughly once a
+// day, so refreshing on every Home load never over-calls their API; a failed refresh just
+// leaves whatever was already cached on screen rather than breaking the page.
+async function buildS8(){
+  const el=document.getElementById('s8-body');
+  let row=null;
+  try{
+    const {data}=await _sb.from('plaid_account_summary').select('*').limit(1).maybeSingle();
+    row=data;
+  }catch(e){ /* view may not exist yet if the Plaid migration hasn't been run — treat as not connected */ }
+
+  if(!row){
+    el.innerHTML=`<div class="fin-card full" style="cursor:pointer" onclick="window.location.href='/payroll.html?tab=spending'">
+      <div class="fin-lbl">Amex</div>
+      <div class="fin-val" style="font-size:18px">Not connected</div>
+      <div class="fin-note">Open Finance → Spending to connect</div>
+    </div>`;
+    return;
+  }
+
+  try{
+    const r=await fetch('/api/webhook?job=plaid_balance',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+    const fresh=await r.json();
+    if(fresh && !fresh.error) row={...row, ...fresh};
+  }catch(e){ /* keep showing the cached row */ }
+
+  if(row.current_balance==null || row.statement_balance==null){
+    el.innerHTML=`<div class="fin-card full" style="cursor:pointer" onclick="window.location.href='/payroll.html?tab=spending'">
+      <div class="fin-lbl">Amex${row.institution_name?' — '+esc(row.institution_name):''}</div>
+      <div class="fin-val" style="font-size:18px">Connected — balance not synced yet</div>
+      <div class="fin-note">Open Finance → Spending and click Sync Now</div>
+    </div>`;
+    return;
+  }
+
+  const due=row.next_payment_due_date?new Date(row.next_payment_due_date+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}):'—';
+  const synced=row.balance_synced_at?new Date(row.balance_synced_at).toLocaleDateString():null;
+  el.innerHTML=`<div class="fin-grid">
+    <div class="fin-card" style="cursor:pointer" onclick="window.location.href='/payroll.html?tab=spending'">
+      <div class="fin-lbl">Current Balance</div>
+      <div class="fin-val">${fmt(row.current_balance)}</div>
+      <div class="fin-note">${row.institution_name?esc(row.institution_name):'Amex'}${synced?' · as of '+synced:''}</div>
+    </div>
+    <div class="fin-card" style="cursor:pointer" onclick="window.location.href='/payroll.html?tab=spending'">
+      <div class="fin-lbl">Pay by ${due} to avoid interest</div>
+      <div class="fin-val g">${fmt(row.statement_balance)}</div>
+      <div class="fin-note">Statement balance${row.minimum_payment!=null?(' · min due '+fmt(row.minimum_payment)):''}</div>
+    </div>
+  </div>`;
 }
 
 // ── TASK CARD HTML ─────────────────────────────────────
