@@ -59,6 +59,29 @@ class BackendTests(unittest.TestCase):
             h=self.fake_handler(mod.handler,FIXTURE)
             with patch.object(mod,'stored_invoice',side_effect=TimeoutError()):h.do_POST();self.assertEqual(h.result[0],503)
 
+    def test_unavailable_guard_fails_closed_even_for_generator_request_on_save(self):
+        # Owner decision (Nov 2, 2026) only loosens api/generate.py's PDF path. The save
+        # endpoint always writes to storage, so it must stay fail-closed regardless of the
+        # generator_request flag — there is no "render-only, nothing persisted" exception here.
+        h=self.fake_handler(invoices.handler,{**FIXTURE,'generator_request':True})
+        with patch.object(invoices,'stored_invoice',side_effect=TimeoutError()),patch.object(invoices,'supabase_request') as db:
+            h.do_POST();self.assertEqual(h.result[0],503);db.assert_not_called()
+
+    def test_unavailable_guard_allows_new_generator_submission(self):
+        # Owner decision (Nov 2, 2026): a live generator submission can't be an existing paid
+        # record (nothing stored can be paid before anything is stored), so it proceeds when
+        # the stored-status lookup itself is unavailable; only a non-generator caller (one that
+        # needs the stored record to render correctly at all) stays fail-closed above.
+        # Reaching generate_invoice_pdf at all proves the guard let it through (a sentinel
+        # exception there is caught by the unrelated outer PDF-stage handler as a 500, so this
+        # doesn't need to simulate the raw HTTP response-writing path to prove the point).
+        h=self.fake_handler(generate.handler,{**FIXTURE,'generator_request':True})
+        with patch.object(generate,'stored_invoice',side_effect=TimeoutError()),\
+             patch.object(generate,'generate_invoice_pdf',side_effect=RuntimeError('SENTINEL_REACHED_PDF_STAGE')):
+            h.do_POST()
+        self.assertEqual(h.result[0],500)
+        self.assertIn('SENTINEL_REACHED_PDF_STAGE',h.result[1])
+
     def test_invoice_save_returns_failure(self):
         h=self.fake_handler(invoices.handler,FIXTURE)
         with patch.object(invoices,'stored_invoice',return_value=None),patch.object(invoices,'supabase_request',return_value=(500,{})):

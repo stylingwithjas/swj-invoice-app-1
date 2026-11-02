@@ -1588,8 +1588,16 @@ class handler(BaseHTTPRequestHandler):
                 # Stored-data regeneration can only render the canonical saved payload.
                 data = saved
         except Exception:
-            self._error(503, 'Could not verify stored invoice status. Nothing was generated.')
-            return
+            if not data.get('generator_request'):
+                # This caller needs the stored record to render correctly (it isn't a live
+                # form submission) — can't confirm that record's paid status, so never
+                # generate or overwrite it blind. Fail closed.
+                self._error(503, 'Could not verify stored invoice status. Nothing was generated.')
+                return
+            # Owner decision (Nov 2, 2026): the live generator form is submitting its own
+            # freshly-entered data for a brand-new invoice — nothing stored can be paid
+            # because nothing stored exists yet — so it may proceed without the lookup.
+            # Only loading/regenerating an existing invoice stays fail-closed, above.
 
         try:
             pdf_path = generate_invoice_pdf(data)
