@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="/auth.js"></script>
+<meta charset="UTF-8">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="SWJ">
+<meta name="theme-color" content="#1a1814">
+<link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="512x512" href="/assets/icon-512.png">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>SWJ — Reconciliation Report</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+:root {
+  --ink:        #1a1814;
+  --ink-soft:   #3d3830;
+  --cream:      #f5f2ed;
+  --warm:       #faf8f5;
+  --taupe:      #a29c96;
+  --taupe-lt:   #d4cfc9;
+  --taupe-dk:   #7a6f69;
+  --gold:       #c9a96e;
+  --gold-lt:    #f5ead8;
+  --gold-dk:    #9d7a44;
+  --green:      #4a7c50;
+  --green-lt:   #edf4ed;
+  --amber:      #c97c2e;
+  --amber-lt:   #fdf0e0;
+  --red:        #b53535;
+  --red-lt:     #fef0f0;
+}
+
+body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); color:var(--ink); min-height:100vh; }
+
+.hdr { background:var(--ink); position:sticky; top:0; z-index:60; }
+.hdr-top { display:flex; align-items:center; justify-content:space-between; padding:14px 20px 10px; flex-wrap:wrap; gap:10px; }
+.brand { display:flex; align-items:baseline; gap:10px; }
+.brand-name { font-family:'Cormorant Garamond',serif; font-size:24px; font-weight:300; color:#fff; letter-spacing:4px; }
+.brand-sep { width:1px; height:16px; background:rgba(255,255,255,0.18); }
+.brand-sub { font-size:10px; color:rgba(255,255,255,0.35); letter-spacing:2.5px; text-transform:uppercase; }
+
+.wrap { max-width:1300px; margin:0 auto; padding:20px; }
+.card { background:#fff; border:0.5px solid var(--taupe-lt); border-radius:14px; padding:18px 20px; margin-bottom:18px; }
+.card-hdr { font-size:11px; font-weight:600; color:var(--taupe-dk); text-transform:uppercase; letter-spacing:1.2px; margin-bottom:14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; }
+
+.disclaimer { font-size:12px; color:var(--ink-soft); line-height:1.7; background:var(--warm); border-radius:8px; padding:12px 14px; margin-top:4px; }
+.disclaimer strong { color:var(--ink); }
+.disclaimer ul { margin:8px 0 0 18px; }
+
+.period-btn { padding:9px 16px; border:0.5px solid var(--taupe-lt); border-radius:8px; background:var(--warm); font-size:13px; cursor:pointer; font-family:inherit; }
+.period-btn.primary { background:var(--ink); color:#fff; border:none; }
+
+.stat-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:14px; margin-top:6px; }
+.stat-item .lbl { font-size:10px; color:var(--taupe-dk); text-transform:uppercase; letter-spacing:0.6px; }
+.stat-item .val { font-family:'Cormorant Garamond',serif; font-size:26px; margin-top:2px; }
+.stat-item.alert .val { color:var(--red); }
+
+table { width:100%; border-collapse:collapse; font-size:12px; margin-top:6px; }
+th { text-align:left; font-size:9.5px; color:var(--taupe-dk); text-transform:uppercase; letter-spacing:0.5px; padding:7px 6px; border-bottom:1px solid var(--taupe-lt); white-space:nowrap; position:sticky; top:0; background:#fff; }
+td { padding:8px 6px; border-bottom:0.5px solid var(--warm); vertical-align:top; }
+.tbl-scroll { overflow-x:auto; max-height:70vh; overflow-y:auto; }
+.empty-note { color:var(--taupe); font-size:13px; padding:30px 0; text-align:center; }
+.mono { font-variant-numeric: tabular-nums; }
+.fail-pill { display:inline-block; font-size:9.5px; font-weight:700; padding:2px 7px; border-radius:10px; background:var(--red-lt); color:var(--red); white-space:nowrap; margin:1px 2px 1px 0; }
+.label-pill { display:inline-block; font-size:9.5px; font-weight:600; padding:2px 7px; border-radius:10px; background:var(--gold-lt); color:var(--gold-dk); white-space:nowrap; margin:1px 2px 1px 0; }
+.missing-pill { display:inline-block; font-size:9.5px; font-weight:600; padding:2px 7px; border-radius:10px; background:#edf0f6; color:#4a5e82; white-space:nowrap; margin:1px 2px 1px 0; }
+.status-pill { font-size:9.5px; font-weight:600; padding:2px 7px; border-radius:10px; white-space:nowrap; text-transform:capitalize; }
+.status-pill.paid { background:var(--green-lt); color:var(--green); }
+.status-pill.signed { background:var(--gold-lt); color:var(--gold-dk); }
+.status-pill.proposal { background:#edf0f6; color:#4a5e82; }
+.diff-row { font-size:11px; color:var(--red); line-height:1.6; }
+.paid-mismatch { color:var(--red); font-weight:600; }
+
+/* ── SWJ SIDEBAR + BOTTOM NAV (responsive nav shell, shared across pages) ── */
+:root{ --swj-nav-bg:#191917; --swj-nav-ink:#f7f5f0; --swj-nav-muted:rgba(247,245,240,0.45); --swj-nav-gold:#c9aa70; --swj-nav-line:rgba(247,245,240,0.08); }
+.swj-sidebar{ display:none; }
+.swj-bottom-nav{ display:none; }
+@media (min-width:1200px){
+  body{ padding-left:220px; }
+  .swj-sidebar{ display:flex; flex-direction:column; position:fixed; top:0; left:0; bottom:0; width:220px; background:var(--swj-nav-bg); z-index:100; padding:22px 0 16px; }
+  .swj-sb-brand{ font-family:'Cormorant Garamond',serif; font-size:20px; color:var(--swj-nav-ink); letter-spacing:3px; padding:0 22px 20px; }
+  .swj-sb-brand span{ display:block; font-family:'Inter',sans-serif; font-size:9px; letter-spacing:2px; text-transform:uppercase; color:var(--swj-nav-muted); margin-top:3px; }
+  .swj-sb-link{ display:flex; align-items:center; gap:10px; padding:10px 22px; font-size:13px; font-weight:500; color:var(--swj-nav-muted); text-decoration:none; border-left:3px solid transparent; transition:all 0.15s; }
+  .swj-sb-link:hover{ color:var(--swj-nav-ink); background:rgba(255,255,255,0.03); }
+  .swj-sb-link.on{ color:var(--swj-nav-ink); border-left-color:var(--swj-nav-gold); background:rgba(255,255,255,0.04); }
+  .swj-sb-spacer{ flex:1; }
+  .swj-sb-foot{ padding:10px 22px; font-size:10px; color:var(--swj-nav-muted); border-top:1px solid var(--swj-nav-line); margin-top:8px; padding-top:14px; }
+}
+@media (max-width:767px){
+  body{ padding-bottom:calc(64px + env(safe-area-inset-bottom,0px)); }
+  .swj-bottom-nav{ display:flex; position:fixed; left:0; right:0; bottom:0; z-index:100; background:var(--swj-nav-bg); padding:6px 4px calc(6px + env(safe-area-inset-bottom,0px)); border-top:1px solid var(--swj-nav-line); }
+  .swj-bn-link{ flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; padding:6px 2px; min-height:44px; justify-content:center; color:var(--swj-nav-muted); text-decoration:none; font-size:9.5px; font-weight:500; background:none; border:none; font-family:'Inter',sans-serif; }
+  .swj-bn-link.on{ color:var(--swj-nav-gold); }
+  .swj-bn-ic{ font-size:17px; line-height:1; }
+}
+.swj-more-sheet{ position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:150; display:none; align-items:flex-end; justify-content:center; }
+.swj-more-sheet.open{ display:flex; }
+.swj-more-card{ background:#fff; border-radius:18px 18px 0 0; width:100%; max-width:480px; padding:10px 10px calc(16px + env(safe-area-inset-bottom,0px)); }
+.swj-more-handle{ width:36px; height:4px; background:#d4cfc9; border-radius:2px; margin:6px auto 12px; }
+.swj-more-link{ display:flex; align-items:center; gap:12px; padding:13px 16px; font-size:14px; color:#1a1814; text-decoration:none; border-radius:10px; }
+.swj-more-link:active{ background:#f5f2ed; }
+</style>
+</head>
+<body>
+
+<nav class="swj-sidebar">
+  <div class="swj-sb-brand">Styling With Jas<span>Staging Operations</span></div>
+  <a class="swj-sb-link" href="/today.html">🏠 Today</a>
+  <a class="swj-sb-link" href="/board.html">📋 Board</a>
+  <a class="swj-sb-link" href="/shop.html">🛍 Shopping</a>
+  <a class="swj-sb-link" href="/index.html">✚ New Invoice</a>
+  <a class="swj-sb-link" href="/payroll.html">💼 Payroll</a>
+  <a class="swj-sb-link" href="/tax-report.html">📊 Reports</a>
+  <a class="swj-sb-link on" href="/reconciliation-report.html">🔍 Reconciliation</a>
+  <div class="swj-sb-spacer"></div>
+  <div class="swj-sb-foot">Styling With Jas</div>
+</nav>
+
+<nav class="swj-bottom-nav">
+  <a class="swj-bn-link" href="/today.html"><span class="swj-bn-ic">🏠</span>Today</a>
+  <a class="swj-bn-link" href="/index.html"><span class="swj-bn-ic">✚</span>New Invoice</a>
+  <a class="swj-bn-link" href="/board.html"><span class="swj-bn-ic">📋</span>Board</a>
+  <a class="swj-bn-link" href="/payroll.html"><span class="swj-bn-ic">💼</span>Payroll</a>
+  <button class="swj-bn-link" onclick="swjToggleMore()" type="button"><span class="swj-bn-ic">⋯</span>More</button>
+</nav>
+
+<div class="swj-more-sheet" id="swj-more-sheet" onclick="if(event.target===this)swjToggleMore()">
+  <div class="swj-more-card">
+    <div class="swj-more-handle"></div>
+    <a class="swj-more-link" href="/shop.html">🛍 Shopping</a>
+    <a class="swj-more-link" href="/tax-report.html">📊 Reports (Tax Report)</a>
+    <a class="swj-more-link" href="/reconciliation-report.html">🔍 Reconciliation Report</a>
+    <a class="swj-more-link" href="/archive.html">🧾 Invoices (Archive)</a>
+    <a class="swj-more-link" href="/luxury.html">✚ New Luxury Invoice</a>
+    <a class="swj-more-link" href="/gs-invoice.html">🖤 GS Photography Invoice</a>
+    <a class="swj-more-link" href="/hours.html">🕒 My Hours</a>
+  </div>
+</div>
+<script>function swjToggleMore(){document.getElementById('swj-more-sheet').classList.toggle('open');}
+document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=document.getElementById('swj-more-sheet');if(m&&m.classList.contains('open'))m.classList.remove('open');}});</script>
+
+<div class="hdr">
+  <div class="hdr-top">
+    <div class="brand">
+      <div class="brand-name">SWJ</div>
+      <div class="brand-sep"></div>
+      <div class="brand-sub">Reconciliation Report</div>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+  <div class="card">
+    <div class="card-hdr">What this is</div>
+    <div class="disclaimer">
+      <strong>Read-only.</strong> This page never writes anything — it only reads invoices already in the database and reports where the printed math doesn't add up. Loading or re-running it cannot change a stored record, a total, a signature, or a payment. It does not call Stripe; for paid invoices on the list, cross-check the stored paid amount against Stripe yourself.
+      <ul>
+        <li>Checks every invoice (proposals, signed, paid — test, duplicate-named, versioned, and $0/near-$0 records included, labeled, never silently dropped) against four checks: sum of lines = printed subtotal; printed tax = rate × the taxable base the invoice claims; printed subtotal + printed tax = printed grand total; printed extension rate = pretax subtotal ÷ 3 (where printed).</li>
+        <li>"Printed" means exactly what the client's PDF would show — the same formulas tax-report.html already uses (price-led back-out for old invoices, the stored override fields for new ones), copied here read-only so this report can never drift from, or accidentally change, the Tax Report.</li>
+        <li>Any difference of one cent or more counts as a failure. A missing or unparseable field is listed as "missing X," never guessed or defaulted to $0.</li>
+        <li>Status (proposal / signed / paid) is read directly off the stored <code>paid</code>/<code>signed</code> flags — paid wins over signed wins over proposal — nothing is reinterpreted beyond that.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-hdr">
+      <span>Run</span>
+      <button class="period-btn primary" onclick="runReconciliationReport()" id="run-btn">Run Report</button>
+    </div>
+    <div id="run-status" style="font-size:12.5px;color:var(--taupe-dk)">Not run yet.</div>
+  </div>
+
+  <div class="card" id="summary-card" style="display:none">
+    <div class="card-hdr">Summary</div>
+    <div class="stat-grid">
+      <div class="stat-item"><div class="lbl">Invoices Scanned</div><div class="val" id="s-scanned">—</div></div>
+      <div class="stat-item alert"><div class="lbl">Failing Reconciliation</div><div class="val" id="s-failing">—</div></div>
+      <div class="stat-item"><div class="lbl">— Proposal</div><div class="val" id="s-proposal">—</div></div>
+      <div class="stat-item"><div class="lbl">— Signed</div><div class="val" id="s-signed">—</div></div>
+      <div class="stat-item alert"><div class="lbl">— Paid</div><div class="val" id="s-paid">—</div></div>
+      <div class="stat-item alert"><div class="lbl">Told ≠ Collected</div><div class="val" id="s-paidmismatch">—</div></div>
+    </div>
+  </div>
+
+  <div class="card" id="results-card" style="display:none">
+    <div class="card-hdr">
+      <span>Failing invoices (<span id="results-count">0</span> total — every one shown, not paginated)</span>
+    </div>
+    <div class="tbl-scroll">
+      <table id="results-table">
+        <thead>
+          <tr>
+            <th>Invoice #</th><th>Date</th><th>Client</th><th>Status</th><th>Labels</th>
+            <th>Lines</th><th>Printed Subtotal</th><th>Printed Tax</th><th>Printed Grand</th><th>Printed Ext. Rate</th>
+            <th>Paid Amount</th><th>Failed Checks</th>
+          </tr>
+        </thead>
+        <tbody id="results-body"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+const _sb = supabase.createClient(
+  'https://cwvdfgrjlrpsdfwduwvn.supabase.co',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN3dmRmZ3JqbHJwc2Rmd2R1d3ZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwMDcyODUsImV4cCI6MjA5MzU4MzI4NX0.zam9AnIwW91TI6eCKUcg05LhvFcRa7op4QsjRpdcrCY'
+);
+
+function fmt(n){ if(n==null||isNaN(n)) return '—'; return '$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+
+// ── Mirrored, read-only copies of tax-report.html's "what's actually printed" formulas ──
+// (Section 7's own hard rule: never change the Tax Report to produce this report — these are
+// separate copies, not shared code, so an edit here can never touch the live Tax Report.)
+function categorize(desc){
+  const s = (desc||'').toLowerCase();
+  if(s.includes('delivery') || s.includes('pickup') || s.includes('pick up') || s.includes('transport')) return 'retailing';
+  if(s.includes('photo') || s.includes('consult') || s.includes('design') || s.includes('arrang') || s.includes('placement')) return 'service';
+  return 'retailing';
+}
+function computeSubtotal(d){
+  const _ov=v=>(v!=null&&v!=='')?parseFloat(v):null;
+  const base = parseFloat(d.base_price) || 2500;
+  const addonsTotal = (d.addons||[]).reduce((s,a)=>s+(parseFloat(a.price)||0),0);
+  const sub=_ov(d.subtotal_override);
+  return sub!=null?sub:(base+addonsTotal);
+}
+function computeTax(d){
+  const _ov=v=>(v!=null&&v!=='')?parseFloat(v):null;
+  const taxOv=_ov(d.tax_override); if(taxOv!=null) return taxOv;
+  const subtotal = computeSubtotal(d);
+  const taxrate = parseFloat(d.taxrate) || 0;
+  return subtotal*taxrate/100;
+}
+function computeGrand(d){
+  const _ov=v=>(v!=null&&v!=='')?parseFloat(v):null;
+  const tot=_ov(d.total_override); if(tot!=null) return tot;
+  const base = parseFloat(d.base_price) || 2500;
+  const addonsTotal = (d.addons||[]).reduce((s,a)=>s+(parseFloat(a.price)||0),0);
+  const taxrate = parseFloat(d.taxrate) || 0;
+  const sub=_ov(d.subtotal_override); const subEff=sub!=null?sub:(base+addonsTotal);
+  const tax=_ov(d.tax_override); const taxEff=tax!=null?tax:subEff*taxrate/100;
+  return subEff+taxEff;
+}
+function invoiceTaxSplit(d){
+  const _ov=v=>(v!=null&&v!=='')?parseFloat(v):null;
+  const hasOverride = _ov(d.subtotal_override)!=null || _ov(d.tax_override)!=null || _ov(d.total_override)!=null;
+  const base = parseFloat(d.base_price)||2500;
+  const addons = d.addons||[];
+  const addonTotal = addons.reduce((s,a)=>s+(parseFloat(a.price)||0),0);
+  const rate = parseFloat(d.taxrate)||0;
+
+  if(hasOverride || !d.price_led_tax){
+    const subtotal = computeSubtotal(d);
+    const tax = computeTax(d);
+    const grand = computeGrand(d);
+    if(d.rental_service_split && d.rental_total!=null){
+      const lineTotal = (parseFloat(d.rental_total)||0) + (parseFloat(d.service_total)||0);
+      const rentalShare = lineTotal>0.009 ? (parseFloat(d.rental_total)||0)/lineTotal : 1;
+      return { subtotal, tax, grand, rentalShare, rentalPortion: parseFloat(d.rental_total)||0, servicePortion: parseFloat(d.service_total)||0 };
+    }
+    let svc=0, ret=(d.pricing_mode==='rate_card') ? 0 : base;
+    addons.forEach(a=>{ const amt=parseFloat(a.price)||0; if((a.type||categorize(a.desc))==='service') svc+=amt; else ret+=amt; });
+    const lineTotal = svc+ret;
+    const rentalShare = lineTotal>0.009 ? ret/lineTotal : 1;
+    return { subtotal, tax, grand, rentalShare, rentalPortion: subtotal*rentalShare, servicePortion: subtotal*(1-rentalShare) };
+  }
+
+  const grand = base + addonTotal + (base+addonTotal)*rate/100;
+  const rsb = parseFloat(d.rental_share_base); const rentalShareBase = isNaN(rsb) ? 0.5 : rsb;
+  const rentalDollars = base*rentalShareBase + addons.filter(a=>a.type!=='service').reduce((s,a)=>s+(parseFloat(a.price)||0),0);
+  const allDollars = base + addonTotal;
+  const rentalShare = allDollars>0.009 ? rentalDollars/allDollars : 1;
+  const r = rate/100;
+  const subtotal = r>0 ? grand/(1+r*rentalShare) : grand;
+  const tax = grand-subtotal;
+  return { subtotal, tax, grand, rentalShare, rentalPortion: subtotal*rentalShare, servicePortion: subtotal*(1-rentalShare) };
+}
+// Mirrors tax-report.html's paymentEvents() except the legacy branch never falls back to
+// computeGrand(d) for the amount — this report needs the TRUE stored figure or a "missing"
+// flag, never a value that would trivially match printed grand by construction and hide a
+// real mismatch.
+function myPaymentEvents(d){
+  const events = [];
+  const splits = d.payments || [];
+  if(splits.length){
+    splits.filter(p=>p.status==='paid' && p.paid_date && !p.is_test).forEach(p=>{
+      events.push({ date: p.paid_date, amount: parseFloat(p.amount)||0 });
+    });
+  } else if(d.paid && d.paid_date && !d.is_test){
+    const amt = d.amount_paid ?? d.stripe_amount;
+    if(amt!=null) events.push({ date: d.paid_date, amount: parseFloat(amt)||0 });
+  }
+  return events;
+}
+
+// ── Section 7 scope: real invoices only. These specific invnums are system/config singleton
+// rows (same ones Tax Report already excludes) or unsaved drafts — never real invoices with a
+// proposal/signed/paid lifecycle, so running reconciliation math against them would only ever
+// produce "missing everything" noise, not a real finding. GS Photography invoices are a
+// separate product line with their own pricing shape (not furniture rental/staging), outside
+// this report's scope for the same reason Tax Report excludes them. Every actual staging
+// invoice — test, duplicate-named, versioned, $0, whatever — stays IN.
+function isNonInvoiceRow(invnum){
+  if(!invnum) return true;
+  if(['PRICING_DEFAULTS','TIER_PRICING','FINANCE_CONFIG','FINANCE_OVERRIDES'].includes(invnum)) return true;
+  if(invnum.startsWith('DRAFT-')) return true;
+  if(invnum.startsWith('GS')) return true;
+  if(invnum.startsWith('TAX_REVIEW_')) return true;
+  return false;
+}
+
+async function loadAllInvoices(){
+  // READ ONLY — .select() only. 5000 matches the same ceiling the full-website backup export
+  // already uses for "every row, no exclusions"; revisit if invoice volume ever exceeds it.
+  const { data, error } = await _sb.from('invoices').select('invnum,client,address,invdate,created_at,data').order('created_at',{ascending:true}).limit(5000);
+  if(error) throw error;
+  return (data||[]).filter(inv => !isNonInvoiceRow(inv.invnum));
+}
+
+const EPS_CENTS = 1; // flag any difference of $0.01 (one cent) or more
+function centsDiff(a,b){ return Math.round((a-b)*100); }
+
+function deriveStatus(d){
+  // Verbatim off the stored flags — paid wins over signed wins over proposal. No other
+  // interpretation (board stage, destage date, etc.) feeds into this.
+  if(d.paid===true) return 'paid';
+  if(d.signed===true) return 'signed';
+  return 'proposal';
+}
+
+// Runs all four Section 7 checks against one invoice. Never writes anything — pure read of
+// the already-fetched row. Returns {failures, missing, ...printed figures}.
+function checkInvoice(inv){
+  const d = inv.data || {};
+  const failures = [];
+  const missing = [];
+
+  const hasBase = d.base_price !== undefined && d.base_price !== null;
+  const hasAddons = Array.isArray(d.addons);
+  const hasTaxrate = d.taxrate !== undefined && d.taxrate !== null && d.taxrate !== '';
+  if(!hasBase) missing.push('base_price');
+  if(!hasAddons) missing.push('addons');
+  if(!hasTaxrate) missing.push('taxrate');
+
+  // Only compute a lines total when BOTH base_price and addons are genuinely present — if
+  // either is missing, there is no honest sum to show, so linesSum stays null (the "missing
+  // base_price"/"missing addons" flag above is what gets reported, never a total that quietly
+  // treated the missing piece as $0).
+  let linesSum = null;
+  if(hasBase && hasAddons){
+    const base = parseFloat(d.base_price)||0;
+    const addonTotal = d.addons.reduce((s,a)=>s+(parseFloat(a&&a.price)||0),0);
+    linesSum = base + addonTotal;
+  }
+  const rate = hasTaxrate ? (parseFloat(d.taxrate)||0) : null;
+
+  let split = null;
+  try { split = invoiceTaxSplit(d); } catch(e){ missing.push('unparsed (reconciliation computation failed: '+e.message+')'); }
+  const printedSubtotal = split ? split.subtotal : null;
+  const printedTax = split ? split.tax : null;
+  const printedGrand = split ? split.grand : null;
+
+  // Check 1: sum of visible lines = printed subtotal.
+  if(linesSum!=null && printedSubtotal!=null){
+    const diff = centsDiff(linesSum, printedSubtotal);
+    if(Math.abs(diff)>=EPS_CENTS) failures.push({check:'1. Lines = Subtotal', detail:`lines ${fmt(linesSum)} vs subtotal ${fmt(printedSubtotal)}`, diff:diff/100});
+  }
+
+  // Check 2: printed tax = rate × the taxable base THIS invoice claims. For an invoice that
+  // visibly discloses a partial (rental-only) taxable base — the new per-line split, or
+  // rate-card mode — that disclosed figure is the claimed base. Everything else (including an
+  // old invoice that silently taxed only part of the package with nothing on the page saying
+  // so) is claiming the full lines total, because nothing visible says otherwise.
+  let claimedBase = null;
+  if(d.rental_service_split && d.rental_total!=null) claimedBase = parseFloat(d.rental_total)||0;
+  else if(d.pricing_mode==='rate_card' && hasAddons && d.addons[0]) claimedBase = parseFloat(d.addons[0].price)||0;
+  else if(linesSum!=null) claimedBase = linesSum;
+  if(claimedBase!=null && rate!=null && printedTax!=null){
+    const expectedTax = Math.round(claimedBase*rate)/100;
+    const diff = centsDiff(expectedTax, printedTax);
+    if(Math.abs(diff)>=EPS_CENTS) failures.push({check:'2. Tax = Rate × Base', detail:`printed tax ${fmt(printedTax)} vs ${fmt(expectedTax)} (${rate}% × ${fmt(claimedBase)})`, diff:diff/100});
+  }
+
+  // Check 3: printed subtotal + printed tax = printed grand total. Pure display consistency —
+  // always checked, regardless of override or computation method.
+  if(printedSubtotal!=null && printedTax!=null && printedGrand!=null){
+    const diff = centsDiff(printedSubtotal+printedTax, printedGrand);
+    if(Math.abs(diff)>=EPS_CENTS) failures.push({check:'3. Subtotal+Tax = Grand', detail:`${fmt(printedSubtotal)}+${fmt(printedTax)}=${fmt(printedSubtotal+printedTax)} vs grand ${fmt(printedGrand)}`, diff:diff/100});
+  }
+
+  // Check 4: printed extension rate = pretax LINES subtotal ÷ 3 — the honest lines total,
+  // never whatever was (possibly wrongly) printed as "subtotal". Skipped for rate-card mode,
+  // where the extension rate is the business-entered 30-day rate by design, not derived from
+  // lines/3, and skipped entirely when no extension rate is printed at all.
+  const hasExtrate = d.extrate !== undefined && d.extrate !== null && d.extrate !== '';
+  let printedExtrate = null;
+  if(hasExtrate){
+    printedExtrate = parseFloat(d.extrate)||0;
+    if(d.pricing_mode!=='rate_card' && linesSum!=null){
+      const expectedExtrate = Math.round(linesSum/3*100)/100;
+      const diff = centsDiff(printedExtrate, expectedExtrate);
+      if(Math.abs(diff)>=EPS_CENTS) failures.push({check:'4. Ext Rate = Pretax÷3', detail:`printed ${fmt(printedExtrate)} vs ${fmt(expectedExtrate)} (lines ${fmt(linesSum)} ÷ 3)`, diff:diff/100});
+    }
+  }
+
+  return { failures, missing, linesSum, printedSubtotal, printedTax, printedGrand, printedExtrate };
+}
+
+function computeLabels(inv, allInvoices, printedGrand){
+  const d = inv.data||{};
+  const labels = [];
+  if(d.is_test) labels.push('test');
+  if(printedGrand===0) labels.push('$0');
+  else if(printedGrand!=null && printedGrand>0 && printedGrand<=1) labels.push('$1-or-less');
+  if(!/^\d+$/.test(inv.invnum||'')) labels.push('versioned');
+  const clientKey = (inv.client||d.client||'').trim().toLowerCase();
+  if(clientKey){
+    const dupCount = allInvoices.filter(x=>((x.client||(x.data&&x.data.client)||'').trim().toLowerCase())===clientKey).length;
+    if(dupCount>1) labels.push('duplicate-named');
+  }
+  return labels;
+}
+
+let _lastResults = null;
+
+async function runReconciliationReport(){
+  const btn = document.getElementById('run-btn');
+  const statusEl = document.getElementById('run-status');
+  btn.disabled = true;
+  statusEl.textContent = 'Loading invoices…';
+
+  let invoices;
+  try{ invoices = await loadAllInvoices(); }
+  catch(e){ statusEl.textContent = 'Could not load invoices: '+e.message; btn.disabled=false; return; }
+
+  const rows = [];
+  let countProposal=0, countSigned=0, countPaid=0, countPaidMismatch=0;
+
+  invoices.forEach(inv=>{
+    const d = inv.data||{};
+    const result = checkInvoice(inv);
+    const hasIssue = result.failures.length>0 || result.missing.length>0;
+
+    const status = deriveStatus(d);
+    let paidAmount = null;
+    if(status==='paid'){
+      const events = myPaymentEvents(d);
+      if(events.length){
+        paidAmount = Math.round(events.reduce((s,e)=>s+e.amount,0)*100)/100;
+      } else if(hasIssue || true){
+        // Always compute, even for invoices that otherwise reconcile — "told vs collected" is
+        // its own independent check, not conditional on the other four.
+        result.missing.push('paid amount (marked paid but no amount_paid/stripe_amount/payments[] found)');
+      }
+    }
+    let paidMismatch = null;
+    if(status==='paid' && paidAmount!=null && result.printedGrand!=null){
+      const diff = centsDiff(paidAmount, result.printedGrand);
+      if(Math.abs(diff)>=EPS_CENTS) paidMismatch = diff/100;
+    }
+
+    if(status==='proposal') countProposal++; else if(status==='signed') countSigned++; else countPaid++;
+    if(paidMismatch!=null) countPaidMismatch++;
+
+    const reportable = result.failures.length>0 || result.missing.length>0 || paidMismatch!=null;
+    if(!reportable) return;
+
+    const labels = computeLabels(inv, invoices, result.printedGrand);
+    rows.push({
+      invnum: inv.invnum, date: inv.invdate||d.invdate||'', client: inv.client||d.client||'',
+      status, labels, paidAmount, paidMismatch, ...result
+    });
+  });
+
+  _lastResults = { scannedCount: invoices.length, rows, countProposal, countSigned, countPaid, countPaidMismatch };
+  renderReport(_lastResults);
+  statusEl.textContent = 'Last run: ' + new Date().toLocaleString();
+  btn.disabled = false;
+}
+
+function renderReport(res){
+  document.getElementById('summary-card').style.display = '';
+  document.getElementById('results-card').style.display = '';
+  document.getElementById('s-scanned').textContent = res.scannedCount;
+  document.getElementById('s-failing').textContent = res.rows.length;
+  document.getElementById('s-proposal').textContent = res.countProposal;
+  document.getElementById('s-signed').textContent = res.countSigned;
+  document.getElementById('s-paid').textContent = res.countPaid;
+  document.getElementById('s-paidmismatch').textContent = res.countPaidMismatch;
+  document.getElementById('results-count').textContent = res.rows.length;
+
+  const body = document.getElementById('results-body');
+  body.innerHTML = '';
+  if(res.rows.length===0){
+    body.innerHTML = '<tr><td colspan="12"><div class="empty-note">No invoice fails reconciliation.</div></td></tr>';
+    return;
+  }
+  res.rows.forEach(r=>{
+    const tr = document.createElement('tr');
+    const failPills = r.failures.map(f=>`<span class="fail-pill" title="${f.detail.replace(/"/g,'&quot;')}">${f.check}</span>`).join('');
+    const missingPills = r.missing.map(m=>`<span class="missing-pill">missing: ${m}</span>`).join('');
+    const labelPills = r.labels.map(l=>`<span class="label-pill">${l}</span>`).join('');
+    const diffLines = r.failures.map(f=>`<div class="diff-row">${f.detail} (Δ ${f.diff>=0?'+':''}${f.diff.toFixed(2)})</div>`).join('');
+    const paidCell = r.status==='paid'
+      ? (r.paidAmount!=null
+          ? `<span class="${r.paidMismatch!=null?'paid-mismatch':''}">${fmt(r.paidAmount)}</span>${r.paidMismatch!=null?`<div class="diff-row">vs grand ${fmt(r.printedGrand)} (Δ ${r.paidMismatch>=0?'+':''}${r.paidMismatch.toFixed(2)})</div>`:''}`
+          : '—')
+      : '—';
+    tr.innerHTML = `
+      <td class="mono">${r.invnum||'—'}</td>
+      <td>${r.date||'—'}</td>
+      <td>${r.client||'—'}</td>
+      <td><span class="status-pill ${r.status}">${r.status}</span></td>
+      <td>${labelPills||'—'}</td>
+      <td class="mono">${fmt(r.linesSum)}</td>
+      <td class="mono">${fmt(r.printedSubtotal)}</td>
+      <td class="mono">${fmt(r.printedTax)}</td>
+      <td class="mono">${fmt(r.printedGrand)}</td>
+      <td class="mono">${fmt(r.printedExtrate)}</td>
+      <td class="mono">${paidCell}</td>
+      <td>${failPills}${missingPills}${diffLines}</td>
+    `;
+    body.appendChild(tr);
+  });
+}
+</script>
+</body>
+</html>
