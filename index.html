@@ -539,6 +539,15 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
         <input type="checkbox" id="rate-card-toggle" onchange="toggleRateCardMode()">
         <label for="rate-card-toggle">Use rate-card pricing — furniture rental + staging design fee from the rate card below, instead of room-based pricing</label>
       </div>
+      <div id="room-term-fields" style="margin-top:12px">
+        <div class="base-row">
+          <span class="base-lbl">Rental term (days)</span>
+          <input class="base-input" id="rental-term-days" type="number" step="1" inputmode="numeric" value="45" oninput="recalc()">
+        </div>
+        <div style="font-size:11px;color:var(--taupe);margin-top:8px;line-height:1.5">
+          Each room/base line's furniture-rental portion is derived from this term (30-day rate &times; term&divide;30). Standard term is 45 days. Terms past 90 days fall back to taxing the full package — no split shown — since the per-line split formula isn't valid past that point.
+        </div>
+      </div>
       <div id="rate-card-fields" style="display:none;margin-top:12px">
         <div class="base-row">
           <span class="base-lbl">Rental term (days)</span>
@@ -738,6 +747,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
       <div class="t-divider"></div>
       <div class="t-row"><span>Subtotal</span><span id="t-sub">—</span></div>
       <div class="t-row"><span id="t-taxlabel">Tax</span><span id="t-tax">—</span></div>
+      <div id="split-mode-note" style="font-size:10.5px;color:var(--taupe);padding:2px 0 0;line-height:1.5"></div>
     </div>
     <div class="sum-grand">
       <span class="sum-grand-lbl">Grand Total</span>
@@ -1270,6 +1280,24 @@ function addonType(desc){
 // change to this constant never silently reclassifies an already-issued invoice.
 const BASE_RENTAL_SHARE = 0.5;
 
+// Fix spec Section 6 (Nov 2026) — contract-text versioning. Signed contracts must never
+// change when regenerated, so every invoice is permanently tagged with the template version
+// that was current when it was FIRST created (never bumped later). An invoice with no tag at
+// all is implicitly the pre-this-build legacy version (tax-inclusive extension clause).
+// api/generate.py branches the "Extension Tax" contract clause on this exact string.
+const CONTRACT_TERMS_VERSION = 'v2_2026_11_ext_tax_on_top';
+
+// Resolves the version this invoice should be saved with: a genuinely new invoice (nothing
+// loaded yet) gets the current version; editing/regenerating an existing invoice preserves
+// whatever it already had (explicit, or implicitly legacy if the field is missing) so a
+// contract that was already shown to a client — signed or not — is never rewritten under it.
+function resolveContractVersion(){
+  if(_loadedInvoiceData && _loadedInvoiceData.invnum === (document.getElementById('invnum-display')?.value||'').trim()){
+    return _loadedInvoiceData.contract_terms_version || 'v1_legacy_ext_tax_inclusive';
+  }
+  return CONTRACT_TERMS_VERSION;
+}
+
 // Phase 5.2 — price-led tax: `total` is the chosen price (computed exactly as it always was —
 // nothing about what the client is charged changes). What changes is backing the tax out of
 // that already-fixed total using only the rental share, instead of taxing the full subtotal.
@@ -1281,6 +1309,55 @@ function priceLedTax(basePrice, addonList, ratePct, total){
   const r = (ratePct||0)/100;
   const pretax = r>0 ? total/(1+r*rentalShare) : total;
   return {pretax, tax: total-pretax, rentalShare};
+}
+// priceLedTax()/BASE_RENTAL_SHARE above are kept ONLY for reporting on invoices that already
+// have price_led_tax:true stored from before this build — never touched retroactively, per
+// the standing "never restate an existing invoice" constraint. New invoices use the forward,
+// per-line split computation below instead; the silent back-out path is never called for them.
+
+// Fix spec Section 0/3 (Nov 2, 2026) — per-line rental/service split, forward computation
+// only. For a given rental term, each splittable line's taxable (rental) share is
+// (term/30 periods) / 3 = term/90 — the same 30-day-rate-times-periods shape used everywhere
+// else in this app (extensions, rate-card mode). At the standard 45-day term this is exactly
+// 0.5, confirmed against the approved build spec's own worked numbers (proposal 2020131:
+// rental $2,151.50 of $4,118.00 lines, tax $226.98 at 10.55%). Returns null outside the
+// formula's valid range (term <= 0, or > 90 days where the fraction would exceed 1 and the
+// service component would go negative) — callers fall back to full-mode tax in that case
+// instead of a manual toggle; see recalc()'s room-based branch.
+const SPLIT_TERM_MAX_DAYS = 90;
+function splitFraction(termDays){
+  const t = parseFloat(termDays)||0;
+  if(t<=0 || t>SPLIT_TERM_MAX_DAYS) return null;
+  return t/90;
+}
+// Splittable = priced through the room-selection UI (base package, room/category selections,
+// extra bedrooms) — what Jasmine negotiates room by room. Custom line items (free text, e.g.
+// "Logistics & Handling Fee") are never split; they stay 100% rental or 100% service per
+// addonType()'s existing keyword classification, unchanged by this build.
+function splitLineAmount(total, fraction){
+  const rental = Math.round(total*fraction*100)/100;
+  return { rental, service: Math.round((total-rental)*100)/100 };
+}
+
+// Fix spec Section 3/8 — reconciliation guard. Automates the hand-check before a client ever
+// sees a figure: sum of lines = subtotal, tax = rate x the taxable base, subtotal+tax=grand,
+// extension rate = pretax subtotal / 3. Warns, never blocks, so Jasmine's workflow is never
+// interrupted — this exists to catch a future code regression, not to second-guess a manual
+// override: any figure Jasmine typed into an override field is deliberately skipped (`raw`
+// null means she left that field blank, i.e. this build auto-computed it and must get it right).
+function reconcileCheck({linesSum, sub, tax, grand, extrate, rawOvSub, rawOvTax, rawOvTot}){
+  const issues = [];
+  const EPS = 0.02;
+  if(rawOvSub==null && Math.abs(linesSum - sub) > EPS){
+    issues.push(`Subtotal $${sub.toFixed(2)} doesn't match the sum of lines $${linesSum.toFixed(2)}.`);
+  }
+  if(rawOvTot==null && Math.abs((sub+tax) - grand) > EPS){
+    issues.push(`Subtotal + tax ($${(sub+tax).toFixed(2)}) doesn't match the grand total ($${grand.toFixed(2)}).`);
+  }
+  if(extrate!=null && Math.abs(extrate - Math.round(sub/3*100)/100) > EPS){
+    issues.push(`Extension rate $${extrate.toFixed(2)} doesn't match pretax subtotal ÷ 3 ($${(sub/3).toFixed(2)}).`);
+  }
+  return issues;
 }
 
 // Fix spec item 2 (Nov 2, 2026) — a second, additive pricing mode selected per invoice
@@ -1303,6 +1380,8 @@ function toggleRateCardMode(){
   pricingMode = document.getElementById('rate-card-toggle')?.checked ? 'rate_card' : 'rooms';
   const fields = document.getElementById('rate-card-fields');
   if(fields) fields.style.display = pricingMode==='rate_card' ? 'block' : 'none';
+  const termFields = document.getElementById('room-term-fields');
+  if(termFields) termFields.style.display = pricingMode==='rate_card' ? 'none' : '';
   const basePriceRow = document.getElementById('base-price-row');
   if(basePriceRow) basePriceRow.style.display = pricingMode==='rate_card' ? 'none' : '';
   const note = document.getElementById('basepkg-note');
@@ -1326,12 +1405,31 @@ function onRateCardEdit(input, which){
 
 function recalc(){
   if(pricingMode==='rate_card'){ recalcRateCard(); return; }
-  let t=0; const _addons=[];
-  selAddons.forEach(e=>{const p=parseFloat(CATS[e.ci].sizes[e.oi].price)||0;t+=p;_addons.push({price:p,type:'rental'});});
-  customs.forEach(a=>{const p=parseFloat(a.price)||0;t+=p;_addons.push({price:p,type:addonType(a.desc)});});
-  extraBedrooms.forEach(b=>{const p=parseFloat(b.price)||0;t+=p;_addons.push({price:p,type:'rental'});});
   const base=parseFloat(document.getElementById('base_price')?.value)||2500;
-  const sub=base+t,rate=parseFloat(document.getElementById('taxrate').value)||0;
+  const rate=parseFloat(document.getElementById('taxrate').value)||0;
+  const termDays=parseFloat(document.getElementById('rental-term-days')?.value)||45;
+  const fraction=splitFraction(termDays);
+
+  let t=0, rentalTotal=0, serviceTotal=0;
+  if(fraction!=null){ const s=splitLineAmount(base,fraction); rentalTotal+=s.rental; serviceTotal+=s.service; }
+  else { rentalTotal+=base; }
+  selAddons.forEach(e=>{
+    const p=parseFloat(CATS[e.ci].sizes[e.oi].price)||0; t+=p;
+    if(fraction!=null){ const s=splitLineAmount(p,fraction); rentalTotal+=s.rental; serviceTotal+=s.service; }
+    else { rentalTotal+=p; }
+  });
+  extraBedrooms.forEach(b=>{
+    const p=parseFloat(b.price)||0; t+=p;
+    if(fraction!=null){ const s=splitLineAmount(p,fraction); rentalTotal+=s.rental; serviceTotal+=s.service; }
+    else { rentalTotal+=p; }
+  });
+  customs.forEach(a=>{
+    const p=parseFloat(a.price)||0; t+=p;
+    if(addonType(a.desc)==='service') serviceTotal+=p; else rentalTotal+=p;
+  });
+  rentalTotal=Math.round(rentalTotal*100)/100; serviceTotal=Math.round(serviceTotal*100)/100;
+
+  const sub=base+t;
   // Manual overrides: anything typed prints exactly; blank fields auto-calculate.
   const ovSub=_ov('ov-subtotal'),ovTax=_ov('ov-tax'),ovTot=_ov('ov-total');
   let subShown, taxShown, grandShown;
@@ -1340,23 +1438,29 @@ function recalc(){
     taxShown=ovTax!==null?ovTax:subShown*rate/100;
     grandShown=ovTot!==null?ovTot:subShown+taxShown;
   } else {
-    // "Chosen price" — the exact same number this always produced (base+addons, tax added
-    // at the full rate). Price-led tax then backs the (smaller, rental-only) tax out of
-    // THIS fixed total rather than taxing the full subtotal — see priceLedTax() above.
-    grandShown = sub + sub*rate/100;
-    const plt = priceLedTax(base, _addons, rate, grandShown);
-    subShown = plt.pretax;
-    taxShown = plt.tax;
+    // Fix spec Section 0/3 — forward computation ONLY. Subtotal is always the sum of visible
+    // lines; tax is rate x the taxable base for the active mode (rental-only in split mode,
+    // the full subtotal when the term is outside the valid split range). Never backed out of
+    // a fixed grand total — see splitFraction()/priceLedTax()'s comments above.
+    subShown = sub;
+    taxShown = Math.round((fraction!=null ? rentalTotal : sub) * rate/100 * 100)/100;
+    grandShown = subShown + taxShown;
   }
   const baseLblEl=document.getElementById('t-base-lbl'); if(baseLblEl) baseLblEl.textContent='Base package';
   const addonsLblEl=document.getElementById('t-addons-lbl'); if(addonsLblEl) addonsLblEl.textContent='Add-ons';
   const baseEl=document.getElementById('t-base'); if(baseEl) baseEl.textContent=fmt(base);
   document.getElementById('t-addons').textContent=fmt(t);
   document.getElementById('t-sub').textContent=fmt(subShown);
-  document.getElementById('t-taxlabel').textContent=`Tax (${rate.toFixed(2)}%)`;
+  document.getElementById('t-taxlabel').textContent = fraction!=null ? `Tax (${rate.toFixed(2)}%, rental only)` : `Tax (${rate.toFixed(2)}%)`;
   document.getElementById('t-tax').textContent=fmt(taxShown);
   document.getElementById('t-grand').textContent=fmt(grandShown);
-  document.getElementById('t-ext').textContent=fmt(grandShown/3)+' / 30 days';
+  document.getElementById('t-ext').textContent=fmt(sub/3)+' / 30 days';
+  const splitNoteEl=document.getElementById('split-mode-note');
+  if(splitNoteEl){
+    splitNoteEl.textContent = fraction!=null
+      ? `Split mode (${termDays}-day term): furniture rental ${fmt(rentalTotal)} · staging design ${fmt(serviceTotal)}`
+      : `Full mode — ${termDays}-day term is outside the 1–${SPLIT_TERM_MAX_DAYS}-day split range, so the full package is taxed.`;
+  }
 
   const contribTotal=contributions.reduce((s,c)=>s+(parseFloat(c.amount)||0),0);
   const contribWrap=document.getElementById('contrib-summary-wrap');
@@ -1425,7 +1529,8 @@ function captureState(){
     pricing_mode:pricingMode,
     rc_term_days:parseFloat(document.getElementById('rc-term-days')?.value)||45,
     rc_rate_30day:parseFloat(document.getElementById('rc-rate-30day')?.value)||0,
-    rc_design_fee:parseFloat(document.getElementById('rc-design-fee')?.value)||0
+    rc_design_fee:parseFloat(document.getElementById('rc-design-fee')?.value)||0,
+    rental_term_days:parseFloat(document.getElementById('rental-term-days')?.value)||45
   };
 }
 
@@ -1452,6 +1557,7 @@ function restoreState(state){
   if(state.rc_term_days!=null){ const el=document.getElementById('rc-term-days'); if(el) el.value=state.rc_term_days; }
   if(state.rc_rate_30day!=null){ const el=document.getElementById('rc-rate-30day'); if(el){ el.value=state.rc_rate_30day; el.dataset.userEdited='1'; } }
   if(state.rc_design_fee!=null){ const el=document.getElementById('rc-design-fee'); if(el){ el.value=state.rc_design_fee; el.dataset.userEdited='1'; } }
+  if(state.rental_term_days!=null){ const el=document.getElementById('rental-term-days'); if(el) el.value=state.rental_term_days; }
   toggleRateCardMode();
   selRooms=new Set(state.selRooms||[]);
   roomScopes=new Map(state.roomScopes||[]);
@@ -2011,31 +2117,73 @@ function buildPricingPayload(){
       extrate: rc.rate30,
       ovSub:sub, ovTax:tax, ovTot:grand,
       priceLedTax:false,
-      pricing_mode:'rate_card', rc_term_days:rc.termDays, rc_rate_30day:rc.rate30, rc_design_fee:rc.designFee
+      pricing_mode:'rate_card', rc_term_days:rc.termDays, rc_rate_30day:rc.rate30, rc_design_fee:rc.designFee,
+      reconcile: reconcileCheck({linesSum:A+B, sub, tax, grand, extrate:null, rawOvSub:null, rawOvTax:null, rawOvTot:null})
     };
   }
+  const base = parseFloat(document.getElementById('base_price')?.value)||2500;
+  const termDays = parseFloat(document.getElementById('rental-term-days')?.value)||45;
+  const fraction = splitFraction(termDays);
+  let rentalTotal = 0, serviceTotal = 0;
+  const baseSplit = fraction!=null ? splitLineAmount(base, fraction) : null;
+  if(baseSplit){ rentalTotal += baseSplit.rental; serviceTotal += baseSplit.service; } else { rentalTotal += base; }
+
   const allAddons = [];
   selAddons.forEach(entry => {
     const cat = CATS[entry.ci], opt = cat.sizes[entry.oi];
     const bed = cat.hasBed ? bedSel.get(`${entry.ci}`) : '';
     const scope = document.getElementById(`sc-${entry.ci}`)?.value || entry.scope || '';
-    allAddons.push({desc:cat.name + (bed ? " (" + bed + ")" : "") + ": " + (scope||opt.size),price:opt.price});
+    const split = fraction!=null ? splitLineAmount(opt.price, fraction) : null;
+    if(split){ rentalTotal += split.rental; serviceTotal += split.service; } else { rentalTotal += opt.price; }
+    allAddons.push({desc:cat.name + (bed ? " (" + bed + ")" : "") + ": " + (scope||opt.size),price:opt.price,split});
   });
-  customs.filter(a=>a.desc).forEach(a=>{allAddons.push({desc:a.desc+(a.scope?': '+a.scope:''),price:parseFloat(a.price)||0});});
-  extraBedrooms.forEach(b=>{allAddons.push({desc:`${b.name} (${b.bed}): ${b.scope||b.size}`,price:b.price});});
-  allAddons.forEach(a=>{ a.type = a.type || addonType(a.desc); });
-  const base = parseFloat(document.getElementById('base_price')?.value)||2500;
+  customs.filter(a=>a.desc).forEach(a=>{
+    const price = parseFloat(a.price)||0;
+    allAddons.push({desc:a.desc+(a.scope?': '+a.scope:''),price});
+  });
+  extraBedrooms.forEach(b=>{
+    const split = fraction!=null ? splitLineAmount(b.price, fraction) : null;
+    if(split){ rentalTotal += split.rental; serviceTotal += split.service; } else { rentalTotal += b.price; }
+    allAddons.push({desc:`${b.name} (${b.bed}): ${b.scope||b.size}`,price:b.price,split});
+  });
+  allAddons.forEach(a=>{
+    if(a.type) return;
+    a.type = addonType(a.desc);
+    // Custom line items (no `split` set above) aren't priced through the room UI, so they
+    // count 100% toward whichever side addonType() classifies them — never split per-line.
+    if(a.split===undefined){ if(a.type==='service') serviceTotal += a.price; else rentalTotal += a.price; }
+  });
+  rentalTotal = Math.round(rentalTotal*100)/100; serviceTotal = Math.round(serviceTotal*100)/100;
+
   const addonTotal = allAddons.reduce((s,a)=>s+a.price,0);
   const sub = base+addonTotal;
   const ovSub=_ov('ov-subtotal'),ovTax=_ov('ov-tax'),ovTot=_ov('ov-total');
   const hasOverride = ovSub!==null||ovTax!==null||ovTot!==null;
-  const grand = hasOverride ? (ovTot!==null?ovTot:(ovSub!==null?ovSub:sub)+(ovTax!==null?ovTax:(ovSub!==null?ovSub:sub)*rate/100)) : sub+sub*rate/100;
+  let grand, taxOut, subOut;
+  if(hasOverride){
+    subOut = ovSub!==null?ovSub:sub;
+    taxOut = ovTax!==null?ovTax:subOut*rate/100;
+    grand = ovTot!==null?ovTot:subOut+taxOut;
+  } else {
+    // Fix spec Section 0/3 — forward computation only, stored as override fields so every
+    // downstream reader (board, tax report, webhook, PDF) picks it up unchanged — same
+    // pattern as rate-card mode (Item 2). Never backs tax out of a fixed grand total.
+    subOut = sub;
+    taxOut = Math.round((fraction!=null ? rentalTotal : sub) * rate/100 * 100)/100;
+    grand = subOut + taxOut;
+  }
+  const finalExtrate = Math.round(sub/3*100)/100;
   return {
     allAddons, base, grand,
-    extrate: Math.round(grand/3*100)/100,
-    ovSub, ovTax, ovTot,
-    priceLedTax: !hasOverride,
-    pricing_mode:'rooms', rc_term_days:null, rc_rate_30day:null, rc_design_fee:null
+    extrate: finalExtrate,
+    ovSub: hasOverride?ovSub:subOut, ovTax: hasOverride?ovTax:taxOut, ovTot: hasOverride?ovTot:grand,
+    priceLedTax: false,
+    pricing_mode:'rooms', rc_term_days:null, rc_rate_30day:null, rc_design_fee:null,
+    rental_service_split: !hasOverride && fraction!=null,
+    rental_term_days: termDays,
+    rental_total: rentalTotal, service_total: serviceTotal,
+    base_split: baseSplit,
+    reconcile: reconcileCheck({linesSum:sub, sub:subOut, tax:taxOut, grand, extrate:finalExtrate, rawOvSub:ovSub, rawOvTax:ovTax, rawOvTot:ovTot})
   };
 }
 
@@ -2067,6 +2215,8 @@ async function saveDraft(silent){
     rental_share_base: BASE_RENTAL_SHARE,
     price_led_tax: P.priceLedTax,
     pricing_mode: P.pricing_mode, rc_term_days: P.rc_term_days, rc_rate_30day: P.rc_rate_30day, rc_design_fee: P.rc_design_fee,
+    rental_service_split: P.rental_service_split, rental_term_days: P.rental_term_days, rental_total: P.rental_total, service_total: P.service_total, base_split: P.base_split,
+    contract_terms_version: resolveContractVersion(),
     state: captureState(),
     promo1: document.getElementById('promo1').checked,
     promo2: document.getElementById('promo2').checked,
@@ -2158,6 +2308,8 @@ async function downloadPdfNow(){
   let pdfWin=null; try{ pdfWin=window.open('','_blank'); }catch(e){}
 
   const P=buildPricingPayload();
+  // Fix spec Section 3/8 — reconciliation guard: warns, never blocks (standing choice).
+  if(P.reconcile && P.reconcile.length) alert('Reconciliation check found an issue before generating this invoice:\n\n' + P.reconcile.join('\n') + '\n\nThe PDF will still generate — please double-check the figures.');
   const allAddons=P.allAddons;
   const base=P.base, taxrate=parseFloat(document.getElementById('taxrate').value)||0;
   const ovSub=P.ovSub,ovTax=P.ovTax,ovTot=P.ovTot;
@@ -2179,7 +2331,7 @@ async function downloadPdfNow(){
   invNum=invNumFinal;
 
   const _contribList=contributions.filter(c=>c.label&&parseFloat(c.amount)>0).map(c=>({label:c.label,amount:parseFloat(c.amount)}));
-  const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:getStartDateValue(),baserooms:[...selRooms].join(', '),baseroom_scopes:roomScopesObj(),extrate,taxrate,base_price:base,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,city:document.getElementById('city')?.value.trim()||'',zip:zipVal,property_state:'WA',rental_share_base:BASE_RENTAL_SHARE,price_led_tax:P.priceLedTax,pricing_mode:P.pricing_mode,rc_term_days:P.rc_term_days,rc_rate_30day:P.rc_rate_30day,rc_design_fee:P.rc_design_fee,state:captureState(),promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,promo4:document.getElementById('promo4').checked,payment_url:null,contributions:_contribList,pet_deposit:petDepositBase(),cosigner:getCosigner(),cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||'',payer_unknown:!!payerUnknown};
+  const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:getStartDateValue(),baserooms:[...selRooms].join(', '),baseroom_scopes:roomScopesObj(),extrate,taxrate,base_price:base,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,city:document.getElementById('city')?.value.trim()||'',zip:zipVal,property_state:'WA',rental_share_base:BASE_RENTAL_SHARE,price_led_tax:P.priceLedTax,pricing_mode:P.pricing_mode,rc_term_days:P.rc_term_days,rc_rate_30day:P.rc_rate_30day,rc_design_fee:P.rc_design_fee,rental_service_split:P.rental_service_split,rental_term_days:P.rental_term_days,rental_total:P.rental_total,service_total:P.service_total,base_split:P.base_split,contract_terms_version:resolveContractVersion(),state:captureState(),promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,promo4:document.getElementById('promo4').checked,payment_url:null,contributions:_contribList,pet_deposit:petDepositBase(),cosigner:getCosigner(),cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||'',payer_unknown:!!payerUnknown};
   preserveBoardFields(data, invNumFinal);
 
   const ctrl=new AbortController();
@@ -2430,6 +2582,8 @@ async function generatePDF(){
   if(!valid){document.querySelector('.rooms-grid').scrollIntoView({behavior:'smooth'});return null;}
 
   const P=buildPricingPayload();
+  // Fix spec Section 3/8 — reconciliation guard: warns, never blocks (standing choice).
+  if(P.reconcile && P.reconcile.length) alert('Reconciliation check found an issue before generating this invoice:\n\n' + P.reconcile.join('\n') + '\n\nThe PDF will still generate — please double-check the figures.');
   const allAddons=P.allAddons;
   const base=P.base, taxrate=parseFloat(document.getElementById('taxrate').value)||0;
   const ovSub=P.ovSub,ovTax=P.ovTax,ovTot=P.ovTot;
@@ -2479,7 +2633,7 @@ async function generatePDF(){
 
   setSt('loading','Generating your invoice PDF...');
   const _contribList=contributions.filter(c=>c.label&&parseFloat(c.amount)>0).map(c=>({label:c.label,amount:parseFloat(c.amount)}));
-  const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:getStartDateValue(),baserooms:[...selRooms].join(', '),baseroom_scopes:roomScopesObj(),extrate,taxrate,base_price:base,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,city:document.getElementById('city')?.value.trim()||'',zip:zipVal,property_state:'WA',rental_share_base:BASE_RENTAL_SHARE,price_led_tax:P.priceLedTax,pricing_mode:P.pricing_mode,rc_term_days:P.rc_term_days,rc_rate_30day:P.rc_rate_30day,rc_design_fee:P.rc_design_fee,state:captureState(),promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
+  const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:getStartDateValue(),baserooms:[...selRooms].join(', '),baseroom_scopes:roomScopesObj(),extrate,taxrate,base_price:base,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,city:document.getElementById('city')?.value.trim()||'',zip:zipVal,property_state:'WA',rental_share_base:BASE_RENTAL_SHARE,price_led_tax:P.priceLedTax,pricing_mode:P.pricing_mode,rc_term_days:P.rc_term_days,rc_rate_30day:P.rc_rate_30day,rc_design_fee:P.rc_design_fee,rental_service_split:P.rental_service_split,rental_term_days:P.rental_term_days,rental_total:P.rental_total,service_total:P.service_total,base_split:P.base_split,contract_terms_version:resolveContractVersion(),state:captureState(),promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
             promo4:document.getElementById('promo4').checked,payment_url,payment_link_id,contributions:_contribList,payments:splitPayments,active_client_payment_id:activeClientPaymentId,pet_deposit:petDeposit,cosigner:getCosigner(),cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||'',payer_unknown:!!payerUnknown};
   preserveBoardFields(data, invNumFinal);
 
@@ -2521,6 +2675,8 @@ async function generate(){
   const btn=document.getElementById('gen-btn');btn.disabled=true;btn.textContent='Creating payment link...';
 
   const P=buildPricingPayload();
+  // Fix spec Section 3/8 — reconciliation guard: warns, never blocks (standing choice).
+  if(P.reconcile && P.reconcile.length) alert('Reconciliation check found an issue before generating this invoice:\n\n' + P.reconcile.join('\n') + '\n\nThe PDF will still generate — please double-check the figures.');
   const allAddons=P.allAddons;
   const base=P.base, taxrate=parseFloat(document.getElementById('taxrate').value)||0;
   const ovSub=P.ovSub,ovTax=P.ovTax,ovTot=P.ovTot;
@@ -2575,7 +2731,7 @@ async function generate(){
   setSt('loading','Generating your invoice PDF...');
 
   const _contribList=contributions.filter(c=>c.label&&parseFloat(c.amount)>0).map(c=>({label:c.label,amount:parseFloat(c.amount)}));
-  const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:getStartDateValue(),baserooms:[...selRooms].join(', '),baseroom_scopes:roomScopesObj(),extrate,taxrate,base_price:base,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,city:document.getElementById('city')?.value.trim()||'',zip:zipVal,property_state:'WA',rental_share_base:BASE_RENTAL_SHARE,price_led_tax:P.priceLedTax,pricing_mode:P.pricing_mode,rc_term_days:P.rc_term_days,rc_rate_30day:P.rc_rate_30day,rc_design_fee:P.rc_design_fee,state:captureState(),promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
+  const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:getStartDateValue(),baserooms:[...selRooms].join(', '),baseroom_scopes:roomScopesObj(),extrate,taxrate,base_price:base,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,city:document.getElementById('city')?.value.trim()||'',zip:zipVal,property_state:'WA',rental_share_base:BASE_RENTAL_SHARE,price_led_tax:P.priceLedTax,pricing_mode:P.pricing_mode,rc_term_days:P.rc_term_days,rc_rate_30day:P.rc_rate_30day,rc_design_fee:P.rc_design_fee,rental_service_split:P.rental_service_split,rental_term_days:P.rental_term_days,rental_total:P.rental_total,service_total:P.service_total,base_split:P.base_split,contract_terms_version:resolveContractVersion(),state:captureState(),promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
             promo4:document.getElementById('promo4').checked,payment_url,payment_link_id,contributions:_contribList,payments:splitPayments,active_client_payment_id:activeClientPaymentId,pet_deposit:petDeposit,cosigner:getCosigner(),cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||'',payer_unknown:!!payerUnknown};
   preserveBoardFields(data, invNumFinal);
 

@@ -1366,9 +1366,19 @@ def generate_invoice_pdf(data):
         'A late fee of [TBD] applies to an extension payment received after the extension period has already begun.',
         'Styling With Jas reserves the right to schedule destage if an extension remains unpaid after written notice.',
     ])
-    tc_section('Extension Tax', [
-        'The extension rate stated in this agreement is inclusive of applicable Washington sales tax.',
-    ])
+    # Fix spec Section 6 (Nov 2026) — this clause must never change on an already-signed
+    # contract when its PDF is regenerated. `contract_terms_version` is stamped on the invoice
+    # at FIRST creation and never bumped afterward (see index.html/luxury.html's
+    # resolveContractVersion()); anything untagged is implicitly the legacy, tax-inclusive
+    # version — the exact text that was in place before this build.
+    if data.get('contract_terms_version') == 'v2_2026_11_ext_tax_on_top':
+        tc_section('Extension Tax', [
+            'Washington sales tax applies to the extension rate stated in this agreement and is added on top, separately stated, at the time of each extension — it is not included in the stated rate.',
+        ])
+    else:
+        tc_section('Extension Tax', [
+            'The extension rate stated in this agreement is inclusive of applicable Washington sales tax.',
+        ])
     tc_section('Damage & Loss', [
         'An itemized inventory and condition record, including photographs, is taken at installation.',
         'Client is liable for repair or replacement, at current value, of any staging item damaged or lost during the rental period.',

@@ -1053,6 +1053,17 @@ def tax_invoice_split(d):
         subtotal = tax_compute_subtotal(d)
         tax = tax_compute_tax(d)
         grand = tax_compute_grand(d)
+        # Per-line split invoices (approved build spec, Nov 2026) store the authoritative
+        # rental/service totals directly — computed per-line, term-derived, at creation time.
+        # The generic addon-type loop below can only treat a whole line as 100% rental XOR
+        # 100% service, so it cannot reconstruct a per-line 50/50-style split; reading the
+        # stored totals here is required, not just a shortcut.
+        if d.get('rental_service_split') and d.get('rental_total') is not None:
+            rental_total = float(d.get('rental_total') or 0)
+            service_total = float(d.get('service_total') or 0)
+            line_total = rental_total + service_total
+            rental_share = (rental_total / line_total) if line_total > 0.009 else 1.0
+            return {'subtotal': subtotal, 'tax': tax, 'grand': grand, 'rental_share': rental_share}
         # Rate-card invoices (fix spec item 2) have no base package — both priced lines are
         # already in `addons` (rental + design fee), so the rental/service split must start
         # from 0, not the room-based `base` fallback (which defaults to $2500 when base_price

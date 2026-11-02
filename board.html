@@ -3308,10 +3308,16 @@ async function emailBoardContribLink(){
 // Custom date-picker dialog for extendRental() — replaces the old prompt() that only asked
 // "how many days," with no way to just pick the actual date the rental should run through.
 // Resolves {days, amount, newEndDate} on confirm, or null on cancel.
-function promptExtensionDate(clientName, curEndStr, defaultNewEndStr, extrate, taxRatePct){
+function promptExtensionDate(clientName, curEndStr, defaultNewEndStr, extrate, taxRatePct, defaultInclusive){
   return new Promise((resolve) => {
     const ov = document.createElement('div');
     ov.style.cssText = 'position:fixed;inset:0;background:rgba(26,24,20,0.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:24px;font-family:Inter,-apple-system,sans-serif';
+    // Fix spec Section 6 — the checkbox's default state follows the governing contract
+    // (defaultInclusive, resolved by the caller from contract_terms_version), not a fixed
+    // unchecked default; Jasmine can still flip it for a real correction either way.
+    const inclusiveLabel = defaultInclusive
+      ? 'This fee already includes sales tax (tax-inclusive) — checked by default: this invoice\'s signed contract states the extension rate is tax-inclusive. Uncheck to add tax on top instead.'
+      : 'This fee already includes sales tax (tax-inclusive) — leave unchecked to add tax on top, separately stated (default for this invoice\'s contract).';
     ov.innerHTML =
       '<div style="background:#fff;border-radius:16px;max-width:360px;width:100%;padding:22px">'
       + '<div style="font-family:Georgia,serif;font-size:19px;color:#1a1814;margin-bottom:4px">Extend Rental — ' + escapeHtml(clientName) + '</div>'
@@ -3320,8 +3326,8 @@ function promptExtensionDate(clientName, curEndStr, defaultNewEndStr, extrate, t
       + '<input type="date" id="ext-date-input" value="' + defaultNewEndStr + '" style="width:100%;font-size:16px;padding:10px 12px;border:1.5px solid #d4cfc9;border-radius:9px;margin-bottom:14px;box-sizing:border-box">'
       + '<div id="ext-date-preview" style="font-size:13px;color:#3d3830;background:#f5f2ed;border-radius:9px;padding:10px 12px;margin-bottom:12px;min-height:20px">—</div>'
       + '<label style="display:flex;align-items:flex-start;gap:8px;font-size:11.5px;color:#7a6f69;margin-bottom:16px;cursor:pointer">'
-      + '<input type="checkbox" id="ext-tax-inclusive" style="margin-top:2px">'
-      + '<span>This fee already includes sales tax (tax-inclusive) — leave unchecked to add tax on top, separately stated (default).</span>'
+      + '<input type="checkbox" id="ext-tax-inclusive"' + (defaultInclusive ? ' checked' : '') + ' style="margin-top:2px">'
+      + '<span>' + inclusiveLabel + '</span>'
       + '</label>'
       + '<div style="display:flex;gap:8px">'
       + '<button id="ext-date-cancel" style="flex:1;background:#f5f2ed;color:#7a6f69;border:none;padding:12px;border-radius:10px;font-weight:600;cursor:pointer">Cancel</button>'
@@ -3423,7 +3429,12 @@ async function extendRental(invnum){
   const defaultNewEndStr = _defaultDt.getFullYear() + '-' + String(_defaultDt.getMonth()+1).padStart(2,'0') + '-' + String(_defaultDt.getDate()).padStart(2,'0');
 
   const extTaxRate = parseFloat(d.taxrate) || 0;
-  const picked = await promptExtensionDate(inv.client||'this client', curEndStr, defaultNewEndStr, extrate, extTaxRate);
+  // Fix spec Section 6 (Nov 2026) — tax treatment follows the governing contract: an invoice
+  // signed under the old template (tax-inclusive extension clause, or no version tag at all
+  // from before this build) defaults the checkbox checked; a new-template invoice defaults it
+  // unchecked (tax on top). Jasmine can still override per extension for a real correction.
+  const defaultInclusive = d.contract_terms_version !== 'v2_2026_11_ext_tax_on_top';
+  const picked = await promptExtensionDate(inv.client||'this client', curEndStr, defaultNewEndStr, extrate, extTaxRate, defaultInclusive);
   if(!picked) return;   // cancelled
   // Fix spec (Nov 2, 2026): tax is added ON TOP of the agreed fee and separately stated by
   // default — never backed out of it — unless Jasmine explicitly marks this specific

@@ -413,6 +413,16 @@ function invoiceTaxSplit(d){
     const subtotal = computeSubtotal(d);
     const tax = computeTax(d);
     const grand = computeGrand(d);
+    // Per-line split invoices (approved build spec, Nov 2026) store the authoritative
+    // rental/service totals directly — computed per-line, term-derived, at creation time.
+    // The generic addon-type loop below can only treat a whole line as 100% rental XOR 100%
+    // service, so it cannot reconstruct a per-line 50/50-style split; reading the stored
+    // totals here is required, not just a shortcut.
+    if(d.rental_service_split && d.rental_total!=null){
+      const lineTotal = (parseFloat(d.rental_total)||0) + (parseFloat(d.service_total)||0);
+      const rentalShare = lineTotal>0.009 ? (parseFloat(d.rental_total)||0)/lineTotal : 1;
+      return { subtotal, tax, grand, rentalShare, rentalPortion: parseFloat(d.rental_total)||0, servicePortion: parseFloat(d.service_total)||0 };
+    }
     // Rate-card invoices (fix spec item 2) have no base package — both priced lines are
     // already in `addons` (rental + design fee), so the rental/service split must start
     // from 0, not the room-based `base` fallback (which defaults to $2500 when base_price
