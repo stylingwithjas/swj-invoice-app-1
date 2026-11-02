@@ -2356,6 +2356,8 @@ document.addEventListener('DOMContentLoaded', async ()=>{
   initFinancePeriodPickers();
   await loadFinanceConfig();
   await runFinanceView();
+  const wantTab = new URLSearchParams(window.location.search).get('tab');
+  if(wantTab) prShowTab(wantTab);
 });
 </script>
 <script>document.addEventListener('DOMContentLoaded',()=>{try{document.querySelector('.nav-sw .nav-btn.on')?.scrollIntoView({inline:'center',block:'nearest'});}catch(e){}});</script>

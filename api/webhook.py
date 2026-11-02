@@ -231,7 +231,7 @@ def plaid_create_link_token():
         resp = _plaid_request('/link/token/create', {
             'user': {'client_user_id': 'swj-business-amex'},
             'client_name': 'Styling With Jas',
-            'products': ['transactions'],
+            'products': ['transactions', 'liabilities'],
             'country_codes': ['US'],
             'language': 'en',
         })
@@ -300,6 +300,71 @@ def _plaid_get_item():
     return rows[0] if rows else None
 
 
+def _plaid_fetch_card_summary(access_token):
+    """Pulls the connected card's balance snapshot via Plaid's Liabilities product: current
+    balance, the last statement balance (what to pay in full by next_payment_due_date to avoid
+    interest — the standard credit-card grace-period read, same number Amex's own statement
+    calls "New Balance"), the minimum payment, and the two relevant dates. Returns None if
+    Plaid has no credit-card liability for this item (e.g. it isn't actually a credit card)."""
+    resp = _plaid_request('/liabilities/get', {'access_token': access_token})
+    accounts = {a.get('account_id'): a for a in resp.get('accounts', [])}
+    credit_liabilities = (resp.get('liabilities') or {}).get('credit') or []
+    if not credit_liabilities:
+        return None
+    card = credit_liabilities[0]
+    balances = (accounts.get(card.get('account_id')) or {}).get('balances') or {}
+    return {
+        'current_balance': balances.get('current'),
+        'statement_balance': card.get('last_statement_balance'),
+        'minimum_payment': card.get('minimum_payment_amount'),
+        'next_payment_due_date': card.get('next_payment_due_date'),
+        'last_statement_date': card.get('last_statement_issue_date'),
+    }
+
+
+def _plaid_store_balance(item_id, summary):
+    """Caches a balance summary onto the plaid_items row, where the anon-readable
+    plaid_account_summary view (sql/plaid_tables.sql) exposes it to Home without ever touching
+    access_token. Shared by plaid_refresh_balance() and the best-effort refresh at the end of a
+    transactions sync, so both paths write it the same way."""
+    key = os.environ.get('SUPABASE_KEY', '')
+    synced_at = datetime.datetime.utcnow().isoformat()
+    payload = dict(summary)
+    payload['balance_synced_at'] = synced_at
+    req = urllib.request.Request(
+        f'{SUPABASE_URL}/rest/v1/plaid_items?item_id=eq.{urllib.parse.quote(item_id)}',
+        data=json.dumps(payload).encode(),
+        headers={
+            'apikey': key, 'Authorization': f'Bearer {key}', 'Content-Type': 'application/json',
+            'Prefer': 'return=minimal',
+        },
+        method='PATCH',
+    )
+    with urllib.request.urlopen(req, timeout=15):
+        pass
+    return synced_at
+
+
+def plaid_refresh_balance():
+    """Refreshes the connected card's balance/due-date snapshot and caches it for Home's Amex
+    card to read. Safe to call on every Home page load — Plaid itself only refreshes liability
+    data roughly once a day, so this never hammers their API — and any failure here is just
+    returned as a plain {'error': ...}; the card falls back to whatever is already cached."""
+    if not _plaid_configured():
+        return {'error': 'Plaid is not configured yet.'}
+    item = _plaid_get_item()
+    if not item:
+        return {'error': 'No Amex account connected yet.'}
+    try:
+        summary = _plaid_fetch_card_summary(item['access_token'])
+        if not summary:
+            return {'error': 'Plaid did not return credit card liability data for this account.'}
+        synced_at = _plaid_store_balance(item['item_id'], summary)
+        return {'ok': True, 'balance_synced_at': synced_at, **summary}
+    except Exception as e:
+        return {'error': f'Plaid balance refresh failed: {e}'}
+
+
 def plaid_sync_transactions():
     """Pulls new/changed/removed transactions since the last sync via Plaid's own cursor
     (Plaid tracks the cursor; nothing is stored locally for it, so a sync always picks up
@@ -361,6 +426,12 @@ def plaid_sync_transactions():
                     pass
             cursor = resp.get('next_cursor')
             has_more = resp.get('has_more', False)
+        try:
+            summary = _plaid_fetch_card_summary(item['access_token'])
+            if summary:
+                _plaid_store_balance(item['item_id'], summary)
+        except Exception:
+            pass  # best-effort only here — plaid_refresh_balance() is the primary path for this
         return {'ok': True, 'added': added, 'modified': modified, 'removed': removed}
     except Exception as e:
         return {'error': f'Plaid transaction sync failed: {e}'}
@@ -2276,6 +2347,8 @@ class handler(BaseHTTPRequestHandler):
                 self._respond(200, plaid_exchange_public_token(payload.get('public_token')))
             elif job == 'plaid_sync':
                 self._respond(200, plaid_sync_transactions())
+            elif job == 'plaid_balance':
+                self._respond(200, plaid_refresh_balance())
             else:
                 self._respond(404, {'error': f'Unknown job: {job}'})
             return
