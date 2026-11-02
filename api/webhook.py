@@ -186,6 +186,187 @@ def fmt_arrival(ts):
 
 
 # ════════════════════════════════════════════════════════════════
+# PLAID (Amex spending snapshot, Nov 2026) — piggybacked on this file's existing dispatch
+# (Vercel Hobby plan's 12-function cap is already fully used) via ?job=plaid_* query params on
+# do_POST, the same convention do_GET already uses for its cron jobs. sql/plaid_tables.sql
+# must be run once in Supabase before any of this has somewhere to write. Every function here
+# fails with a clear {'error': ...} — never a crash, never a fake success — when
+# PLAID_CLIENT_ID/PLAID_SECRET are unset, same pattern this file already uses for Google Drive.
+# ════════════════════════════════════════════════════════════════
+
+PLAID_ENV = os.environ.get('PLAID_ENV', 'production')  # 'sandbox' | 'development' | 'production'
+PLAID_HOST = {
+    'sandbox': 'https://sandbox.plaid.com',
+    'development': 'https://development.plaid.com',
+    'production': 'https://production.plaid.com',
+}.get(PLAID_ENV, 'https://production.plaid.com')
+
+
+def _plaid_configured():
+    return bool(os.environ.get('PLAID_CLIENT_ID')) and bool(os.environ.get('PLAID_SECRET'))
+
+
+def _plaid_request(path, payload):
+    """POST to Plaid's REST API with client_id/secret injected. Raises on any error — callers
+    catch it and turn it into a clear {'error': ...} response, never a silent partial result."""
+    body = dict(payload)
+    body['client_id'] = os.environ.get('PLAID_CLIENT_ID', '')
+    body['secret'] = os.environ.get('PLAID_SECRET', '')
+    req = urllib.request.Request(
+        f'{PLAID_HOST}{path}',
+        data=json.dumps(body).encode(),
+        headers={'Content-Type': 'application/json'},
+        method='POST',
+    )
+    with urllib.request.urlopen(req, timeout=20) as r:
+        return json.loads(r.read())
+
+
+def plaid_create_link_token():
+    """Step 1 of connecting an account: a short-lived token the browser's Plaid Link widget
+    needs before it can even open. Never a secret itself — safe to hand to the client."""
+    if not _plaid_configured():
+        return {'error': 'Plaid is not configured yet — PLAID_CLIENT_ID/PLAID_SECRET are not set.'}
+    try:
+        resp = _plaid_request('/link/token/create', {
+            'user': {'client_user_id': 'swj-business-amex'},
+            'client_name': 'Styling With Jas',
+            'products': ['transactions'],
+            'country_codes': ['US'],
+            'language': 'en',
+        })
+        return {'link_token': resp.get('link_token')}
+    except Exception as e:
+        return {'error': f'Plaid link token request failed: {e}'}
+
+
+def plaid_exchange_public_token(public_token):
+    """Step 2: once Jasmine finishes the Plaid Link flow in the browser, the short-lived
+    public_token it hands back is exchanged here for a permanent access_token — which is
+    stored server-side only (plaid_items table, locked out of the anon key entirely) and
+    never sent back to the client in this response or any other."""
+    if not _plaid_configured():
+        return {'error': 'Plaid is not configured yet.'}
+    if not public_token:
+        return {'error': 'Missing public_token.'}
+    try:
+        resp = _plaid_request('/item/public_token/exchange', {'public_token': public_token})
+        access_token = resp.get('access_token')
+        item_id = resp.get('item_id')
+        if not access_token or not item_id:
+            return {'error': 'Plaid did not return an access token.'}
+        institution_name = ''
+        try:
+            item_resp = _plaid_request('/item/get', {'access_token': access_token})
+            institution_id = (item_resp.get('item') or {}).get('institution_id')
+            if institution_id:
+                inst_resp = _plaid_request('/institutions/get_by_id', {
+                    'institution_id': institution_id, 'country_codes': ['US'],
+                })
+                institution_name = (inst_resp.get('institution') or {}).get('name', '')
+        except Exception:
+            pass  # cosmetic only — never block storing the access token over a lookup failure
+        key = os.environ.get('SUPABASE_KEY', '')
+        req = urllib.request.Request(
+            f'{SUPABASE_URL}/rest/v1/plaid_items?on_conflict=item_id',
+            data=json.dumps({
+                'item_id': item_id, 'access_token': access_token,
+                'institution_name': institution_name,
+                'updated_at': datetime.datetime.utcnow().isoformat(),
+            }).encode(),
+            headers={
+                'apikey': key, 'Authorization': f'Bearer {key}', 'Content-Type': 'application/json',
+                'Prefer': 'resolution=merge-duplicates',
+            },
+            method='POST',
+        )
+        with urllib.request.urlopen(req, timeout=15):
+            pass
+        return {'ok': True, 'institution_name': institution_name}
+    except Exception as e:
+        return {'error': f'Plaid token exchange failed: {e}'}
+
+
+def _plaid_get_item():
+    """The single stored Plaid item row, or None if nothing's been connected yet. Only ever
+    called server-side — this is the one place the access_token is read into memory."""
+    key = os.environ.get('SUPABASE_KEY', '')
+    req = urllib.request.Request(
+        f'{SUPABASE_URL}/rest/v1/plaid_items?select=item_id,access_token,institution_name&limit=1',
+        headers={'apikey': key, 'Authorization': f'Bearer {key}'},
+    )
+    with urllib.request.urlopen(req, timeout=15) as r:
+        rows = json.loads(r.read())
+    return rows[0] if rows else None
+
+
+def plaid_sync_transactions():
+    """Pulls new/changed/removed transactions since the last sync via Plaid's own cursor
+    (Plaid tracks the cursor; nothing is stored locally for it, so a sync always picks up
+    exactly where Plaid last left off). Never writes to the `category` column — a re-sync can
+    add new transactions or update Plaid's own fields on existing ones, but must never
+    overwrite Jasmine's own categorization of a transaction she's already tagged."""
+    if not _plaid_configured():
+        return {'error': 'Plaid is not configured yet.'}
+    item = _plaid_get_item()
+    if not item:
+        return {'error': 'No Amex account connected yet — use Connect Amex first.'}
+    try:
+        added = modified = removed = 0
+        cursor = None
+        has_more = True
+        key = os.environ.get('SUPABASE_KEY', '')
+        while has_more:
+            payload = {'access_token': item['access_token']}
+            if cursor:
+                payload['cursor'] = cursor
+            resp = _plaid_request('/transactions/sync', payload)
+            rows = []
+            for t in resp.get('added', []) + resp.get('modified', []):
+                rows.append({
+                    'transaction_id': t.get('transaction_id'),
+                    'item_id': item['item_id'],
+                    'date': t.get('date'),
+                    'merchant_name': t.get('merchant_name'),
+                    'name': t.get('name'),
+                    'amount': t.get('amount'),
+                    'pending': t.get('pending', False),
+                    'plaid_category': ','.join(t.get('category') or []) if t.get('category') else None,
+                    'updated_at': datetime.datetime.utcnow().isoformat(),
+                })
+            added += len(resp.get('added', []))
+            modified += len(resp.get('modified', []))
+            removed_ids = [t.get('transaction_id') for t in resp.get('removed', []) if t.get('transaction_id')]
+            removed += len(removed_ids)
+            if rows:
+                req = urllib.request.Request(
+                    f'{SUPABASE_URL}/rest/v1/plaid_transactions?on_conflict=transaction_id',
+                    data=json.dumps(rows).encode(),
+                    headers={
+                        'apikey': key, 'Authorization': f'Bearer {key}', 'Content-Type': 'application/json',
+                        'Prefer': 'resolution=merge-duplicates',
+                    },
+                    method='POST',
+                )
+                with urllib.request.urlopen(req, timeout=20):
+                    pass
+            if removed_ids:
+                ids_filter = ','.join(urllib.parse.quote(i) for i in removed_ids)
+                del_req = urllib.request.Request(
+                    f'{SUPABASE_URL}/rest/v1/plaid_transactions?transaction_id=in.({ids_filter})',
+                    headers={'apikey': key, 'Authorization': f'Bearer {key}'},
+                    method='DELETE',
+                )
+                with urllib.request.urlopen(del_req, timeout=15):
+                    pass
+            cursor = resp.get('next_cursor')
+            has_more = resp.get('has_more', False)
+        return {'ok': True, 'added': added, 'modified': modified, 'removed': removed}
+    except Exception as e:
+        return {'error': f'Plaid transaction sync failed: {e}'}
+
+
+# ════════════════════════════════════════════════════════════════
 # SUPABASE
 # ════════════════════════════════════════════════════════════════
 
@@ -2075,6 +2256,29 @@ class handler(BaseHTTPRequestHandler):
             return
         length = int(self.headers.get('Content-Length', 0))
         raw_body = self.rfile.read(length)
+
+        # Plaid actions (Amex spending snapshot) — same ?job= dispatch convention do_GET
+        # already uses for cron jobs, kept entirely separate from the Stripe-event handling
+        # below since a Plaid request is never Stripe-shaped and never carries a
+        # Stripe-Signature header. Reachable by anyone who knows the URL, same as every other
+        # admin-only surface in this app (a client-side password gate on the page, not a
+        # server-side token) — not a new gap, just this app's existing model extended here.
+        query = urllib.parse.urlparse(self.path).query
+        job = urllib.parse.parse_qs(query).get('job', [''])[0]
+        if job.startswith('plaid_'):
+            try:
+                payload = json.loads(raw_body) if raw_body else {}
+            except Exception:
+                payload = {}
+            if job == 'plaid_link_token':
+                self._respond(200, plaid_create_link_token())
+            elif job == 'plaid_exchange':
+                self._respond(200, plaid_exchange_public_token(payload.get('public_token')))
+            elif job == 'plaid_sync':
+                self._respond(200, plaid_sync_transactions())
+            else:
+                self._respond(404, {'error': f'Unknown job: {job}'})
+            return
 
         sig_header = self.headers.get('Stripe-Signature', '')
         webhook_secret = os.environ.get('STRIPE_WEBHOOK_SECRET', '')

@@ -11,8 +11,9 @@
 <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="512x512" href="/assets/icon-512.png">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>SWJ — Payroll</title>
+<title>SWJ — Finance</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
@@ -318,21 +319,21 @@ tr.paid-row { opacity:0.55; }
 
 <nav class="swj-sidebar">
   <div class="swj-sb-brand">Styling With Jas<span>Staging Operations</span></div>
-  <a class="swj-sb-link" href="/today.html">🏠 Today</a>
+  <a class="swj-sb-link" href="/today.html">🏠 Home</a>
   <a class="swj-sb-link" href="/board.html">📋 Board</a>
   <a class="swj-sb-link" href="/shop.html">🛍 Shopping</a>
   <a class="swj-sb-link" href="/index.html">✚ New Invoice</a>
-  <a class="swj-sb-link on" href="/payroll.html">💼 Payroll</a>
+  <a class="swj-sb-link on" href="/payroll.html">💼 Finance</a>
   <a class="swj-sb-link" href="/tax-report.html">📊 Reports</a>
   <div class="swj-sb-spacer"></div>
   <div class="swj-sb-foot">Styling With Jas</div>
 </nav>
 
 <nav class="swj-bottom-nav">
-  <a class="swj-bn-link" href="/today.html"><span class="swj-bn-ic">🏠</span>Today</a>
+  <a class="swj-bn-link" href="/today.html"><span class="swj-bn-ic">🏠</span>Home</a>
   <a class="swj-bn-link" href="/index.html"><span class="swj-bn-ic">✚</span>New Invoice</a>
   <a class="swj-bn-link" href="/board.html"><span class="swj-bn-ic">📋</span>Board</a>
-  <a class="swj-bn-link on" href="/payroll.html"><span class="swj-bn-ic">💼</span>Payroll</a>
+  <a class="swj-bn-link on" href="/payroll.html"><span class="swj-bn-ic">💼</span>Finance</a>
   <button class="swj-bn-link" onclick="swjToggleMore()" type="button"><span class="swj-bn-ic">⋯</span>More</button>
 </nav>
 
@@ -356,16 +357,16 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
     <div class="brand">
       <div class="brand-name">SWJ</div>
       <div class="brand-sep"></div>
-      <div class="brand-sub">Payroll</div>
+      <div class="brand-sub">Finance</div>
     </div>
     <div class="nav-sw">
-      <button class="nav-btn off" onclick="window.location.href='/today.html'">Today</button>
+      <button class="nav-btn off" onclick="window.location.href='/today.html'">Home</button>
       <button class="nav-btn off" onclick="window.location.href='/board.html'">Board</button>
       <button class="nav-btn off" onclick="window.location.href='/shop.html'">Shop</button>
       <button class="nav-btn off" onclick="window.location.href='/index.html'">Invoice</button>
       <button class="nav-btn off" onclick="window.location.href='/luxury.html'">Luxury</button>
       <button class="nav-btn off" onclick="window.location.href='/gs-invoice.html'">GS</button>
-      <button class="nav-btn on">Payroll</button>
+      <button class="nav-btn on">Finance</button>
       <button class="nav-btn off" onclick="window.location.href='/archive.html'">Archive</button>
       <button class="nav-btn off" onclick="window.location.href='/tax-report.html'">Tax Report</button>
     </div>
@@ -378,7 +379,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
     <div class="pr-hdr-left">
       <div class="pr-hdr-ic">💼</div>
       <div>
-        <div class="pr-hdr-ttl">Payroll</div>
+        <div class="pr-hdr-ttl">Finance</div>
         <div class="pr-hdr-sub">Employee payroll, business finances, and money allocation.</div>
       </div>
     </div>
@@ -396,6 +397,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
     <button class="pr-tab" onclick="prShowTab('performance')">Monthly Performance</button>
     <button class="pr-tab" onclick="prShowTab('projects')">Project Budgets</button>
     <button class="pr-tab" onclick="prShowTab('history')">History</button>
+    <button class="pr-tab" onclick="prShowTab('spending')">Spending</button>
   </div>
 
   <div class="pr-panel on" id="pr-panel-finance">
@@ -668,6 +670,31 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
       <div id="pr-hist-list"></div>
       <div class="sub-hdr">Manual Overrides on Record</div>
       <div id="pr-hist-overrides"></div>
+    </div>
+  </div>
+
+  <!-- SPENDING (Amex via Plaid, Nov 2026) — view-only ledger + categorization. No job
+       reconciliation, no Stripe matching — that's handled elsewhere. Real data only flows
+       once Plaid credentials exist server-side; until then this shows a clear "not
+       connected" state, never fabricated rows. -->
+  <div class="pr-panel" id="pr-panel-spending">
+    <div class="card">
+      <div class="card-hdr">
+        <span>Spending — Amex</span>
+        <span id="pr-spend-status" style="font-size:11px;color:var(--taupe-dk);font-weight:500;text-transform:none;letter-spacing:0">Checking connection…</span>
+      </div>
+      <div style="font-size:11px;color:var(--taupe-dk);margin-bottom:12px">A view-only read of Jasmine's Amex transactions via Plaid, with simple categorization. This never matches a charge to a specific job and never touches Stripe — those stay separate.</div>
+      <div id="pr-spend-connect-row" style="display:none;margin-bottom:14px">
+        <button class="filter-btn primary" onclick="plaidConnectAmex()" id="pr-spend-connect-btn">Connect Amex</button>
+      </div>
+      <div id="pr-spend-connected-row" style="display:none;margin-bottom:14px;gap:8px;flex-wrap:wrap;align-items:center">
+        <button class="filter-btn primary" onclick="plaidSyncNow()" id="pr-spend-sync-btn">Sync Now</button>
+        <span id="pr-spend-institution" style="font-size:12px;color:var(--taupe-dk);margin-left:8px"></span>
+        <span id="pr-spend-sync-note" style="font-size:11px;color:var(--taupe-dk);display:block;margin-top:6px"></span>
+      </div>
+      <div id="pr-spend-body">
+        <div class="empty-note">Loading…</div>
+      </div>
     </div>
   </div>
 
@@ -1788,12 +1815,13 @@ function clientInitials(name){
 function prShowTab(name){
   document.querySelectorAll('.pr-tab').forEach(b=>b.classList.remove('on'));
   document.querySelectorAll('.pr-panel').forEach(p=>p.classList.remove('on'));
-  const idx = {finance:0, employee:1, performance:2, projects:3, history:4}[name];
+  const idx = {finance:0, employee:1, performance:2, projects:3, history:4, spending:5}[name];
   document.querySelectorAll('.pr-tab')[idx]?.classList.add('on');
   document.getElementById('pr-panel-'+name)?.classList.add('on');
   if(name==='performance') loadMonthlyPerformance();
   if(name==='projects') renderProjectBudgetsTable();
   if(name==='history') renderPrHistory();
+  if(name==='spending') loadSpendingTab();
 }
 
 function prScrollTo(id){
@@ -1803,6 +1831,144 @@ function prScrollTo(id){
   el.style.transition = 'box-shadow 0.3s';
   el.style.boxShadow = '0 0 0 3px var(--gold)';
   setTimeout(()=>{ el.style.boxShadow = ''; }, 1200);
+}
+
+// ════════════════════════════════════════════════════════════════
+// SPENDING (Amex via Plaid, Nov 2026) — view-only ledger + categorization. Every network call
+// here goes through api/webhook.py's ?job=plaid_* dispatch (never calls Plaid directly from
+// the browser, which would require exposing a secret client-side). All Plaid-side failures —
+// including "not configured yet" — come back as a plain {error} and are shown as a message,
+// never a crash or a silently empty table pretending everything's fine.
+// ════════════════════════════════════════════════════════════════
+const PLAID_CATEGORIES = ['Supplies','Furniture/Inventory','Truck & Gas','Software/Subscriptions','Marketing','Meals','Office','Other'];
+let _plaidItem = null;   // {item_id, institution_name} once connected — never holds the access_token, which stays server-side only
+
+async function plaidApi(job, body){
+  const r = await fetch(`/api/webhook?job=${job}`, {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(body||{}),
+  });
+  return r.json();
+}
+
+async function loadSpendingTab(){
+  const statusEl = document.getElementById('pr-spend-status');
+  const connectRow = document.getElementById('pr-spend-connect-row');
+  const connectedRow = document.getElementById('pr-spend-connected-row');
+  const body = document.getElementById('pr-spend-body');
+  statusEl.textContent = 'Checking connection…';
+  connectRow.style.display = 'none';
+  connectedRow.style.display = 'none';
+
+  // Whether an account is connected is read directly off plaid_items (anon key has NO access
+  // to this table by design — sql/plaid_tables.sql — so this always comes back empty/blocked
+  // until that migration is run; that's expected, not a bug, and is treated the same as "not
+  // connected yet" below rather than a hard error).
+  let connected = false, institutionName = '';
+  try{
+    const { data, error } = await _sb.from('plaid_items').select('item_id,institution_name').limit(1);
+    if(!error && data && data.length){ connected = true; institutionName = data[0].institution_name||''; _plaidItem = data[0]; }
+  }catch(e){ /* table may not exist yet if the migration hasn't been run — fall through to "not connected" */ }
+
+  if(!connected){
+    statusEl.textContent = 'Not connected';
+    connectRow.style.display = 'block';
+    body.innerHTML = '<div class="empty-note">No Amex account connected yet. Click Connect Amex to start — this opens Plaid’s secure login, never asks for Amex credentials directly in this app.</div>';
+    return;
+  }
+  statusEl.textContent = '✓ Connected';
+  connectedRow.style.display = 'flex';
+  document.getElementById('pr-spend-institution').textContent = institutionName ? `Connected: ${institutionName}` : 'Connected';
+  await renderSpendingTransactions();
+}
+
+async function plaidConnectAmex(){
+  const btn = document.getElementById('pr-spend-connect-btn');
+  btn.disabled = true; btn.textContent = 'Connecting…';
+  try{
+    const res = await plaidApi('plaid_link_token', {});
+    if(res.error || !res.link_token){
+      alert('Could not start Plaid connection: ' + (res.error || 'no link token returned') + '\n\nThis usually means Plaid isn’t configured yet (PLAID_CLIENT_ID/PLAID_SECRET env vars) or sql/plaid_tables.sql hasn’t been run in Supabase yet.');
+      return;
+    }
+    if(typeof Plaid === 'undefined'){
+      alert('Plaid’s connect widget didn’t load — check your connection and try again.');
+      return;
+    }
+    const handler = Plaid.create({
+      token: res.link_token,
+      onSuccess: async (public_token) => {
+        btn.textContent = 'Finishing connection…';
+        const exch = await plaidApi('plaid_exchange', { public_token });
+        if(exch.error){ alert('Connected to Amex, but saving the connection failed: ' + exch.error); }
+        else { await loadSpendingTab(); }
+      },
+      onExit: () => { btn.disabled = false; btn.textContent = 'Connect Amex'; },
+    });
+    handler.open();
+  }catch(e){
+    alert('Could not start Plaid connection: ' + e.message);
+  }finally{
+    btn.disabled = false; btn.textContent = 'Connect Amex';
+  }
+}
+
+async function plaidSyncNow(){
+  const btn = document.getElementById('pr-spend-sync-btn');
+  const note = document.getElementById('pr-spend-sync-note');
+  btn.disabled = true; btn.textContent = 'Syncing…';
+  try{
+    const res = await plaidApi('plaid_sync', {});
+    if(res.error){ note.textContent = 'Sync failed: ' + res.error; note.style.color = 'var(--red,#b53535)'; }
+    else {
+      note.textContent = `Synced — ${res.added||0} new, ${res.modified||0} updated, ${res.removed||0} removed.`;
+      note.style.color = '';
+      await renderSpendingTransactions();
+    }
+  }catch(e){
+    note.textContent = 'Sync failed: ' + e.message;
+  }finally{
+    btn.disabled = false; btn.textContent = 'Sync Now';
+  }
+}
+
+async function renderSpendingTransactions(){
+  const body = document.getElementById('pr-spend-body');
+  body.innerHTML = '<div class="empty-note">Loading transactions…</div>';
+  const { data, error } = await _sb.from('plaid_transactions').select('transaction_id,date,merchant_name,name,amount,pending,category,plaid_category').order('date',{ascending:false}).limit(500);
+  if(error){ body.innerHTML = '<div class="empty-note">Could not load transactions: '+esc(error.message)+'</div>'; return; }
+  if(!data || !data.length){
+    body.innerHTML = '<div class="empty-note">Connected, but no transactions yet — click Sync Now to pull Amex’s transaction history.</div>';
+    return;
+  }
+  const rows = data.map(t=>{
+    const label = esc(t.merchant_name || t.name || '—');
+    const amt = Math.abs(parseFloat(t.amount)||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+    const amtSign = parseFloat(t.amount) < 0 ? '+' : '';   // Plaid: positive = spend, negative = credit/refund
+    const catOpts = PLAID_CATEGORIES.map(c=>`<option value="${esc(c)}" ${t.category===c?'selected':''}>${esc(c)}</option>`).join('');
+    return `<tr>
+      <td>${esc(t.date||'')}</td>
+      <td>${label}${t.pending?' <span style="font-size:9px;color:var(--amber,#c97c2e);text-transform:uppercase">pending</span>':''}</td>
+      <td style="text-align:right">${amtSign}$${amt}</td>
+      <td><select onchange="updateTransactionCategory('${esc(t.transaction_id)}', this.value)" style="font-size:12px;padding:4px 6px;border-radius:6px;border:0.5px solid var(--taupe-lt)">
+        <option value="">—</option>${catOpts}
+      </select></td>
+    </tr>`;
+  }).join('');
+  body.innerHTML = `<div style="overflow-x:auto"><table>
+    <thead><tr><th>Date</th><th>Merchant</th><th style="text-align:right">Amount</th><th>Category</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table></div>`;
+}
+
+async function updateTransactionCategory(transactionId, category){
+  // Direct client-side write, same trust model as every other write in this app — RLS on
+  // plaid_transactions (sql/plaid_tables.sql) allows the anon key to update rows here but
+  // never insert or delete, and plaid_items (the access_token) has no anon policy at all.
+  try{
+    const { error } = await _sb.from('plaid_transactions').update({ category: category||null }).eq('transaction_id', transactionId);
+    if(error) alert('Could not save category: ' + error.message);
+  }catch(e){ alert('Could not save category: ' + e.message); }
 }
 
 async function prAddNote(){
