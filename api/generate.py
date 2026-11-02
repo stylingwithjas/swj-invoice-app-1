@@ -1024,8 +1024,11 @@ def generate_invoice_pdf(data):
         cv.setStrokeColor(colors.HexColor('#dddddd')); cv.setLineWidth(0.3)
         cv.line(ML, y+4, PW-MR, y+4); y -= 4
     
-    draw_structured_row(fmt(base_price))
-    
+    # Rate-card mode (fix spec item 2, Nov 2026) has no base package — the two rate-card
+    # lines (rental + design fee) are the whole invoice, carried in `addons` below.
+    if data.get('pricing_mode') != 'rate_card':
+        draw_structured_row(fmt(base_price))
+
     # ── STRUCTURED ADDON ROWS ──
     def draw_addon_structured(desc_raw, cost_str):
         """Parse addon description and render as structured bullets."""

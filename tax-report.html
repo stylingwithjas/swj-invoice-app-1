@@ -413,7 +413,11 @@ function invoiceTaxSplit(d){
     const subtotal = computeSubtotal(d);
     const tax = computeTax(d);
     const grand = computeGrand(d);
-    let svc=0, ret=base;
+    // Rate-card invoices (fix spec item 2) have no base package — both priced lines are
+    // already in `addons` (rental + design fee), so the rental/service split must start
+    // from 0, not the room-based `base` fallback (which defaults to $2500 when base_price
+    // is 0, since 0||2500 is truthy-falsy in JS — a real footgun for this mode specifically).
+    let svc=0, ret=(d.pricing_mode==='rate_card') ? 0 : base;
     addons.forEach(a=>{ const amt=parseFloat(a.price)||0; if((a.type||categorize(a.desc))==='service') svc+=amt; else ret+=amt; });
     const lineTotal = svc+ret;
     const rentalShare = lineTotal>0.009 ? ret/lineTotal : 1;

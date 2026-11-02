@@ -1053,8 +1053,12 @@ def tax_invoice_split(d):
         subtotal = tax_compute_subtotal(d)
         tax = tax_compute_tax(d)
         grand = tax_compute_grand(d)
+        # Rate-card invoices (fix spec item 2) have no base package — both priced lines are
+        # already in `addons` (rental + design fee), so the rental/service split must start
+        # from 0, not the room-based `base` fallback (which defaults to $2500 when base_price
+        # is 0, since `0 or 2500` is truthy-falsy in Python — a real footgun for this mode).
         svc = 0.0
-        ret = base
+        ret = 0.0 if d.get('pricing_mode') == 'rate_card' else base
         for a in addons:
             amt = float(a.get('price', 0) or 0)
             if (a.get('type') or tax_categorize(a.get('desc'))) == 'service':
