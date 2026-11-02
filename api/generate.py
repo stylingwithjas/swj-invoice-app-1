@@ -1002,7 +1002,7 @@ def generate_invoice_pdf(data):
         ry -= 4
 
         if split:
-            cv.setFont('Helvetica-Bold', 8); cv.setFillColor(BLACK)
+            cv.setFont('Helvetica', 8); cv.setFillColor(BLACK)
             cv.drawString(dx, ry, f"»  Furniture rental: {fmt(split['rental'])}   |   Staging design & arrangement: {fmt(split['service'])}")
             ry -= 12
 
@@ -1121,7 +1121,7 @@ def generate_invoice_pdf(data):
 
         if split:
             ry -= 2
-            cv.setFont('Helvetica-Bold', 8); cv.setFillColor(BLACK)
+            cv.setFont('Helvetica', 8); cv.setFillColor(BLACK)
             cv.drawString(dx, ry, f"»  Furniture rental: {fmt(split['rental'])}   |   Staging design & arrangement: {fmt(split['service'])}")
             ry -= 12
 
