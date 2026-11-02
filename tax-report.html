@@ -378,7 +378,11 @@ function resolveLocation(inv, d){
 // line carried its own stored `type` (Phase 5.1) — see TAX_METHODOLOGY.md.
 function categorize(desc){
   const s = (desc||'').toLowerCase();
-  if(s.includes('photo') || s.includes('consult') || s.includes('design fee')) return 'service';
+  // Fix spec (Nov 2, 2026): transport (delivery/pickup) is explicitly rental/taxable even
+  // though it's already the default, so a future change to the default can't silently
+  // reclassify it; design/arranging/placement is explicitly service/non-taxable.
+  if(s.includes('delivery') || s.includes('pickup') || s.includes('pick up') || s.includes('transport')) return 'retailing';
+  if(s.includes('photo') || s.includes('consult') || s.includes('design') || s.includes('arrang') || s.includes('placement')) return 'service';
   return 'retailing';
 }
 
@@ -470,7 +474,9 @@ function paymentEvents(d){
   const events = [];
   const splits = d.payments || [];
   if(splits.length){
-    splits.filter(p=>p.status==='paid' && p.paid_date).forEach(p=>{
+    // Fix spec Batch A #6 (Nov 2, 2026): a Stripe test-mode charge is tagged is_test at the
+    // source (the webhook's own livemode flag) and excluded here — never a real receipt.
+    splits.filter(p=>p.status==='paid' && p.paid_date && !p.is_test).forEach(p=>{
       events.push({
         date: p.paid_date,
         amount: parseFloat(p.amount)||0,
@@ -481,7 +487,7 @@ function paymentEvents(d){
         label: p.label || 'Payment',
       });
     });
-  } else if(d.paid && d.paid_date){
+  } else if(d.paid && d.paid_date && !d.is_test){
     events.push({
       date: d.paid_date,
       amount: parseFloat(d.amount_paid ?? d.stripe_amount ?? computeGrand(d)) || 0,
@@ -637,7 +643,7 @@ async function runReport(){
     // taxed at the SAME property's location rate (see api/webhook.py's
     // supabase_update_extension_payment for how paid/paid_date get set).
     (d.extensions || []).forEach(ext=>{
-      if(!ext.paid || !ext.paid_date) return;
+      if(!ext.paid || !ext.paid_date || ext.is_test) return;
       if(ext.paid_date < periodStart || ext.paid_date > periodEnd) return;
       const amt = parseFloat(ext.amount) || 0;
       if(amt <= 0.009) return;

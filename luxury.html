@@ -1409,7 +1409,10 @@ function fmt(n){return'$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maxi
 // since before this rebuild, now applied at creation time instead of re-guessed at report time.
 function addonType(desc){
   const s=(desc||'').toLowerCase();
-  return (s.includes('photo')||s.includes('consult')||s.includes('design fee')) ? 'service' : 'rental';
+  // Fix spec (Nov 2, 2026): transport (delivery/pickup) is explicitly rental/taxable even
+  // though it's already the default; design/arranging/placement is explicitly service.
+  if(s.includes('delivery')||s.includes('pickup')||s.includes('pick up')||s.includes('transport')) return 'rental';
+  return (s.includes('photo')||s.includes('consult')||s.includes('design')||s.includes('arrang')||s.includes('placement')) ? 'service' : 'rental';
 }
 // Base package default rental/service split — see TAX_METHODOLOGY.md for the derivation
 // (confirmed 50/50 by Gabe, Oct 25, 2026). Stored per-invoice (rental_share_base) so a future

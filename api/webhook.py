@@ -548,6 +548,8 @@ def supabase_update_split_payment(parent_invnum, pay_id, payment_info):
         entry['payment_id'] = payment_info.get('payment_id', '')
         entry['paid_date'] = payment_info.get('paid_date', '')
         entry['amount'] = payment_info.get('amount', entry.get('amount', 0))  # trust Stripe's actual charge
+        if 'is_test' in payment_info:
+            entry['is_test'] = payment_info['is_test']
 
         # Running total: legacy single full-payment amount (if that path was ALSO used) + every
         # paid split entry. The two never overlap — splits live only in payments[], never in
@@ -575,7 +577,7 @@ def supabase_update_split_payment(parent_invnum, pay_id, payment_info):
         return False
 
 
-def _call_mark_extension_paid_rpc(parent_invnum, ext_invnum, paid_date, payment_id=None, amount=None, manual_method=None):
+def _call_mark_extension_paid_rpc(parent_invnum, ext_invnum, paid_date, payment_id=None, amount=None, manual_method=None, is_test=None):
     """Atomic update via the mark_extension_paid() Postgres function (sql/mark_extension_paid.sql
     — a migration Gabe runs once in Supabase's SQL editor, not something this app can run
     itself). Returns the updated data dict on success, None if the function doesn't exist yet
@@ -588,6 +590,8 @@ def _call_mark_extension_paid_rpc(parent_invnum, ext_invnum, paid_date, payment_
         body['p_amount'] = amount
     if manual_method is not None:
         body['p_manual_method'] = manual_method
+    if is_test is not None:
+        body['p_is_test'] = is_test
     req = urllib.request.Request(
         f'{SUPABASE_URL}/rest/v1/rpc/mark_extension_paid',
         data=json.dumps(body).encode(), method='POST'
@@ -623,6 +627,7 @@ def supabase_update_extension_payment(parent_invnum, ext_invnum, payment_info):
         rpc_result = _call_mark_extension_paid_rpc(
             parent_invnum, ext_invnum, payment_info.get('paid_date', ''),
             payment_id=payment_info.get('payment_id', ''), amount=payment_info.get('amount'),
+            is_test=payment_info.get('is_test'),
         )
         if rpc_result is not None:
             return True
@@ -655,6 +660,8 @@ def supabase_update_extension_payment(parent_invnum, ext_invnum, payment_info):
         entry['payment_id'] = payment_info.get('payment_id', '')
         entry['paid_date'] = payment_info.get('paid_date', '')
         entry['amount'] = payment_info.get('amount', entry.get('amount', 0))
+        if 'is_test' in payment_info:
+            entry['is_test'] = payment_info['is_test']
 
         current_data['extensions'] = extensions
         return _patch_invoice_data(parent_invnum, current_data)
@@ -728,6 +735,8 @@ def supabase_update_payment(invnum, payment_info):
             'payout_arrival': payment_info.get('arrival_date', ''),
             'client_email': payment_info.get('client_email', ''),   # NEW
         })
+        if 'is_test' in payment_info:
+            current_data['is_test'] = payment_info['is_test']
         return _patch_invoice_data(invnum, current_data)
     except Exception as e:
         print(f'Supabase update error: {e}')
@@ -999,7 +1008,11 @@ def tax_parse_address(address):
 
 def tax_categorize(desc):
     s = (desc or '').lower()
-    if 'photo' in s or 'consult' in s or 'design fee' in s:
+    # Fix spec (Nov 2, 2026): transport (delivery/pickup) is explicitly rental/taxable even
+    # though it's already the default; design/arranging/placement is explicitly service.
+    if 'delivery' in s or 'pickup' in s or 'pick up' in s or 'transport' in s:
+        return 'retailing'
+    if 'photo' in s or 'consult' in s or 'design' in s or 'arrang' in s or 'placement' in s:
         return 'service'
     return 'retailing'
 
@@ -1073,7 +1086,9 @@ def tax_payment_events(d):
     splits = d.get('payments') or []
     if splits:
         for p in splits:
-            if p.get('status') == 'paid' and p.get('paid_date'):
+            # Fix spec Batch A #6 (Nov 2, 2026): exclude Stripe test-mode charges, tagged
+            # is_test at the source (the webhook's own livemode flag) — never a real receipt.
+            if p.get('status') == 'paid' and p.get('paid_date') and not p.get('is_test'):
                 # manual_method:'stripe' is a confirmed-after-the-fact correction (no real
                 # payment_id captured) — see archive.html's Cleanup Review. Never fabricated.
                 events.append({
@@ -1081,7 +1096,7 @@ def tax_payment_events(d):
                     'amount': float(p.get('amount', 0) or 0),
                     'method': 'Stripe (Card)' if (p.get('payment_id') or p.get('manual_method') == 'stripe') else 'Other/Manual',
                 })
-    elif d.get('paid') and d.get('paid_date'):
+    elif d.get('paid') and d.get('paid_date') and not d.get('is_test'):
         amount = d.get('amount_paid')
         if amount is None:
             amount = d.get('stripe_amount')
@@ -1216,7 +1231,7 @@ def build_monthly_tax_report(year, month):
         # Extensions (Phase 5.3) — see supabase_update_extension_payment; these were invisible
         # to this report entirely before that existed, since they're not their own row.
         for ext in (d.get('extensions') or []):
-            if not ext.get('paid') or not ext.get('paid_date'):
+            if not ext.get('paid') or not ext.get('paid_date') or ext.get('is_test'):
                 continue
             if not (period_start <= ext['paid_date'] <= period_end):
                 continue
@@ -2046,6 +2061,11 @@ class handler(BaseHTTPRequestHandler):
 
         event_type = event.get('type', '')
         obj = event.get('data', {}).get('object', {})
+        # Fix spec Batch A #6 (Nov 2, 2026): tag test-mode charges at the source, from
+        # Stripe's own `livemode` flag on the event — never retroactive, new records only.
+        # Defaults to "live" (not test) if the field is ever missing, so a malformed event
+        # can never accidentally hide real revenue.
+        is_test_charge = not event.get('livemode', True)
 
         # ── PAYMENT RECEIVED ──
         if event_type == 'payment_intent.succeeded':
@@ -2070,6 +2090,7 @@ class handler(BaseHTTPRequestHandler):
                 parent_invnum = dep_match.group(1)
                 payment_info = {
                     'payment_id': payment_id,
+                    'is_test': is_test_charge,
                     'amount': amount / 100,
                     'paid_date': paid_date_iso,
                 }
@@ -2215,6 +2236,7 @@ class handler(BaseHTTPRequestHandler):
                     'amount': amount / 100,
                     'arrival_date': '',
                     'client_email': client_email,   # NEW
+                    'is_test': is_test_charge,
                 })
 
             self._respond(200, {'received': True, 'type': event_type})

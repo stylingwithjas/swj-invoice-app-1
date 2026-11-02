@@ -16,6 +16,12 @@
 -- api/webhook.py calls this via Supabase's RPC endpoint (POST .../rest/v1/rpc/mark_extension_paid)
 -- and falls back to the old read-modify-write automatically if this function doesn't exist
 -- yet, so deploying the Python change is safe whether or not this has been run.
+--
+-- Nov 2, 2026 update: added p_is_test (fix spec Batch A #6 — tag test-mode Stripe charges
+-- at creation so they can be excluded from the Tax Report/Finance/Cleanup Review). The old
+-- 6-argument version is dropped first so this cleanly replaces it instead of leaving two
+-- overloads behind — safe to re-run; it only ever affects this one function definition.
+drop function if exists mark_extension_paid(text, text, text, text, numeric, text);
 
 create or replace function mark_extension_paid(
   p_invnum text,
@@ -23,7 +29,8 @@ create or replace function mark_extension_paid(
   p_paid_date text,
   p_payment_id text default null,
   p_amount numeric default null,
-  p_manual_method text default null
+  p_manual_method text default null,
+  p_is_test boolean default null
 ) returns jsonb
 language plpgsql
 as $$
@@ -54,6 +61,7 @@ begin
             || case when p_payment_id is not null then jsonb_build_object('payment_id', p_payment_id) else '{}'::jsonb end
             || case when p_amount is not null then jsonb_build_object('amount', p_amount) else '{}'::jsonb end
             || case when p_manual_method is not null then jsonb_build_object('manual_method', p_manual_method) else '{}'::jsonb end
+            || case when p_is_test is not null then jsonb_build_object('is_test', p_is_test) else '{}'::jsonb end
           else ext
         end
       )
@@ -69,4 +77,4 @@ $$;
 
 -- Lets the app's anon API key call this function via PostgREST's RPC endpoint (same
 -- access level the app already has to read/write the invoices table directly).
-grant execute on function mark_extension_paid(text, text, text, text, numeric, text) to anon;
+grant execute on function mark_extension_paid(text, text, text, text, numeric, text, boolean) to anon;

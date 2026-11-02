@@ -369,13 +369,15 @@ function renderCleanupReport(){
   rows.forEach(inv=>{
     if(isSystemRow(inv.invnum) || String(inv.invnum||'').startsWith('DRAFT-') || String(inv.invnum||'').startsWith('GS')) return;
     const d = inv.data||{};
+    // Fix spec Batch A #6 (Nov 2, 2026): a Stripe test-mode charge is tagged is_test at the
+    // source and excluded here too — it's not a real payment needing a method correction.
     (d.payments||[]).forEach((p,idx)=>{
-      if(p.status==='paid' && p.paid_date && !p.payment_id && p.manual_method!=='stripe'){
+      if(p.status==='paid' && p.paid_date && !p.payment_id && p.manual_method!=='stripe' && !p.is_test){
         otherMethodFlagged.push({ inv, kind:'payment', idx, amount:parseFloat(p.amount)||0, date:p.paid_date, approved: inv.invnum==='2020128' });
       }
     });
     (d.extensions||[]).forEach((ext,idx)=>{
-      if(ext.paid && ext.paid_date && !ext.payment_id && ext.manual_method!=='stripe'){
+      if(ext.paid && ext.paid_date && !ext.payment_id && ext.manual_method!=='stripe' && !ext.is_test){
         otherMethodFlagged.push({ inv, kind:'extension', idx, amount:parseFloat(ext.amount)||0, date:ext.paid_date, approved:false });
       }
     });
@@ -383,7 +385,7 @@ function renderCleanupReport(){
     // stripe_payment_id. Confirmed live Nov 2026 as the COMMON case for an ordinary one-time
     // payment (this is how Baker #2020128 is actually stored, not payments[]) — the original
     // version of this section only checked payments[] and missed every invoice shaped this way.
-    if(!(d.payments||[]).length && d.paid && d.paid_date && !d.stripe_payment_id && d.manual_method!=='stripe'){
+    if(!(d.payments||[]).length && d.paid && d.paid_date && !d.stripe_payment_id && d.manual_method!=='stripe' && !d.is_test){
       const amount = parseFloat(d.amount_paid ?? d.stripe_amount ?? computeGrand(d)) || 0;
       otherMethodFlagged.push({ inv, kind:'legacy', idx:-1, amount, date:d.paid_date, approved: inv.invnum==='2020128' });
     }

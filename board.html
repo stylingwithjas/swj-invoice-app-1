@@ -1993,7 +1993,10 @@ function computeGrand(d){
 // the same number either way; only how much of it counts as tax vs. revenue changes.
 function boardAddonType(desc){
   const s=(desc||'').toLowerCase();
-  return (s.includes('photo')||s.includes('consult')||s.includes('design fee')) ? 'service' : 'rental';
+  // Fix spec (Nov 2, 2026): transport (delivery/pickup) is explicitly rental/taxable even
+  // though it's already the default; design/arranging/placement is explicitly service.
+  if(s.includes('delivery')||s.includes('pickup')||s.includes('pick up')||s.includes('transport')) return 'rental';
+  return (s.includes('photo')||s.includes('consult')||s.includes('design')||s.includes('arrang')||s.includes('placement')) ? 'service' : 'rental';
 }
 function boardInvoiceSplit(d){
   const _ov=v=>(v!=null&&v!=='')?parseFloat(v):null;
@@ -2406,7 +2409,7 @@ function updatePipelineStats(grouped){
   let mtdTotal = 0, mtdCount = 0;
   Object.values(CARDS).forEach(inv => {
     const d = inv.data || {};
-    if(d.paid && d.paid_date && !d.payer_unknown){
+    if(d.paid && d.paid_date && !d.payer_unknown && !d.is_test){
       const pd = new Date(d.paid_date + 'T00:00:00');
       if(pd >= monthStart){
         mtdTotal += computeGrand(d);
@@ -3305,7 +3308,7 @@ async function emailBoardContribLink(){
 // Custom date-picker dialog for extendRental() — replaces the old prompt() that only asked
 // "how many days," with no way to just pick the actual date the rental should run through.
 // Resolves {days, amount, newEndDate} on confirm, or null on cancel.
-function promptExtensionDate(clientName, curEndStr, defaultNewEndStr, extrate){
+function promptExtensionDate(clientName, curEndStr, defaultNewEndStr, extrate, taxRatePct){
   return new Promise((resolve) => {
     const ov = document.createElement('div');
     ov.style.cssText = 'position:fixed;inset:0;background:rgba(26,24,20,0.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:24px;font-family:Inter,-apple-system,sans-serif';
@@ -3315,7 +3318,11 @@ function promptExtensionDate(clientName, curEndStr, defaultNewEndStr, extrate){
       + '<div style="font-size:12px;color:#8c847c;margin-bottom:14px">Current rental runs through ' + fmtDateShort(curEndStr) + '.</div>'
       + '<label style="font-size:10px;font-weight:600;color:#a29c96;text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:6px">Extend through</label>'
       + '<input type="date" id="ext-date-input" value="' + defaultNewEndStr + '" style="width:100%;font-size:16px;padding:10px 12px;border:1.5px solid #d4cfc9;border-radius:9px;margin-bottom:14px;box-sizing:border-box">'
-      + '<div id="ext-date-preview" style="font-size:13px;color:#3d3830;background:#f5f2ed;border-radius:9px;padding:10px 12px;margin-bottom:16px;min-height:20px">—</div>'
+      + '<div id="ext-date-preview" style="font-size:13px;color:#3d3830;background:#f5f2ed;border-radius:9px;padding:10px 12px;margin-bottom:12px;min-height:20px">—</div>'
+      + '<label style="display:flex;align-items:flex-start;gap:8px;font-size:11.5px;color:#7a6f69;margin-bottom:16px;cursor:pointer">'
+      + '<input type="checkbox" id="ext-tax-inclusive" style="margin-top:2px">'
+      + '<span>This fee already includes sales tax (tax-inclusive) — leave unchecked to add tax on top, separately stated (default).</span>'
+      + '</label>'
       + '<div style="display:flex;gap:8px">'
       + '<button id="ext-date-cancel" style="flex:1;background:#f5f2ed;color:#7a6f69;border:none;padding:12px;border-radius:10px;font-weight:600;cursor:pointer">Cancel</button>'
       + '<button id="ext-date-confirm" style="flex:1;background:#1a1814;color:#fff;border:none;padding:12px;border-radius:10px;font-weight:600;cursor:pointer">Create Extension</button>'
@@ -3326,30 +3333,43 @@ function promptExtensionDate(clientName, curEndStr, defaultNewEndStr, extrate){
     const dateInput = ov.querySelector('#ext-date-input');
     const preview = ov.querySelector('#ext-date-preview');
     const confirmBtn = ov.querySelector('#ext-date-confirm');
+    const inclusiveBox = ov.querySelector('#ext-tax-inclusive');
+    const rate = (parseFloat(taxRatePct) || 0) / 100;
 
     function computeDays(){
       const val = dateInput.value;
       if(!val) return null;
       return Math.round((new Date(val+'T00:00:00') - new Date(curEndStr+'T00:00:00')) / 86400000);
     }
-    // Never hard-blocks: if the computed "current end" is wrong (e.g. this field was
-    // corrected once before and the app's math didn't account for it), Jasmine can always
-    // override and proceed — the warning stays visible so she knows to double-check, but
-    // doesn't stop her.
+    // Fix spec (Nov 2, 2026): WA conclusively presumes a price does NOT include sales tax
+    // unless separately stated or clearly indicated as included (WAC 458-20-107). Default is
+    // now tax ON TOP of the agreed fee, separately stated — never backed out of it. The
+    // tax-inclusive checkbox is an explicit, visible exception, never the silent default.
     function updatePreview(){
       const days = computeDays();
       if(days === null){ preview.textContent = 'Pick a date to see days & price.'; confirmBtn.disabled = true; return; }
-      const amount = Math.round(extrate * days / 30 * 100) / 100;
+      const fee = Math.round(extrate * days / 30 * 100) / 100;
+      const inclusive = inclusiveBox.checked;
+      const tax = inclusive ? Math.round((fee - fee/(1+rate)) * 100) / 100 : Math.round(fee * rate * 100) / 100;
+      const chargeAmount = inclusive ? fee : Math.round((fee + tax) * 100) / 100;
+      let html;
       if(days <= 0){
-        preview.innerHTML = '⚠ This date is on or before the current end (' + fmtDateShort(curEndStr) + '). Double-check that\'s really what you want — you can still proceed.';
-        preview.style.color = '#b53535';
+        html = '⚠ This date is on or before the current end (' + fmtDateShort(curEndStr) + '). Double-check that\'s really what you want — you can still proceed.<br><span style="color:#b53535">';
       } else {
-        preview.innerHTML = days + ' days &nbsp;=&nbsp; <strong>$' + amount.toLocaleString(undefined,{minimumFractionDigits:2}) + '</strong> <span style="color:#a29c96">(at $' + extrate.toLocaleString() + ' / 30 days)</span>';
-        preview.style.color = '';
+        html = days + ' days &nbsp;=&nbsp; <strong>$' + fee.toLocaleString(undefined,{minimumFractionDigits:2}) + '</strong> fee <span style="color:#a29c96">(at $' + extrate.toLocaleString() + ' / 30 days)</span><br>';
       }
+      if(inclusive){
+        html += (days<=0?'':'') + '<strong>Includes $' + tax.toLocaleString(undefined,{minimumFractionDigits:2}) + ' sales tax</strong> (' + (taxRatePct||0).toFixed(2) + '%) — client charged $' + chargeAmount.toLocaleString(undefined,{minimumFractionDigits:2}) + ' total, no change on top.';
+      } else {
+        html += 'Tax (' + (taxRatePct||0).toFixed(2) + '%): $' + tax.toLocaleString(undefined,{minimumFractionDigits:2}) + ' on top &nbsp;→&nbsp; <strong>client charged $' + chargeAmount.toLocaleString(undefined,{minimumFractionDigits:2}) + ' total</strong>.';
+      }
+      if(days<=0) html += '</span>';
+      preview.innerHTML = html;
+      preview.style.color = days<=0 ? '#b53535' : '';
       confirmBtn.disabled = false;
     }
     dateInput.addEventListener('input', updatePreview);
+    inclusiveBox.addEventListener('change', updatePreview);
     updatePreview();
 
     function cleanup(){ ov.remove(); }
@@ -3358,9 +3378,12 @@ function promptExtensionDate(clientName, curEndStr, defaultNewEndStr, extrate){
     confirmBtn.onclick = function(){
       const days = computeDays();
       if(days === null) return;
-      const amount = Math.round(extrate * days / 30 * 100) / 100;
+      const fee = Math.round(extrate * days / 30 * 100) / 100;
+      const inclusive = inclusiveBox.checked;
+      const tax = inclusive ? Math.round((fee - fee/(1+rate)) * 100) / 100 : Math.round(fee * rate * 100) / 100;
+      const chargeAmount = inclusive ? fee : Math.round((fee + tax) * 100) / 100;
       cleanup();
-      resolve({ days, amount, newEndDate: dateInput.value });
+      resolve({ days, fee, tax, chargeAmount, taxInclusive: inclusive, newEndDate: dateInput.value });
     };
   });
 }
@@ -3399,9 +3422,16 @@ async function extendRental(invnum){
   const _defaultDt = new Date(curEndStr + 'T00:00:00'); _defaultDt.setDate(_defaultDt.getDate() + 30);
   const defaultNewEndStr = _defaultDt.getFullYear() + '-' + String(_defaultDt.getMonth()+1).padStart(2,'0') + '-' + String(_defaultDt.getDate()).padStart(2,'0');
 
-  const picked = await promptExtensionDate(inv.client||'this client', curEndStr, defaultNewEndStr, extrate);
+  const extTaxRate = parseFloat(d.taxrate) || 0;
+  const picked = await promptExtensionDate(inv.client||'this client', curEndStr, defaultNewEndStr, extrate, extTaxRate);
   if(!picked) return;   // cancelled
-  const { days, amount } = picked;
+  // Fix spec (Nov 2, 2026): tax is added ON TOP of the agreed fee and separately stated by
+  // default — never backed out of it — unless Jasmine explicitly marks this specific
+  // extension tax-inclusive (the dialog always shows which, before anything is charged).
+  // chargeAmount is the TRUE total actually billed via Stripe; "amount" below always means
+  // that total, matching how every other part of this app (Tax Report, Finance) already
+  // reads an extension's `amount` as what was actually received.
+  const { days, fee, tax: extTax, chargeAmount: amount, taxInclusive } = picked;
   const extNum = invnum + '-EXT' + (((d.extensions||[]).length) + 1);
   const addDays = days;
   // Keep Destage date in sync with reality so next time this dialog opens, curEndStr above
@@ -3410,7 +3440,9 @@ async function extendRental(invnum){
 
   // 1) New payment link (metadata flows to the auto-receipt when they pay) — skipped when the
   // overridden date lands on/before the current end, since there's nothing positive to charge
-  // (this is then just a date correction, logged with no payment link).
+  // (this is then just a date correction, logged with no payment link). Charges the TRUE
+  // total (fee + tax on top, unless marked inclusive) — the client is actually billed tax,
+  // not just shown a cosmetic breakdown of an unchanged fee.
   let url = null;
   if(amount > 0.009) try {
     const r = await fetch('/api/stripe', { method:'POST', headers:{'Content-Type':'application/json'},
@@ -3420,16 +3452,13 @@ async function extendRental(invnum){
     url = j.url;
   } catch(e){ alert('Could not create the payment link:\n' + e.message + '\n\nNothing was changed.'); return; }
 
-  // Extension tax (Phase 5.5) — 100% rental, backed out of the already-agreed fee under the
-  // price-led method (see TAX_METHODOLOGY.md). The fee itself (amount) never changes.
-  const extTaxRate = parseFloat(d.taxrate) || 0;
-  const _extR = extTaxRate/100;
-  const extTax = _extR>0 ? amount - amount/(1+_extR) : 0;
-
   // 2) Extend the rental window + log the extension on the original invoice
   d.rental_days = (parseInt(d.rental_days, 10) || 45) + addDays;
   d.extensions = d.extensions || [];
-  d.extensions.push({ invnum: extNum, days: days, amount: amount, tax: extTax, type: 'extension', payment_url: url, created: new Date().toISOString().split('T')[0] });
+  d.extensions.push({
+    invnum: extNum, days: days, amount: amount, fee: fee, tax: extTax, tax_inclusive: taxInclusive,
+    type: 'extension', payment_url: url, created: new Date().toISOString().split('T')[0],
+  });
   try {
     await _sb.from('invoices').upsert({ invnum: inv.invnum, client: inv.client, address: inv.address, invdate: inv.invdate, data: d }, { onConflict: 'invnum' });
   } catch(e){}
