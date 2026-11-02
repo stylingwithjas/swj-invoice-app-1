@@ -2,14 +2,15 @@
   "version": 2,
   "functions": {
     "api/generate.py": {
-      "includeFiles": "assets/**",
+      "includeFiles": "{assets/**,lib/**}",
       "maxDuration": 60
     },
+    "api/invoices.py": { "includeFiles": "lib/**" },
     "api/taxrate.py": {
       "maxDuration": 15
     },
     "api/sign.py": {
-      "includeFiles": "{api/generate.py,assets/**}",
+      "includeFiles": "{api/generate.py,assets/**,lib/**}",
       "maxDuration": 60
     },
     "api/stripe.py": {

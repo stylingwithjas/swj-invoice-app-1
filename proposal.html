@@ -336,7 +336,7 @@ function renderProposal(d){
   const roomScopesMap = d.baseroom_scopes||{};
   const petDeposit = d.pet_deposit||{};
   const stagingDate = d.startdate;
-  const extrate = Math.round(_grand/3*100)/100;
+  const extrate = (d.extrate!=null && d.extrate!=='' && Number.isFinite(Number(d.extrate))) ? Number(d.extrate) : Math.round(_subEff/3*100)/100;
   const _amountPaid = computeAmountPaid(d);
   const _balanceRemaining = Math.max(0, _grand-_amountPaid);
   // Money allocated from someone else (e.g. an agent), set up at invoice creation — may
@@ -361,13 +361,14 @@ function renderProposal(d){
 
   // Line items
   const lineItemsHTML = [
-    {desc:isLux?'Signature staging package':'Base staging package',sub:isLux?'White-glove delivery, bespoke styling, 45-day curated furnishings & teardown':'Delivery, setup, 45-day furniture rental & teardown',price:base},
-    ...addons.map(a=>({desc:a.desc,sub:null,price:parseFloat(a.price)||0})),
+    {desc:isLux?'Signature staging package':'Base staging package',sub:isLux?'White-glove delivery, bespoke styling, 45-day curated furnishings & teardown':'Delivery, setup, 45-day furniture rental & teardown',price:base,split:d.base_split},
+    ...addons.map(a=>({desc:a.desc,sub:null,price:parseFloat(a.price)||0,split:a.split})),
   ].map(li=>`
     <div class="line-item">
       <div>
         <div class="line-desc">${esc(li.desc)}</div>
         ${li.sub?`<div class="line-sub">${esc(li.sub)}</div>`:''}
+        ${li.split?`<div class="line-sub" style="color:#000;font-weight:400;font-size:12px;line-height:1.6">Furniture rental: ${fmt(li.split.rental)}${Number(li.split.service)!==0?` · Staging design &amp; arrangement: ${fmt(li.split.service)}`:''}</div>`:''}
       </div>
       <div class="line-price">${fmt(li.price)}</div>
     </div>
@@ -375,7 +376,7 @@ function renderProposal(d){
 
   const taxHTML = `
     <div class="line-item" style="background:var(--bg);">
-      <div class="line-desc" style="color:var(--muted)">Tax (${d.taxrate||0}%)</div>
+      <div class="line-desc" style="color:var(--muted)">Tax (${d.taxrate||0}%${d.rental_service_split?', rental only':''})</div>
       <div class="line-price" style="color:var(--muted)">${fmt(tax)}</div>
     </div>`;
 
@@ -399,6 +400,8 @@ function renderProposal(d){
       </div>
       <div class="line-items">
         ${lineItemsHTML}
+        ${d.rental_service_split?`<div class="line-item" style="color:#000;font-weight:400"><span>Furniture Rental Total</span><span>${fmt(d.rental_total)}</span></div>${Number(d.service_total)!==0?`<div class="line-item" style="color:#000;font-weight:400"><span>Staging Design Total</span><span>${fmt(d.service_total)}</span></div>`:''}`:''}
+        <div class="line-item"><span>Subtotal</span><span>${fmt(_subEff)}</span></div>
         ${taxHTML}
       </div>
       ${rooms.length?`

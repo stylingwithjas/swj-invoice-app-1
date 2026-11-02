@@ -2,7 +2,8 @@ import json
 import os
 import urllib.request
 from http.server import BaseHTTPRequestHandler
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse, parse_qs, urlencode
+from lib.invoice_protection import stored_invoice, is_paid
 
 SUPABASE_URL = "https://cwvdfgrjlrpsdfwduwvn.supabase.co"
 
@@ -48,6 +49,15 @@ class handler(BaseHTTPRequestHandler):
             self._respond(400, {'error': 'Invalid JSON'})
             return
 
+        try:
+            saved = stored_invoice(body.get('invnum', ''))
+            if saved and is_paid(saved):
+                self._respond(409, {'error': 'Paid invoice protected. No stored figures were changed.'})
+                return
+        except Exception:
+            self._respond(503, {'error': 'Could not verify stored invoice status. Nothing was saved.'})
+            return
+
         invnum = body.get('invnum', '')
         client = body.get('client', '')
         address = body.get('address', '')
@@ -64,14 +74,32 @@ class handler(BaseHTTPRequestHandler):
 
         if status in [200, 201]:
             self._respond(200, {'saved': True, 'invnum': invnum})
-        else:
-            # Try upsert if already exists
+        elif status == 409 and saved is not None:
+            # Compare the receipt state at write time. A concurrent payment changes
+            # at least one predicate, so this PATCH cannot overwrite a newly paid
+            # invoice. Do not put the full, potentially large form payload in a URL.
+            receipt_match = {'invnum': 'eq.' + invnum}
+            for field in ('paid', 'paid_date', 'amount_paid', 'stripe_amount'):
+                value = saved.get(field)
+                text = json.dumps(value) if isinstance(value, (bool, int, float)) else str(value)
+                receipt_match['data->>' + field] = 'is.null' if value is None else 'eq.' + text
+            payments = saved.get('payments')
+            receipt_match['data->payments'] = 'is.null' if payments is None else 'eq.' + json.dumps(payments, separators=(',', ':'))
+            match = urlencode(receipt_match)
             status2, data2 = supabase_request(
-                'PATCH',
-                f'invoices?invnum=eq.{invnum}',
-                {'data': body, 'client': client, 'address': address}
+                'PATCH', 'invoices?' + match,
+                {'data': body, 'client': client, 'address': address, 'invdate': invdate}
             )
-            self._respond(200, {'saved': True, 'invnum': invnum})
+            if status2 == 200 and isinstance(data2, list) and len(data2) == 1:
+                self._respond(200, {'saved': True, 'invnum': invnum})
+            elif status2 < 300:
+                self._respond(409, {'error': 'Invoice receipt status changed while open. Reload it; nothing was overwritten.'})
+            else:
+                self._respond(502, {'error': 'Invoice save failed.'})
+        elif status == 409:
+            self._respond(409, {'error': 'Invoice receipt status changed while open. Reload it; nothing was overwritten.'})
+        else:
+            self._respond(502, {'error': 'Invoice save failed.'})
 
     def _respond(self, code, data):
         body = json.dumps(data).encode()

@@ -2,6 +2,7 @@ import json
 import os
 import tempfile
 import base64
+from lib.invoice_protection import stored_invoice, is_paid
 
 ASSETS = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'assets')
 
@@ -99,6 +100,14 @@ def build_extension_pdf(data):
     _r = taxrate / 100
     ext_tax = amount - amount / (1 + _r) if _r > 0 else 0.0
     ext_subtotal = amount - ext_tax
+    if all(data.get(k) is not None for k in ('extension_fee', 'extension_tax', 'extension_total')):
+        ext_subtotal = float(data['extension_fee'])
+        ext_tax = float(data['extension_tax'])
+        explicit_total = float(data['extension_total'])
+        if abs(ext_subtotal + ext_tax - explicit_total) > 0.02 or abs(ext_tax - round(ext_subtotal * _r, 2)) > 0.02:
+            raise ValueError('Extension fee, tax and total do not reconcile')
+        if abs(explicit_total - amount) > 0.02:
+            raise ValueError('Extension total differs from the amount billed')
 
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf'); tmp.close()
     fname = tmp.name
@@ -143,9 +152,8 @@ def build_extension_pdf(data):
     cv.drawRightString(PW - MR, y, fmt(ext_subtotal)); y -= 11
     cv.setFont('Helvetica', 8); cv.setFillColor(GRAY)
     cv.drawString(ML, y, f'{fmt(extrate)} per 30-day period (prorated)'); y -= 16
-    if taxrate:
-        cv.setFont('Helvetica', 9); cv.setFillColor(colors.HexColor('#333333'))
-        cv.drawString(ML, y, f'Tax ({taxrate:.2f}%)'); cv.drawRightString(PW - MR, y, fmt(ext_tax)); y -= 15
+    cv.setFont('Helvetica', 9); cv.setFillColor(colors.HexColor('#333333'))
+    cv.drawString(ML, y, f'Tax ({taxrate:.2f}%)'); cv.drawRightString(PW - MR, y, fmt(ext_tax)); y -= 15
     cv.setStrokeColor(LGRAY); cv.setLineWidth(0.5); cv.line(ML, y, PW - MR, y); y -= 18
     cv.setFont('Helvetica-Bold', 12); cv.setFillColor(INK)
     cv.drawString(ML, y, 'Total Due'); cv.drawRightString(PW - MR, y, fmt(amount)); y -= 26
@@ -1018,7 +1026,7 @@ def generate_invoice_pdf(data):
 
         if split:
             cv.setFont('Helvetica', 8); cv.setFillColor(BLACK)
-            cv.drawString(dx, ry, f"»  Furniture rental: {fmt(split['rental'])}   |   Staging design & arrangement: {fmt(split['service'])}")
+            cv.drawString(dx, ry, f"»  Furniture rental: {fmt(split['rental'])}" + (f"   |   Staging design & arrangement: {fmt(split['service'])}" if float(split['service']) != 0 else ""))
             ry -= 12
 
         # Closing line
@@ -1137,7 +1145,7 @@ def generate_invoice_pdf(data):
         if split:
             ry -= 2
             cv.setFont('Helvetica', 8); cv.setFillColor(BLACK)
-            cv.drawString(dx, ry, f"»  Furniture rental: {fmt(split['rental'])}   |   Staging design & arrangement: {fmt(split['service'])}")
+            cv.drawString(dx, ry, f"»  Furniture rental: {fmt(split['rental'])}" + (f"   |   Staging design & arrangement: {fmt(split['service'])}" if float(split['service']) != 0 else ""))
             ry -= 12
 
         if cost_str:
@@ -1177,10 +1185,11 @@ def generate_invoice_pdf(data):
     # labels the 120pt column was sized for — widen the whole block so nothing overlaps.
     lblX = PW-MR-190 if rc_split_mode else PW-MR-120
     ruleX = PW-MR-200 if rc_split_mode else PW-MR-130
-    cv.setFont('Helvetica', 9); cv.setFillColor(GRAY)
+    cv.setFont('Helvetica', 9); cv.setFillColor(colors.black)
     if rc_split_mode:
         cv.drawString(lblX, y, 'Furniture Rental Total:'); cv.drawRightString(PW-MR, y, fmt(data.get('rental_total', 0))); y -= 13
-        cv.drawString(lblX, y, 'Staging Design Total:');   cv.drawRightString(PW-MR, y, fmt(data.get('service_total', 0))); y -= 13
+        if float(data.get('service_total', 0) or 0) != 0:
+            cv.drawString(lblX, y, 'Staging Design Total:');   cv.drawRightString(PW-MR, y, fmt(data.get('service_total', 0))); y -= 13
     cv.drawString(lblX, y, 'Subtotal:');                cv.drawRightString(PW-MR, y, fmt(subtotal)); y -= 13
     tax_label = f'Taxes ({taxrate:.2f}%, rental only):' if rc_split_mode else f'Taxes ({taxrate:.2f}%):'
     cv.drawString(lblX, y, tax_label); cv.drawRightString(PW-MR, y, fmt(tax));      y -= 5
@@ -1566,6 +1575,20 @@ class handler(BaseHTTPRequestHandler):
             data = json.loads(body)
         except Exception as e:
             self._error(400, f'Invalid JSON: {e}')
+            return
+
+        try:
+            # Extensions and balance notices are separate documents, not edits of
+            # the original invoice. Preserve those existing Board workflows.
+            saved = None if data.get('extension') or data.get('balance_update') else stored_invoice(data.get('invnum', ''))
+            if saved and is_paid(saved):
+                if data.get('generator_request'):
+                    self._error(409, 'Paid invoice protected. Use the stored invoice path.')
+                    return
+                # Stored-data regeneration can only render the canonical saved payload.
+                data = saved
+        except Exception:
+            self._error(503, 'Could not verify stored invoice status. Nothing was generated.')
             return
 
         try:
