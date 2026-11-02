@@ -6,8 +6,8 @@
 // Bumping the version forces all existing sessions to re-authenticate.
 
 (function() {
-  const SWJ_PASSWORD = 'J@ebrielle27';
-  const SWJ_AUTH_VERSION = '1';
+  const SWJ_PASSWORD = 'Amber-Cedar-954!';
+  const SWJ_AUTH_VERSION = '2';
   const STORAGE_KEY = 'swj_auth_v' + SWJ_AUTH_VERSION;
 
   // Already authenticated on this device?
