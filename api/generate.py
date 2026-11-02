@@ -518,6 +518,21 @@ def generate_invoice_pdf(data):
     extrate    = data['extrate']
     taxrate    = data['taxrate']
     addons     = data['addons']
+    # Fix (Nov 2, 2026): the extension-rate boilerplate must never print a bare rate — the old
+    # text let the reader assume $X was a tax-inclusive total while `extrate` is actually
+    # always the PRETAX fee (pretax subtotal / 3), which silently contradicted the "inclusive"
+    # contract language. One shared computation (tax = rate x fee, rounded, then fee + tax =
+    # total) feeds both the new on-top wording and the old inclusive wording, so the two never
+    # disagree by a rounding cent the way an independent back-out path would.
+    ext_fee = float(extrate or 0)
+    ext_tax_amt = round(ext_fee * (float(taxrate or 0) / 100), 2)
+    ext_total = round(ext_fee + ext_tax_amt, 2)
+    def ext_rate_phrase(prefix):
+        if data.get('contract_terms_version') == 'v2_2026_11_ext_tax_on_top':
+            return (f'{prefix} {fmt(ext_fee)} + {fmt(ext_tax_amt)} sales tax ({taxrate:.2f}%) '
+                    f'= {fmt(ext_total)} per 30-day period, billed separately.')
+        return (f'{prefix} {fmt(ext_total)} per 30-day period, includes {fmt(ext_tax_amt)} sales '
+                f'tax (pretax {fmt(ext_fee)}), billed separately.')
     promo1     = data['promo1']
     promo2     = data['promo2']
     promo3     = data['promo3']
@@ -1222,7 +1237,7 @@ def generate_invoice_pdf(data):
     # Extension italic note
     cv.setFont('Helvetica-Oblique', 8); cv.setFillColor(GRAY)
     ext_note = (f"Invoice covers up to 45 days of furniture rental. After 45 days, rental "
-                f"may be extended at {fmt(extrate)} per 30-day period, billed separately.")
+                + ext_rate_phrase('may be extended at'))
     note_lines = wrap(cv, ext_note, 'Helvetica-Oblique', 8, CW * 0.60)
     note_x = ML + CW * 0.18
     for l in note_lines:
@@ -1320,7 +1335,7 @@ def generate_invoice_pdf(data):
         'Signed contract must be received no later than 3 days prior to the scheduled staging installation date.',
         'Staging will not be scheduled until full payment is received.',
         'Invoice covers up to 45 days of furniture rental from installation date.',
-        f'After 45 days, rental may be extended at {fmt(extrate)} per additional 30-day period, billed separately.',
+        ext_rate_phrase('After 45 days, rental may be extended at'),
         'Cancellations within 72 hours of installation may incur a cancellation fee of $700 to cover labor and logistics.',
     ])
     tc_section('Client Responsibility', [
