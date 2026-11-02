@@ -1981,11 +1981,21 @@ def run_monthly_close():
 
 class handler(BaseHTTPRequestHandler):
     def do_OPTIONS(self):
+        if 'section7' in urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query, keep_blank_values=True):
+            from lib.section7_http import response
+            response(self, 405, {'error': 'Use same-origin GET or POST for this report.'}, [('Allow', 'GET, POST')])
+            return
         self.send_response(200)
         self._cors()
         self.end_headers()
 
     def do_GET(self):
+        # Section 7 is an isolated, authenticated read-only report. Dispatch it
+        # before cron or Stripe processing; report requests can never trigger sends.
+        if 'section7' in urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query, keep_blank_values=True):
+            from lib.section7_http import handle
+            handle(self, 'GET', SUPABASE_URL, os.environ.get('SUPABASE_KEY', ''))
+            return
         # Vercel Cron Jobs hit this via GET (see vercel.json — two schedules share this same
         # path/handler: the daily destage-reminder job, and the monthly tax-report job
         # distinguished by a ?job= query param). Guarded by CRON_SECRET if it's set — Vercel
@@ -2057,6 +2067,12 @@ class handler(BaseHTTPRequestHandler):
             self._respond(500, {'error': str(e)})
 
     def do_POST(self):
+        # Section 7 is an isolated, authenticated read-only report. Dispatch it
+        # before cron or Stripe processing; report requests can never trigger sends.
+        if 'section7' in urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query, keep_blank_values=True):
+            from lib.section7_http import handle
+            handle(self, 'POST', SUPABASE_URL, os.environ.get('SUPABASE_KEY', ''))
+            return
         length = int(self.headers.get('Content-Length', 0))
         raw_body = self.rfile.read(length)
 

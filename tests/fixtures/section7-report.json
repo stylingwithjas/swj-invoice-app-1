@@ -1,0 +1,282 @@
+{
+  "schema_version": 1,
+  "review_period": "2026-10",
+  "data_source": "synthetic_test",
+  "comparison_basis": "Printed cents; a $0.01 mismatch is reported. Original issued PDFs are not verified.",
+  "records_read": 7,
+  "invoices_checked": 6,
+  "excluded_records": 1,
+  "flagged_count": 5,
+  "discrepancy_count": 4,
+  "unverifiable_count": 1,
+  "paid_period_discrepancy_count": 2,
+  "paid_date_unknown_count": 1,
+  "paid_period_unverifiable_count": 0,
+  "results": [
+    {
+      "invnum": "TEST-LEGACY",
+      "client": "Synthetic legacy example",
+      "invdate": "2026-10-01",
+      "pricing_mode": "legacy_price_led",
+      "override_fields": [],
+      "override_intent": "none",
+      "issues": [
+        {
+          "rule": "lines_subtotal",
+          "kind": "discrepancy",
+          "actual": "4314.63",
+          "comparison": "4118.00",
+          "difference": "196.63",
+          "detail": "",
+          "scope": "invoice"
+        },
+        {
+          "rule": "extension_rate",
+          "kind": "discrepancy",
+          "actual": "1517.48",
+          "comparison": "1438.21",
+          "difference": "79.27",
+          "detail": "",
+          "scope": "invoice"
+        }
+      ],
+      "values": {
+        "visible_lines": "4118.00",
+        "subtotal": "4314.63",
+        "tax": "237.82",
+        "grand": "4552.45",
+        "taxable_base": "2254.23",
+        "taxrate_percent": "10.55",
+        "taxable_base_source": "Existing legacy price-led effective base; not a new per-line split.",
+        "subtotal_source": "reconstructed existing PDF reader",
+        "tax_source": "reconstructed existing PDF reader",
+        "grand_source": "reconstructed existing PDF reader"
+      },
+      "live_paid": true,
+      "test_paid": false,
+      "paid_date_unknown": false,
+      "paid_in_review_period": true,
+      "receipt_dates": [
+        "2026-10-15"
+      ],
+      "payment_notes": [],
+      "has_discrepancy": true,
+      "has_unverifiable": false
+    },
+    {
+      "invnum": "TEST-OVERRIDE",
+      "client": "Synthetic manual-total example",
+      "invdate": "2026-10-01",
+      "pricing_mode": "per_line_split",
+      "override_fields": [
+        "subtotal_override",
+        "tax_override",
+        "total_override"
+      ],
+      "override_intent": "explicit field provenance recorded; unverified legacy fields remain review items",
+      "issues": [
+        {
+          "rule": "subtotal_tax_total",
+          "kind": "discrepancy",
+          "actual": "4354.98",
+          "comparison": "4344.98",
+          "difference": "10.00",
+          "detail": "",
+          "scope": "invoice"
+        }
+      ],
+      "values": {
+        "visible_lines": "4118.00",
+        "subtotal": "4118.00",
+        "tax": "226.98",
+        "grand": "4354.98",
+        "taxable_base": "2151.50",
+        "taxrate_percent": "10.55",
+        "taxable_base_source": "Stored rental_total (no reclassification).",
+        "subtotal_source": "stored override",
+        "tax_source": "stored override",
+        "grand_source": "stored override"
+      },
+      "live_paid": true,
+      "test_paid": false,
+      "paid_date_unknown": false,
+      "paid_in_review_period": true,
+      "receipt_dates": [
+        "2026-10-20"
+      ],
+      "payment_notes": [],
+      "has_discrepancy": true,
+      "has_unverifiable": false
+    },
+    {
+      "invnum": "TEST-MISSING",
+      "client": "Synthetic incomplete record",
+      "invdate": "2026-10-01",
+      "pricing_mode": "per_line_split",
+      "override_fields": [
+        "subtotal_override",
+        "tax_override",
+        "total_override"
+      ],
+      "override_intent": "explicit field provenance recorded; unverified legacy fields remain review items",
+      "issues": [
+        {
+          "rule": "missing_input",
+          "kind": "unverifiable",
+          "actual": null,
+          "comparison": null,
+          "difference": null,
+          "detail": "Missing or invalid base_price",
+          "scope": "invoice"
+        },
+        {
+          "rule": "extension_rate",
+          "kind": "unverifiable",
+          "actual": null,
+          "comparison": null,
+          "difference": null,
+          "detail": "Missing or invalid extrate",
+          "scope": "invoice"
+        },
+        {
+          "rule": "payment_timing",
+          "kind": "unverifiable",
+          "actual": null,
+          "comparison": null,
+          "difference": null,
+          "detail": "A recorded paid event has no valid receipt date.",
+          "scope": "invoice"
+        }
+      ],
+      "values": {
+        "visible_lines": null,
+        "subtotal": "4118.00",
+        "tax": "226.98",
+        "grand": "4344.98",
+        "taxable_base": "2151.50",
+        "taxrate_percent": "10.55",
+        "taxable_base_source": "Stored rental_total (no reclassification).",
+        "subtotal_source": "stored override",
+        "tax_source": "stored override",
+        "grand_source": "stored override"
+      },
+      "live_paid": true,
+      "test_paid": false,
+      "paid_date_unknown": true,
+      "paid_in_review_period": false,
+      "receipt_dates": [],
+      "payment_notes": [],
+      "has_discrepancy": false,
+      "has_unverifiable": true
+    },
+    {
+      "invnum": "TEST-TAX",
+      "client": "Synthetic tax-only example",
+      "invdate": "2026-10-01",
+      "pricing_mode": "per_line_split",
+      "override_fields": [
+        "subtotal_override",
+        "tax_override",
+        "total_override"
+      ],
+      "override_intent": "explicit field provenance recorded; unverified legacy fields remain review items",
+      "issues": [
+        {
+          "rule": "tax_base",
+          "kind": "discrepancy",
+          "actual": "227.98",
+          "comparison": "226.98",
+          "difference": "1.00",
+          "detail": "Manual fields are included in this read-only audit; this does not authorize a correction.",
+          "scope": "invoice"
+        }
+      ],
+      "values": {
+        "visible_lines": "4118.00",
+        "subtotal": "4118.00",
+        "tax": "227.98",
+        "grand": "4345.98",
+        "taxable_base": "2151.50",
+        "taxrate_percent": "10.55",
+        "taxable_base_source": "Stored rental_total (no reclassification).",
+        "subtotal_source": "stored override",
+        "tax_source": "stored override",
+        "grand_source": "stored override"
+      },
+      "live_paid": false,
+      "test_paid": false,
+      "paid_date_unknown": false,
+      "paid_in_review_period": false,
+      "receipt_dates": [],
+      "payment_notes": [],
+      "has_discrepancy": true,
+      "has_unverifiable": false
+    },
+    {
+      "invnum": "TEST-TEST",
+      "client": "Synthetic test payment",
+      "invdate": "2026-10-01",
+      "pricing_mode": "per_line_split",
+      "override_fields": [
+        "subtotal_override",
+        "tax_override",
+        "total_override"
+      ],
+      "override_intent": "explicit field provenance recorded; unverified legacy fields remain review items",
+      "issues": [
+        {
+          "rule": "subtotal_tax_total",
+          "kind": "discrepancy",
+          "actual": "10.00",
+          "comparison": "4344.98",
+          "difference": "-4334.98",
+          "detail": "",
+          "scope": "invoice"
+        }
+      ],
+      "values": {
+        "visible_lines": "4118.00",
+        "subtotal": "4118.00",
+        "tax": "226.98",
+        "grand": "10.00",
+        "taxable_base": "2151.50",
+        "taxrate_percent": "10.55",
+        "taxable_base_source": "Stored rental_total (no reclassification).",
+        "subtotal_source": "stored override",
+        "tax_source": "stored override",
+        "grand_source": "stored override"
+      },
+      "live_paid": false,
+      "test_paid": true,
+      "paid_date_unknown": false,
+      "paid_in_review_period": false,
+      "receipt_dates": [],
+      "payment_notes": [],
+      "has_discrepancy": true,
+      "has_unverifiable": false
+    }
+  ],
+  "limitations": [
+    "This list cannot detect invoices missing entirely from the database (including an unrecorded job such as Deji).",
+    "No original issued or signed PDF is inspected; reconstructed values are labeled and are not replacement figures.",
+    "Manual overrides and rate-card extension differences require context; a finding does not authorize repricing.",
+    "Paid findings are owner/CPA review questions. No invoices are restated, regenerated, charged, emailed or updated.",
+    "Drafts, GS Photography and known settings/review rows are excluded; no staging-status or paid-status filter hides real invoices."
+  ],
+  "fingerprint": "0cd4410dc2303f93f701e4ae400629938606542bdcc502142f335876d19a320f",
+  "coverage": {
+    "complete": true,
+    "verification": "synthetic fixture \u2014 no database access",
+    "started_at": "2026-11-02T17:00:00Z",
+    "completed_at": "2026-11-02T17:00:01Z",
+    "database_rows": 7,
+    "fingerprint": "0cd4410dc2303f93f701e4ae400629938606542bdcc502142f335876d19a320f",
+    "snapshot_note": "Test fixture only. These are not live business records."
+  },
+  "exports": {
+    "all": "Report fingerprint,Review period,Invoice,Client,Invoice date,Live paid,Receipt in review period,Paid date unknown,Recorded receipt dates,Mode,Override fields,Finding type,Rule,Scope,Existing/reconstructed value,Comparison value (not a correction),Difference,Detail,Subtotal source,Tax source,Grand source,Taxable base source\r\n0cd4410dc2303f93f701e4ae400629938606542bdcc502142f335876d19a320f,2026-10,TEST-LEGACY,Synthetic legacy example,2026-10-01,True,True,False,2026-10-15,legacy_price_led,,discrepancy,lines_subtotal,invoice,4314.63,4118.00,196.63,,reconstructed existing PDF reader,reconstructed existing PDF reader,reconstructed existing PDF reader,Existing legacy price-led effective base; not a new per-line split.\r\n0cd4410dc2303f93f701e4ae400629938606542bdcc502142f335876d19a320f,2026-10,TEST-LEGACY,Synthetic legacy example,2026-10-01,True,True,False,2026-10-15,legacy_price_led,,discrepancy,extension_rate,invoice,1517.48,1438.21,79.27,,reconstructed existing PDF reader,reconstructed existing PDF reader,reconstructed existing PDF reader,Existing legacy price-led effective base; not a new per-line split.\r\n0cd4410dc2303f93f701e4ae400629938606542bdcc502142f335876d19a320f,2026-10,TEST-OVERRIDE,Synthetic manual-total example,2026-10-01,True,True,False,2026-10-20,per_line_split,\"subtotal_override, tax_override, total_override\",discrepancy,subtotal_tax_total,invoice,4354.98,4344.98,10.00,,stored override,stored override,stored override,Stored rental_total (no reclassification).\r\n0cd4410dc2303f93f701e4ae400629938606542bdcc502142f335876d19a320f,2026-10,TEST-MISSING,Synthetic incomplete record,2026-10-01,True,False,True,,per_line_split,\"subtotal_override, tax_override, total_override\",unverifiable,missing_input,invoice,,,,Missing or invalid base_price,stored override,stored override,stored override,Stored rental_total (no reclassification).\r\n0cd4410dc2303f93f701e4ae400629938606542bdcc502142f335876d19a320f,2026-10,TEST-MISSING,Synthetic incomplete record,2026-10-01,True,False,True,,per_line_split,\"subtotal_override, tax_override, total_override\",unverifiable,extension_rate,invoice,,,,Missing or invalid extrate,stored override,stored override,stored override,Stored rental_total (no reclassification).\r\n0cd4410dc2303f93f701e4ae400629938606542bdcc502142f335876d19a320f,2026-10,TEST-MISSING,Synthetic incomplete record,2026-10-01,True,False,True,,per_line_split,\"subtotal_override, tax_override, total_override\",unverifiable,payment_timing,invoice,,,,A recorded paid event has no valid receipt date.,stored override,stored override,stored override,Stored rental_total (no reclassification).\r\n0cd4410dc2303f93f701e4ae400629938606542bdcc502142f335876d19a320f,2026-10,TEST-TAX,Synthetic tax-only example,2026-10-01,False,False,False,,per_line_split,\"subtotal_override, tax_override, total_override\",discrepancy,tax_base,invoice,227.98,226.98,1.00,Manual fields are included in this read-only audit; this does not authorize a correction.,stored override,stored override,stored override,Stored rental_total (no reclassification).\r\n0cd4410dc2303f93f701e4ae400629938606542bdcc502142f335876d19a320f,2026-10,TEST-TEST,Synthetic test payment,2026-10-01,False,False,False,,per_line_split,\"subtotal_override, tax_override, total_override\",discrepancy,subtotal_tax_total,invoice,10.00,4344.98,-4334.98,,stored override,stored override,stored override,Stored rental_total (no reclassification).\r\n",
+    "paid": "Report fingerprint,Review period,Invoice,Client,Invoice date,Live paid,Receipt in review period,Paid date unknown,Recorded receipt dates,Mode,Override fields,Finding type,Rule,Scope,Existing/reconstructed value,Comparison value (not a correction),Difference,Detail,Subtotal source,Tax source,Grand source,Taxable base source\r\n0cd4410dc2303f93f701e4ae400629938606542bdcc502142f335876d19a320f,2026-10,TEST-LEGACY,Synthetic legacy example,2026-10-01,True,True,False,2026-10-15,legacy_price_led,,discrepancy,lines_subtotal,invoice,4314.63,4118.00,196.63,,reconstructed existing PDF reader,reconstructed existing PDF reader,reconstructed existing PDF reader,Existing legacy price-led effective base; not a new per-line split.\r\n0cd4410dc2303f93f701e4ae400629938606542bdcc502142f335876d19a320f,2026-10,TEST-LEGACY,Synthetic legacy example,2026-10-01,True,True,False,2026-10-15,legacy_price_led,,discrepancy,extension_rate,invoice,1517.48,1438.21,79.27,,reconstructed existing PDF reader,reconstructed existing PDF reader,reconstructed existing PDF reader,Existing legacy price-led effective base; not a new per-line split.\r\n0cd4410dc2303f93f701e4ae400629938606542bdcc502142f335876d19a320f,2026-10,TEST-OVERRIDE,Synthetic manual-total example,2026-10-01,True,True,False,2026-10-20,per_line_split,\"subtotal_override, tax_override, total_override\",discrepancy,subtotal_tax_total,invoice,4354.98,4344.98,10.00,,stored override,stored override,stored override,Stored rental_total (no reclassification).\r\n0cd4410dc2303f93f701e4ae400629938606542bdcc502142f335876d19a320f,2026-10,TEST-MISSING,Synthetic incomplete record,2026-10-01,True,False,True,,per_line_split,\"subtotal_override, tax_override, total_override\",unverifiable,missing_input,invoice,,,,Missing or invalid base_price,stored override,stored override,stored override,Stored rental_total (no reclassification).\r\n0cd4410dc2303f93f701e4ae400629938606542bdcc502142f335876d19a320f,2026-10,TEST-MISSING,Synthetic incomplete record,2026-10-01,True,False,True,,per_line_split,\"subtotal_override, tax_override, total_override\",unverifiable,extension_rate,invoice,,,,Missing or invalid extrate,stored override,stored override,stored override,Stored rental_total (no reclassification).\r\n0cd4410dc2303f93f701e4ae400629938606542bdcc502142f335876d19a320f,2026-10,TEST-MISSING,Synthetic incomplete record,2026-10-01,True,False,True,,per_line_split,\"subtotal_override, tax_override, total_override\",unverifiable,payment_timing,invoice,,,,A recorded paid event has no valid receipt date.,stored override,stored override,stored override,Stored rental_total (no reclassification).\r\n",
+    "paid_period": "Report fingerprint,Review period,Invoice,Client,Invoice date,Live paid,Receipt in review period,Paid date unknown,Recorded receipt dates,Mode,Override fields,Finding type,Rule,Scope,Existing/reconstructed value,Comparison value (not a correction),Difference,Detail,Subtotal source,Tax source,Grand source,Taxable base source\r\n0cd4410dc2303f93f701e4ae400629938606542bdcc502142f335876d19a320f,2026-10,TEST-LEGACY,Synthetic legacy example,2026-10-01,True,True,False,2026-10-15,legacy_price_led,,discrepancy,lines_subtotal,invoice,4314.63,4118.00,196.63,,reconstructed existing PDF reader,reconstructed existing PDF reader,reconstructed existing PDF reader,Existing legacy price-led effective base; not a new per-line split.\r\n0cd4410dc2303f93f701e4ae400629938606542bdcc502142f335876d19a320f,2026-10,TEST-LEGACY,Synthetic legacy example,2026-10-01,True,True,False,2026-10-15,legacy_price_led,,discrepancy,extension_rate,invoice,1517.48,1438.21,79.27,,reconstructed existing PDF reader,reconstructed existing PDF reader,reconstructed existing PDF reader,Existing legacy price-led effective base; not a new per-line split.\r\n0cd4410dc2303f93f701e4ae400629938606542bdcc502142f335876d19a320f,2026-10,TEST-OVERRIDE,Synthetic manual-total example,2026-10-01,True,True,False,2026-10-20,per_line_split,\"subtotal_override, tax_override, total_override\",discrepancy,subtotal_tax_total,invoice,4354.98,4344.98,10.00,,stored override,stored override,stored override,Stored rental_total (no reclassification).\r\n",
+    "unverifiable": "Report fingerprint,Review period,Invoice,Client,Invoice date,Live paid,Receipt in review period,Paid date unknown,Recorded receipt dates,Mode,Override fields,Finding type,Rule,Scope,Existing/reconstructed value,Comparison value (not a correction),Difference,Detail,Subtotal source,Tax source,Grand source,Taxable base source\r\n0cd4410dc2303f93f701e4ae400629938606542bdcc502142f335876d19a320f,2026-10,TEST-MISSING,Synthetic incomplete record,2026-10-01,True,False,True,,per_line_split,\"subtotal_override, tax_override, total_override\",unverifiable,missing_input,invoice,,,,Missing or invalid base_price,stored override,stored override,stored override,Stored rental_total (no reclassification).\r\n0cd4410dc2303f93f701e4ae400629938606542bdcc502142f335876d19a320f,2026-10,TEST-MISSING,Synthetic incomplete record,2026-10-01,True,False,True,,per_line_split,\"subtotal_override, tax_override, total_override\",unverifiable,extension_rate,invoice,,,,Missing or invalid extrate,stored override,stored override,stored override,Stored rental_total (no reclassification).\r\n0cd4410dc2303f93f701e4ae400629938606542bdcc502142f335876d19a320f,2026-10,TEST-MISSING,Synthetic incomplete record,2026-10-01,True,False,True,,per_line_split,\"subtotal_override, tax_override, total_override\",unverifiable,payment_timing,invoice,,,,A recorded paid event has no valid receipt date.,stored override,stored override,stored override,Stored rental_total (no reclassification).\r\n"
+  }
+}
