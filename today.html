@@ -417,9 +417,10 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
   </div>
 
   <!-- S8: AMEX — balance/due-date snapshot via Plaid's Liabilities product (cached on
-       plaid_items, read through the anon-safe plaid_account_summary view — never the
-       access_token). payroll.html's Spending tab owns the actual connect/transaction-list UI;
-       this card is read-only and link-through only. -->
+       plaid_accounts, read through the anon-safe plaid_card_summary view — never the
+       access_token). payroll.html's Spending tab owns the actual connect/transaction-list UI
+       and the full per-card detail; this card is a totals-across-all-cards summary, read-only
+       and link-through only. -->
   <div class="section" id="sec-amex">
     <div class="sec-hdr">
       <div class="sec-title">Amex</div>
@@ -851,22 +852,27 @@ async function buildS7(){
   el.innerHTML=`<div class="fin-grid">${taxCard}${reconCard}</div>`;
 }
 
-// Amex balance snapshot — reads the cached plaid_account_summary view (never recomputed from
-// raw plaid_transactions rows here), then fires a live ?job=plaid_balance refresh so the
+// Amex balance snapshot — reads the cached plaid_card_summary view, totaled across every
+// connected card (never recomputed from raw plaid_transactions rows here), then fires a live
+// ?job=plaid_balance refresh so the
 // numbers are current as of this visit. Plaid's own liability data only updates roughly once a
 // day, so refreshing on every Home load never over-calls their API; a failed refresh just
 // leaves whatever was already cached on screen rather than breaking the page.
 async function buildS8(){
+  // Phase 1 (Nov 2026): summary only — this card totals across however many business Amex
+  // cards are connected and links through to the Payroll page's "Spending" tab for the real
+  // per-card detail (balance/due date/minimum per card), consistent with Home's own
+  // snapshot-then-link-through pattern everywhere else on this page.
   const el=document.getElementById('s8-body');
-  let row=null;
+  let cards=[];
   try{
-    const {data}=await _sb.from('plaid_account_summary').select('*').limit(1).maybeSingle();
-    row=data;
+    const {data}=await _sb.from('plaid_card_summary').select('*');
+    cards=data||[];
   }catch(e){ /* view may not exist yet if the Plaid migration hasn't been run — treat as not connected */ }
 
-  if(!row){
+  if(!cards.length){
     el.innerHTML=`<div class="fin-card full" style="cursor:pointer" onclick="window.location.href='/payroll.html?tab=spending'">
-      <div class="fin-lbl">Amex</div>
+      <div class="fin-lbl">Business Amex</div>
       <div class="fin-val" style="font-size:18px">Not connected</div>
       <div class="fin-note">Open Finance → Spending to connect</div>
     </div>`;
@@ -876,30 +882,36 @@ async function buildS8(){
   try{
     const r=await fetch('/api/webhook?job=plaid_balance',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
     const fresh=await r.json();
-    if(fresh && !fresh.error) row={...row, ...fresh};
-  }catch(e){ /* keep showing the cached row */ }
+    if(fresh && !fresh.error && Array.isArray(fresh.accounts)){
+      const byId=Object.fromEntries(fresh.accounts.map(a=>[a.account_id,a]));
+      cards=cards.map(c=>byId[c.account_id]?{...c,...byId[c.account_id],balance_synced_at:fresh.balance_synced_at}:c);
+    }
+  }catch(e){ /* keep showing the cached rows */ }
 
-  if(row.current_balance==null || row.statement_balance==null){
+  const synced=cards.filter(c=>c.statement_balance!=null && c.next_payment_due_date!=null);
+  if(!synced.length){
     el.innerHTML=`<div class="fin-card full" style="cursor:pointer" onclick="window.location.href='/payroll.html?tab=spending'">
-      <div class="fin-lbl">Amex${row.institution_name?' — '+esc(row.institution_name):''}</div>
-      <div class="fin-val" style="font-size:18px">Connected — balance not synced yet</div>
-      <div class="fin-note">Open Finance → Spending and click Sync Now</div>
+      <div class="fin-lbl">Business Amex — ${cards.length} card${cards.length===1?'':'s'} connected</div>
+      <div class="fin-val" style="font-size:18px">Balance not synced yet</div>
+      <div class="fin-note">Open Finance → Spending and click Sync now</div>
     </div>`;
     return;
   }
 
-  const due=row.next_payment_due_date?new Date(row.next_payment_due_date+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}):'—';
-  const synced=row.balance_synced_at?new Date(row.balance_synced_at).toLocaleDateString():null;
+  const totalToAvoidInterest=synced.reduce((t,c)=>t+(parseFloat(c.statement_balance)||0),0);
+  const soonest=synced.reduce((a,c)=>!a||c.next_payment_due_date<a.next_payment_due_date?c:a,null);
+  const due=new Date(soonest.next_payment_due_date+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  const overdueCount=synced.filter(c=>new Date(c.next_payment_due_date+'T00:00:00')<new Date()).length;
   el.innerHTML=`<div class="fin-grid">
     <div class="fin-card" style="cursor:pointer" onclick="window.location.href='/payroll.html?tab=spending'">
-      <div class="fin-lbl">Current Balance</div>
-      <div class="fin-val">${fmt(row.current_balance)}</div>
-      <div class="fin-note">${row.institution_name?esc(row.institution_name):'Amex'}${synced?' · as of '+synced:''}</div>
+      <div class="fin-lbl">Business Amex — ${cards.length} card${cards.length===1?'':'s'}</div>
+      <div class="fin-val${overdueCount?' a':''}">${fmt(totalToAvoidInterest)}</div>
+      <div class="fin-note">Total to pay across all cards to avoid interest${overdueCount?' · '+overdueCount+' overdue':''}</div>
     </div>
     <div class="fin-card" style="cursor:pointer" onclick="window.location.href='/payroll.html?tab=spending'">
-      <div class="fin-lbl">Pay by ${due} to avoid interest</div>
-      <div class="fin-val g">${fmt(row.statement_balance)}</div>
-      <div class="fin-note">Statement balance${row.minimum_payment!=null?(' · min due '+fmt(row.minimum_payment)):''}</div>
+      <div class="fin-lbl">Next due</div>
+      <div class="fin-val g" style="font-size:22px">${due}</div>
+      <div class="fin-note">${esc(soonest.name||soonest.institution_name||'Business Amex')}${soonest.mask?' …'+esc(soonest.mask):''} — open Spending for every card's detail</div>
     </div>
   </div>`;
 }
