@@ -960,20 +960,26 @@ def generate_invoice_pdf(data):
         cv.line(ML, y+4, PW-MR, y+4); y -= 4
     
     # ── STRUCTURED BASE ROW ──
-    def draw_structured_row(cost_str):
+    # `split` (mockup/review-only, Nov 2026 per-line split build — not yet wired to any live
+    # invoice flow): optional {rental, service} dict. When present, prints the per-line
+    # rental/design breakdown under the base row and updates the intro copy to name staging
+    # design alongside rental/delivery, per the approved build spec Section 3.
+    def draw_structured_row(cost_str, split=None):
         """Draw the base package row with bullet-point room breakdown."""
         nonlocal y
         # Quantity
         cv.setFillColor(GRAY); cv.setFont('Helvetica', 8.5)
         cv.drawString(ML + 8, y, '1')
         cost_y = y  # save for cost string
-    
+
         dx = ML + qW + 15  # description x
         ry = y
-    
+
         # Intro line
         cv.setFont('Helvetica', 8.5); cv.setFillColor(BLACK)
-        intro = 'Delivery, setup, pickup, and tear-down, plus up to 45 days of furniture rental.'
+        intro = ('Delivery, setup, staging design & arrangement, and pickup, plus up to 45 days of furniture rental.'
+                 if split else
+                 'Delivery, setup, pickup, and tear-down, plus up to 45 days of furniture rental.')
         for l in wrap(cv, intro, 'Helvetica', 8.5, descW):
             cv.drawString(dx, ry, l); ry -= 11
         ry -= 4
@@ -994,7 +1000,12 @@ def generate_invoice_pdf(data):
                 for l in wrap(cv, scope, 'Helvetica', 8, descW - 10):
                     cv.drawString(dx + 10, ry, l); ry -= 10
         ry -= 4
-    
+
+        if split:
+            cv.setFont('Helvetica-Bold', 8); cv.setFillColor(colors.HexColor('#8a6d3b'))
+            cv.drawString(dx, ry, f"»  Furniture rental: {fmt(split['rental'])}   |   Staging design & arrangement: {fmt(split['service'])}")
+            ry -= 12
+
         # Closing line
         cv.setFont('Helvetica-Oblique', 8); cv.setFillColor(GRAY)
         closing = 'Each space is thoughtfully designed using curated furnishings to enhance layout, flow, and buyer appeal.'
@@ -1027,10 +1038,12 @@ def generate_invoice_pdf(data):
     # Rate-card mode (fix spec item 2, Nov 2026) has no base package — the two rate-card
     # lines (rental + design fee) are the whole invoice, carried in `addons` below.
     if data.get('pricing_mode') != 'rate_card':
-        draw_structured_row(fmt(base_price))
+        draw_structured_row(fmt(base_price), split=data.get('base_split'))
 
     # ── STRUCTURED ADDON ROWS ──
-    def draw_addon_structured(desc_raw, cost_str):
+    # `split` (mockup/review-only, Nov 2026 per-line split build — not yet wired to any live
+    # invoice flow): optional {rental, service} dict, same convention as draw_structured_row.
+    def draw_addon_structured(desc_raw, cost_str, split=None):
         """Parse addon description and render as structured bullets."""
         nonlocal y
         cv.setFillColor(GRAY); cv.setFont('Helvetica', 8.5)
@@ -1105,19 +1118,25 @@ def generate_invoice_pdf(data):
                     cv.setFont('Helvetica', 8.5); cv.setFillColor(BLACK)
                     for l in wrap(cv, scope_part, 'Helvetica', 8.5, descW):
                         cv.drawString(dx, ry, l); ry -= 11
-    
+
+        if split:
+            ry -= 2
+            cv.setFont('Helvetica-Bold', 8); cv.setFillColor(colors.HexColor('#8a6d3b'))
+            cv.drawString(dx, ry, f"»  Furniture rental: {fmt(split['rental'])}   |   Staging design & arrangement: {fmt(split['service'])}")
+            ry -= 12
+
         if cost_str:
             cv.setFont('Helvetica', 9); cv.setFillColor(BLACK)
             cv.drawRightString(PW-MR, cost_y, cost_str)
-    
+
         row_h = cost_y - ry + 12
         y -= row_h
         cv.setStrokeColor(colors.HexColor('#dddddd')); cv.setLineWidth(0.3)
         cv.line(ML, y+4, PW-MR, y+4); y -= 4
-    
+
     for a in addons:
         ensure_space(140)
-        draw_addon_structured(a['desc'], fmt(a['price']))
+        draw_addon_structured(a['desc'], fmt(a['price']), split=a.get('split'))
 
     if promo3:
         ensure_space(140)
@@ -1134,14 +1153,26 @@ def generate_invoice_pdf(data):
     # Keep totals + payment + footer together on one page
     ensure_space(240 + 28 * (len(contributions) + 1) if contributions else 240)
 
-    # Totals
+    # Totals — mockup/review-only split-mode rows (Nov 2026 per-line split build, not yet
+    # wired to any live invoice flow): when `rental_service_split` + `rental_total`/
+    # `service_total` are present, show the rental/design breakdown above the subtotal, and
+    # label the tax line as rental-only so it's clear which base it's computed from.
+    rc_split_mode = bool(data.get('rental_service_split'))
+    # Split-mode labels run longer ("Taxes (10.55%, rental only):") than the plain-mode
+    # labels the 120pt column was sized for — widen the whole block so nothing overlaps.
+    lblX = PW-MR-190 if rc_split_mode else PW-MR-120
+    ruleX = PW-MR-200 if rc_split_mode else PW-MR-130
     cv.setFont('Helvetica', 9); cv.setFillColor(GRAY)
-    cv.drawString(PW-MR-120, y, 'Subtotal:');                cv.drawRightString(PW-MR, y, fmt(subtotal)); y -= 13
-    cv.drawString(PW-MR-120, y, f'Taxes ({taxrate:.2f}%):'); cv.drawRightString(PW-MR, y, fmt(tax));      y -= 5
+    if rc_split_mode:
+        cv.drawString(lblX, y, 'Furniture Rental Total:'); cv.drawRightString(PW-MR, y, fmt(data.get('rental_total', 0))); y -= 13
+        cv.drawString(lblX, y, 'Staging Design Total:');   cv.drawRightString(PW-MR, y, fmt(data.get('service_total', 0))); y -= 13
+    cv.drawString(lblX, y, 'Subtotal:');                cv.drawRightString(PW-MR, y, fmt(subtotal)); y -= 13
+    tax_label = f'Taxes ({taxrate:.2f}%, rental only):' if rc_split_mode else f'Taxes ({taxrate:.2f}%):'
+    cv.drawString(lblX, y, tax_label); cv.drawRightString(PW-MR, y, fmt(tax));      y -= 5
     cv.setStrokeColor(BLACK); cv.setLineWidth(0.8)
-    cv.line(PW-MR-130, y, PW-MR, y); y -= 13
+    cv.line(ruleX, y, PW-MR, y); y -= 13
     cv.setFont('Helvetica-Bold', 10); cv.setFillColor(BLACK)
-    cv.drawString(PW-MR-120, y, 'Grand Total:');             cv.drawRightString(PW-MR, y, fmt(grand));    y -= 20
+    cv.drawString(lblX, y, 'Grand Total:');             cv.drawRightString(PW-MR, y, fmt(grand));    y -= 20
 
     # Money coming from someone other than the client — reduces what's billed to them.
     # Labels are Jasmine's free text and can run long, so they get the full row width
