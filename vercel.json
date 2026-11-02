@@ -45,6 +45,7 @@
     { "source": "/archive.html", "destination": "/archive.html" },
     { "source": "/tax-report.html", "destination": "/tax-report.html" },
     { "source": "/reconciliation.html", "destination": "/reconciliation.html" },
+    { "source": "/stripe-reconciliation.html", "destination": "/stripe-reconciliation.html" },
     { "source": "/sw.js", "destination": "/sw.js" },
     { "source": "/manifest.webmanifest", "destination": "/manifest.webmanifest" },
     { "source": "/assets/:path*", "destination": "/assets/:path*" },

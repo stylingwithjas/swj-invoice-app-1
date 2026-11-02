@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'self'; object-src 'none'">
+<title>SWJ — Stripe Reconciliation</title>
+<link rel="stylesheet" href="/assets/section7.css">
+<script src="/assets/stripe-recon.js" defer></script>
+</head>
+<body>
+<header class="top"><a class="brand" href="/tax-report.html">SWJ <span>STYLING WITH JAS</span></a><div class="top-actions"><span class="read-only">Read only</span><button id="logout" hidden>Sign out of report</button></div></header>
+<main>
+<a class="back" href="/tax-report.html">← Tax &amp; Reporting</a>
+<div class="intro"><div><p class="eyebrow">BUSINESS RECORDS · PHASE 1C</p><h1>Stripe ↔ invoice reconciliation</h1><p>Matches what Stripe actually charged against what the app has on record. Nothing is created, refunded, restated or sent.</p></div><span class="pill">No changes. No sends.</span></div>
+<div id="message" class="message" role="status" aria-live="polite">Checking secure report access…</div>
+<section id="login-panel" class="card login" hidden>
+<h2>Administrator sign-in</h2><p>This financial report uses secure server-side access, separate from the site's browser login. Signing in here also opens the Historical Invoice Check if you haven't already.</p>
+<form id="login-form"><label for="password">Report administrator password</label><input id="password" name="password" type="password" autocomplete="current-password" required maxlength="512"><button class="primary" id="login-button" type="submit">Open report workspace</button></form>
+<p class="muted">This page uses a secure session and does not write your password to browser storage.</p>
+</section>
+<section id="setup-panel" class="card login" hidden><h2>Secure access needs configuration</h2><p id="setup-detail">The report stays locked until its server-side administrator access is configured. No Stripe or database records have been queried.</p><button id="retry">Check access again</button></section>
+<section id="workspace" hidden>
+<form id="scan-form" class="card controls"><div><label for="period">Review month</label><input id="period" type="month" value="2026-10" min="1900-01" max="9999-12" required><p class="muted">Charges are read for this month plus a two-week pad on each side, so a receipt right at the edge of the month still finds its match.</p></div><button class="primary" id="scan-button" type="submit">Run reconciliation</button></form>
+<div id="report" hidden>
+<div class="report-heading"><h2>Review snapshot</h2><p id="scanned-at" class="muted"></p></div>
+<div class="metrics">
+<div class="card metric"><span>Matched</span><strong id="matched-count">—</strong><small>Amount agrees to the cent</small></div>
+<div class="card metric"><span>Stripe charges, no invoice</span><strong id="unmatched-charge-count">—</strong><small>Includes ambiguous charges, named below</small></div>
+<div class="card metric"><span>Paid invoices, no charge</span><strong id="unmatched-item-count">—</strong><small>Stored paid flag with nothing to back it</small></div>
+<div class="card metric focus"><span>Amount / status mismatches</span><strong id="mismatch-count">—</strong><small>Identity confirmed; figures disagree</small></div>
+</div>
+<div id="review-note" class="notice"></div>
+<div class="card toolbar"><label for="view">Show</label><select id="view"><option value="all">All findings</option><option value="matched">Matched</option><option value="unmatched_charges">Stripe charges, no invoice</option><option value="unmatched_items">Paid invoices, no charge</option><option value="mismatches">Amount / status mismatches</option></select><span id="visible-count" class="muted"></span><button id="export" type="button">Download this list · CSV</button></div>
+<div id="results" aria-live="polite"></div>
+<details class="card method"><summary>Coverage, matching rules &amp; limitations</summary><p id="coverage"></p><p id="basis"></p><ul id="limitations"></ul><p class="muted">Matching order: (1) metadata + amount to the cent, (2) amount + date (±7 days) + client, all three required, (3) otherwise unmatched. Never auto-matched on one signal alone — an ambiguous charge (more than one equally-qualifying candidate) is never auto-picked either.</p></details>
+</div>
+</section>
+<footer>Findings here are questions for owner/CPA review. This report never updates a record, issues a charge or refund, or sends anything. GS Photography is excluded entirely.</footer>
+</main>
+</body>
+</html>
