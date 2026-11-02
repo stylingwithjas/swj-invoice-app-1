@@ -518,6 +518,21 @@ def generate_invoice_pdf(data):
     extrate    = data['extrate']
     taxrate    = data['taxrate']
     addons     = data['addons']
+    # Fix (Nov 2, 2026): the extension-rate boilerplate must never print a bare rate — the old
+    # text let the reader assume $X was a tax-inclusive total while `extrate` is actually
+    # always the PRETAX fee (pretax subtotal / 3), which silently contradicted the "inclusive"
+    # contract language. One shared computation (tax = rate x fee, rounded, then fee + tax =
+    # total) feeds both the new on-top wording and the old inclusive wording, so the two never
+    # disagree by a rounding cent the way an independent back-out path would.
+    ext_fee = float(extrate or 0)
+    ext_tax_amt = round(ext_fee * (float(taxrate or 0) / 100), 2)
+    ext_total = round(ext_fee + ext_tax_amt, 2)
+    def ext_rate_phrase(prefix):
+        if data.get('contract_terms_version') == 'v2_2026_11_ext_tax_on_top':
+            return (f'{prefix} {fmt(ext_fee)} + {fmt(ext_tax_amt)} sales tax ({taxrate:.2f}%) '
+                    f'= {fmt(ext_total)} per 30-day period, billed separately.')
+        return (f'{prefix} {fmt(ext_total)} per 30-day period, includes {fmt(ext_tax_amt)} sales '
+                f'tax (pretax {fmt(ext_fee)}), billed separately.')
     promo1     = data['promo1']
     promo2     = data['promo2']
     promo3     = data['promo3']
@@ -960,20 +975,26 @@ def generate_invoice_pdf(data):
         cv.line(ML, y+4, PW-MR, y+4); y -= 4
     
     # ── STRUCTURED BASE ROW ──
-    def draw_structured_row(cost_str):
+    # `split` (mockup/review-only, Nov 2026 per-line split build — not yet wired to any live
+    # invoice flow): optional {rental, service} dict. When present, prints the per-line
+    # rental/design breakdown under the base row and updates the intro copy to name staging
+    # design alongside rental/delivery, per the approved build spec Section 3.
+    def draw_structured_row(cost_str, split=None):
         """Draw the base package row with bullet-point room breakdown."""
         nonlocal y
         # Quantity
         cv.setFillColor(GRAY); cv.setFont('Helvetica', 8.5)
         cv.drawString(ML + 8, y, '1')
         cost_y = y  # save for cost string
-    
+
         dx = ML + qW + 15  # description x
         ry = y
-    
+
         # Intro line
         cv.setFont('Helvetica', 8.5); cv.setFillColor(BLACK)
-        intro = 'Delivery, setup, pickup, and tear-down, plus up to 45 days of furniture rental.'
+        intro = ('Delivery, setup, staging design & arrangement, and pickup, plus up to 45 days of furniture rental.'
+                 if split else
+                 'Delivery, setup, pickup, and tear-down, plus up to 45 days of furniture rental.')
         for l in wrap(cv, intro, 'Helvetica', 8.5, descW):
             cv.drawString(dx, ry, l); ry -= 11
         ry -= 4
@@ -994,7 +1015,12 @@ def generate_invoice_pdf(data):
                 for l in wrap(cv, scope, 'Helvetica', 8, descW - 10):
                     cv.drawString(dx + 10, ry, l); ry -= 10
         ry -= 4
-    
+
+        if split:
+            cv.setFont('Helvetica', 8); cv.setFillColor(BLACK)
+            cv.drawString(dx, ry, f"»  Furniture rental: {fmt(split['rental'])}   |   Staging design & arrangement: {fmt(split['service'])}")
+            ry -= 12
+
         # Closing line
         cv.setFont('Helvetica-Oblique', 8); cv.setFillColor(GRAY)
         closing = 'Each space is thoughtfully designed using curated furnishings to enhance layout, flow, and buyer appeal.'
@@ -1027,10 +1053,12 @@ def generate_invoice_pdf(data):
     # Rate-card mode (fix spec item 2, Nov 2026) has no base package — the two rate-card
     # lines (rental + design fee) are the whole invoice, carried in `addons` below.
     if data.get('pricing_mode') != 'rate_card':
-        draw_structured_row(fmt(base_price))
+        draw_structured_row(fmt(base_price), split=data.get('base_split'))
 
     # ── STRUCTURED ADDON ROWS ──
-    def draw_addon_structured(desc_raw, cost_str):
+    # `split` (mockup/review-only, Nov 2026 per-line split build — not yet wired to any live
+    # invoice flow): optional {rental, service} dict, same convention as draw_structured_row.
+    def draw_addon_structured(desc_raw, cost_str, split=None):
         """Parse addon description and render as structured bullets."""
         nonlocal y
         cv.setFillColor(GRAY); cv.setFont('Helvetica', 8.5)
@@ -1105,19 +1133,25 @@ def generate_invoice_pdf(data):
                     cv.setFont('Helvetica', 8.5); cv.setFillColor(BLACK)
                     for l in wrap(cv, scope_part, 'Helvetica', 8.5, descW):
                         cv.drawString(dx, ry, l); ry -= 11
-    
+
+        if split:
+            ry -= 2
+            cv.setFont('Helvetica', 8); cv.setFillColor(BLACK)
+            cv.drawString(dx, ry, f"»  Furniture rental: {fmt(split['rental'])}   |   Staging design & arrangement: {fmt(split['service'])}")
+            ry -= 12
+
         if cost_str:
             cv.setFont('Helvetica', 9); cv.setFillColor(BLACK)
             cv.drawRightString(PW-MR, cost_y, cost_str)
-    
+
         row_h = cost_y - ry + 12
         y -= row_h
         cv.setStrokeColor(colors.HexColor('#dddddd')); cv.setLineWidth(0.3)
         cv.line(ML, y+4, PW-MR, y+4); y -= 4
-    
+
     for a in addons:
         ensure_space(140)
-        draw_addon_structured(a['desc'], fmt(a['price']))
+        draw_addon_structured(a['desc'], fmt(a['price']), split=a.get('split'))
 
     if promo3:
         ensure_space(140)
@@ -1134,14 +1168,26 @@ def generate_invoice_pdf(data):
     # Keep totals + payment + footer together on one page
     ensure_space(240 + 28 * (len(contributions) + 1) if contributions else 240)
 
-    # Totals
+    # Totals — mockup/review-only split-mode rows (Nov 2026 per-line split build, not yet
+    # wired to any live invoice flow): when `rental_service_split` + `rental_total`/
+    # `service_total` are present, show the rental/design breakdown above the subtotal, and
+    # label the tax line as rental-only so it's clear which base it's computed from.
+    rc_split_mode = bool(data.get('rental_service_split'))
+    # Split-mode labels run longer ("Taxes (10.55%, rental only):") than the plain-mode
+    # labels the 120pt column was sized for — widen the whole block so nothing overlaps.
+    lblX = PW-MR-190 if rc_split_mode else PW-MR-120
+    ruleX = PW-MR-200 if rc_split_mode else PW-MR-130
     cv.setFont('Helvetica', 9); cv.setFillColor(GRAY)
-    cv.drawString(PW-MR-120, y, 'Subtotal:');                cv.drawRightString(PW-MR, y, fmt(subtotal)); y -= 13
-    cv.drawString(PW-MR-120, y, f'Taxes ({taxrate:.2f}%):'); cv.drawRightString(PW-MR, y, fmt(tax));      y -= 5
+    if rc_split_mode:
+        cv.drawString(lblX, y, 'Furniture Rental Total:'); cv.drawRightString(PW-MR, y, fmt(data.get('rental_total', 0))); y -= 13
+        cv.drawString(lblX, y, 'Staging Design Total:');   cv.drawRightString(PW-MR, y, fmt(data.get('service_total', 0))); y -= 13
+    cv.drawString(lblX, y, 'Subtotal:');                cv.drawRightString(PW-MR, y, fmt(subtotal)); y -= 13
+    tax_label = f'Taxes ({taxrate:.2f}%, rental only):' if rc_split_mode else f'Taxes ({taxrate:.2f}%):'
+    cv.drawString(lblX, y, tax_label); cv.drawRightString(PW-MR, y, fmt(tax));      y -= 5
     cv.setStrokeColor(BLACK); cv.setLineWidth(0.8)
-    cv.line(PW-MR-130, y, PW-MR, y); y -= 13
+    cv.line(ruleX, y, PW-MR, y); y -= 13
     cv.setFont('Helvetica-Bold', 10); cv.setFillColor(BLACK)
-    cv.drawString(PW-MR-120, y, 'Grand Total:');             cv.drawRightString(PW-MR, y, fmt(grand));    y -= 20
+    cv.drawString(lblX, y, 'Grand Total:');             cv.drawRightString(PW-MR, y, fmt(grand));    y -= 20
 
     # Money coming from someone other than the client — reduces what's billed to them.
     # Labels are Jasmine's free text and can run long, so they get the full row width
@@ -1191,7 +1237,7 @@ def generate_invoice_pdf(data):
     # Extension italic note
     cv.setFont('Helvetica-Oblique', 8); cv.setFillColor(GRAY)
     ext_note = (f"Invoice covers up to 45 days of furniture rental. After 45 days, rental "
-                f"may be extended at {fmt(extrate)} per 30-day period, billed separately.")
+                + ext_rate_phrase('may be extended at'))
     note_lines = wrap(cv, ext_note, 'Helvetica-Oblique', 8, CW * 0.60)
     note_x = ML + CW * 0.18
     for l in note_lines:
@@ -1289,7 +1335,7 @@ def generate_invoice_pdf(data):
         'Signed contract must be received no later than 3 days prior to the scheduled staging installation date.',
         'Staging will not be scheduled until full payment is received.',
         'Invoice covers up to 45 days of furniture rental from installation date.',
-        f'After 45 days, rental may be extended at {fmt(extrate)} per additional 30-day period, billed separately.',
+        ext_rate_phrase('After 45 days, rental may be extended at'),
         'Cancellations within 72 hours of installation may incur a cancellation fee of $700 to cover labor and logistics.',
     ])
     tc_section('Client Responsibility', [
@@ -1335,9 +1381,19 @@ def generate_invoice_pdf(data):
         'A late fee of [TBD] applies to an extension payment received after the extension period has already begun.',
         'Styling With Jas reserves the right to schedule destage if an extension remains unpaid after written notice.',
     ])
-    tc_section('Extension Tax', [
-        'The extension rate stated in this agreement is inclusive of applicable Washington sales tax.',
-    ])
+    # Fix spec Section 6 (Nov 2026) — this clause must never change on an already-signed
+    # contract when its PDF is regenerated. `contract_terms_version` is stamped on the invoice
+    # at FIRST creation and never bumped afterward (see index.html/luxury.html's
+    # resolveContractVersion()); anything untagged is implicitly the legacy, tax-inclusive
+    # version — the exact text that was in place before this build.
+    if data.get('contract_terms_version') == 'v2_2026_11_ext_tax_on_top':
+        tc_section('Extension Tax', [
+            'Washington sales tax applies to the extension rate stated in this agreement and is added on top, separately stated, at the time of each extension — it is not included in the stated rate.',
+        ])
+    else:
+        tc_section('Extension Tax', [
+            'The extension rate stated in this agreement is inclusive of applicable Washington sales tax.',
+        ])
     tc_section('Damage & Loss', [
         'An itemized inventory and condition record, including photographs, is taken at installation.',
         'Client is liable for repair or replacement, at current value, of any staging item damaged or lost during the rental period.',
