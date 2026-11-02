@@ -16,6 +16,7 @@ OVERRIDES = ('subtotal_override', 'tax_override', 'total_override')
 RULES = {
     'lines_subtotal': 'Visible lines = subtotal',
     'tax_base': 'Tax = rate × claimed taxable base',
+    'tax_full_lines': 'Tax = rate × full visible lines (comparison only, not a taxability claim)',
     'subtotal_tax_total': 'Subtotal + tax = grand total',
     'extension_rate': 'Extension rate = pretax subtotal / 3',
 }
@@ -74,8 +75,12 @@ def compare(rule, actual, comparison, detail='', scope='invoice'):
     return None
 
 
-def payment_context(d, period):
-    """Dates describe recorded receipts, not invoice dates or filing eligibility."""
+def payment_context(d, period, grand=None):
+    """Dates describe recorded receipts, not invoice dates or filing eligibility. `grand` is
+    this invoice's own independently reconstructed grand total (from read_totals), used only
+    as the last-resort fallback for a legacy flat-paid record's amount — mirrors payroll.html's
+    finPaymentEvents() exactly (amount_paid, then stripe_amount, then the computed grand), so
+    the stored paid amount shown here never silently diverges from the live app's own figure."""
     notes, live_dates, live_paid, test_paid = [], [], False, False
     if d.get('paid') is not None and type(d.get('paid')) is not bool: notes.append('Invalid paid-status flag.')
     payments, extensions = d.get('payments'), d.get('extensions')
@@ -93,14 +98,20 @@ def payment_context(d, period):
             if not isinstance(p, dict):
                 notes.append('Invalid payment entry.'); continue
             if p.get('status') == 'paid':
-                events.append((p.get('paid_date'), p.get('is_test') is True or d.get('is_test') is True))
+                events.append((p.get('paid_date'), p.get('is_test') is True or d.get('is_test') is True, p.get('amount')))
     elif d.get('paid') is True:
-        events.append((d.get('paid_date'), d.get('is_test') is True))
+        amount = None
+        for key in ('amount_paid', 'stripe_amount'):
+            if d.get(key) not in (None, ''):
+                amount = d.get(key); break
+        if amount is None:
+            amount = grand
+        events.append((d.get('paid_date'), d.get('is_test') is True, amount))
     for e in extensions:
         if isinstance(e, dict) and e.get('paid') is True:
-            events.append((e.get('paid_date'), e.get('is_test') is True or d.get('is_test') is True))
-    undated = False
-    for raw_date, is_test in events:
+            events.append((e.get('paid_date'), e.get('is_test') is True or d.get('is_test') is True, e.get('amount')))
+    undated, paid_amount = False, ZERO
+    for raw_date, is_test, amount in events:
         if is_test:
             test_paid = True; continue
         live_paid = True
@@ -109,6 +120,10 @@ def payment_context(d, period):
             live_dates.append(parsed)
         else:
             undated = True
+        try:
+            paid_amount += number(amount, 'paid amount')
+        except ValueError:
+            notes.append('A recorded payment is missing a usable amount; the stored paid total shown may be incomplete.')
     # A positive legacy receipt amount without a paid flag is evidence of a
     # possible payment, not permission to guess its date or alter the record.
     for key in ('amount_paid', 'stripe_amount'):
@@ -120,7 +135,8 @@ def payment_context(d, period):
                 notes.append('Invalid recorded receipt amount; review payment status.')
     return {'live_paid': live_paid, 'test_paid': test_paid, 'paid_date_unknown': undated,
             'paid_in_review_period': any(day.startswith(period) for day in live_dates),
-            'receipt_dates': sorted(set(live_dates)), 'payment_notes': notes}
+            'receipt_dates': sorted(set(live_dates)), 'payment_notes': notes,
+            'stored_paid_amount': money(paid_amount) if live_paid else None}
 
 
 def read_totals(d, issues):
@@ -256,14 +272,33 @@ def read_totals(d, issues):
         mismatch = compare('tax_base', tax, taxable * rate / 100,
                            'Manual fields are included in this read-only audit; this does not authorize a correction.')
         if mismatch: issues.append(mismatch)
+    if mode == 'legacy_price_led' and visible_lines is not None and rate is not None and tax is not None:
+        # Owner decision (Nov 2, 2026): an additional, independent comparison against the
+        # full visible-lines amount — NOT a claim that the full amount is taxable (the
+        # rental/service split above remains the primary measure). Scoped to legacy
+        # price-led invoices only: there, the claimed taxable base above is itself a
+        # reconstruction from the same backward formula that produced the tax figure, so it
+        # can pass the tax_base check by construction without ever surfacing how far that
+        # claimed base has drifted from the true lines total. A per-line-split or rate-card
+        # invoice's taxable base is an explicit, trusted stored value instead — comparing
+        # those against full lines would misfire on every correctly-split invoice, since a
+        # real rental/service split is expected to differ from full-lines tax by design.
+        mismatch = compare('tax_full_lines', tax, visible_lines * rate / 100,
+                           'Comparison only, not a correction — a large gap here may mean the claimed taxable base itself needs review, not that the full amount is taxable.')
+        if mismatch: issues.append(mismatch)
     if sub is not None and tax is not None and grand is not None:
         mismatch = compare('subtotal_tax_total', grand, printed(sub) + printed(tax))
         if mismatch: issues.append(mismatch)
-    if sub is not None:
+    if visible_lines is not None:
+        # Owner decision (Nov 2, 2026): compare against the true visible-lines total, not the
+        # stored/printed `sub` — for a legacy price-led invoice, `sub` is itself a
+        # reconstruction that can differ from the lines total (that gap is exactly what the
+        # lines_subtotal check above exists to catch); using it here would silently inherit
+        # that same drift into the extension-rate comparison instead of surfacing it cleanly.
         try:
             ext = number(d.get('extrate'), 'extrate')
-            mismatch = compare('extension_rate', ext, printed(sub) / 3,
-                'Rate-card mode uses its stored monthly rental rate; a subtotal / 3 difference in that mode requires contextual review rather than repricing.' if mode == 'rate_card' else '')
+            mismatch = compare('extension_rate', ext, printed(visible_lines) / 3,
+                'Rate-card mode uses its stored monthly rental rate; a visible-lines / 3 difference in that mode requires contextual review rather than repricing.' if mode == 'rate_card' else '')
             if mismatch: issues.append(mismatch)
         except ValueError as error:
             issues.append(finding('extension_rate', detail=str(error), kind='unverifiable'))
@@ -310,7 +345,6 @@ def check_invoice(row, period):
         result.update(payment_context({}, period))
         result['issues'].append(finding('missing_input', detail='Invoice data is not an object.', kind='unverifiable'))
         return result
-    result.update(payment_context(d, period))
     result['override_fields'] = [k for k in OVERRIDES if d.get(k) not in (None, '')]
     result['override_intent'] = 'not provable from stored total fields' if result['override_fields'] else 'none'
     if isinstance(d.get('manual_totals_fields'), list):
@@ -321,6 +355,15 @@ def check_invoice(row, period):
         with localcontext() as context:
             context.prec = 40
             result['pricing_mode'], result['values'] = read_totals(d, result['issues'])
+    # grand feeds payment_context()'s legacy-flat-paid amount fallback only — the same
+    # reconstructed figure finComputeGrandForEvents()/finInvoiceSplit().grand uses in
+    # payroll.html, so a stored paid amount here never silently diverges from the app's own.
+    grand = None
+    grand_value = result['values'].get('grand') if result['values'] else None
+    if grand_value is not None:
+        try: grand = number(grand_value, 'grand')
+        except ValueError: pass
+    result.update(payment_context(d, period, grand))
     check_extensions(d, result['issues'])
     if result['paid_date_unknown']:
         result['issues'].append(finding('payment_timing', detail='A recorded paid event has no valid receipt date.', kind='unverifiable'))
@@ -349,6 +392,10 @@ def build_report(rows, period):
             'unverifiable_count': sum(r['has_unverifiable'] for r in flagged),
             'paid_period_discrepancy_count': sum(r['has_discrepancy'] and r['paid_in_review_period'] for r in flagged),
             'paid_date_unknown_count': sum(r['paid_date_unknown'] for r in checked),
+            # Owner decision (Nov 2, 2026): name these records, not just count them — the
+            # count alone can't confirm the review-period paid set is complete, since any one
+            # of these might actually belong to the period but can't be placed without a date.
+            'paid_date_unknown_records': [{'invnum': r['invnum'], 'client': r['client']} for r in checked if r['paid_date_unknown']],
             'paid_period_unverifiable_count': sum(r['has_unverifiable'] and r['paid_in_review_period'] for r in flagged),
             'results': flagged,
             'limitations': [
@@ -375,13 +422,16 @@ def csv_report(report, view='all'):
     output = io.StringIO(newline='')
     writer = csv.writer(output)
     writer.writerow(['Report fingerprint', 'Review period', 'Invoice', 'Client', 'Invoice date', 'Live paid',
-        'Receipt in review period', 'Paid date unknown', 'Recorded receipt dates', 'Mode', 'Override fields',
-        'Finding type', 'Rule', 'Scope', 'Existing/reconstructed value', 'Comparison value (not a correction)',
-        'Difference', 'Detail', 'Subtotal source', 'Tax source', 'Grand source', 'Taxable base source'])
+        'Stored paid amount', 'Receipt in review period', 'Paid date unknown', 'Recorded receipt dates', 'Mode',
+        'Override fields', 'Finding type', 'Rule', 'Scope', 'Existing/reconstructed value',
+        'Comparison value (not a correction)', 'Difference', 'Detail', 'Subtotal source', 'Tax source',
+        'Grand source', 'Taxable base source'])
     for row in filtered_rows(report, view):
         for f in row['issues']:
             writer.writerow([text(v) for v in [report.get('fingerprint'), report['review_period'], row['invnum'], row['client'],
-                row['invdate'], str(row['live_paid']), str(row['paid_in_review_period']), str(row['paid_date_unknown']),
+                row['invdate'], str(row['live_paid'])]]
+                + [row['stored_paid_amount']]
+                + [text(v) for v in [str(row['paid_in_review_period']), str(row['paid_date_unknown']),
                 ', '.join(row['receipt_dates']), row['pricing_mode'], ', '.join(row['override_fields']), f['kind'], f['rule'], f['scope']]]
                 + [f['actual'], f['comparison'], f['difference']]
                 + [text(v) for v in [f['detail'], row['values'].get('subtotal_source'), row['values'].get('tax_source'), row['values'].get('grand_source'), row['values'].get('taxable_base_source')]])

@@ -64,6 +64,31 @@ class CalculationTests(unittest.TestCase):
         self.assertIn('lines_subtotal',[f['rule']for f in result['issues']]);self.assertNotIn('tax_base',[f['rule']for f in result['issues']])
         self.assertNotEqual(result['values']['subtotal'],'4118.00')
 
+    def test_extension_rate_uses_visible_lines_not_legacy_subtotal(self):
+        # Owner decision (Nov 2, 2026): the extension-rate basis is the true visible-lines
+        # total, not the legacy price-led reconstruction of "subtotal" — those two values can
+        # differ for a legacy invoice (that gap is exactly what lines_subtotal exists to
+        # catch); using the reconstruction here would silently inherit its own drift instead.
+        d={'base_price':3933,'taxrate':10.55,'addons':[{'price':185,'type':'rental'}],'price_led_tax':True,'rental_share_base':.5,'extrate':1517.48}
+        r=audit.check_invoice(invoice(d),'2026-10')
+        ext=[f for f in r['issues'] if f['rule']=='extension_rate'][0]
+        self.assertEqual(ext['comparison'],'1372.67');self.assertEqual(ext['difference'],'144.81')
+
+    def test_tax_full_lines_only_fires_for_legacy_mode(self):
+        # A per-line-split or rate-card invoice's taxable base is an explicit stored value,
+        # not a reconstruction — comparing it to full-lines tax would misfire on every
+        # correctly split invoice (a real split is expected to differ from full-lines tax by
+        # design). Scoped to legacy price-led invoices, where the claimed base can itself be
+        # the product of the same backward formula that produced the printed tax.
+        self.assertNotIn('tax_full_lines',self.codes(CLEAN))
+        rate_card={'base_price':0,'taxrate':10,'addons':[{'price':1200,'type':'rental'},{'price':300,'type':'service'}],
+                   'pricing_mode':'rate_card','subtotal_override':1500,'tax_override':120,'total_override':1620,'extrate':500}
+        self.assertNotIn('tax_full_lines',self.codes(rate_card))
+        legacy={'base_price':3933,'taxrate':10.55,'addons':[{'price':185,'type':'rental'}],'price_led_tax':True,'rental_share_base':.5,'extrate':1517.48}
+        r=audit.check_invoice(invoice(legacy),'2026-10')
+        full=[f for f in r['issues'] if f['rule']=='tax_full_lines'][0]
+        self.assertEqual(full['comparison'],'434.45')
+
     def test_rate_card_zero_base_and_context(self):
         d={'base_price':0,'taxrate':10,'addons':[{'price':1200,'type':'rental'},{'price':300,'type':'service'}],
            'pricing_mode':'rate_card','subtotal_override':1500,'tax_override':120,'total_override':1620,'extrate':800}
@@ -106,6 +131,32 @@ class CalculationTests(unittest.TestCase):
         r=audit.build_report([invoice({**CLEAN,'paid':True})],'2026-10')
         self.assertEqual(r['paid_date_unknown_count'],1);self.assertEqual(r['unverifiable_count'],1)
         self.assertEqual(r['paid_period_discrepancy_count'],0)
+        # Owner decision (Nov 2, 2026): name these records, not just count them — the count
+        # alone can't confirm the review-period paid set is complete.
+        self.assertEqual(r['paid_date_unknown_records'],[{'invnum':'2020131','client':'Synthetic Test Only'}])
+
+    def test_stored_paid_amount_follows_app_convention(self):
+        # Mirrors payroll.html's finPaymentEvents() amount resolution exactly: payments[]
+        # entries sum their own amount; a legacy flat paid flag falls back through
+        # amount_paid, then stripe_amount, then this invoice's own reconstructed grand total.
+        # Test payments never contribute, matching their exclusion everywhere else here.
+        multi={**CLEAN,'total_override':10,'payments':[
+            {'status':'paid','paid_date':'2026-10-01','amount':150},
+            {'status':'paid','paid_date':'2026-10-15','amount':50},
+            {'status':'paid','paid_date':'2026-10-20','amount':25,'is_test':True}]}
+        self.assertEqual(audit.check_invoice(invoice(multi),'2026-10')['stored_paid_amount'],'200.00')
+
+        legacy_amount_paid={**CLEAN,'paid':True,'paid_date':'2026-10-05','amount_paid':333.33}
+        self.assertEqual(audit.check_invoice(invoice(legacy_amount_paid),'2026-10')['stored_paid_amount'],'333.33')
+
+        legacy_stripe={**CLEAN,'paid':True,'paid_date':'2026-10-05','stripe_amount':444.44}
+        self.assertEqual(audit.check_invoice(invoice(legacy_stripe),'2026-10')['stored_paid_amount'],'444.44')
+
+        legacy_grand_fallback={**CLEAN,'paid':True,'paid_date':'2026-10-05'}
+        result=audit.check_invoice(invoice(legacy_grand_fallback),'2026-10')
+        self.assertEqual(result['stored_paid_amount'],result['values']['grand'])
+
+        self.assertIsNone(audit.check_invoice(invoice(CLEAN),'2026-10')['stored_paid_amount'])
 
     def test_hidden_split_totals_are_flagged(self):
         r=self.codes({**CLEAN,'rental_service_split':False,'tax_override':434.45,'total_override':4552.45})

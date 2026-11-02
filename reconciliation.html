@@ -32,6 +32,7 @@
 <div class="card metric focus"><span id="period-label">Paid in review period</span><strong id="period-discrepancies">—</strong><small>Recorded paid invoices with discrepancies</small></div>
 </div>
 <div id="review-note" class="notice"></div>
+<div id="missing-dates" class="notice" hidden><p class="muted">Paid records with no usable receipt date — the period-matched paid count above cannot confirm these belong to, or are excluded from, the review period:</p><ul id="missing-dates-list"></ul></div>
 <div class="card toolbar"><label for="view">Show</label><select id="view"><option value="all">All flagged invoices</option><option value="paid_period">Receipts in review period</option><option value="paid">All recorded paid invoices</option><option value="unverifiable">Needs more information</option></select><span id="visible-count" class="muted"></span><button id="export" type="button">Download this list · CSV</button></div>
 <div id="results" aria-live="polite"></div>
 <details class="card method"><summary>Coverage, calculation basis &amp; limitations</summary><p id="coverage"></p><p id="basis"></p><p id="fingerprint" class="fingerprint"></p><ul id="limitations"></ul><p class="muted">Discrepancy and missing-information counts can overlap. A comparison figure is a diagnostic, not an authorized correction.</p></details>

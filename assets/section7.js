@@ -4,10 +4,10 @@
   const $=id=>document.getElementById(id);
   const endpoint='/api/webhook?section7=';
   let current=null,busy=false;
-  const names={lines_subtotal:'Visible lines versus subtotal',tax_base:'Tax versus claimed taxable base',subtotal_tax_total:'Subtotal + tax versus grand total',extension_rate:'Extension rate versus pretax subtotal / 3',missing_input:'More information needed',split_totals:'Rental + service totals versus lines',line_split:'Per-line split versus price',split_lines_vs_totals:'Per-line detail versus split totals',split_presentation:'Split presentation differs',extension_tax:'Extension tax versus fee',extension_total:'Extension fee + tax versus amount',extension_breakdown:'Extension breakdown unavailable',payment_context:'Payment context needs review',payment_timing:'Receipt date unavailable',document_type:'Separate document needs parent context'};
+  const names={lines_subtotal:'Visible lines versus subtotal',tax_base:'Tax versus claimed taxable base',tax_full_lines:'Tax versus full visible lines (comparison only)',subtotal_tax_total:'Subtotal + tax versus grand total',extension_rate:'Extension rate versus pretax subtotal / 3',missing_input:'More information needed',split_totals:'Rental + service totals versus lines',line_split:'Per-line split versus price',split_lines_vs_totals:'Per-line detail versus split totals',split_presentation:'Split presentation differs',extension_tax:'Extension tax versus fee',extension_total:'Extension fee + tax versus amount',extension_breakdown:'Extension breakdown unavailable',payment_context:'Payment context needs review',payment_timing:'Receipt date unavailable',document_type:'Separate document needs parent context'};
   function node(tag,text,className){const n=document.createElement(tag);if(text!=null)n.textContent=String(text);if(className)n.className=className;return n;}
   function setMessage(text,error=false){$('message').textContent=text;$('message').className='message'+(error?' error':'');}
-  function clearReport(){current=null;$('report').hidden=true;$('results').replaceChildren();$('export').disabled=true;['checked','discrepancies','unverifiable','period-discrepancies'].forEach(id=>$(id).textContent='—');['scanned-at','review-note','coverage','basis','fingerprint'].forEach(id=>$(id).textContent='');$('limitations').replaceChildren();}
+  function clearReport(){current=null;$('report').hidden=true;$('results').replaceChildren();$('export').disabled=true;['checked','discrepancies','unverifiable','period-discrepancies'].forEach(id=>$(id).textContent='—');['scanned-at','review-note','coverage','basis','fingerprint'].forEach(id=>$(id).textContent='');$('limitations').replaceChildren();$('missing-dates').hidden=true;$('missing-dates-list').replaceChildren();}
   async function request(action,options={}){
     const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),65000);
     try{
@@ -52,7 +52,10 @@
       if(f.kind==='unverifiable')item.append(node('p','Not enough recorded information to verify this check.'));
       if(f.detail)item.append(node('p',f.detail));body.append(item);
     });
-    if(row.live_paid)body.append(node('p','Paid record: review with the owner/CPA. Do not restate or regenerate from this finding.','muted'));
+    if(row.live_paid){
+      body.append(node('p','Stored paid amount: '+currency(row.stored_paid_amount)+' (separate from the printed grand total above — recorded receipts, not what the invoice prints).','muted'));
+      body.append(node('p','Paid record: review with the owner/CPA. Do not restate or regenerate from this finding.','muted'));
+    }
     detail.append(body);return detail;
   }
   function renderList(){
@@ -69,6 +72,9 @@
     $('review-note').textContent=(report.paid_period_discrepancy_count?report.paid_period_discrepancy_count+' recorded-paid invoice(s) with receipts in '+period+' have discrepancies for owner/CPA review.':'No arithmetic discrepancies were found on invoices with recorded receipts in '+period+'.')
       +(report.paid_period_unverifiable_count?' '+report.paid_period_unverifiable_count+' period-matched paid record(s) still need information to verify their figures.':'')
       +(report.paid_date_unknown_count?' '+report.paid_date_unknown_count+' paid record(s) have missing dates; period matching is incomplete.':'')+' Findings never authorize changing a paid invoice.';
+    const missing=report.paid_date_unknown_records||[];
+    $('missing-dates').hidden=!missing.length;
+    $('missing-dates-list').replaceChildren(...missing.map(r=>node('li','#'+r.invnum+' — '+(r.client||'Client name unavailable'))));
     $('coverage').textContent=report.records_read+' database rows read; '+report.invoices_checked+' SWJ invoices checked; '+report.excluded_records+' known non-invoice/draft/GS rows excluded. '+report.coverage.verification+'. '+report.coverage.snapshot_note;
     $('basis').textContent=report.comparison_basis;$('fingerprint').textContent='Read fingerprint: '+report.fingerprint;
     $('limitations').replaceChildren(...report.limitations.map(t=>node('li',t)));renderList();
