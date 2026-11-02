@@ -1209,7 +1209,10 @@ function initFinancePeriodPickers(){
 // numbers won't agree with the tax report's.
 function finCategorize(desc){
   const s=(desc||'').toLowerCase();
-  return (s.includes('photo')||s.includes('consult')||s.includes('design fee')) ? 'service' : 'retailing';
+  // Fix spec (Nov 2, 2026): transport (delivery/pickup) is explicitly rental/taxable even
+  // though it's already the default; design/arranging/placement is explicitly service.
+  if(s.includes('delivery')||s.includes('pickup')||s.includes('pick up')||s.includes('transport')) return 'retailing';
+  return (s.includes('photo')||s.includes('consult')||s.includes('design')||s.includes('arrang')||s.includes('placement')) ? 'service' : 'retailing';
 }
 function finInvoiceSplit(d){
   const _ov=v=>(v!=null&&v!=='')?parseFloat(v):null;
@@ -1241,13 +1244,15 @@ function finPaymentEvents(d){
   const events = [];
   const splits = d.payments || [];
   if(splits.length){
-    splits.filter(p=>p.status==='paid' && p.paid_date).forEach(p=>{
+    // Fix spec Batch A #6 (Nov 2, 2026): exclude Stripe test-mode charges, tagged is_test
+    // at the source (the webhook's own livemode flag) — never a real receipt.
+    splits.filter(p=>p.status==='paid' && p.paid_date && !p.is_test).forEach(p=>{
       // manual_method:'stripe' is a confirmed-after-the-fact correction (no real Stripe
       // payment_id captured, e.g. a Stripe Payment Link paid before this field existed) — see
       // archive.html's Cleanup Review "Other/Manual" section. Never fabricate a payment_id.
       events.push({ date:p.paid_date, amount:parseFloat(p.amount)||0, method:(p.payment_id||p.manual_method==='stripe')?'Stripe (Card)':'Other/Manual' });
     });
-  } else if(d.paid && d.paid_date){
+  } else if(d.paid && d.paid_date && !d.is_test){
     // Falls back to the invoice's own total when neither amount_paid nor stripe_amount is
     // recorded (the common case for a manually-marked-paid invoice, e.g. cash/check/Venmo) —
     // this app's $0 revenue bug (audit finding) was exactly this falling back to 0 instead,
@@ -1391,7 +1396,7 @@ async function runFinanceView(){
       received.push({ invnum:inv.invnum, client:inv.client||'Client', amount:amt, method:e.method, date:e.date });
     });
     (d.extensions||[]).forEach(ext=>{
-      if(!ext.paid || !ext.paid_date) return;
+      if(!ext.paid || !ext.paid_date || ext.is_test) return;
       if(ext.paid_date<periodStart || ext.paid_date>periodEnd) return;
       const amt = Math.round((parseFloat(ext.amount)||0)*100)/100; if(amt<=0.009) return;
       const r=(parseFloat(d.taxrate)||0)/100;
@@ -2065,7 +2070,7 @@ async function loadMonthlyPerformance(){
       const d = inv.data||{};
       finPaymentEvents(d).filter(e=>e.date>=periodStart && e.date<=periodEnd).forEach(e=>{ revenue += e.amount; });
       (d.extensions||[]).forEach(ext=>{
-        if(ext.paid && ext.paid_date>=periodStart && ext.paid_date<=periodEnd) revenue += parseFloat(ext.amount)||0;
+        if(ext.paid && !ext.is_test && ext.paid_date>=periodStart && ext.paid_date<=periodEnd) revenue += parseFloat(ext.amount)||0;
       });
     });
     const moverCost = entries.filter(e=>e.clock_in>=periodStart+'T00:00:00' && e.clock_in<=periodEnd+'T23:59:59').reduce((t,e)=>t+(parseFloat(e.amount)||0),0);
