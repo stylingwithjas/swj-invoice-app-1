@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <script src="/auth.js"></script>
+<script src="/assets/invoice-safety.js"></script>
 <meta charset="UTF-8">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -1612,7 +1613,7 @@ async function emailClientDestageReminder(kind){
     message = 'Hi '+firstName+',\n\nJust a friendly reminder that your staging rental period at '+address+' wraps up on '+destageFmt+'.\n\nIf you\'d like to extend, just let us know — otherwise we\'ll proceed with destage as scheduled.\n\nThank you!\nJasmine Santana\nStyling With Jas\n206-422-5618';
   } else {
     const grand = computeGrand(d);
-    const extrate = parseFloat(d.extrate) || Math.round(grand/3*100)/100;
+    const extrate = (d.extrate!=null && d.extrate!=='' && Number.isFinite(Number(d.extrate))) ? Number(d.extrate) : Math.round(boardInvoiceSplit(d).subtotal/3*100)/100;
     subject = 'Extend Your Styling With Jas Rental?';
     message = 'Hi '+firstName+',\n\nYour staging rental at '+address+' is scheduled to wrap up on '+destageFmt+'.\n\nIf you\'d like more time, we\'re happy to extend — additional 30-day periods are $'+extrate.toLocaleString(undefined,{minimumFractionDigits:2})+' (prorated by day if needed).\n\nJust reply and let us know, or give us a call!\n\nThank you!\nJasmine Santana\nStyling With Jas\n206-422-5618';
   }
@@ -3403,8 +3404,8 @@ async function extendRental(invnum){
   const _ldd = document.getElementById('m-ddate'); if(_ldd && _ldd.value) d.destage_date = _ldd.value;
   const _lsd = document.getElementById('m-sdate'); if(_lsd && _lsd.value) d.startdate = _lsd.value;
   const grand = computeGrand(d);
-  // Extension rate = the contract's stated rate (~1/3 of the total per 30-day period).
-  const extrate = parseFloat(d.extrate) || Math.round(grand/3*100)/100;
+  // Keep the stored contract rate; only a missing rate falls back to pretax subtotal / 3.
+  const extrate = (d.extrate!=null && d.extrate!=='' && Number.isFinite(Number(d.extrate))) ? Number(d.extrate) : Math.round(boardInvoiceSplit(d).subtotal/3*100)/100;
 
   // Current rental end date BEFORE this new extension. The "Destage date" field is directly
   // editable by Jasmine elsewhere on this same card, so it's treated as authoritative when
@@ -3443,6 +3444,16 @@ async function extendRental(invnum){
   // that total, matching how every other part of this app (Tax Report, Finance) already
   // reads an extension's `amount` as what was actually received.
   const { days, fee, tax: extTax, chargeAmount: amount, taxInclusive } = picked;
+  const pretaxFee=taxInclusive?SWJInvoiceSafety.round(amount-extTax):fee;
+  const extIssues=SWJInvoiceSafety.extension({fee:pretaxFee,tax:extTax,total:amount,rate:extTaxRate});
+  if(extIssues.length){alert('Extension reconciliation warning — nothing charged:\n'+extIssues.join('\n'));return;}
+  const priorSplit=boardInvoiceSplit(d);
+  const lineSum=(d.pricing_mode==='rate_card'?0:(Number(d.base_price)||2500))+(d.addons||[]).reduce((s,a)=>s+(Number(a.price)||0),0);
+  const taxableBase=d.rental_service_split?Number(d.rental_total):priorSplit.subtotal;
+  const priorIssues=SWJInvoiceSafety.reconcile({linesSum:lineSum,sub:priorSplit.subtotal,tax:priorSplit.tax,grand:priorSplit.grand,
+    extrate:d.pricing_mode==='rate_card'?null:extrate,taxableBase,rate:extTaxRate,rawOvTax:(d.manual_totals_fields||[]).includes('tax')&&!(d.manual_totals_unverified_fields||[]).includes('tax')?d.tax_override:null});
+  if(priorIssues.length && !confirm('Existing invoice reconciliation warning:\n'+priorIssues.join('\n')+'\n\nNo original figures will change. Continue with this separately reconciled extension?')) return;
+
   const extNum = invnum + '-EXT' + (((d.extensions||[]).length) + 1);
   const addDays = days;
   // Keep Destage date in sync with reality so next time this dialog opens, curEndStr above
@@ -3467,7 +3478,7 @@ async function extendRental(invnum){
   d.rental_days = (parseInt(d.rental_days, 10) || 45) + addDays;
   d.extensions = d.extensions || [];
   d.extensions.push({
-    invnum: extNum, days: days, amount: amount, fee: fee, tax: extTax, tax_inclusive: taxInclusive,
+    invnum: extNum, days: days, amount: amount, fee: pretaxFee, tax: extTax, tax_inclusive: taxInclusive,
     type: 'extension', payment_url: url, created: new Date().toISOString().split('T')[0],
   });
   try {
@@ -3483,7 +3494,7 @@ async function extendRental(invnum){
   let pdfUrl = null, pdfErr = '';
   try {
     const pdfData = { extension:true, extension_days:days, extension_of:invnum, client:inv.client, address:inv.address,
-      invnum:extNum, invdate:new Date().toISOString().split('T')[0], base_price:amount, extrate:extrate, taxrate:extTaxRate, payment_url:url, rented_through:rentedThrough };
+      invnum:extNum, invdate:new Date().toISOString().split('T')[0], base_price:amount, extension_fee:pretaxFee, extension_tax:extTax, extension_total:amount, extrate:extrate, taxrate:extTaxRate, payment_url:url, rented_through:rentedThrough };
     const pr = await fetch('/api/generate', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(pdfData) });
     if(!pr.ok){ const t = await pr.text(); throw new Error('Server ' + pr.status + ' — ' + t.substring(0,120)); }
     const b = await pr.blob();

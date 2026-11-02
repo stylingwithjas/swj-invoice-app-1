@@ -400,6 +400,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
 
   <div class="pr-panel on" id="pr-panel-finance">
 
+  <div id="finance-data-status" role="status" style="font-size:13px;line-height:1.6;margin-bottom:12px"></div>
   <div id="pr-overdue-alert-wrap"></div>
 
   <div class="card" id="finance-card">
@@ -490,7 +491,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
       <div id="fin-reconcile-result" style="font-size:13px"></div>
     </div>
 
-    <div class="disclaimer">Revenue is cash-basis (signed invoices, payment-received month — same basis as the Tax Report). Mover pay is actual, from logged hours this month. Truck and warehouse costs use the editable assumptions above, since this app doesn't track per-job truck receipts yet — correct the defaults above if your actual costs differ. Tax set-aside reuses the Tax Report's B&amp;O + sales-tax method (not CPA-certified — see TAX_METHODOLOGY.md). "Jasmine keep (actual net)" is real profit; "Jasmine keep (target)" is a benchmark line only — the two are never blended, and the target is capped at actual profit so it can never exceed what the month really made. Inventory (shopping budget) is derived, never entered: whatever is left after costs and the keep target. A month with unreconciled revenue is flagged, not presented as final. Viewing this page never changes a stored record — only the Manual Override controls write anything.</div>
+    <div class="disclaimer">Collected receipts use payment-received dates, including unsigned paid invoices and paid extensions, excluding test charges. They include collected sales tax. Budget exclusions can differ from the Tax Report; any difference is shown above. Mover pay is actual, from logged hours this month. Truck and warehouse costs use the editable assumptions above, since this app doesn't track per-job truck receipts yet — correct the defaults above if your actual costs differ. Tax set-aside reuses the Tax Report's B&amp;O + sales-tax method (not CPA-certified — see TAX_METHODOLOGY.md). "Jasmine keep (actual net)" is the existing allocation result, including estimated costs, not accounting profit; "Jasmine keep (target)" is a benchmark line only — the two are never blended, and the target is capped at actual profit so it can never exceed what the month really made. Inventory (shopping budget) is derived, never entered: whatever is left after costs and the keep target. A month with unreconciled revenue is flagged, not presented as final. Viewing this page never changes a stored record — only the Manual Override controls write anything.</div>
   </div>
 
   </div><!-- /pr-panel-finance -->
@@ -1267,14 +1268,21 @@ function finPaymentEvents(d){
 // finPaymentEvents is called with the right `d` — just needs the grand total here.
 function finComputeGrandForEvents(d){ return finInvoiceSplit(d).grand; }
 
+let _financeLoadError=false;
 async function loadFinanceInvoices(){
+  _financeLoadError=false;
   try{
-    const {data,error} = await _sb.from('invoices').select('invnum,client,address,invdate,data')
-      .not('invnum','like','DRAFT-%').not('invnum','like','GS%').neq('invnum','PRICING_DEFAULTS').neq('invnum','TIER_PRICING').not('invnum','like','TAX_REVIEW_%').neq('invnum','FINANCE_CONFIG').neq('invnum','FINANCE_OVERRIDES')
-      .order('created_at',{ascending:false}).limit(2000);
-    if(error) throw error;
-    _financeInvoices = data||[];
-  }catch(e){ _financeInvoices = []; }
+    const rows=[];
+    for(let offset=0;;offset+=500){
+      const {data,error}=await _sb.from('invoices').select('invnum,client,address,invdate,data')
+        .not('invnum','like','DRAFT-%').not('invnum','like','GS%').neq('invnum','PRICING_DEFAULTS').neq('invnum','TIER_PRICING').not('invnum','like','TAX_REVIEW_%').neq('invnum','FINANCE_CONFIG').neq('invnum','FINANCE_OVERRIDES')
+        .order('created_at',{ascending:false}).order('invnum',{ascending:true}).range(offset,offset+499);
+      if(error || !Array.isArray(data)) throw error || new Error('Invalid invoice response');
+      rows.push(...data);
+      if(data.length<500) break;
+    }
+    _financeInvoices=rows;
+  }catch(e){ _financeInvoices = []; _financeLoadError=true; }
 }
 
 // Truck cost for ONE rental (half a job — staging delivery OR destage pickup), from the
@@ -1353,6 +1361,12 @@ async function runFinanceView(){
   // Always refetch on Run — a lazy "only if empty" cache here meant the view never reacted to
   // a new or just-changed job within the same page session.
   await loadFinanceInvoices();
+  if(_financeLoadError){
+    _lastFinanceSummary=null;
+    document.getElementById('finance-data-status').textContent='Invoice data unavailable — collected receipts and allocations could not be verified. Retry Run. No zero-revenue conclusion has been made.';
+    ['pr-kpi-row','fin-headline','fin-waterfall','fin-details-body','fin-budget','fin-overdue','fin-committed','pr-overdue-alert-wrap','pr-legend','pr-donut-center','pr-notes-body','fin-oneoff-banner','fin-reconcile-result'].forEach(id=>{const el=document.getElementById(id);if(el)el.replaceChildren();});
+    return;
+  }
   await loadFinanceOverrides();
   const overrides = getOverridesFor(periodStart);
   const excludeSet = new Set(overrides.excludeInvnums||[]);
@@ -1406,6 +1420,16 @@ async function runFinanceView(){
       received.push({ invnum:inv.invnum, client:inv.client||'Client', amount:amt, method:(ext.payment_id||ext.manual_method==='stripe')?'Stripe (Card)':'Other/Manual', date:ext.paid_date, note:'extension' });
     });
   });
+
+  const allReceipts=_financeInvoices.reduce((sum,inv)=>{
+    const d=inv.data||{};
+    return sum+finPaymentEvents(d).filter(e=>e.date>=periodStart&&e.date<=periodEnd).reduce((n,e)=>n+Math.round(e.amount*100)/100,0)
+      +(d.extensions||[]).filter(e=>e.paid&&!e.is_test&&e.paid_date>=periodStart&&e.paid_date<=periodEnd&&Math.round((parseFloat(e.amount)||0)*100)/100>0.009).reduce((n,e)=>n+Math.round((parseFloat(e.amount)||0)*100)/100,0);
+  },0);
+  const receiptDifference=Math.round((allReceipts-revenue)*100)/100;
+  const status=document.getElementById('finance-data-status');
+  status.textContent=`Cash receipts (${periodStart} through ${periodEnd}), including sales tax: ${finMoney(allReceipts)} across all SWJ source records. Signature status is not a revenue filter.`
+    +(Math.abs(receiptDifference)>0.009?` Reconciliation warning: this budget view excludes ${finMoney(receiptDifference)} through its month overrides. Budget-view receipts ${finMoney(revenue)} differ from the unfiltered Tax Report basis. Review exclusions; no records were changed.`:' No receipt difference from budget exclusions.');
 
   // ---- Expected (unpaid balance, staged by this period's end, overdue if staged earlier) and
   // Committed (unpaid balance, staged more than 60 days out from TODAY — a forward strip that
@@ -1576,7 +1600,7 @@ function renderFinanceSummary(){
     <div>${idealLine}</div>
     ${s.oneOff.flagged?`<div>Special month baseline: normal shared labor for ${s.jobsThisMonth} job(s) is ${finMoney(s.oneOff.baseline)}; this month's shared/warehouse-organizing labor was ${finMoney(s.oneOff.raw)}${s.overrides.oneOff.force===true?' (manually forced)':s.overrides.oneOff.force===false?' (auto-flag manually cleared — not shown as special)':' (auto-flagged)'}. This does not change what's actually owed above — it only changes what's excluded from the ideal check and project splits.</div>`:''}
     ${s.paidButUnsigned.length?`<div>⚠ Paid, counted in Revenue, but no signed contract on file yet — follow up for paperwork: ${esc(s.paidButUnsigned.join(', '))}</div>`:''}
-    ${s.noStagingDate.length?`<div>⚠ Signed, unpaid, no staging date — not in Expected, Overdue, or Committed: ${esc(s.noStagingDate.join(', '))}</div>`:''}
+    ${s.noStagingDate.length?`<div>⚠ Unpaid, no staging date — not in Expected, Overdue, or Committed: ${esc(s.noStagingDate.join(', '))}</div>`:''}
     <div>Inventory is whatever is left after costs and the keep target — not a tracked balance, not entered by hand. If costs rise and keep stays at target, inventory shrinks dollar-for-dollar. Keep target is capped at actual profit, so it can never exceed what the month really made.</div>
   `;
 }
@@ -1941,7 +1965,7 @@ function renderPrNotes(){
   } else {
     badge.style.display = 'none';
   }
-  if(s.noStagingDate.length) parts.push(`⚠ Signed, unpaid, no staging date: ${esc(s.noStagingDate.join(', '))}.`);
+  if(s.noStagingDate.length) parts.push(`⚠ Unpaid, no staging date: ${esc(s.noStagingDate.join(', '))}.`);
   if(s.paidButUnsigned.length) parts.push(`⚠ Paid, counted, but unsigned — needs paperwork follow-up: ${esc(s.paidButUnsigned.join(', '))}.`);
   const ov = getOverridesFor(_lastFinancePeriod.start);
   if(ov.note) parts.push(`<em>"${esc(ov.note)}"</em>`);
