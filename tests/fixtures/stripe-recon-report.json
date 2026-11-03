@@ -1,0 +1,196 @@
+{
+  "schema_version": 1,
+  "review_period": "2026-10",
+  "data_source": "synthetic_test",
+  "comparison_basis": "Gross amounts compared to the cent; Stripe fees are a separate cost, never netted into the match.",
+  "invoices_considered": 7,
+  "live_charges_considered": 7,
+  "matched_count": 4,
+  "unmatched_charge_count": 2,
+  "unmatched_item_count": 2,
+  "mismatch_count": 1,
+  "test_charge_count": 0,
+  "test_item_count": 0,
+  "gs_charge_count": 0,
+  "unconfirmed_livemode_count": 0,
+  "matched_period_count": 3,
+  "unmatched_charge_period_count": 2,
+  "unmatched_item_period_count": 1,
+  "mismatch_period_count": 1,
+  "matched": [
+    {
+      "kind": "invoice",
+      "invnum": "TEST-MULLENIX",
+      "client": "Synthetic Mullenix Example",
+      "display_label": "TEST-MULLENIX",
+      "stored_amount": "3527.28",
+      "paid_date": "2026-10-01",
+      "amount_is_grand_fallback": false,
+      "charge_id": "ch_mullenix",
+      "date": "2026-10-01",
+      "charge_amount": "3527.28",
+      "refunded_amount": null,
+      "net_amount": null,
+      "client_name": "Synthetic Mullenix Example",
+      "metadata": {
+        "invoice": "TEST-MULLENIX"
+      },
+      "metadata_invoice": "TEST-MULLENIX",
+      "status": "paid_in_full",
+      "match_basis": "metadata"
+    },
+    {
+      "kind": "extension",
+      "invnum": "TEST-HILL",
+      "client": "Synthetic Hill Example",
+      "display_label": "TEST-HILL-EXT2",
+      "stored_amount": "1280.54",
+      "paid_date": "2026-07-21",
+      "amount_is_grand_fallback": false,
+      "charge_id": "ch_hill_ext2",
+      "date": "2026-07-21",
+      "charge_amount": "1280.54",
+      "refunded_amount": null,
+      "net_amount": null,
+      "client_name": "Synthetic Hill Example",
+      "metadata": {
+        "invoice": "TEST-HILL-EXT2"
+      },
+      "metadata_invoice": "TEST-HILL-EXT2",
+      "status": "paid_in_full",
+      "match_basis": "metadata"
+    },
+    {
+      "kind": "invoice",
+      "invnum": "TEST-REFUND",
+      "client": "Synthetic Refund Example",
+      "display_label": "TEST-REFUND",
+      "stored_amount": "500.00",
+      "paid_date": "2026-10-10",
+      "amount_is_grand_fallback": false,
+      "charge_id": "ch_refund",
+      "date": "2026-10-10",
+      "charge_amount": "500.00",
+      "refunded_amount": "500.00",
+      "net_amount": "0.00",
+      "client_name": "Synthetic Refund Example",
+      "metadata": {
+        "invoice": "TEST-REFUND"
+      },
+      "metadata_invoice": "TEST-REFUND",
+      "status": "paid_in_full",
+      "match_basis": "metadata"
+    },
+    {
+      "kind": "invoice",
+      "invnum": "TEST-BAKER",
+      "client": "Synthetic Baker Example",
+      "display_label": "TEST-BAKER",
+      "stored_amount": "3978.00",
+      "paid_date": "2026-10-15",
+      "amount_is_grand_fallback": false,
+      "charge_id": "ch_baker",
+      "date": "2026-10-15",
+      "charge_amount": "3978.00",
+      "refunded_amount": null,
+      "net_amount": null,
+      "client_name": "Synthetic Baker Example",
+      "metadata": {},
+      "metadata_invoice": "",
+      "status": "paid_in_full",
+      "match_basis": "amount_date_client"
+    }
+  ],
+  "unmatched_charges": [
+    {
+      "charge_id": "ch_hill_amb",
+      "date": "2026-10-01",
+      "charge_amount": "1280.54",
+      "refunded_amount": null,
+      "net_amount": null,
+      "client_name": "Synthetic Hill Example",
+      "metadata": {},
+      "metadata_invoice": "",
+      "status": "succeeded",
+      "ambiguous_candidates": null
+    },
+    {
+      "charge_id": "ch_deji",
+      "date": "2026-10-01",
+      "charge_amount": "1024.50",
+      "refunded_amount": null,
+      "net_amount": null,
+      "client_name": "Synthetic Deji Example",
+      "metadata": {},
+      "metadata_invoice": "",
+      "status": "succeeded",
+      "ambiguous_candidates": null
+    }
+  ],
+  "unmatched_items": [
+    {
+      "kind": "extension",
+      "invnum": "TEST-HILL",
+      "client": "Synthetic Hill Example",
+      "display_label": "TEST-HILL-EXT1",
+      "stored_amount": "1280.54",
+      "paid_date": null,
+      "amount_is_grand_fallback": false
+    },
+    {
+      "kind": "invoice",
+      "invnum": "TEST-NOAMOUNT",
+      "client": "Synthetic No-Amount Example",
+      "display_label": "TEST-NOAMOUNT",
+      "stored_amount": "4552.45",
+      "paid_date": "2026-10-20",
+      "amount_is_grand_fallback": true
+    }
+  ],
+  "mismatches": [
+    {
+      "kind": "invoice",
+      "invnum": "TEST-MISMATCH",
+      "client": "Synthetic Mismatch Example",
+      "display_label": "TEST-MISMATCH",
+      "stored_amount": "3500.00",
+      "paid_date": "2026-10-05",
+      "amount_is_grand_fallback": false,
+      "charge_id": "ch_mismatch",
+      "date": "2026-10-05",
+      "charge_amount": "3600.00",
+      "refunded_amount": null,
+      "net_amount": null,
+      "client_name": "Synthetic Mismatch Example",
+      "metadata": {
+        "invoice": "TEST-MISMATCH"
+      },
+      "metadata_invoice": "TEST-MISMATCH",
+      "status": "succeeded",
+      "match_basis": "metadata",
+      "difference": "100.00",
+      "detail": "Metadata identifies this pair; the amounts do not agree to the cent."
+    }
+  ],
+  "limitations": [
+    "Matches only the three tiers in order: metadata+amount, then amount+date (+-7 days)+client, then unmatched. Never auto-matches on one signal alone.",
+    "Gross amounts only; Stripe processing fees are not reconciled here and never explain away a mismatch.",
+    "A missing field (date, amount, metadata) is shown as missing, never defaulted to $0 or guessed.",
+    "Paid findings are owner/CPA review questions. No invoice, extension, charge, or refund is created, restated, or changed by this report.",
+    "GS Photography invoices and charges are excluded from every list above.",
+    "Test-mode (non-livemode) charges are excluded; a charge whose livemode flag could not be confirmed is counted separately, never silently included or excluded."
+  ],
+  "coverage": {
+    "complete": true,
+    "verification": "synthetic fixture \u2014 no Stripe or database access",
+    "completed_at": "2026-11-02T17:00:01Z",
+    "snapshot_note": "Test fixture only. These are not live business records."
+  },
+  "exports": {
+    "all": "List,Kind,Invoice,Client (stored),Display label,Paid date (stored),Stored amount,Amount is grand-total fallback,Stripe charge ID,Charge date,Charge amount,Refunded amount,Net amount,Client name (Stripe),Metadata (invoice field),Match basis,Difference,Detail\r\nMatched,invoice,TEST-MULLENIX,Synthetic Mullenix Example,TEST-MULLENIX,2026-10-01,3527.28,False,ch_mullenix,2026-10-01,3527.28,,,Synthetic Mullenix Example,TEST-MULLENIX,metadata,,\r\nMatched,extension,TEST-HILL,Synthetic Hill Example,TEST-HILL-EXT2,2026-07-21,1280.54,False,ch_hill_ext2,2026-07-21,1280.54,,,Synthetic Hill Example,TEST-HILL-EXT2,metadata,,\r\nMatched,invoice,TEST-REFUND,Synthetic Refund Example,TEST-REFUND,2026-10-10,500.00,False,ch_refund,2026-10-10,500.00,500.00,0.00,Synthetic Refund Example,TEST-REFUND,metadata,,\r\nMatched,invoice,TEST-BAKER,Synthetic Baker Example,TEST-BAKER,2026-10-15,3978.00,False,ch_baker,2026-10-15,3978.00,,,Synthetic Baker Example,,amount_date_client,,\r\n\"Stripe charge, no invoice\",,,,,,,,ch_hill_amb,2026-10-01,1280.54,,,Synthetic Hill Example,,,,\r\n\"Stripe charge, no invoice\",,,,,,,,ch_deji,2026-10-01,1024.50,,,Synthetic Deji Example,,,,\r\n\"Paid invoice, no Stripe charge\",extension,TEST-HILL,Synthetic Hill Example,TEST-HILL-EXT1,,1280.54,False,,,,,,,,,,\r\n\"Paid invoice, no Stripe charge\",invoice,TEST-NOAMOUNT,Synthetic No-Amount Example,TEST-NOAMOUNT,2026-10-20,4552.45,True,,,,,,,,,,\r\nAmount/status mismatch,invoice,TEST-MISMATCH,Synthetic Mismatch Example,TEST-MISMATCH,2026-10-05,3500.00,False,ch_mismatch,2026-10-05,3600.00,,,Synthetic Mismatch Example,TEST-MISMATCH,metadata,100.00,Metadata identifies this pair; the amounts do not agree to the cent.\r\n",
+    "matched": "List,Kind,Invoice,Client (stored),Display label,Paid date (stored),Stored amount,Amount is grand-total fallback,Stripe charge ID,Charge date,Charge amount,Refunded amount,Net amount,Client name (Stripe),Metadata (invoice field),Match basis,Difference,Detail\r\nMatched,invoice,TEST-MULLENIX,Synthetic Mullenix Example,TEST-MULLENIX,2026-10-01,3527.28,False,ch_mullenix,2026-10-01,3527.28,,,Synthetic Mullenix Example,TEST-MULLENIX,metadata,,\r\nMatched,extension,TEST-HILL,Synthetic Hill Example,TEST-HILL-EXT2,2026-07-21,1280.54,False,ch_hill_ext2,2026-07-21,1280.54,,,Synthetic Hill Example,TEST-HILL-EXT2,metadata,,\r\nMatched,invoice,TEST-REFUND,Synthetic Refund Example,TEST-REFUND,2026-10-10,500.00,False,ch_refund,2026-10-10,500.00,500.00,0.00,Synthetic Refund Example,TEST-REFUND,metadata,,\r\nMatched,invoice,TEST-BAKER,Synthetic Baker Example,TEST-BAKER,2026-10-15,3978.00,False,ch_baker,2026-10-15,3978.00,,,Synthetic Baker Example,,amount_date_client,,\r\n",
+    "unmatched_charges": "List,Kind,Invoice,Client (stored),Display label,Paid date (stored),Stored amount,Amount is grand-total fallback,Stripe charge ID,Charge date,Charge amount,Refunded amount,Net amount,Client name (Stripe),Metadata (invoice field),Match basis,Difference,Detail\r\n\"Stripe charge, no invoice\",,,,,,,,ch_hill_amb,2026-10-01,1280.54,,,Synthetic Hill Example,,,,\r\n\"Stripe charge, no invoice\",,,,,,,,ch_deji,2026-10-01,1024.50,,,Synthetic Deji Example,,,,\r\n",
+    "unmatched_items": "List,Kind,Invoice,Client (stored),Display label,Paid date (stored),Stored amount,Amount is grand-total fallback,Stripe charge ID,Charge date,Charge amount,Refunded amount,Net amount,Client name (Stripe),Metadata (invoice field),Match basis,Difference,Detail\r\n\"Paid invoice, no Stripe charge\",extension,TEST-HILL,Synthetic Hill Example,TEST-HILL-EXT1,,1280.54,False,,,,,,,,,,\r\n\"Paid invoice, no Stripe charge\",invoice,TEST-NOAMOUNT,Synthetic No-Amount Example,TEST-NOAMOUNT,2026-10-20,4552.45,True,,,,,,,,,,\r\n",
+    "mismatches": "List,Kind,Invoice,Client (stored),Display label,Paid date (stored),Stored amount,Amount is grand-total fallback,Stripe charge ID,Charge date,Charge amount,Refunded amount,Net amount,Client name (Stripe),Metadata (invoice field),Match basis,Difference,Detail\r\nAmount/status mismatch,invoice,TEST-MISMATCH,Synthetic Mismatch Example,TEST-MISMATCH,2026-10-05,3500.00,False,ch_mismatch,2026-10-05,3600.00,,,Synthetic Mismatch Example,TEST-MISMATCH,metadata,100.00,Metadata identifies this pair; the amounts do not agree to the cent.\r\n"
+  }
+}

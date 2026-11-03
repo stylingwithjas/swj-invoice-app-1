@@ -1981,8 +1981,13 @@ def run_monthly_close():
 
 class handler(BaseHTTPRequestHandler):
     def do_OPTIONS(self):
-        if 'section7' in urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query, keep_blank_values=True):
+        query_params = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query, keep_blank_values=True)
+        if 'section7' in query_params:
             from lib.section7_http import response
+            response(self, 405, {'error': 'Use same-origin GET or POST for this report.'}, [('Allow', 'GET, POST')])
+            return
+        if 'stripe_recon' in query_params:
+            from lib.stripe_recon_http import response
             response(self, 405, {'error': 'Use same-origin GET or POST for this report.'}, [('Allow', 'GET, POST')])
             return
         self.send_response(200)
@@ -1990,10 +1995,16 @@ class handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
-        # Section 7 is an isolated, authenticated read-only report. Dispatch it
-        # before cron or Stripe processing; report requests can never trigger sends.
-        if 'section7' in urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query, keep_blank_values=True):
+        # Section 7 and the Stripe reconciliation report are isolated, authenticated
+        # read-only reports. Dispatch both before cron or Stripe-webhook processing; report
+        # requests can never trigger sends, charges, refunds or cron jobs.
+        query_params = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query, keep_blank_values=True)
+        if 'section7' in query_params:
             from lib.section7_http import handle
+            handle(self, 'GET', SUPABASE_URL, os.environ.get('SUPABASE_KEY', ''))
+            return
+        if 'stripe_recon' in query_params:
+            from lib.stripe_recon_http import handle
             handle(self, 'GET', SUPABASE_URL, os.environ.get('SUPABASE_KEY', ''))
             return
         # Vercel Cron Jobs hit this via GET (see vercel.json — two schedules share this same
@@ -2067,10 +2078,15 @@ class handler(BaseHTTPRequestHandler):
             self._respond(500, {'error': str(e)})
 
     def do_POST(self):
-        # Section 7 is an isolated, authenticated read-only report. Dispatch it
-        # before cron or Stripe processing; report requests can never trigger sends.
-        if 'section7' in urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query, keep_blank_values=True):
+        # Section 7 and the Stripe reconciliation report are isolated, authenticated
+        # read-only reports. Dispatch both before cron or Stripe-webhook processing.
+        query_params = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query, keep_blank_values=True)
+        if 'section7' in query_params:
             from lib.section7_http import handle
+            handle(self, 'POST', SUPABASE_URL, os.environ.get('SUPABASE_KEY', ''))
+            return
+        if 'stripe_recon' in query_params:
+            from lib.stripe_recon_http import handle
             handle(self, 'POST', SUPABASE_URL, os.environ.get('SUPABASE_KEY', ''))
             return
         length = int(self.headers.get('Content-Length', 0))
