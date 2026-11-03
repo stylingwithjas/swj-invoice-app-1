@@ -11,8 +11,9 @@
 <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="512x512" href="/assets/icon-512.png">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>SWJ — Payroll</title>
+<title>SWJ — Finance</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
@@ -318,21 +319,21 @@ tr.paid-row { opacity:0.55; }
 
 <nav class="swj-sidebar">
   <div class="swj-sb-brand">Styling With Jas<span>Staging Operations</span></div>
-  <a class="swj-sb-link" href="/today.html">🏠 Today</a>
+  <a class="swj-sb-link" href="/today.html">🏠 Home</a>
   <a class="swj-sb-link" href="/board.html">📋 Board</a>
   <a class="swj-sb-link" href="/shop.html">🛍 Shopping</a>
   <a class="swj-sb-link" href="/index.html">✚ New Invoice</a>
-  <a class="swj-sb-link on" href="/payroll.html">💼 Payroll</a>
+  <a class="swj-sb-link on" href="/payroll.html">💼 Finance</a>
   <a class="swj-sb-link" href="/tax-report.html">📊 Reports</a>
   <div class="swj-sb-spacer"></div>
   <div class="swj-sb-foot">Styling With Jas</div>
 </nav>
 
 <nav class="swj-bottom-nav">
-  <a class="swj-bn-link" href="/today.html"><span class="swj-bn-ic">🏠</span>Today</a>
+  <a class="swj-bn-link" href="/today.html"><span class="swj-bn-ic">🏠</span>Home</a>
   <a class="swj-bn-link" href="/index.html"><span class="swj-bn-ic">✚</span>New Invoice</a>
   <a class="swj-bn-link" href="/board.html"><span class="swj-bn-ic">📋</span>Board</a>
-  <a class="swj-bn-link on" href="/payroll.html"><span class="swj-bn-ic">💼</span>Payroll</a>
+  <a class="swj-bn-link on" href="/payroll.html"><span class="swj-bn-ic">💼</span>Finance</a>
   <button class="swj-bn-link" onclick="swjToggleMore()" type="button"><span class="swj-bn-ic">⋯</span>More</button>
 </nav>
 
@@ -356,16 +357,16 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
     <div class="brand">
       <div class="brand-name">SWJ</div>
       <div class="brand-sep"></div>
-      <div class="brand-sub">Payroll</div>
+      <div class="brand-sub">Finance</div>
     </div>
     <div class="nav-sw">
-      <button class="nav-btn off" onclick="window.location.href='/today.html'">Today</button>
+      <button class="nav-btn off" onclick="window.location.href='/today.html'">Home</button>
       <button class="nav-btn off" onclick="window.location.href='/board.html'">Board</button>
       <button class="nav-btn off" onclick="window.location.href='/shop.html'">Shop</button>
       <button class="nav-btn off" onclick="window.location.href='/index.html'">Invoice</button>
       <button class="nav-btn off" onclick="window.location.href='/luxury.html'">Luxury</button>
       <button class="nav-btn off" onclick="window.location.href='/gs-invoice.html'">GS</button>
-      <button class="nav-btn on">Payroll</button>
+      <button class="nav-btn on">Finance</button>
       <button class="nav-btn off" onclick="window.location.href='/archive.html'">Archive</button>
       <button class="nav-btn off" onclick="window.location.href='/tax-report.html'">Tax Report</button>
     </div>
@@ -378,7 +379,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
     <div class="pr-hdr-left">
       <div class="pr-hdr-ic">💼</div>
       <div>
-        <div class="pr-hdr-ttl">Payroll</div>
+        <div class="pr-hdr-ttl">Finance</div>
         <div class="pr-hdr-sub">Employee payroll, business finances, and money allocation.</div>
       </div>
     </div>
@@ -396,6 +397,8 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
     <button class="pr-tab" onclick="prShowTab('performance')">Monthly Performance</button>
     <button class="pr-tab" onclick="prShowTab('projects')">Project Budgets</button>
     <button class="pr-tab" onclick="prShowTab('history')">History</button>
+    <button class="pr-tab" onclick="prShowTab('spending')">Spending</button>
+    <button class="pr-tab" onclick="prShowTab('ledger')">Job Profit — Real</button>
   </div>
 
   <div class="pr-panel on" id="pr-panel-finance">
@@ -668,6 +671,58 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
       <div id="pr-hist-list"></div>
       <div class="sub-hdr">Manual Overrides on Record</div>
       <div id="pr-hist-overrides"></div>
+    </div>
+  </div>
+
+  <!-- SPENDING (Amex via Plaid, Phase 1 Nov 2026) — business cards only (the two Lux
+       Ventures / Styling With Jas Amex cards; Gabe's personal cards are never linked here).
+       Real data only flows once Plaid credentials exist server-side AND a business card is
+       linked on the site itself — until then this shows a clear "not connected" state, never
+       fabricated rows. Per-card balance/due-date strip first (glanceable), transaction detail
+       and categorization behind it. -->
+  <div class="pr-panel" id="pr-panel-spending">
+    <div class="card">
+      <div class="card-hdr">
+        <span>Business Amex</span>
+        <span id="pr-spend-status" style="font-size:11px;color:var(--taupe-dk);font-weight:500;text-transform:none;letter-spacing:0">Checking connection…</span>
+      </div>
+      <div style="font-size:11px;color:var(--taupe-dk);margin-bottom:12px">The two business American Express cards only, linked here via this site's own Plaid connection — never Muse's, never a personal card. Statement balance, due date and the full-balance amount that avoids interest, per card.</div>
+      <div id="pr-spend-connect-row" style="display:none;margin-bottom:14px">
+        <button class="filter-btn primary" onclick="plaidConnectAmex()" id="pr-spend-connect-btn">Connect business Amex</button>
+      </div>
+      <div id="pr-spend-connected-row" style="display:none;margin-bottom:14px;gap:8px;flex-wrap:wrap;align-items:center">
+        <button class="filter-btn primary" onclick="plaidConnectAmex()" id="pr-spend-connect-btn2">Connect another card</button>
+        <button class="filter-btn" onclick="plaidSyncNow()" id="pr-spend-sync-btn">Sync now</button>
+        <span id="pr-spend-sync-note" style="font-size:11px;color:var(--taupe-dk);display:block;margin-top:6px;width:100%"></span>
+      </div>
+      <div id="pr-spend-cards" style="display:grid;gap:10px;margin-bottom:16px"></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
+        <label style="margin:0;font-size:11px">Month<input type="month" id="pr-spend-month" style="margin-left:6px" onchange="renderSpendingTransactions()"></label>
+        <label style="margin:0;font-size:11px">Job<select id="pr-spend-job-filter" style="margin-left:6px" onchange="renderSpendingTransactions()"><option value="">All</option></select></label>
+      </div>
+      <div id="pr-spend-body">
+        <div class="empty-note">Loading…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- JOB PROFIT — REAL (Phase 1, Nov 2026) — separate, additive lens built on the SAME
+       categorized/job-tagged Plaid transactions above, plus the existing actual mover-hour
+       costs. Deliberately NOT merged into the Finance & Allocation tab's estimate-based keep/
+       inventory/tithe chain above (truck/warehouse there stay the configured assumptions
+       Jasmine already uses for cash planning) — this is the federal/Schedule-C lens: real
+       recorded costs, never a formula, and never touching the DOR/revenue tax split in
+       tax-report.html. Partial where a job's costs aren't fully tagged — never a complete
+       figure Jasmine hasn't actually earned the confidence in yet. -->
+  <div class="pr-panel" id="pr-panel-ledger">
+    <div class="card">
+      <div class="card-hdr"><span>Job Profit — Real</span></div>
+      <div style="font-size:11px;color:var(--taupe-dk);margin-bottom:14px">Built from actual mover hours and real, job-tagged Amex spending — not the Finance &amp; Allocation tab's planning estimates. A job missing cost detail shows as partial, never a finished number. This is a federal/Schedule&nbsp;C view; it never changes the Washington excise/DOR figures in Tax Report.</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px">
+        <label style="margin:0;font-size:11px">Month<input type="month" id="pr-ledger-month" style="margin-left:6px"></label>
+      </div>
+      <div id="pr-ledger-overhead" class="fin-card full" style="margin-bottom:14px"></div>
+      <div id="pr-ledger-body"><div class="empty-note">Loading…</div></div>
     </div>
   </div>
 
@@ -1788,12 +1843,14 @@ function clientInitials(name){
 function prShowTab(name){
   document.querySelectorAll('.pr-tab').forEach(b=>b.classList.remove('on'));
   document.querySelectorAll('.pr-panel').forEach(p=>p.classList.remove('on'));
-  const idx = {finance:0, employee:1, performance:2, projects:3, history:4}[name];
+  const idx = {finance:0, employee:1, performance:2, projects:3, history:4, spending:5, ledger:6}[name];
   document.querySelectorAll('.pr-tab')[idx]?.classList.add('on');
   document.getElementById('pr-panel-'+name)?.classList.add('on');
   if(name==='performance') loadMonthlyPerformance();
   if(name==='projects') renderProjectBudgetsTable();
   if(name==='history') renderPrHistory();
+  if(name==='spending') loadSpendingTab();
+  if(name==='ledger') loadRealLedgerTab();
 }
 
 function prScrollTo(id){
@@ -1803,6 +1860,307 @@ function prScrollTo(id){
   el.style.transition = 'box-shadow 0.3s';
   el.style.boxShadow = '0 0 0 3px var(--gold)';
   setTimeout(()=>{ el.style.boxShadow = ''; }, 1200);
+}
+
+// ════════════════════════════════════════════════════════════════
+// SPENDING (Amex via Plaid, Nov 2026) — view-only ledger + categorization. Every network call
+// here goes through api/webhook.py's ?job=plaid_* dispatch (never calls Plaid directly from
+// the browser, which would require exposing a secret client-side). All Plaid-side failures —
+// including "not configured yet" — come back as a plain {error} and are shown as a message,
+// never a crash or a silently empty table pretending everything's fine.
+// ════════════════════════════════════════════════════════════════
+// Keep in sync with lib/plaid_categorize.py's CATEGORIES — two copies (server auto-rules,
+// client dropdown) because one's Python and one's JS, not because they're meant to diverge.
+const PLAID_CATEGORIES = ['Supplies','Furniture/Inventory','Truck & Gas','Storage','Insurance','Software/Subscriptions','Marketing','Meals','Office','Other'];
+const DUE_SOON_DAYS = 7; // owner-confirmable threshold (spec Section 4)
+
+async function plaidApi(job, body){
+  const r = await fetch(`/api/webhook?job=${job}`, {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(body||{}),
+  });
+  return r.json();
+}
+
+function jobDropdownOptions(selected){
+  const opts = (_financeInvoices||[]).map(inv=>`<option value="${esc(inv.invnum)}" ${selected===inv.invnum?'selected':''}>${esc(jobLabelFor(inv))}</option>`).join('');
+  return `<option value="">—</option>${opts}`;
+}
+
+function populateSpendJobFilter(){
+  const sel = document.getElementById('pr-spend-job-filter');
+  if(!sel || sel.dataset.filled) return;
+  sel.insertAdjacentHTML('beforeend', (_financeInvoices||[]).map(inv=>`<option value="${esc(inv.invnum)}">${esc(jobLabelFor(inv))}</option>`).join(''));
+  sel.dataset.filled = '1';
+}
+
+async function loadSpendingTab(){
+  const statusEl = document.getElementById('pr-spend-status');
+  const connectRow = document.getElementById('pr-spend-connect-row');
+  const connectedRow = document.getElementById('pr-spend-connected-row');
+  const cardsEl = document.getElementById('pr-spend-cards');
+  const body = document.getElementById('pr-spend-body');
+  statusEl.textContent = 'Checking connection…';
+  connectRow.style.display = 'none';
+  connectedRow.style.display = 'none';
+  cardsEl.innerHTML = '';
+  populateSpendJobFilter();
+  if(!document.getElementById('pr-spend-month').value) document.getElementById('pr-spend-month').value = new Date().toISOString().slice(0,7);
+
+  // Reading plaid_card_summary (never plaid_items/plaid_accounts directly — anon key has NO
+  // access to those by design, sql/plaid_tables.sql). Empty/blocked means either the
+  // migration hasn't run yet or nothing's connected — both show the same "not connected" state
+  // rather than a hard error, since the UI can't tell those apart and shouldn't guess.
+  let cards = [];
+  try{
+    const { data, error } = await _sb.from('plaid_card_summary').select('*');
+    if(!error && data) cards = data;
+  }catch(e){ /* view may not exist yet — fall through to "not connected" */ }
+
+  if(!cards.length){
+    statusEl.textContent = 'Not connected';
+    connectRow.style.display = 'block';
+    body.innerHTML = '<div class="empty-note">No business Amex card connected yet. Click Connect business Amex to start — this opens Plaid’s secure login (Amex\'s own sign-in), never asks for Amex credentials directly in this app. Personal cards are never linked here.</div>';
+    return;
+  }
+  statusEl.textContent = `✓ ${cards.length} card${cards.length===1?'':'s'} connected`;
+  connectedRow.style.display = 'flex';
+  renderSpendCards(cards);
+  await renderSpendingTransactions();
+}
+
+function renderSpendCards(cards){
+  const el = document.getElementById('pr-spend-cards');
+  const now = new Date();
+  el.innerHTML = cards.map(c=>{
+    const label = `${esc(c.name||c.institution_name||'Business Amex')}${c.mask?' …'+esc(c.mask):''}`;
+    if(c.statement_balance==null || c.next_payment_due_date==null){
+      return `<div class="fin-card"><div class="fin-lbl">${label}</div><div class="fin-val" style="font-size:16px">Balance not synced yet</div><div class="fin-note">Click Sync now to pull the latest statement</div></div>`;
+    }
+    const due = new Date(c.next_payment_due_date+'T00:00:00');
+    const daysUntil = Math.round((due-now)/86400000);
+    let status, statusClass;
+    if(daysUntil < 0){ status = `Overdue by ${Math.abs(daysUntil)} day${Math.abs(daysUntil)===1?'':'s'} — interest accruing`; statusClass = 'a'; }
+    else if(daysUntil <= DUE_SOON_DAYS){ status = `Due in ${daysUntil} day${daysUntil===1?'':'s'}`; statusClass = 'a'; }
+    else { status = `Due in ${daysUntil} days`; statusClass = 'g'; }
+    const dueStr = due.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+    const synced = c.balance_synced_at ? new Date(c.balance_synced_at).toLocaleString() : 'never';
+    return `<div class="fin-card full">
+      <div class="fin-lbl">${label}</div>
+      <div class="fin-val ${statusClass}" style="font-size:22px">Pay ${fmtUSD(c.statement_balance)} by ${dueStr} to avoid interest</div>
+      <div class="fin-note">${status} · Minimum due ${fmtUSD(c.minimum_payment)} (paying only the minimum does NOT avoid interest) · Current balance ${fmtUSD(c.current_balance)}</div>
+      <div class="fin-note">Last synced ${esc(synced)}</div>
+    </div>`;
+  }).join('');
+}
+
+function fmtUSD(n){ return (n==null) ? 'unavailable' : '$'+Number(n).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}); }
+
+async function plaidConnectAmex(){
+  const btns = [document.getElementById('pr-spend-connect-btn'), document.getElementById('pr-spend-connect-btn2')].filter(Boolean);
+  btns.forEach(b=>{ b.disabled = true; b.dataset.origText = b.textContent; b.textContent = 'Connecting…'; });
+  const reset = ()=>btns.forEach(b=>{ b.disabled = false; b.textContent = b.dataset.origText; });
+  try{
+    const res = await plaidApi('plaid_link_token', {});
+    if(res.error || !res.link_token){
+      alert('Could not start Plaid connection: ' + (res.error || 'no link token returned') + '\n\nThis usually means Plaid isn’t configured yet (PLAID_CLIENT_ID/PLAID_SECRET env vars), sql/plaid_tables.sql hasn’t been run in Supabase yet, or PLAID_REDIRECT_URI isn’t set to this site’s stable production URL (required for Amex\'s OAuth sign-in — a preview URL will not work).');
+      return;
+    }
+    if(typeof Plaid === 'undefined'){
+      alert('Plaid’s connect widget didn’t load — check your connection and try again.');
+      return;
+    }
+    const handler = Plaid.create({
+      token: res.link_token,
+      onSuccess: async (public_token) => {
+        btns.forEach(b=>b.textContent = 'Finishing connection…');
+        const exch = await plaidApi('plaid_exchange', { public_token });
+        if(exch.error){ alert('Connected to Amex, but saving the connection failed: ' + exch.error); }
+        else { await loadSpendingTab(); }
+      },
+      onExit: () => reset(),
+    });
+    handler.open();
+  }catch(e){
+    alert('Could not start Plaid connection: ' + e.message);
+  }finally{
+    reset();
+  }
+}
+
+async function plaidSyncNow(){
+  const btn = document.getElementById('pr-spend-sync-btn');
+  const note = document.getElementById('pr-spend-sync-note');
+  btn.disabled = true; btn.textContent = 'Syncing…';
+  try{
+    const res = await plaidApi('plaid_sync', {});
+    if(res.error){ note.textContent = 'Sync failed: ' + res.error; note.style.color = 'var(--red,#b53535)'; }
+    else {
+      note.textContent = `Synced — ${res.added||0} new, ${res.modified||0} updated, ${res.removed||0} removed.` + (res.errors&&res.errors.length?' Some cards had issues: '+res.errors.join('; '):'');
+      note.style.color = res.errors&&res.errors.length ? 'var(--amber,#c97c2e)' : '';
+      await loadSpendingTab();
+    }
+  }catch(e){
+    note.textContent = 'Sync failed: ' + e.message;
+  }finally{
+    btn.disabled = false; btn.textContent = 'Sync now';
+  }
+}
+
+async function renderSpendingTransactions(){
+  const body = document.getElementById('pr-spend-body');
+  body.innerHTML = '<div class="empty-note">Loading transactions…</div>';
+  const month = document.getElementById('pr-spend-month').value;
+  const jobFilter = document.getElementById('pr-spend-job-filter').value;
+  let q = _sb.from('plaid_transactions').select('transaction_id,date,merchant_name,name,amount,pending,category,plaid_category,job_invnum').order('date',{ascending:false}).limit(500);
+  if(month){ q = q.gte('date', month+'-01').lte('date', month+'-31'); }
+  if(jobFilter){ q = q.eq('job_invnum', jobFilter); }
+  const { data, error } = await q;
+  if(error){ body.innerHTML = '<div class="empty-note">Could not load transactions: '+esc(error.message)+'</div>'; return; }
+  if(!data || !data.length){
+    body.innerHTML = '<div class="empty-note">Connected, but no transactions match this filter yet — click Sync now to pull Amex’s transaction history, or widen the month/job filter.</div>';
+    return;
+  }
+  let total = 0;
+  const rows = data.map(t=>{
+    const label = esc(t.merchant_name || t.name || '—');
+    const amtNum = parseFloat(t.amount)||0; total += amtNum;
+    const amt = Math.abs(amtNum).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+    const amtSign = amtNum < 0 ? '+' : '';   // Plaid: positive = spend, negative = credit/refund
+    const catOpts = PLAID_CATEGORIES.map(c=>`<option value="${esc(c)}" ${t.category===c?'selected':''}>${esc(c)}</option>`).join('');
+    return `<tr>
+      <td>${esc(t.date||'')}</td>
+      <td>${label}${t.pending?' <span style="font-size:9px;color:var(--amber,#c97c2e);text-transform:uppercase">pending</span>':''}</td>
+      <td style="text-align:right">${amtSign}$${amt}</td>
+      <td><select onchange="updateTransactionCategory('${esc(t.transaction_id)}', this.value)" style="font-size:12px;padding:4px 6px;border-radius:6px;border:0.5px solid var(--taupe-lt)">
+        <option value="">Uncategorized</option>${catOpts}
+      </select></td>
+      <td><select onchange="updateTransactionJob('${esc(t.transaction_id)}', this.value)" style="font-size:12px;padding:4px 6px;border-radius:6px;border:0.5px solid var(--taupe-lt)">
+        ${jobDropdownOptions(t.job_invnum)}
+      </select></td>
+      <td style="font-size:11px;color:var(--taupe-dk)">Business Amex</td>
+    </tr>`;
+  }).join('');
+  body.innerHTML = `<div style="overflow-x:auto"><table>
+    <thead><tr><th>Date</th><th>Payee/vendor</th><th style="text-align:right">Amount</th><th>Category</th><th>Job</th><th>Source</th></tr></thead>
+    <tbody>${rows}</tbody>
+    <tfoot><tr class="total-row"><td colspan="2">Total — ${data.length} transaction(s)</td><td style="text-align:right">$${Math.abs(total).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</td><td colspan="3"></td></tr></tfoot>
+  </table></div>`;
+}
+
+async function updateTransactionCategory(transactionId, category){
+  // Direct client-side write, same trust model as every other write in this app — RLS +
+  // column grants on plaid_transactions (sql/plaid_tables.sql) allow the anon key to update
+  // only category/category_source/job_invnum, never insert/delete or touch any other column.
+  // category_source:'manual' marks this as a human correction, which the sync job's rule
+  // engine (lib/plaid_categorize.py) never overwrites.
+  try{
+    const { error } = await _sb.from('plaid_transactions').update({ category: category||null, category_source: category?'manual':null }).eq('transaction_id', transactionId);
+    if(error) alert('Could not save category: ' + error.message);
+  }catch(e){ alert('Could not save category: ' + e.message); }
+}
+
+async function updateTransactionJob(transactionId, invnum){
+  try{
+    const { error } = await _sb.from('plaid_transactions').update({ job_invnum: invnum||null }).eq('transaction_id', transactionId);
+    if(error) alert('Could not save job tag: ' + error.message);
+  }catch(e){ alert('Could not save job tag: ' + e.message); }
+}
+
+// JOB PROFIT — REAL (Phase 1, Nov 2026). Deliberately separate from Finance & Allocation's
+// estimate-based keep/inventory/tithe chain above (that one keeps using the configured truck/
+// warehouse assumptions Jasmine already plans cash around) — this tab is the federal/Schedule C
+// lens: real revenue receipts (finPaymentEvents, the SAME function Finance & Allocation uses,
+// so the two views never silently disagree about what counts as a receipt), real labor
+// (time_entries, already job-tagged), and real job-tagged Amex spending. Never claims to be
+// complete — a job's real profit is only ever "as tagged so far."
+async function loadRealLedgerTab(){
+  if(!document.getElementById('pr-ledger-month').value) document.getElementById('pr-ledger-month').value = new Date().toISOString().slice(0,7);
+  document.getElementById('pr-ledger-month').onchange = renderRealLedger;
+  await renderRealLedger();
+}
+
+async function renderRealLedger(){
+  const overheadEl = document.getElementById('pr-ledger-overhead');
+  const bodyEl = document.getElementById('pr-ledger-body');
+  bodyEl.innerHTML = '<div class="empty-note">Loading…</div>';
+  const month = document.getElementById('pr-ledger-month').value;
+  if(!month) return;
+  const periodStart = month+'-01';
+  const periodEnd = new Date(Number(month.slice(0,4)), Number(month.slice(5,7)), 0).toISOString().slice(0,10);
+
+  let spend = [];
+  try{
+    const { data } = await _sb.from('plaid_transactions').select('transaction_id,date,merchant_name,name,amount,category,job_invnum').gte('date', periodStart).lte('date', periodEnd);
+    // Plaid convention: positive amount = money out (a spend); negative = credit/refund —
+    // refunds reduce real spending but are excluded from these cost totals rather than shown
+    // as a negative cost line, same reasoning Stripe reconciliation uses for refunds.
+    spend = (data||[]).filter(t=>(parseFloat(t.amount)||0) > 0);
+  }catch(e){ /* plaid_transactions may not exist yet if the migration hasn't been run */ }
+
+  // Real labor, already job-tagged — the SAME time_entries query shape runFinanceView() uses
+  // for moverByProject, so this tab's labor figure never silently disagrees with Finance &
+  // Allocation's own actual-mover-cost number.
+  let laborByJob = {};
+  try{
+    const { data: entries } = await _sb.from('time_entries').select('invnum,amount')
+      .gte('clock_in', periodStart+'T00:00:00').lte('clock_in', periodEnd+'T23:59:59');
+    (entries||[]).forEach(e=>{ const amt = parseFloat(e.amount)||0; if(e.invnum) laborByJob[e.invnum] = (laborByJob[e.invnum]||0) + amt; });
+  }catch(e){}
+
+  // Job-tagged spend = job cost; untagged = overhead. Uncategorized dollars tracked separately
+  // within each — never silently folded into either "categorized" bucket.
+  const jobSpend = {};
+  let overheadTotal = 0, overheadUncategorized = 0;
+  spend.forEach(t=>{
+    const amt = parseFloat(t.amount)||0;
+    if(t.job_invnum){
+      const j = jobSpend[t.job_invnum] || (jobSpend[t.job_invnum] = {total:0, byCategory:{}, uncategorized:0});
+      j.total += amt;
+      if(t.category) j.byCategory[t.category] = (j.byCategory[t.category]||0) + amt;
+      else j.uncategorized += amt;
+    }else{
+      overheadTotal += amt;
+      if(!t.category) overheadUncategorized += amt;
+    }
+  });
+
+  // Real revenue per job — finPaymentEvents() is the SAME receipt-classification function
+  // Finance & Allocation already uses; this never defines "revenue this month" a second way.
+  const jobRevenue = {};
+  (_financeInvoices||[]).forEach(inv=>{
+    const events = finPaymentEvents(inv.data||{}).filter(e=>e.date>=periodStart && e.date<=periodEnd);
+    if(events.length) jobRevenue[inv.invnum] = (jobRevenue[inv.invnum]||0) + events.reduce((t,e)=>t+e.amount,0);
+  });
+
+  const allJobs = new Set([...Object.keys(laborByJob), ...Object.keys(jobSpend), ...Object.keys(jobRevenue)]);
+  const jobRows = [...allJobs].map(invnum=>{
+    const inv = (_financeInvoices||[]).find(i=>i.invnum===invnum);
+    const revenue = jobRevenue[invnum]||0, labor = laborByJob[invnum]||0;
+    const s = jobSpend[invnum] || {total:0, byCategory:{}, uncategorized:0};
+    const totalCost = labor + s.total;
+    return { invnum, label: inv?jobLabelFor(inv):invnum, revenue, labor, spend:s.total, byCategory:s.byCategory, uncategorized:s.uncategorized, net: revenue-totalCost };
+  }).sort((a,b)=>b.revenue-a.revenue);
+
+  overheadEl.innerHTML = `<div class="fin-lbl">Business overhead this month (untagged Amex spending — storage, insurance, software, general truck/supplies not tied to one job)</div>
+    <div class="fin-val">${finMoney(overheadTotal)}</div>
+    <div class="fin-note">${overheadUncategorized>0.009?finMoney(overheadUncategorized)+' of this is uncategorized — review in the Spending tab.':(spend.length?'All categorized.':'No spending data yet — connect and sync the business Amex in the Spending tab.')}</div>`;
+
+  if(!jobRows.length){
+    bodyEl.innerHTML = '<div class="empty-note">No real revenue, labor, or job-tagged spending found for this month yet.</div>';
+    return;
+  }
+  bodyEl.innerHTML = jobRows.map(j=>`
+    <div class="alloc-card" style="margin-bottom:12px">
+      <div class="alloc-ttl">${esc(j.label)}</div>
+      <div class="alloc-row"><span>Revenue (real receipts)</span><span>${finMoney(j.revenue)}</span></div>
+      <div class="alloc-row sub"><span>Labor (actual hours)</span><span>-${finMoney(j.labor)}</span></div>
+      <div class="alloc-row sub"><span>Tagged Amex spending</span><span>-${finMoney(j.spend)}</span></div>
+      ${Object.entries(j.byCategory).map(([cat,amt])=>`<div class="alloc-row sub" style="padding-left:18px;font-size:11px"><span>${esc(cat)}</span><span>-${finMoney(amt)}</span></div>`).join('')}
+      <div class="alloc-row total"><span>Real net (federal lens)</span><span class="${j.net<0?'note-strong':''}">${finMoney(j.net)}</span></div>
+      ${j.uncategorized>0.009?`<div class="alloc-row sub" style="color:var(--amber,#c97c2e)"><span>Partial — ${finMoney(j.uncategorized)} of tagged spending still needs a category</span><span></span></div>`:''}
+      <div class="fin-note" style="margin-top:6px">Based on tagged transactions as of now — other spending for this job may exist in Amex but isn't tagged yet. Never a finished number.</div>
+    </div>`).join('');
 }
 
 async function prAddNote(){
@@ -2190,6 +2548,8 @@ document.addEventListener('DOMContentLoaded', async ()=>{
   initFinancePeriodPickers();
   await loadFinanceConfig();
   await runFinanceView();
+  const wantTab = new URLSearchParams(window.location.search).get('tab');
+  if(wantTab) prShowTab(wantTab);
 });
 </script>
 <script>document.addEventListener('DOMContentLoaded',()=>{try{document.querySelector('.nav-sw .nav-btn.on')?.scrollIntoView({inline:'center',block:'nearest'});}catch(e){}});</script>
