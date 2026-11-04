@@ -231,6 +231,115 @@ class PayoutPaginationTests(unittest.TestCase):
             result = webhook._stripe_payout_list_all('/v1/payouts', {}, max_pages=3)
         self.assertEqual(len(result), 3)
 
+    def test_payouts_fetch_never_sends_a_created_filter(self):
+        # Nov 3 follow-up: a preview test with pagination AND a created[gte] filter still showed
+        # the bug, on the same key/account that the ORIGINAL unfiltered call found correctly
+        # minutes earlier. The filter is the one concrete difference between "worked" and
+        # "didn't" -- removed, to isolate it as a variable for the next live check.
+        calls = []
+
+        def opener(req, timeout=None):
+            calls.append(req.full_url)
+            return JsonResponse({'data': [], 'has_more': False})
+
+        with patch('urllib.request.urlopen', side_effect=opener):
+            webhook._stripe_payout_list_all('/v1/payouts', {})
+        self.assertEqual(len(calls), 1)
+        self.assertNotIn('created', calls[0])
+
+    def test_malformed_response_shape_raises_instead_of_silently_returning_whatever_was_collected(self):
+        # A silent partial/empty result here is indistinguishable from "there really are no
+        # payouts" -- exactly the wrong failure mode for a feature whose job is "never miss a
+        # payout." Must raise, matching lib/stripe_recon_http.py's own stripe_list_all().
+        def opener(req, timeout=None):
+            return JsonResponse({'object': 'error', 'not_a_list': True})
+        with patch('urllib.request.urlopen', side_effect=opener):
+            with self.assertRaises(Exception):
+                webhook._stripe_payout_list_all('/v1/payouts', {})
+
+    def test_missing_cursor_id_on_a_has_more_page_raises(self):
+        def opener(req, timeout=None):
+            return JsonResponse({'data': [{'status': 'paid', 'amount': 100, 'currency': 'usd'}], 'has_more': True})
+        with patch('urllib.request.urlopen', side_effect=opener):
+            with self.assertRaises(Exception):
+                webhook._stripe_payout_list_all('/v1/payouts', {})
+
+    def test_a_malformed_payouts_response_surfaces_as_payout_info_unavailable_not_a_confident_empty_state(self):
+        with patch.dict(os.environ, {'STRIPE_RECONCILE_KEY': 'rk_live_realkey', 'SUPABASE_KEY': 'svc'}):
+            def opener(req, timeout=None):
+                if '/v1/balance_transactions' in req.full_url:
+                    raise AssertionError('should not reach balance_transactions after payouts fails')
+                if '/v1/balance' in req.full_url:
+                    return JsonResponse({'available': [], 'pending': []})
+                if '/v1/payouts' in req.full_url:
+                    return JsonResponse({'object': 'error'})
+                raise AssertionError('unexpected url ' + req.full_url)
+            with patch('urllib.request.urlopen', side_effect=opener):
+                result = webhook.stripe_payout_snapshot()
+        self.assertNotIn('ok', result)
+        self.assertEqual(result['error'], 'Payout info unavailable.')
+
+
+class PayoutDebugFieldTests(unittest.TestCase):
+    """Nov 3 follow-up: a small, secret-free debug readout (counts and statuses only) so the
+    next live check sees what Stripe actually returned instead of only the downstream symptom."""
+
+    def setUp(self):
+        self.env = patch.dict(os.environ, {'STRIPE_RECONCILE_KEY': 'rk_live_realkey', 'SUPABASE_KEY': 'svc'})
+        self.env.start()
+
+    def tearDown(self):
+        self.env.stop()
+
+    def test_debug_field_reports_counts_and_statuses(self):
+        payouts = [
+            {'id': 'po_1', 'status': 'paid', 'arrival_date': ts('2026-10-01'), 'amount': 1000, 'currency': 'usd'},
+            {'id': 'po_2', 'status': 'paid', 'arrival_date': ts('2026-10-15'), 'amount': 2000, 'currency': 'usd'},
+            {'id': 'po_3', 'status': 'in_transit', 'arrival_date': ts('2026-11-04'), 'amount': 399206, 'currency': 'usd'},
+        ]
+
+        def opener(req, timeout=None):
+            url = req.full_url
+            if '/v1/balance_transactions' in url:
+                return JsonResponse({'data': []})
+            if '/v1/balance' in url:
+                return JsonResponse({'available': [], 'pending': []})
+            if '/v1/payouts' in url:
+                return JsonResponse({'data': payouts, 'has_more': False})
+            if '/v1/account' in url:
+                return JsonResponse({})
+            if 'invoices' in url:
+                return JsonResponse([])
+            raise AssertionError('unexpected url ' + url)
+
+        with patch('urllib.request.urlopen', side_effect=opener):
+            result = webhook.stripe_payout_snapshot()
+        self.assertEqual(result['debug']['payouts_fetched'], 3)
+        self.assertEqual(result['debug']['payouts_statuses'], {'paid': 2, 'in_transit': 1})
+        # Never a payout id, amount, or any other identifying detail -- counts and statuses only.
+        dumped = json.dumps(result['debug'])
+        self.assertNotIn('po_1', dumped)
+        self.assertNotIn('po_3', dumped)
+
+    def test_debug_field_present_even_when_zero_payouts_fetched(self):
+        def opener(req, timeout=None):
+            url = req.full_url
+            if '/v1/balance_transactions' in url:
+                return JsonResponse({'data': []})
+            if '/v1/balance' in url:
+                return JsonResponse({'available': [], 'pending': []})
+            if '/v1/payouts' in url:
+                return JsonResponse({'data': [], 'has_more': False})
+            if '/v1/account' in url:
+                return JsonResponse({})
+            if 'invoices' in url:
+                return JsonResponse([])
+            raise AssertionError('unexpected url ' + url)
+        with patch('urllib.request.urlopen', side_effect=opener):
+            result = webhook.stripe_payout_snapshot()
+        self.assertEqual(result['debug']['payouts_fetched'], 0)
+        self.assertEqual(result['debug']['payouts_statuses'], {})
+
 
 class ProductionBugReproductionTests(unittest.TestCase):
     """Reproduces the Nov 3, 2026 production bug report almost exactly: Elisha Cruson #2020129,

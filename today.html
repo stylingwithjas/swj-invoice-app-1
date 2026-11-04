@@ -1120,8 +1120,14 @@ async function buildPayoutSnapshot(){
     </div>`;
   }).join('') : `<div class="fin-note" style="padding:8px 0">No upcoming payments in the release window right now.</div>`;
 
+  // Temporary diagnostic line (Nov 3, 2026 bug hunt) -- not styled as an explanation, just a
+  // raw readout: how many payouts Stripe actually returned and their statuses, visible without
+  // opening dev tools, so the next live check shows real data instead of only the symptom.
+  // Safe to remove once the live bug is confirmed fixed.
+  const debugHTML=snap.debug?`<div class="fin-note" style="margin-top:8px;opacity:0.6">${snap.debug.payouts_fetched} payout(s) read from Stripe${snap.debug.payouts_fetched?' — '+Object.entries(snap.debug.payouts_statuses).map(([s,n])=>`${n} ${s}`).join(', '):''}</div>`:'';
+
   el.innerHTML=`${headlineHTML}${emptyNoteHTML}
-    <div style="margin-top:10px">${timelineHTML}</div>`;
+    <div style="margin-top:10px">${timelineHTML}</div>${debugHTML}`;
 }
 
 // ── S7: FILING & CHECKS ─────────────────────────────────
