@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SWJ luxury layout review</title>
+<script src="/admin-auth.js"></script>
+<style>html,body{margin:0;padding:0;background:#F7F4EE}iframe{display:block;border:0}h1{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}</style>
+</head>
+<body>
+<h1>Authenticated Home layout review</h1>
+<script>
+const sizes={reference:[1024,1536],mobile:[390,844],narrow:[320,844],desktop:[1440,1100]};
+const mode=new URLSearchParams(location.search).get('view')||'reference';
+const [width,height]=sizes[mode]||sizes.reference;
+const frame=document.createElement('iframe');frame.title='SWJ Home at '+width+' by '+height;frame.width=String(width);frame.height=String(height);frame.src='/today.html';document.body.appendChild(frame);
+</script>
+</body></html>

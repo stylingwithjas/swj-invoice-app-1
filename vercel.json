@@ -31,6 +31,7 @@
     { "source": "/", "destination": "/today.html", "permanent": false }
   ],
   "rewrites": [
+    { "source": "/tests/luxury-layout-review.html", "destination": "/tests/luxury-layout-review.html" },
     { "source": "/api/:path*", "destination": "/api/:path*" },
     { "source": "/index.html", "destination": "/index.html" },
     { "source": "/luxury.html", "destination": "/luxury.html" },
