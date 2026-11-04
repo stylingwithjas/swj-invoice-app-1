@@ -1304,18 +1304,32 @@ async function buildS9(){
 }
 
 // ── S10: SPENDING BREAKDOWN ─────────────────────────────
-// Same conic-gradient donut technique as payroll.html's renderPrDonut() — own category set:
-// Job Costs (any job-tagged spend, whatever its category), Truck Costs (untagged Truck & Gas
-// only — job-tagged truck spend rolls into Job Costs instead), Other (untagged spend
-// explicitly categorized "Other" -- a deliberate human choice, never a stand-in for "no
-// category chosen"), Overhead (every other untagged, categorized spend).
+// Same conic-gradient donut technique as payroll.html's renderPrDonut(). Nov 4, 2026 fix
+// (Jasmine's feedback on the first cut): "Overhead" was a catch-all swallowing almost
+// everything untagged (Storage, Furniture/Inventory, Supplies, Insurance, Software,
+// Marketing, Meals, Office all dumped into one slice) -- 87% of a real month showed as one
+// undifferentiated bucket, which told Jasmine nothing. Every one of Finance -> Spending's own
+// categories (PLAID_CATEGORIES in payroll.html -- keep this list in sync with that one) now
+// gets its own slice here; there is no generic "Overhead" bucket left to dump things into.
+// Job Costs still comes first and wins over category for any job-tagged spend, same as before.
 //
-// Nov 4, 2026 fix (Gabe's note): a transaction with NO category at all used to be folded into
-// this "Other" slice, so it silently counted as real categorized spending. Gabe's explicit
-// instruction: uncategorized spend is not spending data yet -- it belongs in Needs Attention
-// (buildS1's gap rows) only, and must never show up here as if it were real. Excluded below
-// entirely; the empty-state text says so when that's the only reason the donut is empty.
-const HOME_SPEND_COLORS={job:'#6f8a72',overhead:'#b89a63',truck:'#b77b62',other:'#b8ada1'};
+// Earlier fix (also Nov 4, 2026, Gabe's note): a transaction with NO category at all must
+// never be folded into any slice here as if it were real categorized spending -- it belongs
+// in Needs Attention (buildS1's gap rows) only. Excluded below entirely; the empty-state text
+// says so when that's the only reason the donut is empty.
+const HOME_SPEND_CATEGORIES=[
+  {cat:'Truck & Gas', key:'truck', label:'Truck & Gas', color:'#b77b62'},
+  {cat:'Storage', key:'storage', label:'Storage', color:'#9c7b4f'},
+  {cat:'Furniture/Inventory', key:'furniture', label:'Furniture/Inventory', color:'#a98f6b'},
+  {cat:'Supplies', key:'supplies', label:'Supplies', color:'#c9a86a'},
+  {cat:'Insurance', key:'insurance', label:'Insurance', color:'#8a93a6'},
+  {cat:'Software/Subscriptions', key:'software', label:'Software/Subscriptions', color:'#7c92a8'},
+  {cat:'Marketing', key:'marketing', label:'Marketing', color:'#b98a9a'},
+  {cat:'Meals', key:'meals', label:'Meals', color:'#c08552'},
+  {cat:'Office', key:'office', label:'Office', color:'#9a9183'},
+  {cat:'Other', key:'other', label:'Other', color:'#b8ada1'},
+];
+const HOME_SPEND_COLORS={job:'#6f8a72', ...Object.fromEntries(HOME_SPEND_CATEGORIES.map(c=>[c.key,c.color]))};
 async function buildS10(){
   const el=document.getElementById('s10-body');
   const now=new Date();
@@ -1331,16 +1345,15 @@ async function buildS10(){
     return;
   }
 
-  let job=0,truck=0,otherCat=0,overheadTotal=0,uncategorizedCount=0;
+  let job=0,uncategorizedCount=0;
+  const catTotals={};
   _monthlyPlaidTx.forEach(t=>{
     const amt=parseFloat(t.amount)||0;
     if(!t.category){ uncategorizedCount++; return; }  // Needs Attention's job, never this donut
     if(t.job_invnum){ job+=amt; return; }
-    if(t.category==='Truck & Gas'){ truck+=amt; return; }
-    if(t.category==='Other'){ otherCat+=amt; return; }
-    overheadTotal+=amt;
+    catTotals[t.category]=(catTotals[t.category]||0)+amt;
   });
-  const total=job+truck+overheadTotal+otherCat;
+  const total=job+Object.values(catTotals).reduce((s,v)=>s+v,0);
   if(total<=0.009){
     // Nov 4, 2026 fix (Gabe's note): "Nothing to show yet" read as "no spending happened,"
     // when the actual, most likely cause is that nothing has ever been SYNCED for this card --
@@ -1359,12 +1372,13 @@ async function buildS10(){
     el.innerHTML=`<div class="empty"><div class="empty-icon"><i class="ti ti-chart-donut"></i></div><div class="empty-text">Nothing to show yet.</div><div class="empty-sub">${sub}</div></div>`;
     return;
   }
+  // Only categories with real spend this month show in the legend -- with 10 possible
+  // categories plus Job Costs, always showing every one (most at $0) would bury the handful
+  // that actually matter this month under a wall of zero rows.
   const slices=[
     {key:'job',label:'Job Costs',amt:job},
-    {key:'overhead',label:'Overhead',amt:overheadTotal},
-    {key:'truck',label:'Truck Costs',amt:truck},
-    {key:'other',label:'Other',amt:otherCat},
-  ];
+    ...HOME_SPEND_CATEGORIES.map(c=>({key:c.key,label:c.label,amt:catTotals[c.cat]||0})),
+  ].filter(sl=>sl.amt>0.009);
   let acc=0;
   const stops=slices.map(sl=>{ const pct=sl.amt/total*100; const from=acc; acc+=pct; return `${HOME_SPEND_COLORS[sl.key]} ${from.toFixed(2)}% ${acc.toFixed(2)}%`; });
   el.innerHTML=`<div class="home-donut-wrap">
