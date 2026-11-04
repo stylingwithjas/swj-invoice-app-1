@@ -13,7 +13,7 @@ from urllib.parse import parse_qs, urlparse
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from lib import stripe_recon as recon, stripe_recon_http as api, section7_auth as auth
+from lib import stripe_recon as recon, stripe_recon_http as api, admin_auth as auth
 
 BASE_INVOICE = {'base_price': 3933, 'taxrate': 10.55, 'addons': [{'desc': 'Logistics', 'price': 185, 'type': 'rental'}]}
 
@@ -269,15 +269,18 @@ class FakeHandler:
 class AccessTests(unittest.TestCase):
     def setUp(self):
         self.env = patch.dict(os.environ, {
-            'SWJ_REPORT_ADMIN_PASSWORD': 'synthetic-admin-password-only',
+            'SWJ_ADMIN_PASSWORD': 'synthetic-admin-password-only',
             'SUPABASE_KEY': fake_key(), 'VERCEL_ENV': 'preview',
             'STRIPE_RECONCILE_KEY': 'rk_live_synthetic_only',
         })
         self.env.start()
         auth._ATTEMPTS.clear()
+        self.revocations = patch.object(auth, 'fetch_revoked_nonces', return_value=set())
+        self.revocations.start()
 
     def tearDown(self):
         self.env.stop()
+        self.revocations.stop()
 
     def authorized(self):
         return {'Cookie': auth.COOKIE + '=' + auth.issue_session('https://preview.example.test')}

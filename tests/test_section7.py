@@ -12,7 +12,7 @@ from unittest.mock import patch
 from urllib.parse import parse_qs, urlparse
 
 ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT))
-from lib import section7 as audit, section7_auth as auth, section7_http as api
+from lib import section7 as audit, admin_auth as auth, section7_http as api
 
 CLEAN={'base_price':3933,'taxrate':10.55,'addons':[{'desc':'Logistics & Handling','price':185,'type':'rental'}],
        'subtotal_override':4118,'tax_override':226.98,'total_override':4344.98,'extrate':1372.67,
@@ -248,9 +248,13 @@ class FakeHandler:
 
 class AccessTests(unittest.TestCase):
     def setUp(self):
-        self.env=patch.dict(os.environ,{'SWJ_REPORT_ADMIN_PASSWORD':'synthetic-admin-password-only','SUPABASE_KEY':fake_key(),'VERCEL_ENV':'preview'})
+        self.env=patch.dict(os.environ,{'SWJ_ADMIN_PASSWORD':'synthetic-admin-password-only','SUPABASE_KEY':fake_key(),'VERCEL_ENV':'preview'})
         self.env.start();auth._ATTEMPTS.clear()
-    def tearDown(self):self.env.stop()
+        # authorized() with base_url/key does a real revocation-table lookup -- these tests
+        # exercise everything else about the session, not the revocation table itself (that has
+        # its own dedicated tests), so a real network call is never appropriate here.
+        self.revocations=patch.object(auth,'fetch_revoked_nonces',return_value=set());self.revocations.start()
+    def tearDown(self):self.env.stop();self.revocations.stop()
     def authorized(self):return {'Cookie':auth.COOKIE+'='+auth.issue_session('https://preview.example.test')}
 
     def test_actual_webhook_dispatch_never_runs_cron_or_stripe(self):
@@ -290,18 +294,26 @@ class AccessTests(unittest.TestCase):
         api.handle(h,'POST','https://example.test',fake_key());self.assertEqual(h.code,403);self.assertNotIn('Set-Cookie',h.out_headers)
 
     def test_missing_configuration_is_closed(self):
-        with patch.dict(os.environ,{'SWJ_REPORT_ADMIN_PASSWORD':''}):
+        with patch.dict(os.environ,{'SWJ_ADMIN_PASSWORD':''}):
             h=FakeHandler();api.handle(h,'GET','https://example.test',fake_key());self.assertEqual(h.code,503)
 
     def test_password_failure_expiry_tamper_host_and_environment(self):
         self.assertFalse(auth.password_matches('wrong'))
         valid=auth.issue_session('https://preview.example.test',now=1000)
-        h=FakeHandler(headers={'Cookie':auth.COOKIE+'='+valid});self.assertTrue(auth.authorized(h,now=1001));self.assertFalse(auth.authorized(h,now=2800))
+        h=FakeHandler(headers={'Cookie':auth.COOKIE+'='+valid});self.assertTrue(auth.authorized(h,now=1001))
+        self.assertFalse(auth.authorized(h,now=1000+auth.LIFETIME+1))  # sliding 30 days, not the old fixed 30 minutes
         h.headers['Host']='production.example.test';self.assertFalse(auth.authorized(h,now=1001))
-        h.headers['Host']='preview.example.test';h.headers['Cookie']=auth.COOKIE+'='+valid[:-1]+('a'if valid[-1]!='a'else'b');self.assertFalse(auth.authorized(h,now=1001))
+        h.headers['Host']='preview.example.test'
+        # Corrupt a character from the MIDDLE of the signature, not the last one: a base64
+        # group's final symbol can carry unused/zero padding bits that a byte-for-byte flip
+        # between two adjacent alphabet characters doesn't always change after decoding, which
+        # made this assertion flaky (~1 in 5) when it flipped only the very last character.
+        mid=len(valid)-6
+        h.headers['Cookie']=auth.COOKIE+'='+valid[:mid]+('a'if valid[mid]!='a'else'b')+valid[mid+1:]
+        self.assertFalse(auth.authorized(h,now=1001))
         h.headers['Cookie']=auth.COOKIE+'='+valid
         with patch.dict(os.environ,{'VERCEL_ENV':'production'}):self.assertFalse(auth.authorized(h,now=1001))
-        with patch.dict(os.environ,{'SWJ_REPORT_ADMIN_PASSWORD':'another-synthetic-password'}):self.assertFalse(auth.authorized(h,now=1001))
+        with patch.dict(os.environ,{'SWJ_ADMIN_PASSWORD':'another-synthetic-password'}):self.assertFalse(auth.authorized(h,now=1001))
 
     def test_scan_failure_never_looks_clean_or_leaks_secrets(self):
         h=FakeHandler(headers=self.authorized())

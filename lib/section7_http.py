@@ -2,6 +2,13 @@
 
 This is imported only for ?section7= routes in the existing webhook function;
 no new Vercel function, cron, Stripe call, mail send or database mutation.
+
+Authenticated through lib/admin_auth.py's single site-wide admin session (owner decision, Nov
+3, 2026) -- the same session every other admin page shares, so opening this report after
+logging in anywhere else on the site needs no second password prompt. ?section7=login/
+session/logout still exist as their own routes (so this page's own self-contained login UI and
+assets/section7.js keep working unchanged), they just check/issue the one shared session now
+instead of a separate SWJ_REPORT_ADMIN_PASSWORD.
 """
 import datetime as dt
 import base64
@@ -11,7 +18,7 @@ import re
 import time
 import urllib.parse
 import urllib.request
-from . import section7_auth as auth
+from . import admin_auth as auth
 from .section7 import build_report, csv_report
 
 PAGE_SIZE = 250
@@ -105,10 +112,15 @@ def handle(handler, method, base_url, key, scanner=None):
         if not auth.same_origin(handler, required=method == 'POST'):
             response(handler, 403, {'error': 'Use the report from this site; cross-origin requests are not permitted.'}); return True
         if method == 'GET' and action == 'session':
-            response(handler, 200, {'configured': auth.configured(), 'authenticated': auth.authorized(handler)}); return True
+            authed = auth.authorized(handler, base_url=base_url, key=key)
+            headers = []
+            if authed:
+                renewed = auth.renewed_session_cookie(handler, base_url=base_url, key=key)
+                if renewed: headers.append(('Set-Cookie', renewed))
+            response(handler, 200, {'configured': auth.configured(), 'authenticated': authed}, headers); return True
         if method == 'POST' and action == 'login':
             if not auth.configured():
-                response(handler, 503, {'error': 'Secure report sign-in is not configured. No database query was made.'}); return True
+                response(handler, 503, {'error': 'Admin sign-in is not configured. No database query was made.'}); return True
             if handler.headers.get('Content-Type', '').split(';')[0].strip() != 'application/json':
                 response(handler, 415, {'error': 'JSON request required.'}); return True
             if not auth.allow_login():
@@ -121,14 +133,18 @@ def handle(handler, method, base_url, key, scanner=None):
             except (ValueError, TypeError, json.JSONDecodeError):
                 response(handler, 400, {'error': 'Invalid sign-in request.'}); return True
             if not auth.password_matches(body.get('password')):
-                response(handler, 401, {'error': 'Sign-in failed.'}); return True
+                response(handler, 401, {'error': 'Incorrect password.'}); return True
             response(handler, 200, {'authenticated': True}, [('Set-Cookie', auth.cookie_header(auth.issue_session(request_origin)))]); return True
         if method == 'POST' and action == 'logout':
+            nonce = auth.current_nonce(handler)
+            if nonce:
+                try: auth.revoke_session(base_url, key, nonce)
+                except Exception: pass
             response(handler, 200, {'authenticated': False}, [('Set-Cookie', auth.cookie_header(clear=True))]); return True
         if not auth.configured():
-            response(handler, 503, {'error': 'Secure report sign-in is not configured. No database query was made.'}); return True
-        if not auth.authorized(handler):
-            response(handler, 401, {'error': 'Report administrator sign-in required.'}); return True
+            response(handler, 503, {'error': 'Admin sign-in is not configured. No database query was made.'}); return True
+        if not auth.authorized(handler, base_url=base_url, key=key):
+            response(handler, 401, {'error': 'Admin sign-in required.'}); return True
         if method == 'GET' and action == 'report':
             period = query.get('period', ['2026-10'])[0]
             if not re.fullmatch(r'\d{4}-(0[1-9]|1[0-2])', period) or not 1900 <= int(period[:4]) <= 9999:
