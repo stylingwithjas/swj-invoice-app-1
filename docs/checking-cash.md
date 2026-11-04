@@ -45,3 +45,20 @@ Supabase reports RLS disabled on existing `invoices` and `tasks`. This build doe
 - 236 Python tests pass. The actual-app invoice/finance/board DOM suite passes. `tests/cash-dom.mjs` verifies carryover, known commitments, navigation and quoted CSV using synthetic data and GET only.
 - Chromium visual QA could not start: local socket creation was denied (`Operation not permitted`). No iPhone/mobile visual sign-off is claimed.
 - Owner bank consent, approved schema follow-up deployment, actual payment matching and live preview verification remain required before this build can be considered operational. No checking-build production deployment or merge is authorized by the invoice-menu merge approval.
+
+## Option A completion review
+
+The original checking build is merged in PR #88. The owner applied the separate review-history SQL; read-only verification confirmed the history table, six-argument function, RLS and server-only grants. Do not rerun either schema script.
+
+This follow-up closes remaining receipt-driver gaps: Home's profitability views and Finance job results include paid partials/extensions by received month, regardless of signature. Browser payment classification is tested against both server cash-ledger and report classification for legacy, split, extension, invalid-date, zero, test and system-record cases. Planning exclusions cannot remove actual received payments from revenue. Existing planning allocations remain estimates; actual job contributions use the cash ledger's tagged Amex purchases, recorded completed mover payments and actual Stripe fees, with logged hours shown as commitments instead of paid costs. Monthly and lifetime job contributions are presented separately and are not called net profit.
+
+Validation: 238 Python tests; invoice/Finance/Board DOM suite; Home snapshot/profitability checks; offline cash UI checks. No invoice, banking or tax records changed by verification. The deployed cash page is reachable and its read-only snapshot loads. Checking has not been connected yet, so consent, reserve confirmation, actual settlement matches and the revised preview's visual approval remain outstanding. Venmo is not a connected automatic transaction feed: the existing reviewed-payment record/import requires actual payment references and per-job detail, never a checking transfer total. No direct Venmo integration is claimed.
+
+Review branch only for this follow-up; do not merge until owner sign-off. No additional schema changes are needed for this code.
+
+
+## Clarified mover workflow
+
+Venmo will not sync automatically. The selected business checking debit is the evidence of payment. In Review checking activity, choose **Assign as mover paid**, enter mover and job, and optionally split one debit across multiple mover/job allocations. The allocations must equal the posted bank amount exactly. Pending/changed payments and unconfirmed wallet funding are rejected. Optional approved-hour links must match the job and amount. Payment references are derived from the checking transaction, so retrying the same assignment does not duplicate costs. The bank movement itself is excluded from costs; only its assigned mover-payment records count once.
+
+`sql/checking_bank_mover_assignment.sql` is a **new, unapplied** follow-up that records allocations and movement confirmation in one transaction. If confirmation fails, all allocation writes roll back. Do not rerun earlier SQL. Saved bank-derived mover costs cannot be reclassified independently in the generic review control; changing their allocation requires a coordinated audited correction rather than leaving orphan costs. The original optional historical evidence entry is retained, but newly synced payments do not require separate entry or a Venmo statement import.

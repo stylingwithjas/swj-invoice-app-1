@@ -1706,37 +1706,9 @@ def tax_invoice_split(d):
 
 
 def tax_payment_events(d):
-    """Every payment EVENT that actually cleared, each tagged with the date received —
-    cash-basis reporting keys off this, not the invoice date."""
-    events = []
-    splits = d.get('payments') or []
-    if splits:
-        for p in splits:
-            # Fix spec Batch A #6 (Nov 2, 2026): exclude Stripe test-mode charges, tagged
-            # is_test at the source (the webhook's own livemode flag) — never a real receipt.
-            if p.get('status') == 'paid' and p.get('paid_date') and not p.get('is_test'):
-                # manual_method:'stripe' is a confirmed-after-the-fact correction (no real
-                # payment_id captured) — see archive.html's Cleanup Review. Never fabricated.
-                events.append({
-                    'date': p['paid_date'],
-                    'amount': float(p.get('amount', 0) or 0),
-                    'method': 'Stripe (Card)' if (p.get('payment_id') or p.get('manual_method') == 'stripe') else 'Other/Manual',
-                })
-    elif d.get('paid') and d.get('paid_date') and not d.get('is_test'):
-        amount = d.get('amount_paid')
-        if amount is None:
-            amount = d.get('stripe_amount')
-        if amount is None:
-            amount = tax_compute_grand(d)
-        events.append({
-            'date': d['paid_date'],
-            'amount': float(amount or 0),
-            # manual_method:'stripe' on the invoice itself (legacy single-payment shape, no
-            # payments[] array) is the same confirmed-after-the-fact correction as above —
-            # confirmed live Nov 2026 as the common case for an ordinary one-time payment.
-            'method': 'Stripe (Card)' if (d.get('stripe_payment_id') or d.get('manual_method') == 'stripe') else 'Other/Manual',
-        })
-    return events
+    """Option A: recorded paid events by received date, regardless of signature."""
+    from lib.payment_events import base
+    return base(d, tax_compute_grand)
 
 
 TAX_SYSTEM_INVNUMS = ('PRICING_DEFAULTS', 'TIER_PRICING', 'FINANCE_CONFIG', 'FINANCE_OVERRIDES')
@@ -1856,9 +1828,8 @@ def build_monthly_tax_report(year, month):
 
         # Extensions (Phase 5.3) — see supabase_update_extension_payment; these were invisible
         # to this report entirely before that existed, since they're not their own row.
-        for ext in (d.get('extensions') or []):
-            if not ext.get('paid') or not ext.get('paid_date') or ext.get('is_test'):
-                continue
+        from lib.payment_events import extensions as recorded_extensions
+        for ext in recorded_extensions(d):
             if not (period_start <= ext['paid_date'] <= period_end):
                 continue
             amt = float(ext.get('amount', 0) or 0)

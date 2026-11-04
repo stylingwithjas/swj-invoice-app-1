@@ -24,6 +24,9 @@ for(const file of ['index.html','luxury.html']){
  assert.ok(w.document.getElementById('gen-panel-create').classList.contains('on'));
  assert.equal(w.document.getElementById('client_email').value,'saved@example.test');
  assert.equal(w.document.getElementById('invdate').value,'2026-01-15');
+ run(`window.__stateForNavigation=captureState();genShowTab('recent');loadInvoiceData({invnum:'TEST-STATE-NAV',client:'Structured state client',invdate:'2026-01-15',base_price:2500,addons:[],state:window.__stateForNavigation})`);
+ assert.ok(w.document.getElementById('gen-panel-create').classList.contains('on'),'structured-state invoice must open editor');
+
  run(`_loadedInvoiceData=null;document.getElementById('client').value='Email test';document.getElementById('client_email').value='saved@example.test';recalc()`);
  run(`window.__originalFrom=_sb.from;_sb.from=()=>({upsert:async row=>{window.__savedDraft=row;return {error:null}}})`);
  await run('saveDraft(true)');
@@ -67,6 +70,18 @@ for(const file of ['index.html','luxury.html']){
  assert.equal(Math.round(run('_lastFinanceSummary.revenue')*100)/100,11616.88);
  assert.match(w.document.getElementById('finance-data-status').textContent,/11,616.88/);
  assert.ok(!w.document.getElementById('fin-details-body').textContent.includes('Signed, unpaid'));
+ // Job results consume actual payments from the authenticated cash ledger, not hours.
+ w.fetch=async()=>({ok:true,json:async()=>({revenue_source:'Recorded paid invoices',monthly:{shared_costs_cents:2000,issues:[]},monthly_jobs:[{invnum:'TEST-EXT',client:'Paid extension',receipts_cents:7500,recorded_cost_cents:2500,contribution_cents:5000}]})});
+ run(`document.getElementById('pr-ledger-month').value='2026-11'`);
+ await run('renderRealLedger()');
+ assert.match(w.document.getElementById('pr-ledger-body').textContent,/Paid extension/);
+ assert.match(w.document.getElementById('pr-ledger-body').textContent,/75/);
+ assert.match(w.document.getElementById('pr-ledger-body').textContent,/50/);
+ assert.match(w.document.getElementById('pr-ledger-body').textContent,/not net profit/);
+ w.fetch=async()=>({ok:false});await run('renderRealLedger()');
+ assert.match(w.document.getElementById('pr-ledger-body').textContent,/could not be verified/);
+ assert.ok(!w.document.getElementById('pr-ledger-body').textContent.includes('Paid extension'));
+
  const tax=app('tax-report.html');tax.__rows=fixture;
  for(const month of ['2026-10','2026-08','2026-09']){
   const a=run(`window.__dbRows.invoices.flatMap(x=>finPaymentEvents(x.data)).filter(e=>e.date.startsWith('${month}')).reduce((n,e)=>n+e.amount,0)`);

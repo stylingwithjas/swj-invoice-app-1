@@ -499,6 +499,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
 
 
 <div class="content">
+<p data-revenue-basis style="margin:0;font-size:12px;color:#68685e">Revenue: paid invoice payments and extensions, by received month, regardless of signature. Stripe and checking deposits verify settlement only.</p>
 
   <!-- GREETING -->
   <div class="greeting" id="greeting-area">
@@ -948,10 +949,10 @@ function monthRangeISO(){
 async function loadMonthlyFinanceData(){
   const [mStart,mEnd]=monthRangeISO();
   try{
-    const {data}=await _sb.from('plaid_transactions').select('transaction_id,date,merchant_name,name,amount,category,job_invnum').gte('date',mStart).lte('date',mEnd);
+    const {data}=await _sb.from('plaid_transactions').select('transaction_id,date,merchant_name,name,amount,pending,category,job_invnum').gte('date',mStart).lte('date',mEnd);
     // Plaid convention: positive amount = money out. Refunds/credits are excluded from spend
     // totals, same reasoning payroll.html's Job Profit — Real tab uses.
-    _monthlyPlaidTx=(data||[]).filter(t=>(parseFloat(t.amount)||0)>0);
+    _monthlyPlaidTx=(data||[]).filter(t=>!t.pending&&(parseFloat(t.amount)||0)>0);
   }catch(e){ _monthlyPlaidTx=[]; /* plaid_transactions may not exist yet if the migration hasn't been run */ }
   try{
     const {data}=await _sb.from('time_entries').select('invnum,amount').gte('clock_in',mStart+'T00:00:00').lte('clock_in',mEnd+'T23:59:59');
@@ -1499,7 +1500,7 @@ async function buildS10(){
   ].filter(sl=>sl.amt>0.009).sort((a,b)=>b.amt-a.amt);
   let acc=0;
   const stops=slices.map(sl=>{ const pct=sl.amt/total*100; const from=acc; acc+=pct; return `${HOME_SPEND_COLORS[sl.key]} ${from.toFixed(2)}% ${acc.toFixed(2)}%`; });
-  el.innerHTML=`<p class="fin-note">Categorized card spending</p><div class="home-donut-wrap">
+  el.innerHTML=`<p class="fin-note">Posted card spending</p><div class="home-donut-wrap">
     <div class="home-donut" style="background:conic-gradient(${stops.join(',')})">
       <div class="home-donut-center"><div class="dv">${fmt(total)}</div><div class="dl">Total Spent</div></div>
     </div>
@@ -1531,43 +1532,17 @@ function buildS11(){
   const monthStart=new Date(now.getFullYear(),now.getMonth(),1);
   const viewAllBtn=`<div class="pf-view-all" onclick="window.location.href='/payroll.html?tab=ledger'"><i class="ti ti-chart-bar"></i>View All Jobs &amp; Profitability</div>`;
 
+  const verified=window.SWJCashSnapshot;
+  if(!verified||window.SWJCashUnavailable){el.innerHTML='<div class="fin-note">Verifying paid receipts and recorded costs. <a href="/cash.html">Open Business cash →</a></div>'+viewAllBtn;return;}
   if(pfView==='monthly'){
-    let mtd=0;
-    allInvoices.forEach(inv=>{ const d=inv.data||{}; if(d.paid&&d.paid_date){ const pd=new Date(d.paid_date+'T00:00:00'); if(pd>=monthStart) mtd+=computeGrand(d); } });
-    const expenses=_monthlyPlaidTx.reduce((t,x)=>t+(parseFloat(x.amount)||0),0);
-    const profit=mtd-expenses;
-    el.innerHTML=`<div class="pf-job-row" onclick="window.location.href='/payroll.html?tab=ledger'">
-      <div class="pf-job-ic"><i class="ti ti-report-money"></i></div>
-      <div class="pf-job-body"><div class="pf-job-title">${now.toLocaleDateString('en-US',{month:'long'})} provisional surplus</div><div class="pf-job-sub">Revenue ${fmt(mtd)} · Expenses ${fmt(expenses)}</div></div>
-      <div class="pf-job-amt">${fmt(profit)}</div>
-    </div>${viewAllBtn}`;
-    return;
+    const m=verified.monthly;
+    el.innerHTML='<div class="pf-job-row"><div class="pf-job-body"><div class="pf-job-title">This month’s provisional result</div><div class="pf-job-sub">Receipts '+fmt(m.collected_cents/100)+' · Recorded costs '+fmt(m.costs_cents/100)+' · sales tax excluded from result</div></div><div class="pf-job-amt">'+(m.result_cents==null?'Pending':fmt(m.result_cents/100))+'</div></div>'+viewAllBtn;return;
   }
-
-  const jobSpend={};
-  _monthlyPlaidTx.forEach(t=>{ if(t.job_invnum) jobSpend[t.job_invnum]=(jobSpend[t.job_invnum]||0)+(parseFloat(t.amount)||0); });
-  const laborByJob={};
-  _monthlyTimeEntries.forEach(e=>{ if(e.invnum) laborByJob[e.invnum]=(laborByJob[e.invnum]||0)+(parseFloat(e.amount)||0); });
-  const jobRevenue={};
-  allInvoices.forEach(inv=>{ const d=inv.data||{}; if(d.paid&&d.paid_date){ const pd=new Date(d.paid_date+'T00:00:00'); if(pd>=monthStart) jobRevenue[inv.invnum]=(jobRevenue[inv.invnum]||0)+computeGrand(d); } });
-  const allJobNums=new Set([...Object.keys(jobSpend),...Object.keys(laborByJob),...Object.keys(jobRevenue)]);
-
-  if(!allJobNums.size){
-    el.innerHTML=`<div class="fin-note" style="padding:8px 0 4px">No real job revenue or costs tagged yet this month.</div>${viewAllBtn}`;
-    return;
-  }
-  const rows=[...allJobNums].map(invnum=>{
-    const inv=allInvoices.find(i=>i.invnum===invnum);
-    const revenue=jobRevenue[invnum]||0, labor=laborByJob[invnum]||0, spend=jobSpend[invnum]||0;
-    const cost=labor+spend;
-    return { invnum, client: inv?(inv.client||(inv.data&&inv.data.client)||invnum):invnum, revenue, cost, net: revenue-cost };
-  }).sort((a,b)=>b.net-a.net);
+  const rows=[...(verified.monthly_jobs||[])].sort((a,b)=>b.contribution_cents-a.contribution_cents);
+  if(!rows.length){el.innerHTML='<div class="fin-note">No recorded job receipts or tagged costs this month. <a href="/cash.html">See results across months →</a></div>'+viewAllBtn;return;}
   const top=rows[0];
-  el.innerHTML=`<div class="pf-job-row" onclick="window.location.href='/payroll.html?tab=ledger'">
-      <div class="pf-job-ic"><i class="ti ti-clipboard-data"></i></div>
-      <div class="pf-job-body"><div class="pf-job-title">${esc(top.client)} #${esc(top.invnum)}</div><div class="pf-job-sub">Receipts ${fmt(top.revenue)} · Recorded costs ${fmt(top.cost)}<br>${top.revenue>0?(top.net/top.revenue*100).toFixed(1)+'% provisional margin':'Margin unavailable'} · Job costs may be incomplete</div></div>
-      <div class="pf-job-amt">${fmt(top.net)}</div>
-    </div>${viewAllBtn}`;
+  el.innerHTML='<div class="pf-job-row"><div class="pf-job-body"><div class="pf-job-title">'+esc(top.client)+' #'+esc(top.invnum)+'</div><div class="pf-job-sub">Receipts '+fmt(top.receipts_cents/100)+' · Recorded costs '+fmt(top.recorded_cost_cents/100)+'<br>This month only; includes sales tax and excludes shared costs. Not net profit.</div></div><div class="pf-job-amt">'+fmt(top.contribution_cents/100)+'</div></div>'+viewAllBtn;
+
 }
 
 // ── TASK CARD HTML ─────────────────────────────────────

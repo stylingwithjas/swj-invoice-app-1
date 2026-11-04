@@ -41,6 +41,18 @@ class CashTests(unittest.TestCase):
         d=inputs();d['movers']=[{'event_id':'venmo1','paid_date':'2026-11-03','job_invnum':'2020101','amount':75}];d['time_entries']=[{'id':'h','amount':75,'approved':True,'paid':False}];d['time_links']=[{'time_entry_id':'h','event_id':'venmo1'}]
         t={'transaction_id':'x','account_id':'checking','date':'2026-11-03','amount':75,'pending':False};d['bank_transactions']=[t];d['reviews']=[dict(validate_review(t,'mover_payment',['mover:venmo1'],'Actual mover payment',{}, {'venmo1':d['movers'][0]}),transaction_id='x')]
         r=snapshot(**d);self.assertEqual(r['monthly']['mover_spend_cents'],7500);self.assertEqual(r['cash']['mover_commitments_cents'],0)
+    def test_job_results_separate_monthly_from_lifetime_and_shared_costs(self):
+        d=inputs()
+        d['movers']=[{'event_id':'actual','paid_date':'2026-11-03','job_invnum':'2020101','amount':75}]
+        d['card_transactions'].append({'transaction_id':'overhead','date':'2026-11-02','amount':20})
+        d['time_entries']=[{'id':'unpaid','invnum':'2020101','amount':300,'approved':True,'paid':False}]
+        r=snapshot(**d)
+        self.assertEqual(r['jobs'][0]['receipts_cents'],100000)
+        self.assertEqual(r['monthly_jobs'][0]['receipts_cents'],0)
+        self.assertEqual(r['monthly_jobs'][0]['recorded_cost_cents'],17500)
+        self.assertEqual(r['monthly']['shared_costs_cents'],2000)
+        self.assertEqual(r['monthly']['costs_cents'],19500)
+        self.assertEqual(r['cash']['mover_commitments_cents'],30000)
     def test_actual_stripe_fees_not_charge_minus_payout(self):
         d=inputs();d['stripe_rows']=[{'date':'2026-11-03','type':'charge','amount':1000,'fee':29.3,'invoice_ref':'2020101'},{'date':'2026-11-03','type':'payout','amount':-900,'fee':0}]
         self.assertEqual(snapshot(**d)['monthly']['stripe_fees_cents'],2930)

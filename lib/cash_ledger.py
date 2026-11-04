@@ -249,7 +249,7 @@ def snapshot(invoices, cards, card_transactions, bank_accounts, bank_transaction
         cash_blockers.append('Reconfirm the remaining tax reserve after the recorded tax payment.')
     cash_blockers = sorted(set(cash_blockers))
     after = None if cash_blockers or bank_cash is None else bank_cash-card_reserve-commitments-tax_reserve-buffer
-    jobs = {}
+    jobs, monthly_jobs = {}, []
     for inv in invoices:
         if str(inv.get('invnum')) not in {r['invnum'] for r in receipts} and not any(str(t.get('job_invnum'))==str(inv.get('invnum')) for t in purchases+movers): continue
         key = str(inv['invnum']); gross = sum(e['amount_cents'] for e in receipts if e['invnum']==key)
@@ -257,12 +257,23 @@ def snapshot(invoices, cards, card_transactions, bank_accounts, bank_transaction
         fees = sum(cents(t['fee']) for t in stripe_rows if t.get('invoice_ref')==key)
         jobs[key] = {'invnum':key,'client':safe_label(inv.get('client')), 'receipts_cents':gross,'recorded_cost_cents':costs+fees,
                      'contribution_cents':gross-costs-fees, 'note':'Lifetime receipts less recorded job costs; includes sales tax and excludes shared overhead. Not net profit.'}
+        monthly_gross = sum(e['amount_cents'] for e in receipts if e['invnum']==key and month(e['date']))
+        monthly_cost = sum(cents(t['amount']) for t in purchases if str(t.get('job_invnum'))==key and month(t['date']))
+        monthly_cost += sum(cents(t['amount']) for t in movers if str(t.get('job_invnum'))==key and month(t['paid_date']))
+        monthly_cost += sum(cents(t['fee']) for t in fee_rows if t.get('invoice_ref')==key)
+        if monthly_gross or monthly_cost:
+            monthly_jobs.append({'invnum':key,'client':safe_label(inv.get('client')),
+                                 'receipts_cents':monthly_gross,'recorded_cost_cents':monthly_cost,
+                                 'contribution_cents':monthly_gross-monthly_cost})
+    shared_costs = sum(cents(t['amount']) for t in purchases if month(t['date']) and not t.get('job_invnum'))
+    shared_costs += bank_fees + sum(cents(t['fee']) + (-cents(t['amount']) if t['type']=='stripe_fee' else 0)
+                                  for t in fee_rows if not t.get('invoice_ref'))
     return {'period':period, 'revenue_source':'Recorded customer payments by received date, regardless of signature; deposits are settlement only.',
             'monthly':{'collected_cents':collected,'sales_tax_cents':tax if tax_known else None,'revenue_ex_tax_cents':revenue if tax_known else None,'card_spend_cents':card_spend,
-                       'mover_spend_cents':mover_spend,'stripe_fees_cents':stripe_fees,'bank_fees_cents':bank_fees,'costs_cents':total_cost,
+                       'mover_spend_cents':mover_spend,'stripe_fees_cents':stripe_fees,'bank_fees_cents':bank_fees,'costs_cents':total_cost,'shared_costs_cents':shared_costs,
                        'result_cents':result if tax_known else None,'margin_percent':round(result/revenue*100,2) if revenue>0 and tax_known else None,'issues':sorted(set(issues))},
             'cash':{'bank_cents':bank_cash,'card_reserve_cents':card_reserve,'mover_commitments_cents':commitments,
                     'tax_reserve_cents':tax_reserve,'buffer_cents':buffer,'after_commitments_cents':after,'blockers':cash_blockers,
                     'note':'Includes cash carried over from earlier months. Expected Stripe payouts are not added to bank cash. Card current balances are reserved once, not again as expenses.'},
-            'jobs':list(jobs.values()),'receipts':receipts,'unresolved_bank_count':len(unresolved),
+            'jobs':list(jobs.values()),'monthly_jobs':monthly_jobs,'receipts':receipts,'unresolved_bank_count':len(unresolved),
             'card_credit_review_count':len(unreviewed_credits)}
