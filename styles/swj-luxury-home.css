@@ -104,3 +104,6 @@
 .swj-home .luxury-attention-icon svg{display:block;width:100%;height:100%;}
 @media(min-width:700px){.swj-home .snap-lbl{font-size:16px!important}.swj-home .profit-goal{font-size:18px}.swj-home .home-donut{width:174px;height:174px}.swj-home .home-donut-center{inset:28px}.swj-home .card-name{font-size:16px!important}.swj-home .card-meta{font-size:14px!important}.swj-home .card-pay-pill{font-size:16px!important}.swj-home .home-legend-name,.swj-home .home-legend-amt{font-size:15px!important}.swj-home .card-row{padding:18px 0!important}.swj-home .card-pay-pill small{font-size:10px!important}.swj-home #s1-meta{font-size:12px!important}}
 @media(max-width:699px){.swj-home .hdr-top{padding-left:20px;padding-right:20px}.swj-home .luxury-attention-icon{width:27px;height:27px}.swj-home .luxury-card-link{font-size:28px}}
+/* Narrow-device QA: align values beneath wrapped labels; keep operation tools in bounds. */
+@media(max-width:699px){.swj-home .snap-lbl{min-height:2.6em}.swj-home .home-legend-name{overflow-wrap:normal!important;word-break:normal;}}
+@media(max-width:359px){.swj-home #sec-shopping .sec-hdr{flex-wrap:wrap}.swj-home #sec-shopping .sec-hdr>div:last-child{max-width:100%;flex-wrap:wrap;}}
