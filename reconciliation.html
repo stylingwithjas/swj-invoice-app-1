@@ -33,12 +33,35 @@
 </div>
 <div id="review-note" class="notice"></div>
 <div id="missing-dates" class="notice" hidden><p class="muted">Paid records with no usable receipt date — the period-matched paid count above cannot confirm these belong to, or are excluded from, the review period:</p><ul id="missing-dates-list"></ul></div>
-<div class="card toolbar"><label for="view">Show</label><select id="view"><option value="all">All flagged invoices</option><option value="paid_period">Receipts in review period</option><option value="paid">All recorded paid invoices</option><option value="unverifiable">Needs more information</option></select><span id="visible-count" class="muted"></span><button id="export" type="button">Download this list · CSV</button></div>
+<div class="card toolbar"><label for="view">Show</label><select id="view"><option value="all">All flagged invoices</option><option value="paid_period">Receipts in review period</option><option value="paid">All recorded paid invoices</option><option value="unverifiable">Needs more information</option></select><label for="recon-filter">Records</label><select id="recon-filter"><option value="active">Active only</option><option value="excluded">Excluded only</option><option value="all">All</option></select><span id="visible-count" class="muted"></span><button id="export" type="button">Download this list · CSV</button></div>
 <div id="results" aria-live="polite"></div>
 <details class="card method"><summary>Coverage, calculation basis &amp; limitations</summary><p id="coverage"></p><p id="basis"></p><p id="fingerprint" class="fingerprint"></p><ul id="limitations"></ul><p class="muted">Discrepancy and missing-information counts can overlap. A comparison figure is a diagnostic, not an authorized correction.</p></details>
 </div>
 </section>
 <footer>Paid findings are questions for owner/CPA review. This report never updates, regenerates, charges or emails an invoice.</footer>
 </main>
+<dialog id="exclude-dialog">
+<h2>Exclude from reconciliation</h2>
+<p class="muted">This hides the record from the Active list only — it stays in the database, with a reason and date, and can be restored at any time.</p>
+<dl id="exclude-summary" class="exclude-summary"></dl>
+<form id="exclude-form">
+<fieldset><legend>Reason</legend>
+<label class="radio"><input type="radio" name="reason" value="test_record" required> Test record (not a real job)</label>
+<label class="radio"><input type="radio" name="reason" value="quote_never_realized"> Quote never became a job (never signed, never paid, no staging)</label>
+<label class="radio"><input type="radio" name="reason" value="duplicate_superseded"> Duplicate / superseded version</label>
+<label class="radio"><input type="radio" name="reason" value="other"> Other</label>
+</fieldset>
+<div id="exclude-note-wrap" hidden><label for="exclude-note">Note (required for "Other")</label><textarea id="exclude-note" maxlength="500" rows="2"></textarea></div>
+<p id="exclude-error" class="message error" hidden></p>
+<div class="dialog-actions"><button type="button" id="exclude-cancel">Cancel</button><button type="submit" class="primary" id="exclude-confirm">Exclude record</button></div>
+</form>
+</dialog>
+<dialog id="restore-dialog">
+<h2>Restore to the active list</h2>
+<p class="muted">This puts the record back into the active reconciliation list and its counts.</p>
+<dl id="restore-summary" class="exclude-summary"></dl>
+<p id="restore-error" class="message error" hidden></p>
+<div class="dialog-actions"><button type="button" id="restore-cancel">Cancel</button><button type="button" class="primary" id="restore-confirm">Restore record</button></div>
+</dialog>
 </body>
 </html>
