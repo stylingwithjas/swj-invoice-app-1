@@ -245,13 +245,50 @@ class PlaidExchangeTests(unittest.TestCase):
         self.assertNotIn('secret-client-id-xyz', dumped)
         self.assertNotIn('super-secret-value-123', dumped)
 
+    def test_cosmetic_lookups_use_a_short_timeout_so_they_cant_stack_past_maxduration(self):
+        # Nov 4, 2026 follow-up: on a slow response, _plaid_request's default 20s timeout on
+        # BOTH cosmetic lookups, stacked with the essential exchange call (20s) and the
+        # Supabase write (15s), could exceed this function's own 60s maxDuration and get the
+        # whole request killed by the platform with no JSON reply at all -- indistinguishable,
+        # from the browser, from a connection that will just never answer. Both cosmetic calls
+        # must use a timeout well short of the default.
+        calls = []
+
+        def fake_request(path, payload, timeout=20):
+            calls.append((path, timeout))
+            if path == '/item/public_token/exchange':
+                return {'access_token': 'access-xyz', 'item_id': 'item1'}
+            if path == '/item/get':
+                return {'item': {'institution_id': 'ins_1'}}
+            if path == '/institutions/get_by_id':
+                return {'institution': {'name': 'American Express'}}
+            raise AssertionError('unexpected path ' + path)
+
+        def fake_urlopen(req, timeout=None):
+            class R:
+                def read(self_inner): return b'[]'
+                def __enter__(self_inner): return self_inner
+                def __exit__(self_inner, *a): pass
+            return R()
+
+        with patch.object(webhook, '_plaid_request', side_effect=fake_request), \
+             patch('urllib.request.urlopen', side_effect=fake_urlopen):
+            webhook.plaid_exchange_public_token('public-abc')
+
+        by_path = dict(calls)
+        self.assertEqual(by_path['/item/public_token/exchange'], 20)
+        self.assertLess(by_path['/item/get'], 20)
+        self.assertLess(by_path['/institutions/get_by_id'], 20)
+        total_worst_case = by_path['/item/public_token/exchange'] + by_path['/item/get'] + by_path['/institutions/get_by_id'] + 15
+        self.assertLess(total_worst_case, 60)
+
     def test_missing_access_token_in_response_is_a_clear_error_not_a_crash(self):
         with patch.object(webhook, '_plaid_request', return_value={'item_id': 'item1'}):
             result = webhook.plaid_exchange_public_token('public-abc')
         self.assertEqual(result, {'error': 'Plaid did not return an access token.'})
 
     def test_institution_lookup_failure_is_cosmetic_only_connection_still_saved(self):
-        def fake_request(path, payload):
+        def fake_request(path, payload, timeout=20):
             if path == '/item/public_token/exchange':
                 return {'access_token': 'access-xyz', 'item_id': 'item1'}
             raise Exception('institution lookup unavailable')
@@ -287,7 +324,7 @@ class PlaidExchangeTests(unittest.TestCase):
         self.assertIn('Supabase unreachable', result['error'])
 
     def test_full_success_response_never_contains_tokens_or_secrets(self):
-        def fake_request(path, payload):
+        def fake_request(path, payload, timeout=20):
             if path == '/item/public_token/exchange':
                 return {'access_token': 'access-xyz', 'item_id': 'item1'}
             if path == '/item/get':

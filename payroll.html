@@ -1876,18 +1876,32 @@ const PLAID_CATEGORIES = ['Supplies','Furniture/Inventory','Truck & Gas','Storag
 const DUE_SOON_DAYS = 7; // owner-confirmable threshold (spec Section 4)
 
 async function plaidApi(job, body){
-  // Never throws -- a thrown error inside an un-awaited callback (e.g. Plaid's onSuccess)
-  // is silently swallowed with no alert and no UI recovery. Every failure path here, network,
-  // non-OK status, or a non-JSON body (e.g. a function timeout page), comes back as a plain
+  // Never throws, and never waits forever -- a thrown/rejected error inside an un-awaited
+  // callback (e.g. Plaid's onSuccess) is silently swallowed with no alert and no UI recovery,
+  // and a plain fetch() has no built-in timeout at all, so a request the server never actually
+  // answers (e.g. it's killed by the platform's own function time limit without a clean
+  // response) would otherwise hang the UI indefinitely with nothing to catch. The 45s client
+  // timeout here is kept under api/webhook.py's own 60s maxDuration (vercel.json) so, in the
+  // ordinary case, the server's own error response arrives first -- this is strictly a backstop
+  // for the case where it doesn't. Every failure path -- network, non-OK status, a non-JSON
+  // body (e.g. a function-timeout error page), or this timeout -- comes back as a plain
   // {error: '...'} the caller can check, same as a normal API error.
+  const controller = new AbortController();
+  const timedOut = setTimeout(()=>controller.abort(), 45000);
   let r;
   try{
     r = await fetch(`/api/webhook?job=${job}`, {
       method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify(body||{}),
+      signal: controller.signal,
     });
   }catch(e){
+    if(e.name === 'AbortError'){
+      return { error: 'The server took too long to respond (over 45 seconds) and the request was given up on. Nothing was saved -- it\'s safe to try again.' };
+    }
     return { error: `Could not reach the server (${e.message}). Check your connection and try again.` };
+  }finally{
+    clearTimeout(timedOut);
   }
   let data;
   try{

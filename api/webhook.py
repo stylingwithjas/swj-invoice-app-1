@@ -208,7 +208,7 @@ def _plaid_configured():
     return bool(os.environ.get('PLAID_CLIENT_ID')) and bool(os.environ.get('PLAID_SECRET'))
 
 
-def _plaid_request(path, payload):
+def _plaid_request(path, payload, timeout=20):
     """POST to Plaid's REST API with client_id/secret injected. Raises on any error — callers
     catch it and turn it into a clear {'error': ...} response, never a silent partial result.
 
@@ -216,7 +216,13 @@ def _plaid_request(path, payload):
     access_token, or public_token — none of those are ever read from or present in this error
     path) are pulled from the response body and folded into the raised message, so a generic
     "HTTP Error 400: Bad Request" doesn't hide which of several possible causes (wrong-
-    environment secret, a bad field, an OAuth/redirect mismatch, ...) actually fired."""
+    environment secret, a bad field, an OAuth/redirect mismatch, ...) actually fired.
+
+    `timeout` defaults to 20s for an essential call. A caller chaining several of these in one
+    request (e.g. the exchange step's own cosmetic lookups) must pass a shorter timeout so the
+    total can't stack past this function's own Vercel maxDuration — left unbounded, Vercel kills
+    the whole function with no JSON response at all, which a plain client fetch() can't tell
+    apart from a connection that will just never answer."""
     body = dict(payload)
     body['client_id'] = os.environ.get('PLAID_CLIENT_ID', '')
     body['secret'] = os.environ.get('PLAID_SECRET', '')
@@ -227,7 +233,7 @@ def _plaid_request(path, payload):
         method='POST',
     )
     try:
-        with urllib.request.urlopen(req, timeout=20) as r:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
             return json.loads(r.read())
     except urllib.error.HTTPError as e:
         detail = ''
@@ -289,12 +295,17 @@ def plaid_exchange_public_token(public_token):
             return {'error': 'Plaid did not return an access token.'}
         institution_name = ''
         try:
-            item_resp = _plaid_request('/item/get', {'access_token': access_token})
+            # Short timeouts here, not the default 20s -- these two calls are cosmetic only
+            # (just the display name), and stacked with the essential exchange call above and
+            # the Supabase write below, the default would risk exceeding this function's own
+            # 60s maxDuration (vercel.json) on a slow response, which kills the whole function
+            # with no JSON reply at all instead of a clean error.
+            item_resp = _plaid_request('/item/get', {'access_token': access_token}, timeout=8)
             institution_id = (item_resp.get('item') or {}).get('institution_id')
             if institution_id:
                 inst_resp = _plaid_request('/institutions/get_by_id', {
                     'institution_id': institution_id, 'country_codes': ['US'],
-                })
+                }, timeout=8)
                 institution_name = (inst_resp.get('institution') or {}).get('name', '')
         except Exception:
             pass  # cosmetic only — never block storing the access token over a lookup failure
