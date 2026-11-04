@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="512x512" href="/assets/icon-512.png">
 <script>if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(function(rs){rs.forEach(function(r){r.unregister();});}).catch(function(){});if('caches' in window){caches.keys().then(function(ks){ks.forEach(function(k){caches.delete(k);});}).catch(function(){});}}</script>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
 <title>SWJ — Home</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Cormorant+Garamond:wght@300;400;500;600&display=swap">
@@ -348,13 +348,48 @@ body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var
 .swj-more-link{ display:flex; align-items:center; gap:12px; padding:13px 16px; font-size:14px; color:#1a1814; text-decoration:none; border-radius:10px; }
 .swj-more-link:active{ background:#f5f2ed; }
 </style>
+<style>
+/* Jasmine's daily briefing: one reading order on every screen. */
+:root{--muted:#6d665f;--muted-soft:#82786d;}
+.content{display:grid!important;grid-template-columns:minmax(0,1fr);gap:18px;column-count:unset!important;max-width:1160px!important;padding-top:18px;}
+.content>*{min-width:0;margin-top:0!important;}
+.section{background:#fffdfa;border:1px solid #e6dfd5;border-radius:18px;padding:22px;box-shadow:0 3px 12px #30291e06;break-inside:avoid;}
+.sec-title{font-size:28px;font-weight:500;line-height:1.15;}
+.sec-meta{font-size:11px;letter-spacing:.7px;text-align:right;}
+.fin-note,.card-meta,.pf-job-sub,.empty-sub{font-size:13px!important;line-height:1.6;color:var(--muted);}
+.snap-val{font-size:30px!important;font-variant-numeric:tabular-nums;}
+.snap-lbl{font-size:12px!important;letter-spacing:0!important;text-transform:none!important;}
+.snap-cell.profit{background:var(--gold-soft);}
+.snap-cell.loss{background:var(--red-tint);color:var(--red);}
+.greeting-hello{color:var(--ink);font-size:42px;}
+.greeting{order:0}.qa-row{order:1}#week-view{order:2}
+#sec-financial{order:3;grid-column:1/-1}#sec-payout{order:4}#sec-amex{order:5}
+#sec-attention{order:6}#sec-schedule{order:7}#sec-glance{order:8}#sec-spending{order:9}
+#sec-profit{order:10}#sec-tasks{order:11}#sec-shopping{order:12}#sec-followups{order:13}#sec-filing{order:14}
+.profit-goal{padding:16px;background:var(--gold-soft);border-radius:12px;margin-top:14px;line-height:1.6;font-size:14px;}
+.profit-track{height:9px;background:#e4ddd2;border-radius:6px;margin:12px 0;overflow:hidden;}
+.profit-track span{display:block;height:100%;background:var(--gold);}
+.payout-hero{background:var(--olive-tint);border-radius:12px;padding:18px;margin-bottom:14px;}
+.payout-hero strong{display:block;font-size:36px;font-weight:600;letter-spacing:-1px;font-variant-numeric:tabular-nums;}
+.payout-hero p{font-size:15px;margin-top:6px;line-height:1.5;}
+.payout-tile-val{font-size:20px!important}.payout-tile-lbl{font-size:11px!important}
+.card-row{display:block!important;padding:16px 0!important;border-bottom:1px solid var(--line);}
+.card-chip{display:none}.card-name{font-size:15px!important}.card-pay-pill{display:inline-block;margin-top:10px;font-size:16px!important;text-align:left!important;}
+.card-pay-pill small{display:block;font-size:12px;}.card-due{font-size:20px;font-weight:600;margin:8px 0;}
+.home-detail{margin-top:14px;font-size:13px;line-height:1.6}.home-detail summary{cursor:pointer;min-height:44px;padding:12px 0;}
+.home-detail a{color:var(--olive-dark)}
+.home-legend-row{padding:9px 0!important}.home-legend-name{font-size:13px!important}.home-legend-amt{font-size:15px!important}
+button,a{touch-action:manipulation}button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:3px solid #9b7540;outline-offset:3px}
+@media(min-width:1000px){.content{grid-template-columns:repeat(2,minmax(0,1fr));}.greeting,.qa-row,#week-view{grid-column:1/-1}.hdr-top,.date-bar{max-width:1160px!important;}.greeting{padding-top:8px;}.section{margin-bottom:0!important}}
+@media(max-width:600px){.content{padding:14px 14px 110px!important;gap:14px}.section{padding:18px 16px}.sec-title{font-size:25px}.snap-val{font-size:26px!important}.greeting-hello{font-size:36px}.qa-row{gap:8px}.qa-tile{font-size:11px!important}.card-meta{font-size:13px!important}.home-donut-wrap{flex-wrap:wrap}.home-legend{min-width:180px;flex:1}.swj-bn-link{min-height:48px}}
+</style>
 </head>
 <body>
 
 <nav class="swj-sidebar">
   <div class="swj-sb-brand">Styling With Jas<span>Staging Operations</span></div>
   <a class="swj-sb-link on" href="/today.html">🏠 Home</a>
-  <a class="swj-sb-link" href="/board.html">📋 Board</a>
+  <a class="swj-sb-link" href="/board.html">📋 Jobs</a>
   <a class="swj-sb-link" href="/shop.html">🛍 Shopping</a>
   <a class="swj-sb-link" href="/index.html">✚ New Invoice</a>
   <a class="swj-sb-link" href="/payroll.html">💼 Finance</a>
@@ -365,8 +400,7 @@ body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var
 
 <nav class="swj-bottom-nav">
   <a class="swj-bn-link on" href="/today.html"><span class="swj-bn-ic">🏠</span>Home</a>
-  <a class="swj-bn-link" href="/index.html"><span class="swj-bn-ic">✚</span>New Invoice</a>
-  <a class="swj-bn-link" href="/board.html"><span class="swj-bn-ic">📋</span>Board</a>
+  <a class="swj-bn-link" href="/board.html"><span class="swj-bn-ic">📋</span>Jobs</a>
   <a class="swj-bn-link" href="/payroll.html"><span class="swj-bn-ic">💼</span>Finance</a>
   <button class="swj-bn-link" onclick="swjToggleMore()" type="button"><span class="swj-bn-ic">⋯</span>More</button>
 </nav>
@@ -374,6 +408,7 @@ body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var
 <div class="swj-more-sheet" id="swj-more-sheet" onclick="if(event.target===this)swjToggleMore()">
   <div class="swj-more-card">
     <div class="swj-more-handle"></div>
+    <a class="swj-more-link" href="/index.html">✚ New Invoice</a>
     <a class="swj-more-link" href="/shop.html">🛍 Shopping</a>
     <a class="swj-more-link" href="/tax-report.html">📊 Reports (Tax Report)</a>
     <a class="swj-more-link" href="/archive.html">🧾 Invoices (Archive)</a>
@@ -473,7 +508,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
        question. -->
   <div class="section" id="sec-payout">
     <div class="sec-hdr">
-      <div class="sec-title">Money Landing Soon</div>
+      <div class="sec-title">Money Arriving</div>
       <div class="sec-meta" id="s6b-meta">—</div>
     </div>
     <div id="s6b-body"><div class="skel" style="height:100px"></div></div>
@@ -494,7 +529,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
   <!-- S1: NEEDS ATTENTION (from invoices + Plaid categorization gaps) -->
   <div class="section" id="sec-attention">
     <div class="sec-hdr">
-      <div class="sec-title">Needs Attention</div>
+      <div class="sec-title">Your Next Steps</div>
       <div class="sec-meta" id="s1-meta">—</div>
     </div>
     <div id="s1-body"><div class="skel"></div></div>
@@ -505,7 +540,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
        get edited. -->
   <div class="section" id="sec-glance">
     <div class="sec-hdr">
-      <div class="sec-title">This Month at a Glance</div>
+      <div class="sec-title">Your Jobs at a Glance</div>
       <div class="sec-meta" id="s9-meta">—</div>
     </div>
     <div id="s9-body"><div class="skel" style="height:120px"></div></div>
@@ -552,7 +587,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
   <!-- S2: TODAY'S SCHEDULE -->
   <div class="section" id="sec-schedule">
     <div class="sec-hdr">
-      <div class="sec-title">Schedule</div>
+      <div class="sec-title">Coming Up</div>
       <div style="display:flex;align-items:center;gap:8px">
         <div class="sec-meta" id="s2-meta">—</div>
         <button class="sec-add-btn" onclick="sheetMode='add';editingTaskId=null;setQAType('schedule');openSheet('schedule',{})">+ Add</button>
@@ -802,7 +837,7 @@ function buildBriefing(u,sc,t,sh,f){
   const el=document.getElementById('briefing');
   const row=document.getElementById('send-brief-row');
   const parts=[];
-  if(u>0) parts.push(`<strong>${u}</strong> urgent`);
+  if(u>0) parts.push(`<strong>${u}</strong> items to review`);
   if(sc>0) parts.push(`<strong>${sc}</strong> scheduled`);
   if(t>0)  parts.push(`<strong>${t}</strong> task${t===1?'':'s'}`);
   if(sh>0) parts.push(`<strong>${sh}</strong> shopping item${sh===1?'':'s'}`);
@@ -913,7 +948,7 @@ function buildS1(){
     <div class="alert-top"><div><div class="alert-lbl">${a.label}</div><div class="alert-client">${esc(a.client)}</div><div class="alert-detail">${a.addr?esc(a.addr)+' · ':''}${a.detail}</div></div>${a.amount!==null?`<div class="alert-amt${a.amtRed?' sev-high':''}">${fmt(a.amount)}</div>`:''}</div>
     <div class="alert-btns" onclick="event.stopPropagation()">${a.btns.map(b=>`<button class="abn ${b.cls||''}" onclick="${b.fn}">${b.t}</button>`).join('')}</div>
   </div>`).join('');
-  el.innerHTML=gapRows.join('')+actionsHTML;
+  el.innerHTML=actionsHTML+gapRows.join('');
   return totalCount;
 }
 
@@ -931,22 +966,22 @@ function buildS2(){
     const d=inv.data||{};
     if(d.startdate&&d.startdate!=='TBD'){
       const away=Math.round((new Date(d.startdate+'T00:00:00')-viewDate)/864e5);
-      if(away===0||away===1){
+      if(away>=0&&away<=7){
         const tags=[];
         if(d.truck_booked)tags.push({t:'Truck ✓',cls:'ok'});else tags.push({t:'No truck',cls:'warn'});
         if(d.mover_name)tags.push({t:d.mover_name,cls:'ok'});else tags.push({t:'No mover',cls:'warn'});
-        items.push({time:d.truck_pickup_time||(away===0?'Today':'Tomorrow'),title:(away===0?'Staging: ':'Tomorrow: ')+esc(inv.client||''),sub:(inv.address||'').split(',').slice(0,2).join(','),tags,invnum:inv.invnum,taskId:null,isDone:false});
+        items.push({time:d.truck_pickup_time||(away===0?'Today':away===1?'Tomorrow':fmtShort(d.startdate)),title:(away===0?'Staging: ':fmtShort(d.startdate)+' · Staging: ')+esc(inv.client||''),sub:(inv.address||'').split(',').slice(0,2).join(','),tags,invnum:inv.invnum,taskId:null,isDone:false});
       }
     }
     if(d.destage_date){
       const away=Math.round((new Date(d.destage_date+'T00:00:00')-viewDate)/864e5);
-      if(away===0){
-        items.push({time:d.destage_time||'Today',title:'Destage: '+esc(inv.client||''),sub:(inv.address||'').split(',')[0],tags:[{t:d.destage_mover||'No mover',cls:d.destage_mover?'ok':'warn'}],invnum:inv.invnum,taskId:null,isDone:false});
+      if(away>=0&&away<=7){
+        items.push({time:fmtShort(d.destage_date),title:'Destage: '+esc(inv.client||''),sub:(inv.address||'').split(',')[0],tags:[{t:d.destage_mover||'No mover',cls:d.destage_mover?'ok':'warn'}],invnum:inv.invnum,taskId:null,isDone:false});
       }
     }
   });
-  document.getElementById('s2-meta').textContent=items.length?`${items.length} event${items.length===1?'':'s'}`:'nothing';
-  if(!items.length){el.innerHTML=`<div class="empty"><div class="empty-icon"><i class="ti ti-calendar-off"></i></div><div class="empty-text">Nothing scheduled.</div><div class="empty-sub">Add a schedule item below or set staging dates on the Board.</div></div>`;return 0;}
+  document.getElementById('s2-meta').textContent=items.length?`${items.length} event${items.length===1?'':'s'}`:'next 7 days';
+  if(!items.length){el.innerHTML=`<div class="empty"><div class="empty-icon"><i class="ti ti-calendar-off"></i></div><div class="empty-text">Nothing scheduled.</div><div class="empty-sub">Add a schedule item below or set staging dates in Jobs.</div></div>`;return 0;}
   el.innerHTML=items.map(item=>`
     <div class="tl-row ${item.isDone?'done':''}">
       <div class="tl-time">${esc(item.time)}</div>
@@ -1035,17 +1070,22 @@ function buildS6(){
   });
   const expenses=_monthlyPlaidTx.reduce((t,x)=>t+(parseFloat(x.amount)||0),0);
   const profit=mtd-expenses;
-  const goal=15000;
-  const pct=Math.min(100,Math.max(0,Math.round((mtd/goal)*100)));
-  document.getElementById('s6-meta').textContent=now.toLocaleDateString('en-US',{month:'long'});
+  const margin=mtd>0?profit/mtd*100:null;
+  const gap=Math.max(0,mtd*.25-profit);
+  const progress=margin==null?0:Math.max(0,Math.min(100,margin/25*100));
+  document.getElementById('s6-meta').textContent=now.toLocaleDateString('en-US',{month:'long'})+' so far';
   document.getElementById('s6-body').innerHTML=`
     <div class="snap-grid">
-      <div class="snap-cell"><div class="snap-lbl">Revenue</div><div class="snap-val">${fmt(mtd)}</div></div>
-      <div class="snap-cell"><div class="snap-lbl">Expenses</div><div class="snap-val">${fmt(expenses)}</div></div>
-      <div class="snap-cell profit"><div class="snap-lbl">Profit</div><div class="snap-val">${fmt(profit)}</div></div>
+      <div class="snap-cell"><div class="snap-lbl">Collected receipts</div><div class="snap-val">${fmt(mtd)}</div></div>
+      <div class="snap-cell"><div class="snap-lbl">Recorded spending</div><div class="snap-val">${fmt(expenses)}</div></div>
+      <div class="snap-cell ${profit<0?'loss':'profit'}"><div class="snap-lbl">Provisional surplus</div><div class="snap-val">${fmt(profit)}</div></div>
     </div>
-    <div class="fin-bar" style="margin-top:12px"><div class="fin-bar-fill" style="width:${pct}%"></div></div>
-    <div class="fin-note" style="margin-top:6px">${pct}% of ${fmt(goal)} monthly goal${mtdN?' · '+mtdN+' paid invoice'+(mtdN===1?'':'s'):''}</div>`;
+    <div class="profit-goal"><b>Your net profit goal: 25%</b>
+      <div class="profit-track"><span style="width:${progress}%"></span></div>
+      ${margin==null?'No collected receipts recorded this month. A margin is not available yet.':`Recorded surplus is ${margin.toFixed(1)}% of receipts · ${gap>0?fmt(gap)+' below the 25% benchmark':'at or above the 25% benchmark'}.`}
+      <p class="fin-note">Early-month bills can arrive before customer payments. This is a provisional cash snapshot, not verified net profit or money available to withdraw.</p>
+    </div>
+    <details class="home-detail"><summary>What these numbers include</summary>Uses Home’s existing paid-invoice receipts and synced positive card transactions. Sales tax, refunds, transfers, payment timing, missing costs and transaction coverage need reconciliation before measuring true net profit. Card payments must not be counted again as purchases. <a href="/payroll.html?tab=spending">Review spending and data coverage →</a></details>`;
 }
 
 // ── S6B: MONEY LANDING SOON ─────────────────────────────
@@ -1106,7 +1146,7 @@ async function buildPayoutSnapshot(){
   // Only ever shown when every tile above is genuinely empty -- never while an in-transit
   // payout or anything else has real money in it, so this line can never contradict a tile.
   const genuinelyEmpty=(!h.available||h.available<=0.009)&&(!h.pending||h.pending<=0.009)&&!h.in_transit&&!h.next_expected;
-  const emptyNoteHTML=genuinelyEmpty?`<div class="fin-note" style="margin-top:8px">No pending funds right now.</div>`:'';
+  const emptyNoteHTML=(genuinelyEmpty&&!(snap.timeline||[]).length)?`<div class="fin-note" style="margin-top:8px">No pending funds right now.</div>`:'';
 
   const rows=snap.timeline||[];
   const timelineHTML=rows.length?rows.map(row=>{
@@ -1126,8 +1166,10 @@ async function buildPayoutSnapshot(){
   // Safe to remove once the live bug is confirmed fixed.
   const debugHTML=snap.debug?`<div class="fin-note" style="margin-top:8px;opacity:0.6">${snap.debug.payouts_fetched} payout(s) read from Stripe${snap.debug.payouts_fetched?' — '+Object.entries(snap.debug.payouts_statuses).map(([s,n])=>`${n} ${s}`).join(', '):''}</div>`:'';
 
-  el.innerHTML=`${headlineHTML}${emptyNoteHTML}
-    <div style="margin-top:10px">${timelineHTML}</div>${debugHTML}`;
+  const upcoming=rows.filter(r=>r.landing_date&&r.landing_date>=toISODate(todayDate)).sort((a,b)=>a.landing_date.localeCompare(b.landing_date));
+  const next=h.in_transit?{amount:h.in_transit.amount,date:h.in_transit.arrival_date,estimate:false}:h.next_expected?{amount:h.next_expected.amount,date:h.next_expected.arrival_date,estimate:h.next_expected.is_estimate}:upcoming[0]?{amount:upcoming[0].total_amount,date:upcoming[0].landing_date,estimate:upcoming[0].landing_is_estimate}:null;
+  const hero=next?`<div class="payout-hero"><div>Next expected arrival</div><strong>${fmtExact(next.amount)}</strong><p>${next.date?fmtPayoutDate(next.date):'Arrival date unavailable'}${next.estimate?' · Estimated':''}</p><p class="fin-note">Expected funds are not confirmed bank cash.</p></div>`:'';
+  el.innerHTML=`${hero}${headlineHTML}${emptyNoteHTML}<details class="home-detail"><summary>Deposit timeline &amp; processing details</summary>${timelineHTML}</details>`;
 }
 
 // ── S7: FILING & CHECKS ─────────────────────────────────
@@ -1223,7 +1265,7 @@ async function buildS8(){
 
   document.getElementById('s8-meta').textContent=`${cards.length} business card${cards.length===1?'':'s'}`;
 
-  const synced=cards.filter(c=>c.statement_balance!=null && c.next_payment_due_date!=null);
+  const synced=cards.slice().sort((a,b)=>(a.next_payment_due_date||'9999').localeCompare(b.next_payment_due_date||'9999'));
   if(!synced.length){
     el.innerHTML=`<div class="fin-card full" style="cursor:pointer" onclick="window.location.href='/payroll.html?tab=spending'">
       <div class="fin-lbl">${cards.length} card${cards.length===1?'':'s'} connected</div>
@@ -1234,19 +1276,20 @@ async function buildS8(){
   }
 
   el.innerHTML=synced.map(c=>{
+    if(c.statement_balance==null || !c.next_payment_due_date)return `<a class="card-row" href="/payroll.html?tab=spending">${esc(c.name||'Business card')} …${esc(c.mask||'')}<p>Statement or due date unavailable · Review card</p></a>`;
     const due=new Date(c.next_payment_due_date+'T00:00:00');
     const away=Math.round((due-todayDate)/864e5);
     const overdue=away<0;
     const dueLabel=due.toLocaleDateString('en-US',{month:'short',day:'numeric'});
-    const awayLabel=overdue?`${Math.abs(away)} day${Math.abs(away)===1?'':'s'} overdue`:(away===0?'today':`${away} day${away===1?'':'s'}`);
+    const awayLabel=overdue?'date passed · verify payment':(away===0?'today':`${away} day${away===1?'':'s'}`);
     const bal=parseFloat(c.statement_balance)||0;
     return `<div class="card-row" onclick="window.location.href='/payroll.html?tab=spending'">
       <div class="card-chip">AMEX</div>
       <div class="card-info">
         <div class="card-name">${esc(c.name||c.institution_name||'Business Amex')}${c.mask?' …'+esc(c.mask):''}</div>
-        <div class="card-meta">Balance ${fmtExact(bal)}<br>Due ${esc(dueLabel)} (${awayLabel})</div>
+        <div class="card-due">Due ${esc(dueLabel)}</div><div class="card-meta">${awayLabel}<br>Statement balance ${fmtExact(bal)}<br>Current balance ${c.current_balance==null?'unavailable':fmtExact(c.current_balance)}</div>
       </div>
-      <div class="card-pay-pill${overdue?' overdue':''}">Pay ${fmtExact(bal)}<small>to avoid interest</small></div>
+      <div class="card-pay-pill${overdue?' overdue':''}">${fmtExact(bal)} statement<small>Remaining to avoid interest: not verified</small></div>
     </div>`;
   }).join('');
 }
@@ -1363,7 +1406,7 @@ async function buildS10(){
     // "synced, but still uncategorized" case, which already has its own correct message.
     let sub;
     if(!_monthlyPlaidTx.length){
-      sub='No transactions synced for November yet — click Sync now in Finance → Spending to pull them in.';
+      sub='No transactions synced for this month yet — click Sync now in Finance → Spending to pull them in.';
     } else if(uncategorizedCount){
       sub=`${uncategorizedCount} transaction${uncategorizedCount===1?'':'s'} waiting in Needs Attention above.`;
     } else {
@@ -1381,7 +1424,7 @@ async function buildS10(){
   ].filter(sl=>sl.amt>0.009);
   let acc=0;
   const stops=slices.map(sl=>{ const pct=sl.amt/total*100; const from=acc; acc+=pct; return `${HOME_SPEND_COLORS[sl.key]} ${from.toFixed(2)}% ${acc.toFixed(2)}%`; });
-  el.innerHTML=`<div class="home-donut-wrap">
+  el.innerHTML=`<p class="fin-note">Categorized card spending · review transactions for uncategorized purchases.</p><div class="home-donut-wrap">
     <div class="home-donut" style="background:conic-gradient(${stops.join(',')})">
       <div class="home-donut-center"><div class="dv">${fmt(total)}</div><div class="dl">Total Spent</div></div>
     </div>
@@ -1391,7 +1434,7 @@ async function buildS10(){
       <span class="home-legend-pct">${(sl.amt/total*100).toFixed(0)}%</span>
       <span class="home-legend-amt">${fmt(sl.amt)}</span>
     </div>`).join('')}</div>
-  </div>`;
+  </div><a class="home-detail" href="/payroll.html?tab=spending">Review all transactions${uncategorizedCount?' · '+uncategorizedCount+' uncategorized':''} →</a>`;
 }
 
 // ── S11: PROFITABILITY ─────────────────────────────────
@@ -1420,7 +1463,7 @@ function buildS11(){
     const profit=mtd-expenses;
     el.innerHTML=`<div class="pf-job-row" onclick="window.location.href='/payroll.html?tab=ledger'">
       <div class="pf-job-ic"><i class="ti ti-report-money"></i></div>
-      <div class="pf-job-body"><div class="pf-job-title">${now.toLocaleDateString('en-US',{month:'long'})} Profit</div><div class="pf-job-sub">Revenue ${fmt(mtd)} · Expenses ${fmt(expenses)}</div></div>
+      <div class="pf-job-body"><div class="pf-job-title">${now.toLocaleDateString('en-US',{month:'long'})} provisional surplus</div><div class="pf-job-sub">Revenue ${fmt(mtd)} · Expenses ${fmt(expenses)}</div></div>
       <div class="pf-job-amt">${fmt(profit)}</div>
     </div>${viewAllBtn}`;
     return;
@@ -1447,7 +1490,7 @@ function buildS11(){
   const top=rows[0];
   el.innerHTML=`<div class="pf-job-row" onclick="window.location.href='/payroll.html?tab=ledger'">
       <div class="pf-job-ic"><i class="ti ti-clipboard-data"></i></div>
-      <div class="pf-job-body"><div class="pf-job-title">${esc(top.client)} #${esc(top.invnum)}</div><div class="pf-job-sub">Revenue ${fmt(top.revenue)} · Costs ${fmt(top.cost)}</div></div>
+      <div class="pf-job-body"><div class="pf-job-title">${esc(top.client)} #${esc(top.invnum)}</div><div class="pf-job-sub">Receipts ${fmt(top.revenue)} · Recorded costs ${fmt(top.cost)}<br>${top.revenue>0?(top.net/top.revenue*100).toFixed(1)+'% provisional margin':'Margin unavailable'} · Job costs may be incomplete</div></div>
       <div class="pf-job-amt">${fmt(top.net)}</div>
     </div>${viewAllBtn}`;
 }

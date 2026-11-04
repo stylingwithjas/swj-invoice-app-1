@@ -1,0 +1,10 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert');
+const html=fs.readFileSync('today.html','utf8');
+const nodes={};const node=id=>nodes[id]||(nodes[id]={style:{},innerHTML:'',textContent:''});
+function fn(name){const start=html.indexOf((name==='buildPayoutSnapshot'?'async ':'')+'function '+name+'(');const end=html.indexOf('\n}',start)+2;return html.slice(start,end);}
+const c={document:{getElementById:node},Date,Number,Math,Set,console,allInvoices:[],_monthlyPlaidTx:[],todayDate:new Date('2026-11-04T00:00:00'),fmt:n=>'$'+Math.round(n).toLocaleString(),esc:s=>String(s||''),toISODate:d=>d.toISOString().slice(0,10),computeGrand:d=>d.total};vm.createContext(c);
+vm.runInContext(fn('buildS6')+'\n'+fn('fmtPayoutDate')+'\n'+fn('fmtExact')+'\n'+fn('buildPayoutSnapshot'),c);
+c.buildS6();assert(node('s6-body').innerHTML.includes('margin is not available'));
+const now=new Date();c.allInvoices=[{data:{paid:true,paid_date:now.toISOString().slice(0,10),total:10000}}];c._monthlyPlaidTx=[{amount:8500}];c.buildS6();assert(node('s6-body').innerHTML.includes('15.0%'));assert(node('s6-body').innerHTML.includes('$1,000 below'));
+c._monthlyPlaidTx=[{amount:12000}];c.buildS6();assert(node('s6-body').innerHTML.includes('snap-cell loss'));assert(node('s6-body').innerHTML.includes('width:0%'));
+(async()=>{c.fetch=async()=>({json:async()=>({as_of:'2026-11-04',headline:{available:0,pending:0,in_transit:null,next_expected:null},timeline:[{landing_date:'2026-11-05',released_date:'2026-11-04',total_amount:3992.06,landing_is_estimate:true,items:[]}]})});await c.buildPayoutSnapshot();assert(node('s6b-body').innerHTML.includes('<strong>$3,992.06</strong>'));assert(!node('s6b-body').innerHTML.includes('No pending funds'));c.fetch=async()=>{throw Error('offline')};await c.buildPayoutSnapshot();assert(node('s6b-body').innerHTML.includes('unavailable'));assert(!node('s6b-body').innerHTML.includes('3,992'));console.log('Home briefing: zero revenue, margin gap, loss, timeline deposit, unavailable states passed');})();
