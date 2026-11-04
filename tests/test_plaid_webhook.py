@@ -111,11 +111,8 @@ class MultiAccountBalanceTests(unittest.TestCase):
         self.assertEqual(len(result['errors']), 1)
         self.assertIn('Broken Amex', result['errors'][0])
 
-    def test_duplicate_items_pointing_at_the_same_real_card_dont_duplicate_the_response(self):
-        # Nov 3, 2026 bug: Home showed the same 2 real cards repeated ~19 times. A stalled Link
-        # attempt can still exchange server-side even when the UI looks stuck, leaving more than
-        # one plaid_items row connected to the exact same Amex login -- each one's liabilities
-        # fetch returns the same real card again. The response must never surface that twice.
+    def test_duplicate_items_with_the_same_account_id_dont_duplicate_the_response(self):
+        # Simplest case: two Item rows that happen to report back the exact same account_id.
         items = [
             {'item_id': 'item_stalled_1', 'access_token': 'tok_a', 'institution_name': 'Amex'},
             {'item_id': 'item_stalled_2', 'access_token': 'tok_b', 'institution_name': 'Amex'},
@@ -135,6 +132,35 @@ class MultiAccountBalanceTests(unittest.TestCase):
         self.assertTrue(result['ok'])
         self.assertEqual(len(result['accounts']), 1)
         self.assertEqual(result['accounts'][0]['account_id'], 'acc1')
+        self.assertEqual(result['accounts'][0]['statement_balance'], 3653.28)
+
+    def test_duplicate_items_with_DIFFERENT_account_ids_for_the_same_real_card_still_collapse(self):
+        # Nov 4, 2026 follow-up: account_id-only dedup wasn't enough -- production still showed
+        # 19 rows for 2 real cards after that fix. Plaid assigns account_id per Item/connection,
+        # not per physical card, so each stalled Link attempt that still exchanged server-side
+        # (its own plaid_items row, its own Item) gets a genuinely DIFFERENT account_id back for
+        # the exact same real card. mask -- the card's actual last-4-digits identity -- is the
+        # key that must collapse these, since account_id alone cannot.
+        items = [
+            {'item_id': 'item_stalled_1', 'access_token': 'tok_a', 'institution_name': 'Amex'},
+            {'item_id': 'item_stalled_2', 'access_token': 'tok_b', 'institution_name': 'Amex'},
+            {'item_id': 'item_live', 'access_token': 'tok_c', 'institution_name': 'Amex'},
+        ]
+
+        def fake_request(path, payload, timeout=20):
+            # Same real card (mask 1008), but each Item's own Plaid-assigned account_id differs.
+            acc_id = {'tok_a': 'acc_from_stalled_1', 'tok_b': 'acc_from_stalled_2', 'tok_c': 'acc_from_live'}[payload['access_token']]
+            return {'accounts': [{'account_id': acc_id, 'name': 'Business Gold', 'mask': '1008', 'balances': {'current': 9144.02}}],
+                    'liabilities': {'credit': [{'account_id': acc_id, 'last_statement_balance': 3653.28, 'minimum_payment_amount': 0, 'next_payment_due_date': '2026-11-03', 'last_statement_issue_date': '2026-10-03'}]}}
+
+        with patch.object(webhook, '_plaid_get_items', return_value=items), \
+             patch.object(webhook, '_plaid_request', side_effect=fake_request), \
+             patch.object(webhook, '_plaid_store_balances', return_value='2026-11-03T00:00:00Z'):
+            result = webhook.plaid_refresh_balance()
+
+        self.assertTrue(result['ok'])
+        self.assertEqual(len(result['accounts']), 1)
+        self.assertEqual(result['accounts'][0]['mask'], '1008')
         self.assertEqual(result['accounts'][0]['statement_balance'], 3653.28)
 
 
