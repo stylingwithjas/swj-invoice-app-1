@@ -164,9 +164,9 @@ class FullSnapshotTests(unittest.TestCase):
         with patch('urllib.request.urlopen', side_effect=self._responder({'available': [], 'pending': []}, payouts, [], {}, [])):
             result = webhook.stripe_payout_snapshot()
         self.assertTrue(result['ok'])
-        self.assertEqual(result['headline']['kind'], 'payout')
-        self.assertEqual(result['headline']['amount'], 1234.56)
-        self.assertEqual(result['headline']['arrival_date'], '2026-11-10')
+        self.assertEqual(result['headline']['next_expected']['amount'], 1234.56)
+        self.assertEqual(result['headline']['next_expected']['arrival_date'], '2026-11-10')
+        self.assertFalse(result['headline']['next_expected']['is_estimate'])
         dumped = json.dumps(result)
         self.assertNotIn('rk_live_realkey', dumped)
         self.assertNotIn('svc', dumped)
@@ -192,6 +192,108 @@ class DispatchTests(unittest.TestCase):
 
     def test_unknown_job_prefix_is_not_confused_with_plaid_dispatch(self):
         self.assertFalse('stripe_payout_snapshot'.startswith('plaid_'))
+
+
+class PayoutPaginationTests(unittest.TestCase):
+    """Nov 3, 2026 production bug report, hypothesis #1: a single flat limit=10 page could
+    silently miss a payout. _stripe_payout_list_all() must follow has_more across pages."""
+
+    def setUp(self):
+        self.env = patch.dict(os.environ, {'STRIPE_RECONCILE_KEY': 'rk_live_realkey', 'SUPABASE_KEY': 'svc'})
+        self.env.start()
+
+    def tearDown(self):
+        self.env.stop()
+
+    def test_payouts_fetch_follows_has_more_across_multiple_pages(self):
+        page1 = [{'id': f'po_old_{i}', 'status': 'paid', 'arrival_date': ts('2026-10-01'), 'amount': 1000, 'currency': 'usd'} for i in range(100)]
+        page2 = [{'id': 'po_1UXs4VP7Owv6M3r9nIcXirh5', 'status': 'in_transit', 'arrival_date': ts('2026-11-04'), 'amount': 399206, 'currency': 'usd', 'destination': {'last4': '4821'}}]
+        calls = []
+
+        def opener(req, timeout=None):
+            if '/v1/payouts' not in req.full_url:
+                raise AssertionError('unexpected url ' + req.full_url)
+            calls.append(req.full_url)
+            if 'starting_after' not in req.full_url:
+                return JsonResponse({'data': page1, 'has_more': True})
+            return JsonResponse({'data': page2, 'has_more': False})
+
+        with patch('urllib.request.urlopen', side_effect=opener):
+            result = webhook._stripe_payout_list_all('/v1/payouts', {})
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(len(result), 101)
+        self.assertIn('po_1UXs4VP7Owv6M3r9nIcXirh5', [p['id'] for p in result])
+
+    def test_pagination_stops_at_max_pages_never_loops_forever(self):
+        def opener(req, timeout=None):
+            return JsonResponse({'data': [{'id': 'po_x', 'status': 'paid', 'arrival_date': 0, 'amount': 100, 'currency': 'usd'}], 'has_more': True})
+        with patch('urllib.request.urlopen', side_effect=opener):
+            result = webhook._stripe_payout_list_all('/v1/payouts', {}, max_pages=3)
+        self.assertEqual(len(result), 3)
+
+
+class ProductionBugReproductionTests(unittest.TestCase):
+    """Reproduces the Nov 3, 2026 production bug report almost exactly: Elisha Cruson #2020129,
+    payout po_1UXs4VP7Owv6M3r9nIcXirh5, $3,992.06, in transit, arriving Wed Nov 4 2026. The
+    acceptance bar from the note: Home must show $3,992.06 in transit arriving Nov 4 -- NOT an
+    estimate, NOT Nov 5, and the top tiles must show the in-transit money (never "$0 / no
+    pending funds" while a real payout exists)."""
+
+    def setUp(self):
+        self.env = patch.dict(os.environ, {'STRIPE_RECONCILE_KEY': 'rk_live_realkey', 'SUPABASE_KEY': 'svc'})
+        self.env.start()
+
+    def tearDown(self):
+        self.env.stop()
+
+    def test_cruson_payout_scenario_matches_the_owners_acceptance_bar(self):
+        payouts = [{'id': 'po_1UXs4VP7Owv6M3r9nIcXirh5', 'status': 'in_transit', 'arrival_date': ts('2026-11-04'),
+                    'amount': 399206, 'currency': 'usd', 'method': 'standard', 'destination': {'bank_name': 'Chase', 'last4': '4821'}}]
+        btx = [{'id': 'txn_cruson', 'type': 'charge', 'net': 399206, 'status': 'pending', 'available_on': ts('2026-11-04'),
+                'source': {'metadata': {'invoice': '2020129'}, 'billing_details': {'name': 'Elisha Cruson'}}}]
+        invoices = [{'invnum': '2020129', 'client': 'Elisha Cruson'}]
+        balance = {'available': [{'amount': 0, 'currency': 'usd'}], 'pending': [{'amount': 0, 'currency': 'usd'}]}
+        account = {'settings': {'payouts': {'schedule': {'interval': 'daily'}}}}
+
+        def opener(req, timeout=None):
+            url = req.full_url
+            if 'invoices' in url:
+                return JsonResponse(invoices)
+            if '/v1/balance_transactions' in url:
+                return JsonResponse({'data': btx})
+            if '/v1/balance' in url:
+                return JsonResponse(balance)
+            if '/v1/payouts' in url:
+                return JsonResponse({'data': payouts, 'has_more': False})
+            if '/v1/account' in url:
+                return JsonResponse(account)
+            raise AssertionError('unexpected url ' + url)
+
+        with patch('urllib.request.urlopen', side_effect=opener):
+            result = webhook.stripe_payout_snapshot()
+
+        self.assertTrue(result['ok'])
+        # Exact cents, not rounded to whole dollars.
+        self.assertEqual(result['headline']['in_transit']['amount'], 3992.06)
+        self.assertEqual(result['headline']['in_transit']['arrival_date'], '2026-11-04')
+        # Next Expected must also show the real in-transit payout (nothing else queued),
+        # never blank, never an estimate.
+        self.assertEqual(result['headline']['next_expected']['amount'], 3992.06)
+        self.assertEqual(result['headline']['next_expected']['arrival_date'], '2026-11-04')
+        self.assertFalse(result['headline']['next_expected']['is_estimate'])
+        # The top tiles are never "$0 / nothing happening" while this payout exists.
+        self.assertEqual(result['headline']['available'], 0.0)
+        self.assertEqual(result['headline']['pending'], 0.0)
+        # The per-payment timeline row: Released Nov 4 -> Landing Nov 4 (the real payout's own
+        # arrival_date), never Nov 5, never labeled Expected.
+        self.assertEqual(len(result['timeline']), 1)
+        row = result['timeline'][0]
+        self.assertEqual(row['released_date'], '2026-11-04')
+        self.assertEqual(row['landing_date'], '2026-11-04')
+        self.assertFalse(row['landing_is_estimate'])
+        self.assertEqual(row['total_amount'], 3992.06)
+        self.assertEqual(row['items'][0]['label'], 'Elisha Cruson #2020129')
+        self.assertEqual(row['items'][0]['amount'], 3992.06)
 
 
 if __name__ == '__main__':

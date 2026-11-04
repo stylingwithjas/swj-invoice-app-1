@@ -174,34 +174,51 @@ class NormalizeTests(unittest.TestCase):
 class BuildSnapshotAcceptanceTests(unittest.TestCase):
     """Mirrors the owner note's own acceptance list almost verbatim."""
 
-    def test_known_payout_shows_exact_amount_and_arrival_date(self):
+    def test_known_pending_payout_fills_next_expected_tile_never_an_estimate(self):
         payouts_raw = [{'id': 'po_1', 'status': 'pending', 'arrival_date': ts('2026-11-10'),
                         'amount': 123456, 'currency': 'usd', 'method': 'standard',
                         'destination': {'bank_name': 'Chase', 'last4': '4821'}}]
         snap = build_snapshot({'available': [], 'pending': []}, payouts_raw, [], {'interval': 'daily'}, {})
-        self.assertEqual(snap['headline']['kind'], 'payout')
-        self.assertEqual(snap['headline']['amount'], Decimal('1234.56'))
-        self.assertEqual(snap['headline']['arrival_date'], '2026-11-10')
+        self.assertIsNone(snap['headline']['in_transit'])
+        self.assertEqual(snap['headline']['next_expected']['amount'], Decimal('1234.56'))
+        self.assertEqual(snap['headline']['next_expected']['arrival_date'], '2026-11-10')
+        self.assertFalse(snap['headline']['next_expected']['is_estimate'])
 
     def test_no_payout_shows_available_pending_and_expected_never_fabricated(self):
         balance_raw = {'available': [{'amount': 50000, 'currency': 'usd'}], 'pending': [{'amount': 32000, 'currency': 'usd'}]}
         btx_raw = [{'type': 'charge', 'net': 32000, 'status': 'pending', 'available_on': ts('2026-11-06'),
                     'source': {'metadata': {}, 'billing_details': {'name': 'Someone'}}}]
         snap = build_snapshot(balance_raw, [], btx_raw, {'interval': 'daily'}, {})
-        self.assertEqual(snap['headline']['kind'], 'no_payout_yet')
+        self.assertIsNone(snap['headline']['in_transit'])
         self.assertEqual(snap['headline']['available'], Decimal(500))
         self.assertEqual(snap['headline']['pending'], Decimal(320))
-        self.assertIsNotNone(snap['headline']['next_expected_date'])
+        self.assertIsNotNone(snap['headline']['next_expected'])
+        self.assertTrue(snap['headline']['next_expected']['is_estimate'])
 
     def test_no_payout_and_unknown_schedule_never_fabricates_next_expected(self):
         balance_raw = {'available': [], 'pending': [{'amount': 10000, 'currency': 'usd'}]}
         btx_raw = [{'type': 'charge', 'net': 10000, 'status': 'pending', 'available_on': ts('2026-11-06'),
                     'source': {'metadata': {}, 'billing_details': {}}}]
         snap = build_snapshot(balance_raw, [], btx_raw, None, {})
-        self.assertIsNone(snap['headline']['next_expected_date'])
-        self.assertFalse(snap['headline']['schedule_known'])
+        self.assertIsNone(snap['headline']['next_expected'])
+        self.assertFalse(snap['schedule_known'])
 
-    def test_in_transit_payouts_listed_separately_from_headline(self):
+    def test_in_transit_payout_fills_its_own_tile_and_repeats_into_next_expected(self):
+        # Reproduces the Nov 3, 2026 production bug report almost exactly: a single in-transit
+        # payout, nothing separately queued after it -- In Transit AND Next Expected must both
+        # show it (never blank, never an estimate, while a real payout exists).
+        payouts_raw = [
+            {'id': 'po_1', 'status': 'in_transit', 'arrival_date': ts('2026-11-05'), 'amount': 20000,
+             'currency': 'usd', 'destination': {'last4': '1111'}},
+        ]
+        snap = build_snapshot({'available': [], 'pending': []}, payouts_raw, [], {'interval': 'daily'}, {})
+        self.assertEqual(snap['headline']['in_transit']['amount'], Decimal(200))
+        self.assertEqual(snap['headline']['in_transit']['arrival_date'], '2026-11-05')
+        self.assertEqual(snap['headline']['next_expected']['amount'], Decimal(200))
+        self.assertEqual(snap['headline']['next_expected']['arrival_date'], '2026-11-05')
+        self.assertFalse(snap['headline']['next_expected']['is_estimate'])
+
+    def test_in_transit_and_a_separately_queued_pending_payout_both_fill_their_own_tiles(self):
         payouts_raw = [
             {'id': 'po_1', 'status': 'in_transit', 'arrival_date': ts('2026-11-05'), 'amount': 20000,
              'currency': 'usd', 'destination': {'last4': '1111'}},
@@ -209,11 +226,11 @@ class BuildSnapshotAcceptanceTests(unittest.TestCase):
              'currency': 'usd', 'destination': {'last4': '2222'}},
         ]
         snap = build_snapshot({'available': [], 'pending': []}, payouts_raw, [], {'interval': 'daily'}, {})
-        self.assertEqual(len(snap['in_transit']), 1)
-        self.assertEqual(snap['in_transit'][0]['amount'], Decimal(200))
-        # Headline still names the one actual "next" payout -- whichever the fetch returned
-        # first that isn't already paid -- not silently dropped because one is in transit.
-        self.assertEqual(snap['headline']['kind'], 'payout')
+        self.assertEqual(snap['headline']['in_transit']['amount'], Decimal(200))
+        self.assertEqual(snap['headline']['in_transit']['arrival_date'], '2026-11-05')
+        # Next Expected is the SEPARATELY queued pending payout, not a repeat of in-transit.
+        self.assertEqual(snap['headline']['next_expected']['amount'], Decimal(300))
+        self.assertEqual(snap['headline']['next_expected']['arrival_date'], '2026-11-12')
 
 
 if __name__ == '__main__':

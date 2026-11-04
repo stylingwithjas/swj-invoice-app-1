@@ -570,6 +570,30 @@ def _stripe_payout_get(path, params=None):
         raise Exception(detail) from None
 
 
+def _stripe_payout_list_all(path, params, max_pages=5):
+    """Exhaustive pagination (follows has_more), not a single flat-limit page -- a bug report
+    (Nov 3, 2026) found "Money landing soon" silently falling back to a schedule estimate for a
+    payout that genuinely existed, and a single-page fetch that could miss a payout was one of
+    the suspected causes. max_pages=5 at 100/page already covers 500 payouts, far more than a
+    business this size could create inside the lookback window callers use."""
+    rows, cursor, pages = [], None, 0
+    while True:
+        page_params = dict(params); page_params['limit'] = 100
+        if cursor: page_params['starting_after'] = cursor
+        payload = _stripe_payout_get(path, page_params)
+        batch = payload.get('data')
+        if not isinstance(batch, list):
+            break
+        rows.extend(batch)
+        pages += 1
+        if not payload.get('has_more') or not batch or pages >= max_pages:
+            break
+        cursor = batch[-1].get('id')
+        if not cursor:
+            break
+    return rows
+
+
 def _stripe_payout_invoice_lookup():
     """Recent invoices only (client/invnum) -- the same non-invoice-row exclusions today.html's
     own queries use -- plenty to label any metadata.invoice a recent balance transaction names."""
@@ -592,13 +616,17 @@ def _serialize_payout_snapshot(snapshot):
     """Decimal -> float for JSON; every other field is already JSON-safe."""
     def dec(v):
         return float(v) if isinstance(v, Decimal) else v
-    headline = {k: dec(v) for k, v in snapshot['headline'].items()}
-    in_transit = [{k: dec(v) for k, v in row.items()} for row in snapshot['in_transit']]
+    h = snapshot['headline']
+    headline = {
+        'available': dec(h['available']), 'pending': dec(h['pending']),
+        'in_transit': {k: dec(v) for k, v in h['in_transit'].items()} if h['in_transit'] else None,
+        'next_expected': {k: dec(v) for k, v in h['next_expected'].items()} if h['next_expected'] else None,
+    }
     timeline = [{
         **{k: dec(v) for k, v in row.items() if k != 'items'},
         'items': [{'label': it['label'], 'amount': dec(it['amount'])} for it in row['items']],
     } for row in snapshot['timeline']]
-    return {'headline': headline, 'in_transit': in_transit, 'timeline': timeline, 'schedule_known': snapshot['schedule_known']}
+    return {'headline': headline, 'timeline': timeline, 'schedule_known': snapshot['schedule_known']}
 
 
 def stripe_payout_snapshot():
@@ -617,7 +645,10 @@ def stripe_payout_snapshot():
 
     try:
         balance_raw = _stripe_payout_get('/v1/balance')
-        payouts_raw = _stripe_payout_get('/v1/payouts', {'limit': 10}).get('data', [])
+        # Exhaustively paginated, not a single limit=10 page -- a payout this feature needs to
+        # see must never be silently missed because it fell past the first page.
+        sixty_days_ago = int((datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=60)).timestamp())
+        payouts_raw = _stripe_payout_list_all('/v1/payouts', {'created[gte]': sixty_days_ago})
         fourteen_days_ago = int((datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=14)).timestamp())
         btx_raw = _stripe_payout_get('/v1/balance_transactions', {
             'limit': 50, 'type': 'charge', 'created[gte]': fourteen_days_ago, 'expand[]': 'data.source',

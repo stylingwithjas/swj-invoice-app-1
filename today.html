@@ -218,13 +218,18 @@ body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var
 .pf-view-all{display:flex;align-items:center;justify-content:center;gap:7px;width:100%;padding:12px;margin-top:8px;border-radius:10px;background:var(--gold-soft);border:0.5px solid var(--gold-line);color:var(--ink-soft);font-size:12px;font-weight:600;text-align:center;cursor:pointer;font-family:'Inter',sans-serif;}
 
 /* ── MONEY LANDING SOON ── */
-.payout-headline{background:var(--bg-card);border:0.5px solid var(--line);border-radius:10px;padding:14px 15px;}
-.payout-amt{font-family:'Cormorant Garamond',serif;font-size:28px;color:var(--ink);line-height:1;}
-.payout-status{display:inline-block;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;padding:3px 8px;border-radius:20px;margin-left:8px;vertical-align:middle;}
-.payout-status.pending{background:var(--amber-tint);color:var(--amber);}
-.payout-status.in_transit{background:var(--olive-tint);color:var(--olive-dark);}
-.payout-status.paid{background:var(--green-tint);color:var(--green);}
-.payout-sub{font-size:11px;color:var(--muted);margin-top:5px;}
+/* Four tiles, same style, fluent with each other (owner revision, Nov 3, 2026) -- Available
+   Now / Pending are the Stripe Balance; In Transit / Next Expected read real payout data (and
+   only ever fall back to an estimate when truly nothing real exists). No separate "headline
+   card" style, no explanatory paragraph -- the tiles and their own date labels are the
+   explanation. */
+.payout-tiles{display:grid;grid-template-columns:1fr 1fr;gap:9px;}
+.payout-tile{background:var(--bg-card);border:0.5px solid var(--line);border-radius:10px;padding:12px 13px;}
+.payout-tile.active{background:var(--green-tint);border-color:var(--olive-line);}
+.payout-tile-lbl{font-size:9px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;}
+.payout-tile-val{font-family:'Cormorant Garamond',serif;font-size:21px;color:var(--ink);line-height:1;}
+.payout-tile-date{font-size:10.5px;color:var(--muted);margin-top:4px;}
+.payout-tile-date .payout-estimate-tag{margin-left:4px;}
 .payout-row{padding:11px 0;border-bottom:0.5px solid var(--line-soft);}
 .payout-row:last-child{border-bottom:none;}
 .payout-row-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px;}
@@ -232,10 +237,8 @@ body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var
 .payout-row-dates b{color:var(--ink);font-weight:600;}
 .payout-row-amt{font-family:'Cormorant Garamond',serif;font-size:17px;color:var(--ink);white-space:nowrap;}
 .payout-row-items{font-size:11px;color:var(--muted);margin-top:3px;}
-.payout-estimate-tag{font-size:8.5px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--olive-dark);background:var(--olive-tint);padding:1px 6px;border-radius:10px;margin-left:5px;vertical-align:middle;}
-.payout-footnote{font-size:10.5px;color:var(--muted);margin-top:10px;line-height:1.5;font-style:italic;}
+.payout-estimate-tag{font-size:8.5px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--olive-dark);background:var(--olive-tint);padding:1px 6px;border-radius:10px;vertical-align:middle;}
 .payout-unavailable{padding:16px 14px;background:var(--amber-tint);border-radius:10px;font-size:12.5px;color:var(--ink-soft);}
-.payout-intransit-row{padding:10px 12px;background:var(--olive-tint);border-radius:9px;margin-top:8px;font-size:12px;color:var(--ink-soft);}
 
 /* ── TAX & REPORTING SUB-ROWS ── */
 .tax-sub-row{display:flex;align-items:center;gap:12px;padding:12px;background:var(--bg-hover);border-radius:10px;margin-top:8px;cursor:pointer;}
@@ -1050,10 +1053,18 @@ function buildS6(){
 // -- this file never recomputes a date or dollar figure, and never shows one the server didn't
 // actually give it. "Expected" always means an estimate from the account's own payout schedule,
 // never a hardcoded T+2; a missing date is shown as missing, never guessed.
+//
+// Owner revision (Nov 3, 2026, after a production bug report): four tiles, always shown
+// together -- Available Now / Pending / In Transit / Next Expected -- never a single
+// either/or headline. A real payout's own arrival_date is shown exactly as Stripe gives it,
+// in exact cents; an estimate only ever fills a tile that would otherwise have nothing real.
 function fmtPayoutDate(iso){
   if(!iso) return '';
   const d=new Date(iso+'T00:00:00');
   return d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+}
+function fmtExact(n){
+  return '$'+Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
 }
 async function buildPayoutSnapshot(){
   const el=document.getElementById('s6b-body');
@@ -1077,43 +1088,40 @@ async function buildPayoutSnapshot(){
   document.getElementById('s6b-meta').textContent=new Date(snap.as_of).toLocaleDateString('en-US',{month:'short',day:'numeric'});
 
   const h=snap.headline;
-  let headlineHTML='';
-  if(h.kind==='payout'){
-    headlineHTML=`<div class="payout-headline">
-      <div class="payout-amt">${fmt(h.amount)}<span class="payout-status ${esc(h.status)}">${esc((h.status||'').replace('_',' '))}</span></div>
-      <div class="payout-sub">Expected to arrive ${fmtPayoutDate(h.arrival_date)} — ${esc(h.destination_label)}${h.method==='instant'?' · instant payout':''}</div>
+  const tile=(label,val,dateIso,isEstimate,active)=>`<div class="payout-tile${active?' active':''}">
+      <div class="payout-tile-lbl">${label}</div>
+      <div class="payout-tile-val">${val}</div>
+      ${dateIso?`<div class="payout-tile-date">${fmtPayoutDate(dateIso)}${isEstimate?'<span class="payout-estimate-tag">Expected</span>':''}</div>`:''}
     </div>`;
-  }else{
-    const nextTxt=h.next_expected_date?`Next expected ${fmtPayoutDate(h.next_expected_date)}`:(h.schedule_known?'No pending funds right now.':'Next expected date unavailable — payout schedule unknown.');
-    headlineHTML=`<div class="payout-headline">
-      <div class="snap-grid">
-        <div class="snap-cell"><div class="snap-lbl">Available now</div><div class="snap-val">${fmt(h.available)}</div></div>
-        <div class="snap-cell"><div class="snap-lbl">Pending</div><div class="snap-val">${fmt(h.pending)}</div></div>
-        <div class="snap-cell profit"><div class="snap-lbl">Next Expected</div><div class="snap-val" style="font-size:15px">${h.next_expected_date?fmtPayoutDate(h.next_expected_date):'—'}</div></div>
-      </div>
-      <div class="payout-sub">${nextTxt}</div>
-    </div>`;
-  }
-
-  const inTransitHTML=(snap.in_transit||[]).map(p=>`<div class="payout-intransit-row">
-    <b>${fmt(p.amount)}</b> already on its way — expected ${fmtPayoutDate(p.arrival_date)} to ${esc(p.destination_label)}${p.method==='instant'?' (instant)':''}
-  </div>`).join('');
+  const headlineHTML=`<div class="payout-tiles">
+    ${tile('Available Now', fmtExact(h.available), null, false, false)}
+    ${tile('Pending', fmtExact(h.pending), null, false, false)}
+    ${h.in_transit
+      ? tile('In Transit', fmtExact(h.in_transit.amount), h.in_transit.arrival_date, false, true)
+      : tile('In Transit', fmtExact(0), null, false, false)}
+    ${h.next_expected
+      ? tile('Next Expected', fmtExact(h.next_expected.amount), h.next_expected.arrival_date, h.next_expected.is_estimate, !h.next_expected.is_estimate)
+      : tile('Next Expected', '—', null, false, false)}
+  </div>`;
+  // Only ever shown when every tile above is genuinely empty -- never while an in-transit
+  // payout or anything else has real money in it, so this line can never contradict a tile.
+  const genuinelyEmpty=(!h.available||h.available<=0.009)&&(!h.pending||h.pending<=0.009)&&!h.in_transit&&!h.next_expected;
+  const emptyNoteHTML=genuinelyEmpty?`<div class="fin-note" style="margin-top:8px">No pending funds right now.</div>`:'';
 
   const rows=snap.timeline||[];
   const timelineHTML=rows.length?rows.map(row=>{
-    const itemsTxt=row.items.map(it=>`${esc(it.label)} (${fmt(it.amount)})`).join(' + ');
+    const itemsTxt=row.items.map(it=>`${esc(it.label)} (${fmtExact(it.amount)})`).join(' + ');
     return `<div class="payout-row">
       <div class="payout-row-top">
         <div class="payout-row-dates">Released <b>${fmtPayoutDate(row.released_date)}</b>${row.released?' ✓':''} → Landing <b>${row.landing_date?fmtPayoutDate(row.landing_date):'unavailable'}</b>${(row.landing_is_estimate&&row.landing_date)?'<span class="payout-estimate-tag">Expected</span>':''}</div>
-        <div class="payout-row-amt">${fmt(row.total_amount)}</div>
+        <div class="payout-row-amt">${fmtExact(row.total_amount)}</div>
       </div>
       <div class="payout-row-items">${itemsTxt}</div>
     </div>`;
   }).join('') : `<div class="fin-note" style="padding:8px 0">No upcoming payments in the release window right now.</div>`;
 
-  el.innerHTML=`${headlineHTML}${inTransitHTML}
-    <div style="margin-top:10px">${timelineHTML}</div>
-    <div class="payout-footnote">Payments are released from Stripe on their own dates, then land together in a payout. Stripe's own expected date may move by a day or two; bank posting can lag another day or two beyond that.</div>`;
+  el.innerHTML=`${headlineHTML}${emptyNoteHTML}
+    <div style="margin-top:10px">${timelineHTML}</div>`;
 }
 
 // ── S7: FILING & CHECKS ─────────────────────────────────
