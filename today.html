@@ -425,8 +425,10 @@ body{background:var(--bg)}.hdr{background:#fbfcfb}.content{gap:12px!important;pa
 .card-row{padding:10px 0!important}.card-meta{line-height:1.45}.home-fold-toggle{min-height:34px;padding:2px 0}
 @media(max-width:600px){.section{padding:11px 12px!important}.content{gap:10px!important;padding-top:8px!important}.snap-val{font-size:23px!important}.sec-title{font-size:23px!important}.qa-tile{font-size:10px!important}.greeting-hello{font-size:32px}.home-donut{width:112px;height:112px}.home-donut-center{inset:18px}}
 </style>
+<link rel="stylesheet" href="/styles/swj-luxury-theme.css">
+<link rel="stylesheet" href="/styles/swj-luxury-home.css">
 </head>
-<body>
+<body class="swj-home">
 
 <nav class="swj-sidebar">
   <div class="swj-sb-brand">Styling With Jas<span>Staging Operations</span></div>
@@ -441,10 +443,10 @@ body{background:var(--bg)}.hdr{background:#fbfcfb}.content{gap:12px!important;pa
 </nav>
 
 <nav class="swj-bottom-nav">
-  <a class="swj-bn-link on" href="/today.html"><span class="swj-bn-ic">🏠</span>Home</a>
-  <a class="swj-bn-link" href="/board.html"><span class="swj-bn-ic">📋</span>Jobs</a>
-  <a class="swj-bn-link" href="/payroll.html"><span class="swj-bn-ic">💼</span>Finance</a>
-  <button class="swj-bn-link" onclick="swjToggleMore()" type="button"><span class="swj-bn-ic">⋯</span>More</button>
+  <a class="swj-bn-link on" aria-current="page" href="/today.html"><span class="swj-bn-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 10 9-7 9 7v11h-6v-7H9v7H3z"/></svg></span>Home</a>
+  <a class="swj-bn-link" href="/board.html"><span class="swj-bn-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M8 3v4m8-4v4M4 11h16"/></svg></span>Jobs</a>
+  <a class="swj-bn-link" href="/payroll.html"><span class="swj-bn-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v5c0 4 16 4 16 0V5M4 10v5c0 4 16 4 16 0v-5M4 15v4c0 4 16 4 16 0v-4"/></svg></span>Finance</a>
+  <button class="swj-bn-link" onclick="swjToggleMore()" type="button"><span class="swj-bn-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg></span>More</button>
 </nav>
 
 <div class="swj-more-sheet" id="swj-more-sheet" onclick="if(event.target===this)swjToggleMore()">
@@ -469,11 +471,11 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
       <div class="b1">Styling With Jas</div>
       <div class="b2">Home</div>
     </div>
-    <div class="hdr-right">
-      <div class="hdr-icon-btn" id="hdr-bell" onclick="document.getElementById('sec-attention').scrollIntoView({behavior:'smooth'})" title="Needs attention">
+    <nav class="luxury-desktop-nav" aria-label="Main navigation"><a href="/today.html" aria-current="page">Home</a><a href="/board.html">Jobs</a><a href="/payroll.html">Finance</a><a href="/shop.html">Shopping</a><a href="/tax-report.html">Reports</a></nav><div class="hdr-right">
+      <button type="button" class="hdr-icon-btn" id="hdr-bell" onclick="document.getElementById('sec-attention').scrollIntoView({behavior:'smooth'})" title="Needs attention">
         <i class="ti ti-bell"></i>
         <span class="nav-badge" id="hdr-bell-badge" style="display:none"></span>
-      </div>
+      </button>
       <div class="hdr-avatar" title="Jas">JS</div>
       <div class="nav-sw">
         <button class="nav-btn on">Home</button>
@@ -491,12 +493,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
 </div>
 
 <!-- DATE BAR -->
-<div class="date-bar">
-  <button class="date-btn" id="prev-btn" onclick="shiftDay(-1)">‹</button>
-  <div class="date-label" id="date-label">Today</div>
-  <button class="date-btn" id="next-btn" onclick="shiftDay(1)">›</button>
-  <div class="week-toggle" onclick="toggleWeekView()" id="week-toggle-btn">Week</div>
-</div>
+
 
 <div class="content">
 
@@ -522,10 +519,10 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
 
   <!-- QUICK ACTIONS -->
   <div class="qa-row">
-    <div class="qa-tile" onclick="window.location.href='/index.html'"><i class="ti ti-file-text"></i>New Invoice</div>
-    <div class="qa-tile" onclick="sheetMode='add';editingTaskId=null;setQAType('schedule');openSheet('schedule',{})"><i class="ti ti-calendar-plus"></i>Add to Schedule</div>
-    <div class="qa-tile" onclick="sheetMode='add';editingTaskId=null;setQAType('shopping');openSheet('shopping',{})"><i class="ti ti-shopping-bag"></i>Add Shopping</div>
-    <div class="qa-tile" onclick="sheetMode='add';editingTaskId=null;setQAType('task');openSheet('task',{})"><i class="ti ti-plus"></i>Add Task</div>
+    <button type="button" class="qa-tile" onclick="window.location.href='/index.html'"><i class="ti ti-file-text"></i>New Invoice</button>
+    <button type="button" class="qa-tile" onclick="sheetMode='add';editingTaskId=null;setQAType('schedule');openSheet('schedule',{})"><i class="ti ti-calendar-plus"></i>Add to Schedule</button>
+    <button type="button" class="qa-tile" onclick="sheetMode='add';editingTaskId=null;setQAType('shopping');openSheet('shopping',{})"><i class="ti ti-shopping-bag"></i>Add Shopping</button>
+    <button type="button" class="qa-tile" onclick="sheetMode='add';editingTaskId=null;setQAType('task');openSheet('task',{})"><i class="ti ti-plus"></i>Add Task</button>
   </div>
 
   <!-- S6: BUSINESS SNAPSHOT — revenue/expenses/profit for the current month. Revenue is the
@@ -534,20 +531,6 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
        lens spending ledger, same source payroll.html's Job Profit — Real tab reads); Profit is
        simply Revenue − Expenses. This is a snapshot only — payroll.html's Finance & Allocation
        and Job Profit — Real tabs are the real, more detailed numbers to act on. -->
-  <div class="section" id="sec-financial">
-    <div class="sec-hdr">
-      <div class="sec-title">Business Snapshot</div>
-      <div class="sec-meta" id="s6-meta">this month</div>
-    </div>
-    <div id="s6-body"><div class="skel" style="height:100px"></div></div>
-  </div>
-
-  <!-- S6B: MONEY LANDING SOON — when Stripe money actually arrives in the bank, not just "paid
-       by the client" (Jasmine's request, Nov 3, 2026). Reads live from the ?job=
-       stripe_payout_snapshot job (lib/stripe_payout.py); never recomputes a date or figure
-       here, and never shows a fabricated date — see that job's own docstring for the full date
-       rule. Placed directly under Business Snapshot since cash arrival is the cash-flow
-       question. -->
   <div class="section" id="sec-payout">
     <div class="sec-hdr">
       <div class="sec-title">Money Arriving</div>
@@ -556,10 +539,14 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
     <div id="s6b-body"><div class="skel" style="height:100px"></div></div>
   </div>
 
-  <!-- S8: CARD PAYMENTS — per-card balance/due-date/pay-to-avoid-interest via Plaid's
-       Liabilities product (cached on plaid_accounts, read through the anon-safe
-       plaid_card_summary view — never the access_token). payroll.html's Spending tab owns the
-       actual connect/transaction-list UI; this card is read-only and link-through only. -->
+  <div class="section" id="sec-financial">
+    <div class="sec-hdr">
+      <div class="sec-title">Business Snapshot</div>
+      <div class="sec-meta" id="s6-meta">this month</div>
+    </div>
+    <div id="s6-body"><div class="skel" style="height:100px"></div></div>
+  </div>
+
   <div class="section" id="sec-amex">
     <div class="sec-hdr">
       <div class="sec-title">Card Payments</div>
@@ -568,30 +555,6 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
     <div id="s8-body"><div class="skel" style="height:70px"></div></div>
   </div>
 
-  <!-- S1: NEEDS ATTENTION (from invoices + Plaid categorization gaps) -->
-  <div class="section" id="sec-attention">
-    <div class="sec-hdr">
-      <div class="sec-title">Your Next Steps</div>
-      <div class="sec-meta" id="s1-meta">—</div>
-    </div>
-    <div id="s1-body"><div class="skel"></div></div>
-  </div>
-
-  <!-- S9: THIS MONTH AT A GLANCE — counts only, each linking through to the page that owns the
-       real list (Board for jobs/mover jobs, Shop for shopping) — never a second place these
-       get edited. -->
-  <div class="section" id="sec-glance">
-    <div class="sec-hdr">
-      <div class="sec-title">Your Jobs at a Glance</div>
-      <div class="sec-meta" id="s9-meta">—</div>
-    </div>
-    <div id="s9-body"><div class="skel" style="height:120px"></div></div>
-  </div>
-
-  <!-- S10: SPENDING BREAKDOWN — same conic-gradient donut technique as payroll.html's
-       renderPrDonut(), with its own categories: Job Costs (any job-tagged spend), Truck Costs
-       (untagged Truck & Gas only — job-tagged truck spend rolls into Job Costs), Overhead
-       (every other untagged, categorized spend), Other (untagged, uncategorized). -->
   <div class="section" id="sec-spending">
     <div class="sec-hdr">
       <div class="sec-title">Spending Breakdown</div>
@@ -600,12 +563,17 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
     <div id="s10-body"><div class="skel" style="height:120px"></div></div>
   </div>
 
-  <!-- S11: PROFITABILITY — top real job this month (By Job) or the month's total profit
-       (Monthly, same number as Business Snapshot above — never a second definition of
-       "profit"). Always links through to payroll.html's Job Profit — Real tab for full detail. -->
+  <div class="section" id="sec-attention">
+    <div class="sec-hdr">
+      <div class="sec-title">Needs Attention</div>
+      <div class="sec-meta" id="s1-meta">—</div>
+    </div>
+    <div id="s1-body"><div class="skel"></div></div>
+  </div>
+
   <div class="section" id="sec-profit">
     <div class="sec-hdr">
-      <div class="sec-title">Profitability</div>
+      <div class="sec-title">Project Profitability</div><div class="sec-meta luxury-profit-sub">By job</div>
       <div class="pf-toggle" id="pf-toggle">
         <button class="on" onclick="pfSetView('job')">By Job</button>
         <button onclick="pfSetView('monthly')">Monthly</button>
@@ -614,19 +582,14 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
     <div id="s11-body"><div class="skel" style="height:90px"></div></div>
   </div>
 
-  <!-- S7: TAX & REPORTING — snapshot cards linking through to Finance/Reports/Reconciliation,
-       never recomputing those pages' own math here (same single-source-of-truth principle as
-       everywhere else in this app) — the tax-review card reads a status flag Tax Report
-       already stores, the reconciliation card is link-through only. -->
   <div class="section" id="sec-filing">
     <div class="sec-hdr">
       <div class="sec-title">Tax &amp; Reporting</div>
-      <div class="sec-meta">snapshot</div>
+      <div class="sec-meta">Federal &amp; WA DOR</div>
     </div>
     <div id="s7-body"><div class="skel" style="height:70px"></div></div>
   </div>
 
-  <!-- S2: TODAY'S SCHEDULE -->
   <div class="section" id="sec-schedule">
     <div class="sec-hdr">
       <div class="sec-title">Coming Up</div>
@@ -638,7 +601,14 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
     <div id="s2-body"><div class="skel" style="height:50px"></div></div>
   </div>
 
-  <!-- S3: TASKS -->
+  <div class="section" id="sec-glance">
+    <div class="sec-hdr">
+      <div class="sec-title">Your Jobs at a Glance</div>
+      <div class="sec-meta" id="s9-meta">—</div>
+    </div>
+    <div id="s9-body"><div class="skel" style="height:120px"></div></div>
+  </div>
+
   <div class="section" id="sec-tasks">
     <div class="sec-hdr">
       <div class="sec-title">Tasks</div>
@@ -650,7 +620,6 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
     <div id="s3-body"><div class="skel" style="height:50px"></div></div>
   </div>
 
-  <!-- S4: SHOPPING -->
   <div class="section" id="sec-shopping">
     <div class="sec-hdr">
       <div class="sec-title">Shopping</div>
@@ -663,7 +632,6 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
     <div id="s4-body"><div class="skel" style="height:50px"></div></div>
   </div>
 
-  <!-- S5: FOLLOW-UPS -->
   <div class="section" id="sec-followups">
     <div class="sec-hdr">
       <div class="sec-title">Follow-ups</div>
@@ -672,6 +640,63 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
     <div id="s5-body"><div class="skel" style="height:50px"></div></div>
   </div>
 
+  <!-- S6B: MONEY LANDING SOON — when Stripe money actually arrives in the bank, not just "paid
+       by the client" (Jasmine's request, Nov 3, 2026). Reads live from the ?job=
+       stripe_payout_snapshot job (lib/stripe_payout.py); never recomputes a date or figure
+       here, and never shows a fabricated date — see that job's own docstring for the full date
+       rule. Placed directly under Business Snapshot since cash arrival is the cash-flow
+       question. -->
+
+
+  <!-- S8: CARD PAYMENTS — per-card balance/due-date/pay-to-avoid-interest via Plaid's
+       Liabilities product (cached on plaid_accounts, read through the anon-safe
+       plaid_card_summary view — never the access_token). payroll.html's Spending tab owns the
+       actual connect/transaction-list UI; this card is read-only and link-through only. -->
+
+
+  <!-- S1: NEEDS ATTENTION (from invoices + Plaid categorization gaps) -->
+
+
+  <!-- S9: THIS MONTH AT A GLANCE — counts only, each linking through to the page that owns the
+       real list (Board for jobs/mover jobs, Shop for shopping) — never a second place these
+       get edited. -->
+
+
+  <!-- S10: SPENDING BREAKDOWN — same conic-gradient donut technique as payroll.html's
+       renderPrDonut(), with its own categories: Job Costs (any job-tagged spend), Truck Costs
+       (untagged Truck & Gas only — job-tagged truck spend rolls into Job Costs), Overhead
+       (every other untagged, categorized spend), Other (untagged, uncategorized). -->
+
+
+  <!-- S11: PROFITABILITY — top real job this month (By Job) or the month's total profit
+       (Monthly, same number as Business Snapshot above — never a second definition of
+       "profit"). Always links through to payroll.html's Job Profit — Real tab for full detail. -->
+
+
+  <!-- S7: TAX & REPORTING — snapshot cards linking through to Finance/Reports/Reconciliation,
+       never recomputing those pages' own math here (same single-source-of-truth principle as
+       everywhere else in this app) — the tax-review card reads a status flag Tax Report
+       already stores, the reconciliation card is link-through only. -->
+
+
+  <!-- S2: TODAY'S SCHEDULE -->
+
+
+  <!-- S3: TASKS -->
+
+
+  <!-- S4: SHOPPING -->
+
+
+  <!-- S5: FOLLOW-UPS -->
+
+
+<details class="section luxury-date-controls"><summary>Schedule date &amp; week view</summary><div class="date-bar">
+  <button class="date-btn" id="prev-btn" onclick="shiftDay(-1)">‹</button>
+  <div class="date-label" id="date-label">Today</div>
+  <button class="date-btn" id="next-btn" onclick="shiftDay(1)">›</button>
+  <div class="week-toggle" onclick="toggleWeekView()" id="week-toggle-btn">Week</div>
+</div></details>
 </div>
 
 <!-- QUICK-ADD BAR -->
@@ -1120,14 +1145,14 @@ function buildS6(){
     <div class="snap-grid">
       <div class="snap-cell"><div class="snap-lbl">Collected receipts</div><div class="snap-val">${fmt(mtd)}</div></div>
       <div class="snap-cell"><div class="snap-lbl">Recorded spending</div><div class="snap-val">${fmt(expenses)}</div></div>
-      <div class="snap-cell ${profit<0?'loss':'profit'}"><div class="snap-lbl">Provisional surplus</div><div class="snap-val">${fmt(profit)}</div></div>
+      <div class="snap-cell ${profit<0?'loss':'profit'}"><div class="snap-lbl">Provisional surplus</div><div class="snap-val">${profit<0?'−'+fmt(Math.abs(profit)):fmt(profit)}</div></div>
     </div>
     <div class="profit-goal"><b>Your net profit goal: 25%</b>
       <div class="profit-track"><span style="width:${progress}%"></span></div>
-      ${margin==null?'No collected receipts recorded this month. A margin is not available yet.':`Recorded surplus is ${margin.toFixed(1)}% of receipts · ${gap>0?fmt(gap)+' below the 25% benchmark':'at or above the 25% benchmark'}.`}
-      <p class="fin-note">Early-month bills can arrive before customer payments. This is a provisional cash snapshot, not verified net profit or money available to withdraw.</p>
+      <span class="luxury-goal-context">${margin==null?'Margin pending until revenue is collected.':`Recorded surplus is ${margin.toFixed(1)}% of receipts · ${gap>0?fmt(gap)+' below the 25% benchmark':'at or above the 25% benchmark'}.`}</span>
+
     </div>
-    <details class="home-detail"><summary>What these numbers include</summary>Uses Home’s existing paid-invoice receipts and synced positive card transactions. Sales tax, refunds, transfers, payment timing, missing costs and transaction coverage need reconciliation before measuring true net profit. Card payments must not be counted again as purchases. <a href="/payroll.html?tab=spending">Review spending and data coverage →</a></details>`;
+    <details class="home-detail"><summary>What these numbers include</summary>Early-month bills can arrive before customer payments. This is a provisional cash snapshot, not verified net profit or money available to withdraw. Uses Home’s existing paid-invoice receipts and synced positive card transactions. Sales tax, refunds, transfers, payment timing, missing costs and transaction coverage need reconciliation before measuring true net profit. Card payments must not be counted again as purchases. <a href="/payroll.html?tab=spending">Review spending and data coverage →</a></details>`;
 }
 
 // ── S6B: MONEY LANDING SOON ─────────────────────────────
@@ -1210,8 +1235,8 @@ async function buildPayoutSnapshot(){
 
   const upcoming=rows.filter(r=>r.landing_date&&r.landing_date>=toISODate(todayDate)).sort((a,b)=>a.landing_date.localeCompare(b.landing_date));
   const next=h.in_transit?{amount:h.in_transit.amount,date:h.in_transit.arrival_date,estimate:false}:h.next_expected?{amount:h.next_expected.amount,date:h.next_expected.arrival_date,estimate:h.next_expected.is_estimate}:upcoming[0]?{amount:upcoming[0].total_amount,date:upcoming[0].landing_date,estimate:upcoming[0].landing_is_estimate}:null;
-  const hero=next?`<div class="payout-hero"><div>Next expected arrival</div><strong>${fmtExact(next.amount)}</strong><p>${next.date?fmtPayoutDate(next.date):'Arrival date unavailable'}${next.estimate?' · Estimated':''}</p><p class="fin-note">Expected funds are not confirmed bank cash.</p></div>`:'';
-  el.innerHTML=`${hero}${headlineHTML}${emptyNoteHTML}<details class="home-detail"><summary>Deposit timeline &amp; processing details</summary>${timelineHTML}</details>`;
+  const hero=next?`<div class="swj-money-composition"><div class="swj-money-main"><strong class="swj-money-amount">${fmtExact(next.amount)}</strong><p class="swj-money-date">Stripe payout · ${next.date?fmtPayoutDate(next.date):'Arrival date unavailable'}</p></div><div class="swj-money-aside"><span class="swj-estimated-badge">${next.estimate?'Estimated':'Scheduled'}</span><p>Expected funds are not<br>yet in your bank.</p></div></div>`:`<div class="swj-money-empty">No upcoming payout available.<p>Check processing details for your current Stripe balances.</p></div>`;
+  el.innerHTML=`${hero}<details class="home-detail payout-disclosure"><summary>Deposit &amp; processing details</summary>${headlineHTML}${emptyNoteHTML}${timelineHTML}</details>`;
 }
 
 // ── S7: FILING & CHECKS ─────────────────────────────────
@@ -1329,9 +1354,9 @@ async function buildS8(){
       <div class="card-chip">AMEX</div>
       <div class="card-info">
         <div class="card-name">${esc((c.name||c.institution_name||'Business Amex').replace(/^AMEX /i,''))}${c.mask?' …'+esc(c.mask):''}</div>
-        <div class="card-meta">Statement <b>${fmtExact(bal)}</b><br>Due <b>${esc(dueLabel)}</b> · ${awayLabel}</div>
+        <div class="card-meta${overdue?' payment-review':''}">Due ${esc(dueLabel)} · ${overdue?'Verify payment':awayLabel}</div>
       </div>
-      <div class="card-pay-pill${overdue?' overdue':''}">${fmtExact(bal)}<small>Statement amount<br>Review payment ›</small></div>
+      <div class="card-pay-pill${overdue?' overdue':''}">${fmtExact(bal)}<small>Statement</small></div>
     </a>`;
   }).join('')+`<details class="home-detail"><summary>Current balances &amp; payment status</summary><p>Statement amount is not a verified remaining payment. Check recent payments with your card provider before paying.</p>${synced.map(c=>`<p>${esc(c.name||'Card')} …${esc(c.mask||'')} · Current balance ${c.current_balance==null?'unavailable':fmtExact(c.current_balance)}</p>`).join('')}</details>`;
 }
@@ -1403,18 +1428,18 @@ async function buildS9(){
 // in Needs Attention (buildS1's gap rows) only. Excluded below entirely; the empty-state text
 // says so when that's the only reason the donut is empty.
 const HOME_SPEND_CATEGORIES=[
-  {cat:'Truck & Gas', key:'truck', label:'Truck & Gas', color:'#dd8856'},
-  {cat:'Storage', key:'storage', label:'Storage', color:'#c65a58'},
-  {cat:'Furniture/Inventory', key:'furniture', label:'Furniture/Inventory', color:'#8d6eaf'},
-  {cat:'Supplies', key:'supplies', label:'Supplies', color:'#dbb64f'},
-  {cat:'Insurance', key:'insurance', label:'Insurance', color:'#4d9392'},
-  {cat:'Software/Subscriptions', key:'software', label:'Software/Subscriptions', color:'#6278bc'},
-  {cat:'Marketing', key:'marketing', label:'Marketing', color:'#ca7190'},
-  {cat:'Meals', key:'meals', label:'Meals', color:'#cf6162'},
-  {cat:'Office', key:'office', label:'Office', color:'#73a17b'},
-  {cat:'Other', key:'other', label:'Other', color:'#8b99aa'},
+  {cat:'Truck & Gas', key:'truck', label:'Truck & Gas', color:'#D0AA67'},
+  {cat:'Storage', key:'storage', label:'Storage', color:'#687153'},
+  {cat:'Furniture/Inventory', key:'furniture', label:'Furniture/Inventory', color:'#A7A08B'},
+  {cat:'Supplies', key:'supplies', label:'Supplies', color:'#7D897F'},
+  {cat:'Insurance', key:'insurance', label:'Insurance', color:'#D4C7B1'},
+  {cat:'Software/Subscriptions', key:'software', label:'Software/Subscriptions', color:'#626B4E'},
+  {cat:'Marketing', key:'marketing', label:'Marketing', color:'#C2A05C'},
+  {cat:'Meals', key:'meals', label:'Meals', color:'#B96B43'},
+  {cat:'Office', key:'office', label:'Office', color:'#858B72'},
+  {cat:'Other', key:'other', label:'Other', color:'#B6AF9B'},
 ];
-const HOME_SPEND_COLORS={job:'#397c61', ...Object.fromEntries(HOME_SPEND_CATEGORIES.map(c=>[c.key,c.color]))};
+const HOME_SPEND_COLORS={job:'#536F50', ...Object.fromEntries(HOME_SPEND_CATEGORIES.map(c=>[c.key,c.color]))};
 async function buildS10(){
   const el=document.getElementById('s10-body');
   const now=new Date();
@@ -1466,7 +1491,7 @@ async function buildS10(){
   ].filter(sl=>sl.amt>0.009);
   let acc=0;
   const stops=slices.map(sl=>{ const pct=sl.amt/total*100; const from=acc; acc+=pct; return `${HOME_SPEND_COLORS[sl.key]} ${from.toFixed(2)}% ${acc.toFixed(2)}%`; });
-  el.innerHTML=`<p class="fin-note">Categorized card spending · review transactions for uncategorized purchases.</p><div class="home-donut-wrap">
+  el.innerHTML=`<p class="fin-note">Categorized card spending</p><div class="home-donut-wrap">
     <div class="home-donut" style="background:conic-gradient(${stops.join(',')})">
       <div class="home-donut-center"><div class="dv">${fmt(total)}</div><div class="dl">Total Spent</div></div>
     </div>
@@ -1958,7 +1983,9 @@ function initHomeFolds(){
     const chevron=document.createElement('span');chevron.className='home-fold-chevron';chevron.setAttribute('aria-hidden','true');chevron.textContent='›';
     button.append(chevron,text);title.replaceChildren(button);button.setAttribute('aria-controls',panel.id);
     const setOpen=open=>{button.setAttribute('aria-expanded',String(open));panel.hidden=!open;section.classList.toggle('is-folded',!open);};
-    button.addEventListener('click',()=>setOpen(panel.hidden));setOpen(false);
+    button.addEventListener('click',()=>setOpen(panel.hidden));
+    header.addEventListener('click',event=>{if(!event.target.closest('button,a'))setOpen(panel.hidden);});
+    panel.setAttribute('role','region');panel.setAttribute('aria-label',text.textContent);setOpen(false);
     header.querySelectorAll('.sec-add-btn').forEach(add=>add.addEventListener('click',()=>setOpen(true)));
   });
 }

@@ -504,6 +504,7 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
 .swj-more-link:active{ background:#f5f2ed; }
 
 </style>
+<link rel="stylesheet" href="/styles/swj-luxury-theme.css">
 </head>
 <body>
 
@@ -520,10 +521,10 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
 </nav>
 
 <nav class="swj-bottom-nav">
-  <a class="swj-bn-link" href="/today.html"><span class="swj-bn-ic">🏠</span>Home</a>
-  <a class="swj-bn-link on" href="/board.html"><span class="swj-bn-ic">📋</span>Jobs</a>
-  <a class="swj-bn-link" href="/payroll.html"><span class="swj-bn-ic">💼</span>Finance</a>
-  <button class="swj-bn-link" onclick="swjToggleMore()" type="button"><span class="swj-bn-ic">⋯</span>More</button>
+  <a class="swj-bn-link" href="/today.html"><span class="swj-bn-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 10 9-7 9 7v11h-6v-7H9v7H3z"/></svg></span>Home</a>
+  <a class="swj-bn-link on" aria-current="page" href="/board.html"><span class="swj-bn-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M8 3v4m8-4v4M4 11h16"/></svg></span>Jobs</a>
+  <a class="swj-bn-link" href="/payroll.html"><span class="swj-bn-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v5c0 4 16 4 16 0V5M4 10v5c0 4 16 4 16 0v-5M4 15v4c0 4 16 4 16 0v-4"/></svg></span>Finance</a>
+  <button class="swj-bn-link" onclick="swjToggleMore()" type="button"><span class="swj-bn-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg></span>More</button>
 </nav>
 
 <div class="swj-more-sheet" id="swj-more-sheet" onclick="if(event.target===this)swjToggleMore()">

@@ -1,0 +1,20 @@
+/* Approved SWJ luxury palette and shared bottom navigation. */
+:root {
+ --swj-bg:#F7F4EE;--swj-surface:#FFFCF8;--swj-surface-white:#FFFFFF;
+ --swj-olive-dark:#303724;--swj-olive:#626B4E;--swj-olive-soft:#858B72;
+ --swj-gold:#C2A05C;--swj-gold-light:#D7BB83;--swj-text:#24261E;
+ --swj-text-secondary:#68685E;--swj-text-muted:#89877E;--swj-border:#E4DED4;
+ --swj-divider:#EAE5DD;--swj-negative:#A3452D;--swj-positive:#536F50;
+ --swj-radius-card:22px;--swj-radius-small:14px;
+ --swj-shadow:0 4px 18px rgba(48,42,32,.045);
+ --swj-font-display:'Cormorant Garamond','Bodoni Moda',Georgia,serif;
+ --swj-font-body:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
+}
+@media(max-width:1199px){
+ nav.swj-bottom-nav{display:flex!important;position:fixed;left:0!important;right:0!important;bottom:0!important;z-index:100;background:var(--swj-olive-dark)!important;border-radius:0!important;border:0!important;border-top:1px solid #ffffff14!important;padding:7px 10px calc(9px + env(safe-area-inset-bottom,0px))!important;box-shadow:none!important;}
+ .swj-bottom-nav .swj-bn-link{display:flex;flex:1;min-width:0;min-height:58px!important;align-items:center;justify-content:center;flex-direction:column;gap:5px;background:none;border:0;font:12px var(--swj-font-body);text-decoration:none;color:#E5E1D7!important;cursor:pointer;}
+ .swj-bottom-nav .swj-bn-link[aria-current=page]{color:var(--swj-gold-light)!important;}
+ .swj-bottom-nav .swj-bn-ic{width:25px;height:25px;display:block;line-height:1;}
+ .swj-bottom-nav svg{width:100%;height:100%;display:block;}
+ .swj-bottom-nav a:focus-visible,.swj-bottom-nav button:focus-visible{outline:2px solid var(--swj-gold-light);outline-offset:2px;border-radius:8px;}
+}
