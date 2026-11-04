@@ -84,7 +84,11 @@ class handler(BaseHTTPRequestHandler):
                 text = json.dumps(value) if isinstance(value, (bool, int, float)) else str(value)
                 receipt_match['data->>' + field] = 'is.null' if value is None else 'eq.' + text
             payments = saved.get('payments')
-            receipt_match['data->payments'] = 'is.null' if payments is None else 'eq.' + json.dumps(payments, separators=(',', ':'))
+            # JSON null is a stored JSON value, unlike SQL NULL (missing key).
+            # Preserve the exact state so unchanged legacy invoices can save,
+            # while a concurrent payment still prevents the PATCH.
+            receipt_match['data->payments'] = ('is.null' if 'payments' not in saved
+                else 'eq.' + json.dumps(payments, separators=(',', ':')))
             match = urlencode(receipt_match)
             status2, data2 = supabase_request(
                 'PATCH', 'invoices?' + match,

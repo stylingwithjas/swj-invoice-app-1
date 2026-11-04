@@ -103,6 +103,25 @@ class BackendTests(unittest.TestCase):
         with patch.object(invoices,'stored_invoice',return_value=FIXTURE),patch.object(invoices,'supabase_request',side_effect=[(409,{}),(200,[{'invnum':'TEST-PR63'}])]):
             h.do_POST();self.assertEqual(h.result[0],200)
 
+    def test_receipt_guard_distinguishes_missing_and_json_null_payments(self):
+        from urllib.parse import parse_qs, urlparse
+        for extra, expected in (({}, 'is.null'), ({'payments':None}, 'eq.null'),
+                                ({'payments':[]}, 'eq.[]')):
+            with self.subTest(extra=extra):
+                saved={**FIXTURE, **extra}
+                h=self.fake_handler(invoices.handler,FIXTURE)
+                def database(method, path, body):
+                    if method=='POST':return 409, {}
+                    query=parse_qs(urlparse(path).query)
+                    predicate=query['data->payments'][0]
+                    self.assertEqual(predicate, expected)
+                    # Emulate PostgREST's JSON-value versus SQL-null match.
+                    matches=(predicate=='is.null' if 'payments' not in saved else
+                             predicate=='eq.'+json.dumps(saved['payments'],separators=(',',':')))
+                    return 200, [{'invnum':'TEST-PR63'}] if matches else []
+                with patch.object(invoices,'stored_invoice',return_value=saved),patch.object(invoices,'supabase_request',side_effect=database):
+                    h.do_POST();self.assertEqual(h.result[0],200)
+
     def test_extension_mismatch_rejected(self):
         with self.assertRaises(ValueError):
             generate.build_extension_pdf({'extension':True,'base_price':110,'taxrate':10,'extension_fee':100,'extension_tax':8,'extension_total':110})
