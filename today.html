@@ -1186,6 +1186,13 @@ async function buildS8(){
     cards=data||[];
   }catch(e){ /* view may not exist yet if the Plaid migration hasn't been run — treat as not connected */ }
 
+  // Nov 3, 2026 bug (Gabe's note): Home showed the same 2 real cards repeated many times over
+  // (19 rows for 2 cards) while Finance, reading the identical view, correctly showed 2 --
+  // likely stalled Link attempts each left their own connection record, and the live balance
+  // refresh below loops over every one of them. One row per real card, by account_id, no
+  // matter how many connection records exist behind it or how many times this refreshes.
+  cards=Object.values(Object.fromEntries(cards.map(c=>[c.account_id,c])));
+
   if(!cards.length){
     document.getElementById('s8-meta').textContent='not connected';
     el.innerHTML=`<div class="fin-card full" style="cursor:pointer" onclick="window.location.href='/payroll.html?tab=spending'">
@@ -1228,9 +1235,9 @@ async function buildS8(){
       <div class="card-chip">AMEX</div>
       <div class="card-info">
         <div class="card-name">${esc(c.name||c.institution_name||'Business Amex')}${c.mask?' …'+esc(c.mask):''}</div>
-        <div class="card-meta">Balance ${fmt(bal)}<br>Due ${esc(dueLabel)} (${awayLabel})</div>
+        <div class="card-meta">Balance ${fmtExact(bal)}<br>Due ${esc(dueLabel)} (${awayLabel})</div>
       </div>
-      <div class="card-pay-pill${overdue?' overdue':''}">Pay ${fmt(bal)}<small>to avoid interest</small></div>
+      <div class="card-pay-pill${overdue?' overdue':''}">Pay ${fmtExact(bal)}<small>to avoid interest</small></div>
     </div>`;
   }).join('');
 }
@@ -1290,32 +1297,53 @@ async function buildS9(){
 // ── S10: SPENDING BREAKDOWN ─────────────────────────────
 // Same conic-gradient donut technique as payroll.html's renderPrDonut() — own category set:
 // Job Costs (any job-tagged spend, whatever its category), Truck Costs (untagged Truck & Gas
-// only — job-tagged truck spend rolls into Job Costs instead), Overhead (every other untagged,
-// categorized spend), Other (untagged, uncategorized).
+// only — job-tagged truck spend rolls into Job Costs instead), Other (untagged spend
+// explicitly categorized "Other" -- a deliberate human choice, never a stand-in for "no
+// category chosen"), Overhead (every other untagged, categorized spend).
+//
+// Nov 4, 2026 fix (Gabe's note): a transaction with NO category at all used to be folded into
+// this "Other" slice, so it silently counted as real categorized spending. Gabe's explicit
+// instruction: uncategorized spend is not spending data yet -- it belongs in Needs Attention
+// (buildS1's gap rows) only, and must never show up here as if it were real. Excluded below
+// entirely; the empty-state text says so when that's the only reason the donut is empty.
 const HOME_SPEND_COLORS={job:'#6f8a72',overhead:'#b89a63',truck:'#b77b62',other:'#b8ada1'};
-function buildS10(){
+async function buildS10(){
   const el=document.getElementById('s10-body');
   const now=new Date();
   document.getElementById('s10-meta').textContent=now.toLocaleDateString('en-US',{month:'long'}).toUpperCase();
 
-  let job=0,truck=0,other=0,overheadTotal=0;
+  let connected=true;
+  try{
+    const {data}=await _sb.from('plaid_card_summary').select('account_id').limit(1);
+    connected=!!(data&&data.length);
+  }catch(e){ connected=false; }
+  if(!connected){
+    el.innerHTML=`<div class="empty"><div class="empty-icon"><i class="ti ti-chart-donut"></i></div><div class="empty-text">Not connected.</div><div class="empty-sub">Connect the business Amex in Finance → Spending.</div></div>`;
+    return;
+  }
+
+  let job=0,truck=0,otherCat=0,overheadTotal=0,uncategorizedCount=0;
   _monthlyPlaidTx.forEach(t=>{
     const amt=parseFloat(t.amount)||0;
+    if(!t.category){ uncategorizedCount++; return; }  // Needs Attention's job, never this donut
     if(t.job_invnum){ job+=amt; return; }
-    if(!t.category){ other+=amt; return; }
     if(t.category==='Truck & Gas'){ truck+=amt; return; }
+    if(t.category==='Other'){ otherCat+=amt; return; }
     overheadTotal+=amt;
   });
-  const total=job+truck+overheadTotal+other;
+  const total=job+truck+overheadTotal+otherCat;
   if(total<=0.009){
-    el.innerHTML=`<div class="empty"><div class="empty-icon"><i class="ti ti-chart-donut"></i></div><div class="empty-text">No spending yet.</div><div class="empty-sub">Connect the business Amex in Finance → Spending.</div></div>`;
+    const sub=uncategorizedCount
+      ? `${uncategorizedCount} transaction${uncategorizedCount===1?'':'s'} waiting in Needs Attention above.`
+      : 'No categorized spending yet this month.';
+    el.innerHTML=`<div class="empty"><div class="empty-icon"><i class="ti ti-chart-donut"></i></div><div class="empty-text">Nothing to show yet.</div><div class="empty-sub">${sub}</div></div>`;
     return;
   }
   const slices=[
     {key:'job',label:'Job Costs',amt:job},
     {key:'overhead',label:'Overhead',amt:overheadTotal},
     {key:'truck',label:'Truck Costs',amt:truck},
-    {key:'other',label:'Other',amt:other},
+    {key:'other',label:'Other',amt:otherCat},
   ];
   let acc=0;
   const stops=slices.map(sl=>{ const pct=sl.amt/total*100; const from=acc; acc+=pct; return `${HOME_SPEND_COLORS[sl.key]} ${from.toFixed(2)}% ${acc.toFixed(2)}%`; });
