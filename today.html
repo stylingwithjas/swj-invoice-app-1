@@ -413,6 +413,18 @@ body{background:var(--bg)}.hdr{background:#fbfcfb}.content{gap:12px!important;pa
 @media(max-width:600px){.content{padding-left:12px!important;padding-right:12px!important;gap:12px!important}.section{padding:14px!important}.snap-val{font-size:25px!important}.sec-title{font-size:24px!important}.home-donut-wrap{flex-wrap:nowrap;gap:12px}.home-legend{min-width:0!important}.home-legend-pct{display:none}.home-legend-name{overflow-wrap:anywhere}.home-legend-amt{font-size:12px!important}.fin-note{font-size:12px!important}}
 @media(max-width:359px){.card-row{grid-template-columns:25px minmax(0,1fr) 94px;gap:6px}.card-chip{width:25px;font-size:6px}.card-pay-pill{font-size:11px!important;padding:7px!important}.home-donut{width:104px;height:104px}.home-donut-center{inset:17px}.snap-val{font-size:21px!important}}
 </style>
+<style>
+/* Targeted density tweaks; broader palette decision remains with owner. */
+.briefing{background:#fff;border:1px solid #dfe4e1;padding:7px 10px;font-size:12px;line-height:1.4;}
+.qa-tile:nth-child(n){background:#fff;color:var(--ink-soft);padding:8px 2px;min-height:54px;border-radius:10px;}
+.qa-tile i{font-size:19px}.greeting{padding:5px 0 1px}.greeting-hello{font-size:32px}.content{gap:10px!important}
+.section{padding:12px 14px!important}.sec-hdr{margin-bottom:8px}.sec-title{font-size:24px!important}
+#sec-payout{border-top-color:#5b9670}.payout-hero{background:#e8f3e9;padding:10px 12px;margin-bottom:6px}.payout-hero strong{font-size:30px;color:#285f40}.payout-hero p{font-size:13px;margin-top:3px}.payout-hero .fin-note{font-size:10px!important;line-height:1.4}
+.snap-cell{padding:8px!important}.snap-val{font-size:26px!important}.snap-lbl{margin-bottom:3px}.profit-goal{padding:8px 10px;margin-top:7px;line-height:1.35}.profit-goal .fin-note{font-size:10px!important;line-height:1.4}.profit-track{margin:6px 0;height:5px}.home-detail{margin-top:4px}.home-detail summary{min-height:30px;padding:6px 0;font-size:12px}
+.payout-tile{padding:6px 9px}.payout-tile-val{font-size:17px!important}.payout-tile-lbl{font-size:10px!important}.payout-tiles{gap:5px}.payout-tile-date{font-size:10px}
+.card-row{padding:10px 0!important}.card-meta{line-height:1.45}.home-fold-toggle{min-height:34px;padding:2px 0}
+@media(max-width:600px){.section{padding:11px 12px!important}.content{gap:10px!important;padding-top:8px!important}.snap-val{font-size:23px!important}.sec-title{font-size:23px!important}.qa-tile{font-size:10px!important}.greeting-hello{font-size:32px}.home-donut{width:112px;height:112px}.home-donut-center{inset:18px}}
+</style>
 </head>
 <body>
 
@@ -1392,7 +1404,7 @@ async function buildS9(){
 // says so when that's the only reason the donut is empty.
 const HOME_SPEND_CATEGORIES=[
   {cat:'Truck & Gas', key:'truck', label:'Truck & Gas', color:'#dd8856'},
-  {cat:'Storage', key:'storage', label:'Storage', color:'#5a83b4'},
+  {cat:'Storage', key:'storage', label:'Storage', color:'#c65a58'},
   {cat:'Furniture/Inventory', key:'furniture', label:'Furniture/Inventory', color:'#8d6eaf'},
   {cat:'Supplies', key:'supplies', label:'Supplies', color:'#dbb64f'},
   {cat:'Insurance', key:'insurance', label:'Insurance', color:'#4d9392'},
@@ -1936,7 +1948,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
 <script>
 // Native buttons preserve keyboard access; changing sections never writes business data.
 function initHomeFolds(){
-  ['sec-attention','sec-schedule','sec-profit','sec-tasks','sec-shopping','sec-followups'].forEach(id=>{
+  ['sec-attention','sec-schedule','sec-profit','sec-tasks','sec-shopping','sec-followups','sec-glance','sec-filing'].forEach(id=>{
     const section=document.getElementById(id),header=section.querySelector('.sec-hdr'),title=header.querySelector('.sec-title');
     if(section.querySelector('.home-fold-toggle'))return;
     const panel=document.createElement('div');panel.id=id+'-panel';panel.className='home-fold-panel';
