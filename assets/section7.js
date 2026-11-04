@@ -3,7 +3,8 @@
   'use strict';
   const $=id=>document.getElementById(id);
   const endpoint='/api/webhook?section7=';
-  let current=null,busy=false;
+  const reasonNames={test_record:'Test record (not a real job)',quote_never_realized:'Quote never became a job (never signed, never paid, no staging)',duplicate_superseded:'Duplicate / superseded version',other:'Other'};
+  let current=null,busy=false,pendingInvnum=null;
   const names={lines_subtotal:'Visible lines versus subtotal',tax_base:'Tax versus claimed taxable base',tax_full_lines:'Tax versus full visible lines (comparison only)',subtotal_tax_total:'Subtotal + tax versus grand total',extension_rate:'Extension rate versus pretax subtotal / 3',missing_input:'More information needed',split_totals:'Rental + service totals versus lines',line_split:'Per-line split versus price',split_lines_vs_totals:'Per-line detail versus split totals',split_presentation:'Split presentation differs',extension_tax:'Extension tax versus fee',extension_total:'Extension fee + tax versus amount',extension_breakdown:'Extension breakdown unavailable',payment_context:'Payment context needs review',payment_timing:'Receipt date unavailable',document_type:'Separate document needs parent context'};
   function node(tag,text,className){const n=document.createElement(tag);if(text!=null)n.textContent=String(text);if(className)n.className=className;return n;}
   function setMessage(text,error=false){$('message').textContent=text;$('message').className='message'+(error?' error':'');}
@@ -56,7 +57,48 @@
       body.append(node('p','Stored paid amount: '+currency(row.stored_paid_amount)+' (separate from the printed grand total above — recorded receipts, not what the invoice prints).','muted'));
       body.append(node('p','Paid record: review with the owner/CPA. Do not restate or regenerate from this finding.','muted'));
     }
+    body.append(exclusionControls(row));
     detail.append(body);return detail;
+  }
+  function exclusionControls(row){
+    const wrap=node('div',null,'exclusion-row');
+    if(row.excluded_from_reconciliation){
+      const tag=node('span','Excluded — '+(reasonNames[row.excluded_reason]||row.excluded_reason||'no reason recorded'),'excluded-tag');
+      wrap.append(tag);
+      if(row.excluded_note)wrap.append(node('p','Note: '+row.excluded_note,'muted'));
+      wrap.append(node('p','Excluded '+(row.excluded_at?new Date(row.excluded_at).toLocaleString():'')+(row.excluded_by?' by '+row.excluded_by:''),'muted'));
+      const btn=node('button','Restore to active list');btn.type='button';btn.className='restore-btn';
+      btn.addEventListener('click',()=>openRestoreDialog(row));
+      wrap.append(btn);
+      return wrap;
+    }
+    if(row.exclusion_block_reason){
+      wrap.append(node('p',row.exclusion_block_reason,'notice'));
+      return wrap;
+    }
+    const btn=node('button','Exclude from reconciliation');btn.type='button';btn.className='exclude-btn';
+    btn.addEventListener('click',()=>openExcludeDialog(row));
+    wrap.append(btn);
+    return wrap;
+  }
+  function summaryList(targetId,row){
+    const dl=$(targetId);dl.replaceChildren();
+    for(const [label,value]of [['Client',row.client||'Client name unavailable'],['Invoice',row.invnum],['Date',row.invdate||'Unavailable'],['Paid',row.live_paid?'Yes':'No'],['Signed',row.signed?'Yes':'No']]){
+      const item=node('div');item.append(node('dt',label),node('dd',value));dl.append(item);
+    }
+  }
+  function openExcludeDialog(row){
+    pendingInvnum=row.invnum;
+    summaryList('exclude-summary',row);
+    $('exclude-form').reset();$('exclude-note-wrap').hidden=true;$('exclude-note').value='';
+    $('exclude-error').hidden=true;$('exclude-error').textContent='';
+    $('exclude-dialog').showModal();
+  }
+  function openRestoreDialog(row){
+    pendingInvnum=row.invnum;
+    summaryList('restore-summary',row);
+    $('restore-error').hidden=true;$('restore-error').textContent='';
+    $('restore-dialog').showModal();
   }
   function renderList(){
     const rows=selectedRows();$('visible-count').textContent=rows.length+' invoice'+(rows.length===1?'':'s');$('results').replaceChildren(...rows.map(renderRow));
@@ -89,12 +131,40 @@
   $('scan-form').addEventListener('submit',async e=>{
     e.preventDefault();if(busy||!$('scan-form').reportValidity())return;busy=true;clearReport();$('scan-button').disabled=true;$('period').disabled=true;
     setMessage('Scanning every stored invoice and verifying complete coverage…');$('message').classList.add('loading');
-    try{render(await request('report&period='+encodeURIComponent($('period').value)));}
+    try{render(await request('report&period='+encodeURIComponent($('period').value)+'&filter='+encodeURIComponent($('recon-filter').value)));}
     catch(e){clearReport();if(e.status===401)locked(true);setMessage(e.name==='AbortError'?'The scan timed out. No complete result is available; retry.':e.message,true);}
     finally{busy=false;$('scan-button').disabled=false;$('period').disabled=false;$('message').classList.remove('loading');}
   });
   $('view').addEventListener('change',renderList);
   $('period').addEventListener('change',()=>{clearReport();setMessage('Review period changed. Run the historical check again.');});
+  $('recon-filter').addEventListener('change',()=>{if(current)$('scan-form').requestSubmit();});
+  $('exclude-form').addEventListener('change',e=>{
+    if(e.target.name==='reason')$('exclude-note-wrap').hidden=e.target.value!=='other';
+  });
+  $('exclude-cancel').addEventListener('click',()=>$('exclude-dialog').close());
+  $('exclude-form').addEventListener('submit',async e=>{
+    e.preventDefault();if(busy)return;
+    const reason=new FormData($('exclude-form')).get('reason');
+    const note=$('exclude-note').value.trim();
+    if(reason==='other'&&!note){$('exclude-error').textContent='A short note is required for "Other."';$('exclude-error').hidden=false;return;}
+    busy=true;$('exclude-confirm').disabled=true;
+    try{
+      await request('exclude',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({invnum:pendingInvnum,reason,note})});
+      $('exclude-dialog').close();
+      $('scan-form').requestSubmit();
+    }catch(err){$('exclude-error').textContent=err.message;$('exclude-error').hidden=false;}
+    finally{busy=false;$('exclude-confirm').disabled=false;}
+  });
+  $('restore-cancel').addEventListener('click',()=>$('restore-dialog').close());
+  $('restore-confirm').addEventListener('click',async()=>{
+    if(busy)return;busy=true;$('restore-confirm').disabled=true;
+    try{
+      await request('restore',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({invnum:pendingInvnum})});
+      $('restore-dialog').close();
+      $('scan-form').requestSubmit();
+    }catch(err){$('restore-error').textContent=err.message;$('restore-error').hidden=false;}
+    finally{busy=false;$('restore-confirm').disabled=false;}
+  });
   $('export').addEventListener('click',()=>{
     if(!current)return;const view=$('view').value,csv=current.exports[view];if(typeof csv!=='string')return;
     const url=URL.createObjectURL(new Blob(['\ufeff',csv],{type:'text/csv;charset=utf-8'}));const a=node('a');a.href=url;a.download='SWJ_Historical_Reconciliation_'+current.review_period+'_'+view+'_'+current.fingerprint.slice(0,8)+'.csv';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);

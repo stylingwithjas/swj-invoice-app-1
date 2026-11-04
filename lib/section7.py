@@ -13,6 +13,17 @@ ZERO = Decimal(0)
 CENT = Decimal('0.01')
 SYSTEM = {'PRICING_DEFAULTS', 'TIER_PRICING', 'FINANCE_CONFIG', 'FINANCE_OVERRIDES'}
 OVERRIDES = ('subtotal_override', 'tax_override', 'total_override')
+
+# Exclude-from-reconciliation (owner request, Nov 3, 2026): a reversible flag on the record, not
+# a deletion -- removes noise (test records, quotes that never became a job) from the default
+# reconciliation list without touching a single stored invoice figure. Fixed reason list only;
+# "Other" requires its own typed note. See exclusion_block_reason() for the hard blocks.
+EXCLUDE_REASONS = {
+    'test_record': 'Test record (not a real job)',
+    'quote_never_realized': 'Quote never became a job (never signed, never paid, no staging)',
+    'duplicate_superseded': 'Duplicate / superseded version',
+    'other': 'Other',
+}
 RULES = {
     'lines_subtotal': 'Visible lines = subtotal',
     'tax_base': 'Tax = rate × claimed taxable base',
@@ -339,12 +350,21 @@ def check_extensions(d, issues):
 def check_invoice(row, period):
     result = {'invnum': label(row.get('invnum')), 'client': label(row.get('client')),
               'invdate': date(row.get('invdate')), 'pricing_mode': 'unknown',
-              'override_fields': [], 'override_intent': 'none', 'issues': [], 'values': {}}
+              'override_fields': [], 'override_intent': 'none', 'issues': [], 'values': {},
+              'signed': False, 'excluded_from_reconciliation': False, 'excluded_reason': None,
+              'excluded_note': None, 'excluded_at': None, 'excluded_by': None}
     d = row.get('data')
     if not isinstance(d, dict):
         result.update(payment_context({}, period))
         result['issues'].append(finding('missing_input', detail='Invoice data is not an object.', kind='unverifiable'))
         return result
+    result['signed'] = d.get('signed') is True
+    if d.get('excluded_from_reconciliation') is True:
+        result['excluded_from_reconciliation'] = True
+        result['excluded_reason'] = d.get('excluded_reason')
+        result['excluded_note'] = d.get('excluded_note')
+        result['excluded_at'] = d.get('excluded_at')
+        result['excluded_by'] = d.get('excluded_by')
     result['override_fields'] = [k for k in OVERRIDES if d.get(k) not in (None, '')]
     result['override_intent'] = 'not provable from stored total fields' if result['override_fields'] else 'none'
     if isinstance(d.get('manual_totals_fields'), list):
@@ -372,9 +392,28 @@ def check_invoice(row, period):
     return result
 
 
-def build_report(rows, period):
+def exclusion_block_reason(check_result, filed_periods):
+    """Returns a short, displayable reason this record CANNOT be excluded from reconciliation,
+    or None if it may be excluded. filed_periods is a set of 'YYYY-MM' strings with a non-blank
+    DOR confirmation number on file -- this module never talks to the database itself, so the
+    caller (lib/section7_http.py) builds that set from the stored TAX_REVIEW_<period> records.
+    Owner rule (Nov 3, 2026): paid, signed, and already-filed records are never excludable from
+    this view, no exceptions, no workaround button."""
+    if check_result['live_paid']:
+        return 'Paid — cannot be excluded.'
+    if check_result['signed']:
+        return 'Signed contract — cannot be excluded from this view without a separate owner decision.'
+    filed_hit = next((d for d in check_result['receipt_dates'] if d[:7] in filed_periods), None)
+    if filed_hit:
+        return f'A recorded receipt ({filed_hit}) falls in a period already filed with DOR — cannot be excluded.'
+    return None
+
+
+def build_report(rows, period, filter_mode='active'):
     if not re.fullmatch(r'\d{4}-(0[1-9]|1[0-2])', period) or not 1900 <= int(period[:4]) <= 9999:
         raise ValueError('Invalid review period')
+    if filter_mode not in ('active', 'excluded', 'all'):
+        raise ValueError('Invalid filter mode')
     checked, excluded = [], 0
     for row in rows:
         if real_invoice(row):
@@ -385,25 +424,42 @@ def build_report(rows, period):
     for r in flagged:
         r['has_discrepancy'] = any(i['kind'] == 'discrepancy' for i in r['issues'])
         r['has_unverifiable'] = any(i['kind'] == 'unverifiable' for i in r['issues'])
-    return {'schema_version': 1, 'review_period': period, 'data_source': 'stored_database_records',
+    # filter_mode scopes which flagged rows are VISIBLE -- every count below is computed from
+    # that visible set only, so the active list's own totals always sum to its own rows (owner
+    # requirement, Nov 3, 2026: "my OCD will drive me nuts when the file doesn't reconcile").
+    # excluded_in_view_count is reported regardless of mode so the UI can always say how many
+    # rows the current filter is hiding (or showing), never silently.
+    if filter_mode == 'active':
+        visible = [r for r in flagged if not r['excluded_from_reconciliation']]
+    elif filter_mode == 'excluded':
+        visible = [r for r in flagged if r['excluded_from_reconciliation']]
+    else:
+        visible = flagged
+    return {'schema_version': 1, 'review_period': period, 'filter_mode': filter_mode,
+            'data_source': 'stored_database_records',
             'comparison_basis': 'Printed cents; a $0.01 mismatch is reported. Original issued PDFs are not verified.',
             'records_read': len(rows), 'invoices_checked': len(checked), 'excluded_records': excluded,
-            'flagged_count': len(flagged), 'discrepancy_count': sum(r['has_discrepancy'] for r in flagged),
-            'unverifiable_count': sum(r['has_unverifiable'] for r in flagged),
-            'paid_period_discrepancy_count': sum(r['has_discrepancy'] and r['paid_in_review_period'] for r in flagged),
+            'excluded_from_reconciliation_count': sum(r['excluded_from_reconciliation'] for r in flagged),
+            'flagged_count': len(visible), 'discrepancy_count': sum(r['has_discrepancy'] for r in visible),
+            'unverifiable_count': sum(r['has_unverifiable'] for r in visible),
+            'paid_period_discrepancy_count': sum(r['has_discrepancy'] and r['paid_in_review_period'] for r in visible),
+            # Paid records can never carry excluded_from_reconciliation (the hard block above
+            # prevents it), so these two figures are never affected by filter_mode in practice —
+            # left unfiltered by it for clarity rather than relying on that invariant silently.
             'paid_date_unknown_count': sum(r['paid_date_unknown'] for r in checked),
             # Owner decision (Nov 2, 2026): name these records, not just count them — the
             # count alone can't confirm the review-period paid set is complete, since any one
             # of these might actually belong to the period but can't be placed without a date.
             'paid_date_unknown_records': [{'invnum': r['invnum'], 'client': r['client']} for r in checked if r['paid_date_unknown']],
-            'paid_period_unverifiable_count': sum(r['has_unverifiable'] and r['paid_in_review_period'] for r in flagged),
-            'results': flagged,
+            'paid_period_unverifiable_count': sum(r['has_unverifiable'] and r['paid_in_review_period'] for r in visible),
+            'results': visible,
             'limitations': [
                 'This list cannot detect invoices missing entirely from the database (including an unrecorded job such as Deji).',
                 'No original issued or signed PDF is inspected; reconstructed values are labeled and are not replacement figures.',
                 'Manual overrides and rate-card extension differences require context; a finding does not authorize repricing.',
                 'Paid findings are owner/CPA review questions. No invoices are restated, regenerated, charged, emailed or updated.',
                 'Drafts, GS Photography and known settings/review rows are excluded; no staging-status or paid-status filter hides real invoices.',
+                'Excluded records are hidden from the Active view only — they stay in the database and reappear under Excluded only / All, with their reason and date, until restored.',
             ]}
 
 
@@ -423,16 +479,22 @@ def csv_report(report, view='all'):
     writer = csv.writer(output)
     writer.writerow(['Report fingerprint', 'Review period', 'Invoice', 'Client', 'Invoice date', 'Live paid',
         'Stored paid amount', 'Receipt in review period', 'Paid date unknown', 'Recorded receipt dates', 'Mode',
-        'Override fields', 'Finding type', 'Rule', 'Scope', 'Existing/reconstructed value',
+        'Override fields', 'Excluded from reconciliation', 'Excluded reason', 'Excluded note', 'Excluded at',
+        'Finding type', 'Rule', 'Scope', 'Existing/reconstructed value',
         'Comparison value (not a correction)', 'Difference', 'Detail', 'Subtotal source', 'Tax source',
         'Grand source', 'Taxable base source'])
+    # The Excluded columns are always present (never a silent extra column that appears only
+    # sometimes) so a downloaded list can never hide a record's excluded status by omission --
+    # they're simply blank for every row in the Active view, since no excluded row is ever in it.
     for row in filtered_rows(report, view):
         for f in row['issues']:
             writer.writerow([text(v) for v in [report.get('fingerprint'), report['review_period'], row['invnum'], row['client'],
                 row['invdate'], str(row['live_paid'])]]
                 + [row['stored_paid_amount']]
                 + [text(v) for v in [str(row['paid_in_review_period']), str(row['paid_date_unknown']),
-                ', '.join(row['receipt_dates']), row['pricing_mode'], ', '.join(row['override_fields']), f['kind'], f['rule'], f['scope']]]
+                ', '.join(row['receipt_dates']), row['pricing_mode'], ', '.join(row['override_fields']),
+                str(row['excluded_from_reconciliation']), EXCLUDE_REASONS.get(row['excluded_reason'], row['excluded_reason'] or ''),
+                row['excluded_note'] or '', row['excluded_at'] or '', f['kind'], f['rule'], f['scope']]]
                 + [f['actual'], f['comparison'], f['difference']]
                 + [text(v) for v in [f['detail'], row['values'].get('subtotal_source'), row['values'].get('tax_source'), row['values'].get('grand_source'), row['values'].get('taxable_base_source')]])
     return output.getvalue()
