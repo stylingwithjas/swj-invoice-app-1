@@ -1,9 +1,11 @@
 import importlib.util
+import io
 import json
 import os
 from pathlib import Path
 import sys
 import unittest
+import urllib.error
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -197,6 +199,87 @@ class MultiItemSyncTests(unittest.TestCase):
         self.assertEqual(result['added'], 1)
         self.assertEqual(len(result['errors']), 1)
         self.assertIn('Bad', result['errors'][0])
+
+
+class PlaidErrorSurfacingTests(unittest.TestCase):
+    """Gabe's Nov 3, 2026 diagnostic request: a Plaid HTTP error should name Plaid's own
+    error_code/error_message/request_id instead of a bare 'HTTP Error 400: Bad Request', so the
+    next fix (wrong-environment secret vs. a bad field vs. an OAuth/redirect mismatch) is
+    targeted instead of guessed — and must never surface client_id/secret/access_token/
+    public_token anywhere in that message."""
+
+    def setUp(self):
+        self.env = patch.dict(os.environ, {'PLAID_CLIENT_ID': 'secret-client-id-xyz', 'PLAID_SECRET': 'super-secret-value-123'})
+        self.env.start()
+
+    def tearDown(self):
+        self.env.stop()
+
+    def _http_error(self, code, reason, body):
+        return urllib.error.HTTPError(
+            url='https://production.plaid.com/link/token/create',
+            code=code, msg=reason,
+            hdrs=None, fp=io.BytesIO(json.dumps(body).encode()),
+        )
+
+    def test_plaid_error_code_and_request_id_surfaced(self):
+        err = self._http_error(400, 'Bad Request', {
+            'error_type': 'INVALID_INPUT', 'error_code': 'INVALID_API_KEYS',
+            'error_message': 'invalid client_id or secret provided', 'request_id': 'abc123xyz',
+        })
+        with patch('urllib.request.urlopen', side_effect=err):
+            with self.assertRaises(Exception) as ctx:
+                webhook._plaid_request('/link/token/create', {'foo': 'bar'})
+        msg = str(ctx.exception)
+        self.assertIn('INVALID_API_KEYS', msg)
+        self.assertIn('invalid client_id or secret provided', msg)
+        self.assertIn('abc123xyz', msg)
+        self.assertIn('400', msg)
+
+    def test_error_message_never_contains_secrets_or_tokens(self):
+        err = self._http_error(400, 'Bad Request', {
+            'error_code': 'INVALID_API_KEYS', 'error_message': 'invalid client_id or secret provided',
+            'request_id': 'abc123xyz',
+        })
+        with patch('urllib.request.urlopen', side_effect=err):
+            with self.assertRaises(Exception) as ctx:
+                webhook._plaid_request('/link/token/create', {'foo': 'bar'})
+        msg = str(ctx.exception)
+        self.assertNotIn('secret-client-id-xyz', msg)
+        self.assertNotIn('super-secret-value-123', msg)
+
+    def test_non_json_error_body_falls_back_to_bare_status(self):
+        err = urllib.error.HTTPError(
+            url='https://production.plaid.com/link/token/create',
+            code=500, msg='Internal Server Error',
+            hdrs=None, fp=io.BytesIO(b'<html>not json</html>'),
+        )
+        with patch('urllib.request.urlopen', side_effect=err):
+            with self.assertRaises(Exception) as ctx:
+                webhook._plaid_request('/link/token/create', {'foo': 'bar'})
+        msg = str(ctx.exception)
+        self.assertIn('500', msg)
+        self.assertIn('Internal Server Error', msg)
+
+    def test_link_token_error_response_includes_plaid_error_code(self):
+        err = self._http_error(400, 'Bad Request', {
+            'error_code': 'INVALID_FIELD', 'error_message': "redirect_uri is not registered",
+            'request_id': 'req-999',
+        })
+        with patch('urllib.request.urlopen', side_effect=err):
+            result = webhook.plaid_create_link_token()
+        self.assertIn('error', result)
+        self.assertIn('INVALID_FIELD', result['error'])
+        self.assertIn('redirect_uri is not registered', result['error'])
+        self.assertIn('req-999', result['error'])
+
+    def test_non_http_errors_still_propagate_unchanged(self):
+        # A non-HTTP failure (DNS/timeout/etc.) must still be caught by the normal Exception
+        # handler in each caller -- this change only touches the HTTPError path.
+        with patch('urllib.request.urlopen', side_effect=TimeoutError('timed out')):
+            result = webhook.plaid_create_link_token()
+        self.assertIn('error', result)
+        self.assertIn('timed out', result['error'])
 
 
 if __name__ == '__main__':

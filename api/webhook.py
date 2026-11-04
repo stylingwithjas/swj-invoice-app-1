@@ -27,6 +27,7 @@ import hmac
 import smtplib
 import urllib.request
 import urllib.parse
+import urllib.error
 import datetime
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -208,7 +209,13 @@ def _plaid_configured():
 
 def _plaid_request(path, payload):
     """POST to Plaid's REST API with client_id/secret injected. Raises on any error — callers
-    catch it and turn it into a clear {'error': ...} response, never a silent partial result."""
+    catch it and turn it into a clear {'error': ...} response, never a silent partial result.
+
+    On an HTTP error, Plaid's own error_code/error_message/request_id (never client_id, secret,
+    access_token, or public_token — none of those are ever read from or present in this error
+    path) are pulled from the response body and folded into the raised message, so a generic
+    "HTTP Error 400: Bad Request" doesn't hide which of several possible causes (wrong-
+    environment secret, a bad field, an OAuth/redirect mismatch, ...) actually fired."""
     body = dict(payload)
     body['client_id'] = os.environ.get('PLAID_CLIENT_ID', '')
     body['secret'] = os.environ.get('PLAID_SECRET', '')
@@ -218,8 +225,21 @@ def _plaid_request(path, payload):
         headers={'Content-Type': 'application/json'},
         method='POST',
     )
-    with urllib.request.urlopen(req, timeout=20) as r:
-        return json.loads(r.read())
+    try:
+        with urllib.request.urlopen(req, timeout=20) as r:
+            return json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        detail = ''
+        try:
+            plaid_err = json.loads(e.read())
+            parts = [p for p in (plaid_err.get('error_code'), plaid_err.get('error_message')) if p]
+            if parts:
+                detail = ' — ' + ': '.join(parts)
+            if plaid_err.get('request_id'):
+                detail += f" (request_id {plaid_err['request_id']})"
+        except Exception:
+            pass  # body wasn't JSON / couldn't be read — fall back to the bare HTTP status below
+        raise Exception(f'HTTP {e.code} {e.reason}{detail}') from None
 
 
 def plaid_create_link_token():
