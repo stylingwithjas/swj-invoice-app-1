@@ -217,6 +217,26 @@ body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var
 .pf-job-amt{font-family:'Cormorant Garamond',serif;font-size:17px;color:var(--green);white-space:nowrap;}
 .pf-view-all{display:flex;align-items:center;justify-content:center;gap:7px;width:100%;padding:12px;margin-top:8px;border-radius:10px;background:var(--gold-soft);border:0.5px solid var(--gold-line);color:var(--ink-soft);font-size:12px;font-weight:600;text-align:center;cursor:pointer;font-family:'Inter',sans-serif;}
 
+/* ── MONEY LANDING SOON ── */
+.payout-headline{background:var(--bg-card);border:0.5px solid var(--line);border-radius:10px;padding:14px 15px;}
+.payout-amt{font-family:'Cormorant Garamond',serif;font-size:28px;color:var(--ink);line-height:1;}
+.payout-status{display:inline-block;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;padding:3px 8px;border-radius:20px;margin-left:8px;vertical-align:middle;}
+.payout-status.pending{background:var(--amber-tint);color:var(--amber);}
+.payout-status.in_transit{background:var(--olive-tint);color:var(--olive-dark);}
+.payout-status.paid{background:var(--green-tint);color:var(--green);}
+.payout-sub{font-size:11px;color:var(--muted);margin-top:5px;}
+.payout-row{padding:11px 0;border-bottom:0.5px solid var(--line-soft);}
+.payout-row:last-child{border-bottom:none;}
+.payout-row-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px;}
+.payout-row-dates{font-size:11.5px;color:var(--ink-soft);}
+.payout-row-dates b{color:var(--ink);font-weight:600;}
+.payout-row-amt{font-family:'Cormorant Garamond',serif;font-size:17px;color:var(--ink);white-space:nowrap;}
+.payout-row-items{font-size:11px;color:var(--muted);margin-top:3px;}
+.payout-estimate-tag{font-size:8.5px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--olive-dark);background:var(--olive-tint);padding:1px 6px;border-radius:10px;margin-left:5px;vertical-align:middle;}
+.payout-footnote{font-size:10.5px;color:var(--muted);margin-top:10px;line-height:1.5;font-style:italic;}
+.payout-unavailable{padding:16px 14px;background:var(--amber-tint);border-radius:10px;font-size:12.5px;color:var(--ink-soft);}
+.payout-intransit-row{padding:10px 12px;background:var(--olive-tint);border-radius:9px;margin-top:8px;font-size:12px;color:var(--ink-soft);}
+
 /* ── TAX & REPORTING SUB-ROWS ── */
 .tax-sub-row{display:flex;align-items:center;gap:12px;padding:12px;background:var(--bg-hover);border-radius:10px;margin-top:8px;cursor:pointer;}
 .tax-sub-ic{width:32px;height:32px;border-radius:9px;background:var(--bg-card);display:flex;align-items:center;justify-content:center;color:var(--olive-dark);flex-shrink:0;font-size:14px;}
@@ -439,6 +459,20 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
       <div class="sec-meta" id="s6-meta">this month</div>
     </div>
     <div id="s6-body"><div class="skel" style="height:100px"></div></div>
+  </div>
+
+  <!-- S6B: MONEY LANDING SOON — when Stripe money actually arrives in the bank, not just "paid
+       by the client" (Jasmine's request, Nov 3, 2026). Reads live from the ?job=
+       stripe_payout_snapshot job (lib/stripe_payout.py); never recomputes a date or figure
+       here, and never shows a fabricated date — see that job's own docstring for the full date
+       rule. Placed directly under Business Snapshot since cash arrival is the cash-flow
+       question. -->
+  <div class="section" id="sec-payout">
+    <div class="sec-hdr">
+      <div class="sec-title">Money Landing Soon</div>
+      <div class="sec-meta" id="s6b-meta">—</div>
+    </div>
+    <div id="s6b-body"><div class="skel" style="height:100px"></div></div>
   </div>
 
   <!-- S8: CARD PAYMENTS — per-card balance/due-date/pay-to-avoid-interest via Plaid's
@@ -742,6 +776,7 @@ async function loadAll(){
   const shopCount=buildS4();
   const followCount=buildS5();
   buildS6();
+  buildPayoutSnapshot();
   buildS7();
   buildS8();
   buildS9();
@@ -1007,6 +1042,77 @@ function buildS6(){
     </div>
     <div class="fin-bar" style="margin-top:12px"><div class="fin-bar-fill" style="width:${pct}%"></div></div>
     <div class="fin-note" style="margin-top:6px">${pct}% of ${fmt(goal)} monthly goal${mtdN?' · '+mtdN+' paid invoice'+(mtdN===1?'':'s'):''}</div>`;
+}
+
+// ── S6B: MONEY LANDING SOON ─────────────────────────────
+// Reads the already-computed snapshot from ?job=stripe_payout_snapshot (lib/stripe_payout.py)
+// -- this file never recomputes a date or dollar figure, and never shows one the server didn't
+// actually give it. "Expected" always means an estimate from the account's own payout schedule,
+// never a hardcoded T+2; a missing date is shown as missing, never guessed.
+function fmtPayoutDate(iso){
+  if(!iso) return '';
+  const d=new Date(iso+'T00:00:00');
+  return d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+}
+async function buildPayoutSnapshot(){
+  const el=document.getElementById('s6b-body');
+  let snap;
+  try{
+    const r=await fetch('/api/webhook?job=stripe_payout_snapshot',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+    snap=await r.json();
+  }catch(e){
+    document.getElementById('s6b-meta').textContent='unavailable';
+    el.innerHTML=`<div class="payout-unavailable">Payout info unavailable — could not reach the server.</div>`;
+    return;
+  }
+
+  if(!snap || snap.error){
+    document.getElementById('s6b-meta').textContent='unavailable';
+    const notConfigured=((snap&&snap.error)||'').includes('not configured');
+    el.innerHTML=`<div class="payout-unavailable">${notConfigured?'Payout tracking is not set up yet.':'Payout info unavailable right now.'}</div>`;
+    return;
+  }
+
+  document.getElementById('s6b-meta').textContent=new Date(snap.as_of).toLocaleDateString('en-US',{month:'short',day:'numeric'});
+
+  const h=snap.headline;
+  let headlineHTML='';
+  if(h.kind==='payout'){
+    headlineHTML=`<div class="payout-headline">
+      <div class="payout-amt">${fmt(h.amount)}<span class="payout-status ${esc(h.status)}">${esc((h.status||'').replace('_',' '))}</span></div>
+      <div class="payout-sub">Expected to arrive ${fmtPayoutDate(h.arrival_date)} — ${esc(h.destination_label)}${h.method==='instant'?' · instant payout':''}</div>
+    </div>`;
+  }else{
+    const nextTxt=h.next_expected_date?`Next expected ${fmtPayoutDate(h.next_expected_date)}`:(h.schedule_known?'No pending funds right now.':'Next expected date unavailable — payout schedule unknown.');
+    headlineHTML=`<div class="payout-headline">
+      <div class="snap-grid">
+        <div class="snap-cell"><div class="snap-lbl">Available now</div><div class="snap-val">${fmt(h.available)}</div></div>
+        <div class="snap-cell"><div class="snap-lbl">Pending</div><div class="snap-val">${fmt(h.pending)}</div></div>
+        <div class="snap-cell profit"><div class="snap-lbl">Next Expected</div><div class="snap-val" style="font-size:15px">${h.next_expected_date?fmtPayoutDate(h.next_expected_date):'—'}</div></div>
+      </div>
+      <div class="payout-sub">${nextTxt}</div>
+    </div>`;
+  }
+
+  const inTransitHTML=(snap.in_transit||[]).map(p=>`<div class="payout-intransit-row">
+    <b>${fmt(p.amount)}</b> already on its way — expected ${fmtPayoutDate(p.arrival_date)} to ${esc(p.destination_label)}${p.method==='instant'?' (instant)':''}
+  </div>`).join('');
+
+  const rows=snap.timeline||[];
+  const timelineHTML=rows.length?rows.map(row=>{
+    const itemsTxt=row.items.map(it=>`${esc(it.label)} (${fmt(it.amount)})`).join(' + ');
+    return `<div class="payout-row">
+      <div class="payout-row-top">
+        <div class="payout-row-dates">Released <b>${fmtPayoutDate(row.released_date)}</b>${row.released?' ✓':''} → Landing <b>${row.landing_date?fmtPayoutDate(row.landing_date):'unavailable'}</b>${(row.landing_is_estimate&&row.landing_date)?'<span class="payout-estimate-tag">Expected</span>':''}</div>
+        <div class="payout-row-amt">${fmt(row.total_amount)}</div>
+      </div>
+      <div class="payout-row-items">${itemsTxt}</div>
+    </div>`;
+  }).join('') : `<div class="fin-note" style="padding:8px 0">No upcoming payments in the release window right now.</div>`;
+
+  el.innerHTML=`${headlineHTML}${inTransitHTML}
+    <div style="margin-top:10px">${timelineHTML}</div>
+    <div class="payout-footnote">Payments are released from Stripe on their own dates, then land together in a payout. Stripe's own expected date may move by a day or two; bank posting can lag another day or two beyond that.</div>`;
 }
 
 // ── S7: FILING & CHECKS ─────────────────────────────────
