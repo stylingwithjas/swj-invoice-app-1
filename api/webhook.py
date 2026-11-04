@@ -461,7 +461,17 @@ def plaid_sync_transactions():
     a sync always picks up exactly where Plaid last left off for that item). Auto-categorizes
     brand-new transactions only (lib/plaid_categorize) — a re-sync can add new transactions or
     update Plaid's own fields on existing ones, but must never overwrite a category (rule- or
-    manually-assigned) that a transaction already has."""
+    manually-assigned) that a transaction already has.
+
+    Nov 4, 2026: skips an Item entirely if every real card it reports back (by mask — see PR
+    #77, account_id/item_id are scoped per Item, not per physical card) is already covered by
+    an earlier Item in this same run. An orphaned Item from a stalled Link attempt can still be
+    a genuine, live re-authentication against the same real Amex login; syncing its
+    transactions too would re-insert the exact same real purchases under DIFFERENT
+    transaction_ids (transaction_id is Item-scoped the same way), multiplying real spend
+    totals rather than just mis-displaying a card list the way the old balance refresh did
+    before #77. If the mask lookup itself fails for an Item, it's treated as unknown and
+    synced anyway — never skipped on a guess."""
     if not _plaid_configured():
         return {'error': 'Plaid is not configured yet.'}
     items = _plaid_get_items()
@@ -471,8 +481,19 @@ def plaid_sync_transactions():
     added = modified = removed = 0
     key = os.environ.get('SUPABASE_KEY', '')
     errors = []
+    seen_masks = set()
     for item in items:
         try:
+            try:
+                summaries = _plaid_fetch_card_summaries(item['access_token'])
+            except Exception:
+                summaries = None  # unknown masks -- never skip on uncertainty, sync anyway
+            masks = {s.get('mask') for s in (summaries or []) if s.get('mask')}
+            if masks and masks <= seen_masks:
+                continue
+            seen_masks |= masks
+            if summaries:
+                _plaid_store_balances(item['item_id'], summaries)
             cursor = None
             has_more = True
             while has_more:
@@ -545,12 +566,6 @@ def plaid_sync_transactions():
                         pass
                 cursor = resp.get('next_cursor')
                 has_more = resp.get('has_more', False)
-            try:
-                summaries = _plaid_fetch_card_summaries(item['access_token'])
-                if summaries:
-                    _plaid_store_balances(item['item_id'], summaries)
-            except Exception:
-                pass  # best-effort only here — plaid_refresh_balance() is the primary path for this
         except Exception as e:
             errors.append(f"{item.get('institution_name') or item['item_id']}: {e}")
     if errors and added == modified == removed == 0:
