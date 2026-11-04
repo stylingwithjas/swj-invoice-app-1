@@ -1950,6 +1950,14 @@ async function loadSpendingTab(){
     if(!error && data) cards = data;
   }catch(e){ /* view may not exist yet — fall through to "not connected" */ }
 
+  // Same dedup Home applies (Nov 4, 2026 fix) -- a stalled Link attempt can leave its own
+  // plaid_items row with its own Plaid-assigned account_id for the same real card, so
+  // account_id can't tell two rows for the same physical card apart; mask can. This tab hasn't
+  // shown the symptom yet only because nothing here has triggered a multi-item balance
+  // refresh the way Home's background sync does -- keeping this in sync avoids it regressing
+  // here too once it does.
+  cards = Object.values(Object.fromEntries(cards.map(c=>[c.mask||c.account_id,c])));
+
   if(!cards.length){
     statusEl.textContent = 'Not connected';
     connectRow.style.display = 'block';

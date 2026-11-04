@@ -445,11 +445,13 @@ def plaid_refresh_balance():
             errors.append(f"{item.get('institution_name') or item['item_id']}: {e}")
     if not all_summaries:
         return {'error': '; '.join(errors) or 'Plaid did not return credit card liability data for any connected account.'}
-    # Nov 3, 2026 bug: more than one plaid_items row can end up pointing at the same real card
-    # (e.g. a stalled Link attempt that still exchanged server-side) -- each one's liabilities
-    # fetch returns that same card again, so this list is deduplicated by account_id before it
-    # ever reaches a caller. Last one wins, matching whatever _plaid_store_balances just wrote.
-    deduped = list({s['account_id']: s for s in all_summaries}.values())
+    # Nov 3-4, 2026 bug: more than one plaid_items row can end up pointing at the same real
+    # card (e.g. a stalled Link attempt that still exchanged server-side) -- each one's own
+    # liabilities fetch returns that same card again, but under a DIFFERENT account_id, since
+    # Plaid assigns account_id per Item/connection, not per physical card. account_id can't be
+    # the dedup key here; mask (the card's actual last-4-digits identity) can. Last one wins,
+    # matching whatever _plaid_store_balances just wrote.
+    deduped = list({(s.get('mask') or s['account_id']): s for s in all_summaries}.values())
     return {'ok': True, 'balance_synced_at': synced_at, 'accounts': deduped, 'errors': errors or None}
 
 
