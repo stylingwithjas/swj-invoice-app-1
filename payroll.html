@@ -2021,6 +2021,15 @@ async function plaidConnectAmex(){
           reset();
           return;
         }
+        // The exchange itself succeeded -- the connection is saved server-side regardless of
+        // what the Spending tab's own refresh finds below, so this button's job is done. Nov
+        // 4, 2026 bug: this used to only reset() on the error branch above, so a successful
+        // exchange left the button frozen on "Finishing connection..." forever even though
+        // nothing had failed -- reset it unconditionally the moment the exchange itself is done.
+        reset();
+        if(exch.balance_synced === false){
+          alert('Connected to Amex! Card balances are still syncing — click "Sync now" in a moment if they don\'t appear below yet.');
+        }
         try{
           await loadSpendingTab();
         }catch(e){

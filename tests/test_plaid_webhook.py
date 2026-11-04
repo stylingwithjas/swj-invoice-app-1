@@ -68,7 +68,7 @@ class MultiAccountBalanceTests(unittest.TestCase):
         }
         stored = {}
 
-        def fake_request(path, payload):
+        def fake_request(path, payload, timeout=20):
             self.assertEqual(path, '/liabilities/get')
             return liabilities[payload['access_token']]
 
@@ -95,7 +95,7 @@ class MultiAccountBalanceTests(unittest.TestCase):
             {'item_id': 'item2', 'access_token': 'tok2', 'institution_name': 'Broken Amex'},
         ]
 
-        def fake_request(path, payload):
+        def fake_request(path, payload, timeout=20):
             if payload['access_token'] == 'tok1':
                 return {'accounts': [{'account_id': 'acc1', 'name': 'Card', 'mask': '1001', 'balances': {'current': 10}}],
                         'liabilities': {'credit': [{'account_id': 'acc1', 'last_statement_balance': 10, 'minimum_payment_amount': 5, 'next_payment_due_date': '2026-11-10', 'last_statement_issue_date': '2026-10-10'}]}}
@@ -133,7 +133,7 @@ class MultiItemSyncTests(unittest.TestCase):
             'removed': [], 'next_cursor': 'cursor1', 'has_more': False,
         }
 
-        def fake_request(path, payload):
+        def fake_request(path, payload, timeout=20):
             if path == '/transactions/sync':
                 return sync_resp
             if path == '/liabilities/get':
@@ -173,7 +173,7 @@ class MultiItemSyncTests(unittest.TestCase):
             {'item_id': 'bad', 'access_token': 'tok_bad', 'institution_name': 'Bad'},
         ]
 
-        def fake_request(path, payload):
+        def fake_request(path, payload, timeout=20):
             if payload['access_token'] == 'tok_bad':
                 raise Exception('simulated failure')
             if path == '/transactions/sync':
@@ -205,7 +205,17 @@ class PlaidExchangeTests(unittest.TestCase):
     """Nov 4, 2026 bug: production Plaid Link hangs on 'Finishing connection...' with no
     server-side record ever created. These tests lock down that the exchange step (the step
     after Amex's own sign-in) always returns a clear {'error': ...} rather than hanging or
-    crashing uncaught, and never stores a partial plaid_items row when any step of it fails."""
+    crashing uncaught, and never stores a partial plaid_items row when any step of it fails.
+
+    Nov 4, 2026 follow-up: the real production symptom (a "Checking connection..." flash that
+    reverts to "Not connected" immediately, with NO error anywhere) turned out to be a refresh
+    race, not a hang or a swallowed error -- the Spending tab reads plaid_card_summary, a view
+    that JOINS plaid_accounts to plaid_items (sql/plaid_tables.sql), and plaid_accounts was only
+    ever populated by a separate plaid_refresh_balance() call that nothing triggered right after
+    a successful exchange. So a brand-new, genuinely successful connection showed "Not
+    connected" the instant the Spending tab reloaded, because its one query legitimately found
+    zero rows. These tests cover the fix: the exchange step now fetches and stores the new
+    item's balances itself, best-effort, before returning."""
 
     def setUp(self):
         self.env = patch.dict(os.environ, {'PLAID_CLIENT_ID': 'secret-client-id-xyz', 'PLAID_SECRET': 'super-secret-value-123', 'SUPABASE_KEY': 'svc-key-abc'})
@@ -245,26 +255,31 @@ class PlaidExchangeTests(unittest.TestCase):
         self.assertNotIn('secret-client-id-xyz', dumped)
         self.assertNotIn('super-secret-value-123', dumped)
 
-    def test_cosmetic_lookups_use_a_short_timeout_so_they_cant_stack_past_maxduration(self):
-        # Nov 4, 2026 follow-up: on a slow response, _plaid_request's default 20s timeout on
-        # BOTH cosmetic lookups, stacked with the essential exchange call (20s) and the
-        # Supabase write (15s), could exceed this function's own 60s maxDuration and get the
-        # whole request killed by the platform with no JSON reply at all -- indistinguishable,
-        # from the browser, from a connection that will just never answer. Both cosmetic calls
-        # must use a timeout well short of the default.
-        calls = []
+    def test_every_chained_call_has_a_short_timeout_so_the_total_cant_stack_past_maxduration(self):
+        # Nov 4, 2026: the exchange step now chains up to six network calls in the worst case --
+        # exchange, two cosmetic lookups, the plaid_items write, the balance fetch, and the
+        # plaid_accounts write. Left at their usual defaults (20s/15s), stacked, they could
+        # exceed this function's own 60s maxDuration (vercel.json) and get the whole request
+        # killed by the platform with no JSON reply at all -- indistinguishable, from the
+        # browser, from a connection that will just never answer.
+        request_calls = []
+        urlopen_timeouts = []
 
         def fake_request(path, payload, timeout=20):
-            calls.append((path, timeout))
+            request_calls.append((path, timeout))
             if path == '/item/public_token/exchange':
                 return {'access_token': 'access-xyz', 'item_id': 'item1'}
             if path == '/item/get':
                 return {'item': {'institution_id': 'ins_1'}}
             if path == '/institutions/get_by_id':
                 return {'institution': {'name': 'American Express'}}
+            if path == '/liabilities/get':
+                return {'accounts': [{'account_id': 'acc1', 'name': 'Card', 'mask': '1001', 'balances': {'current': 10}}],
+                        'liabilities': {'credit': [{'account_id': 'acc1', 'last_statement_balance': 10, 'minimum_payment_amount': 5, 'next_payment_due_date': '2026-11-10', 'last_statement_issue_date': '2026-10-10'}]}}
             raise AssertionError('unexpected path ' + path)
 
         def fake_urlopen(req, timeout=None):
+            urlopen_timeouts.append(timeout)
             class R:
                 def read(self_inner): return b'[]'
                 def __enter__(self_inner): return self_inner
@@ -275,11 +290,15 @@ class PlaidExchangeTests(unittest.TestCase):
              patch('urllib.request.urlopen', side_effect=fake_urlopen):
             webhook.plaid_exchange_public_token('public-abc')
 
-        by_path = dict(calls)
-        self.assertEqual(by_path['/item/public_token/exchange'], 20)
-        self.assertLess(by_path['/item/get'], 20)
-        self.assertLess(by_path['/institutions/get_by_id'], 20)
-        total_worst_case = by_path['/item/public_token/exchange'] + by_path['/item/get'] + by_path['/institutions/get_by_id'] + 15
+        by_path = dict(request_calls)
+        self.assertLess(by_path['/item/public_token/exchange'], 20)
+        self.assertLess(by_path['/item/get'], 10)
+        self.assertLess(by_path['/institutions/get_by_id'], 10)
+        self.assertLess(by_path['/liabilities/get'], 20)
+        self.assertEqual(len(urlopen_timeouts), 2)  # plaid_items write + plaid_accounts write
+        for t in urlopen_timeouts:
+            self.assertLess(t, 15)
+        total_worst_case = sum(by_path.values()) + sum(urlopen_timeouts)
         self.assertLess(total_worst_case, 60)
 
     def test_missing_access_token_in_response_is_a_clear_error_not_a_crash(self):
@@ -291,7 +310,7 @@ class PlaidExchangeTests(unittest.TestCase):
         def fake_request(path, payload, timeout=20):
             if path == '/item/public_token/exchange':
                 return {'access_token': 'access-xyz', 'item_id': 'item1'}
-            raise Exception('institution lookup unavailable')
+            raise Exception('institution/balance lookup unavailable')
 
         stored = []
 
@@ -307,12 +326,12 @@ class PlaidExchangeTests(unittest.TestCase):
              patch('urllib.request.urlopen', side_effect=fake_urlopen):
             result = webhook.plaid_exchange_public_token('public-abc')
 
-        self.assertEqual(result, {'ok': True, 'institution_name': ''})
-        self.assertEqual(len(stored), 1)
+        self.assertEqual(result, {'ok': True, 'institution_name': '', 'balance_synced': False})
+        self.assertEqual(len(stored), 1)  # only the plaid_items write -- balance fetch failed too
         self.assertEqual(stored[0]['item_id'], 'item1')
 
     def test_supabase_store_failure_surfaces_error_and_never_reports_ok(self):
-        def fake_request(path, payload):
+        def fake_request(path, payload, timeout=20):
             return {'access_token': 'access-xyz', 'item_id': 'item1'}
 
         with patch.object(webhook, '_plaid_request', side_effect=fake_request), \
@@ -323,6 +342,43 @@ class PlaidExchangeTests(unittest.TestCase):
         self.assertNotIn('ok', result)
         self.assertIn('Supabase unreachable', result['error'])
 
+    def test_exchange_populates_balances_for_the_new_item_immediately(self):
+        # The actual Nov 4, 2026 root-cause fix: the Spending tab's very next read after a
+        # successful exchange must find real rows in plaid_accounts, not an empty table it has
+        # to wait for a separate refresh to fill.
+        def fake_request(path, payload, timeout=20):
+            if path == '/item/public_token/exchange':
+                return {'access_token': 'access-xyz', 'item_id': 'item1'}
+            if path == '/item/get':
+                return {'item': {'institution_id': 'ins_1'}}
+            if path == '/institutions/get_by_id':
+                return {'institution': {'name': 'American Express'}}
+            if path == '/liabilities/get':
+                return {'accounts': [{'account_id': 'acc1', 'name': 'Business Platinum', 'mask': '1001', 'balances': {'current': 500.0}}],
+                        'liabilities': {'credit': [{'account_id': 'acc1', 'last_statement_balance': 500.0, 'minimum_payment_amount': 25, 'next_payment_due_date': '2026-11-20', 'last_statement_issue_date': '2026-10-25'}]}}
+            raise AssertionError('unexpected path ' + path)
+
+        posted = []
+
+        def fake_urlopen(req, timeout=None):
+            posted.append((req.full_url, json.loads(req.data)))
+            class R:
+                def read(self_inner): return b'[]'
+                def __enter__(self_inner): return self_inner
+                def __exit__(self_inner, *a): pass
+            return R()
+
+        with patch.object(webhook, '_plaid_request', side_effect=fake_request), \
+             patch('urllib.request.urlopen', side_effect=fake_urlopen):
+            result = webhook.plaid_exchange_public_token('public-abc')
+
+        self.assertEqual(result, {'ok': True, 'institution_name': 'American Express', 'balance_synced': True})
+        accounts_posts = [body for url, body in posted if 'plaid_accounts' in url]
+        self.assertEqual(len(accounts_posts), 1)
+        self.assertEqual(accounts_posts[0][0]['account_id'], 'acc1')
+        self.assertEqual(accounts_posts[0][0]['item_id'], 'item1')
+        self.assertEqual(accounts_posts[0][0]['statement_balance'], 500.0)
+
     def test_full_success_response_never_contains_tokens_or_secrets(self):
         def fake_request(path, payload, timeout=20):
             if path == '/item/public_token/exchange':
@@ -331,6 +387,8 @@ class PlaidExchangeTests(unittest.TestCase):
                 return {'item': {'institution_id': 'ins_1'}}
             if path == '/institutions/get_by_id':
                 return {'institution': {'name': 'American Express'}}
+            if path == '/liabilities/get':
+                return {'accounts': [], 'liabilities': {'credit': []}}
             raise AssertionError('unexpected path ' + path)
 
         def fake_urlopen(req, timeout=None):
@@ -344,7 +402,7 @@ class PlaidExchangeTests(unittest.TestCase):
              patch('urllib.request.urlopen', side_effect=fake_urlopen):
             result = webhook.plaid_exchange_public_token('public-abc')
 
-        self.assertEqual(result, {'ok': True, 'institution_name': 'American Express'})
+        self.assertEqual(result, {'ok': True, 'institution_name': 'American Express', 'balance_synced': False})
         dumped = json.dumps(result)
         self.assertNotIn('access-xyz', dumped)
         self.assertNotIn('public-abc', dumped)

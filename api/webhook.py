@@ -282,33 +282,46 @@ def plaid_exchange_public_token(public_token):
     """Step 2: once Jasmine finishes the Plaid Link flow in the browser, the short-lived
     public_token it hands back is exchanged here for a permanent access_token — which is
     stored server-side only (plaid_items table, locked out of the anon key entirely) and
-    never sent back to the client in this response or any other."""
+    never sent back to the client in this response or any other.
+
+    Nov 4, 2026 fix: this used to return as soon as plaid_items was written, leaving
+    plaid_accounts (and the plaid_card_summary view the Spending tab actually reads, which
+    JOINS the two) empty until the next separate plaid_refresh_balance() call. The client's
+    very next action after a successful exchange is to reload the Spending tab, which read
+    that still-empty view and showed "Not connected" for a connection that had, in fact, just
+    succeeded — the "Checking connection..." flash immediately reverting to the empty state,
+    with no error anywhere because nothing had actually failed. Fetching and storing the new
+    item's balances here, before returning, closes that gap for the common case.
+
+    Every timeout below is deliberately short, not the 20s/15s defaults elsewhere in this
+    file -- six network calls now chain in the worst case (exchange, two cosmetic lookups, the
+    plaid_items write, the balance fetch, the plaid_accounts write), and left unbounded they
+    could stack past this function's own 60s maxDuration (vercel.json), which kills the whole
+    request with no JSON reply at all -- indistinguishable, to the browser, from a connection
+    that will just never answer."""
     if not _plaid_configured():
         return {'error': 'Plaid is not configured yet.'}
     if not public_token:
         return {'error': 'Missing public_token.'}
     try:
-        resp = _plaid_request('/item/public_token/exchange', {'public_token': public_token})
+        resp = _plaid_request('/item/public_token/exchange', {'public_token': public_token}, timeout=15)
         access_token = resp.get('access_token')
         item_id = resp.get('item_id')
         if not access_token or not item_id:
             return {'error': 'Plaid did not return an access token.'}
         institution_name = ''
         try:
-            # Short timeouts here, not the default 20s -- these two calls are cosmetic only
-            # (just the display name), and stacked with the essential exchange call above and
-            # the Supabase write below, the default would risk exceeding this function's own
-            # 60s maxDuration (vercel.json) on a slow response, which kills the whole function
-            # with no JSON reply at all instead of a clean error.
-            item_resp = _plaid_request('/item/get', {'access_token': access_token}, timeout=8)
+            # Cosmetic only (just the display name) — never block storing the access token
+            # over a lookup failure here.
+            item_resp = _plaid_request('/item/get', {'access_token': access_token}, timeout=5)
             institution_id = (item_resp.get('item') or {}).get('institution_id')
             if institution_id:
                 inst_resp = _plaid_request('/institutions/get_by_id', {
                     'institution_id': institution_id, 'country_codes': ['US'],
-                }, timeout=8)
+                }, timeout=5)
                 institution_name = (inst_resp.get('institution') or {}).get('name', '')
         except Exception:
-            pass  # cosmetic only — never block storing the access token over a lookup failure
+            pass
         key = os.environ.get('SUPABASE_KEY', '')
         req = urllib.request.Request(
             f'{SUPABASE_URL}/rest/v1/plaid_items?on_conflict=item_id',
@@ -323,9 +336,18 @@ def plaid_exchange_public_token(public_token):
             },
             method='POST',
         )
-        with urllib.request.urlopen(req, timeout=15):
+        with urllib.request.urlopen(req, timeout=8):
             pass
-        return {'ok': True, 'institution_name': institution_name}
+        balance_synced = False
+        try:
+            summaries = _plaid_fetch_card_summaries(access_token, timeout=12)
+            if summaries:
+                _plaid_store_balances(item_id, summaries, timeout=8)
+                balance_synced = True
+        except Exception:
+            pass  # best effort — the connection itself is already saved; "Sync now" or the
+            # next refresh will fill this in if this particular attempt didn't
+        return {'ok': True, 'institution_name': institution_name, 'balance_synced': balance_synced}
     except Exception as e:
         return {'error': f'Plaid token exchange failed: {e}'}
 
@@ -344,14 +366,18 @@ def _plaid_get_items():
         return json.loads(r.read())
 
 
-def _plaid_fetch_card_summaries(access_token):
+def _plaid_fetch_card_summaries(access_token, timeout=20):
     """Pulls EVERY credit card's balance snapshot under this one access_token via Plaid's
     Liabilities product — Amex Business can expose more than one card per login, so this
     returns a list, not a single card. Per card: current balance, the last statement balance
     (what to pay in full by next_payment_due_date to avoid interest — the standard grace-period
     read, same number Amex's own statement calls "New Balance"), minimum payment, and the two
-    relevant dates. Returns [] if Plaid has no credit-card liability under this access_token."""
-    resp = _plaid_request('/liabilities/get', {'access_token': access_token})
+    relevant dates. Returns [] if Plaid has no credit-card liability under this access_token.
+
+    `timeout` defaults to 20s; a caller chaining this with other calls in one request (the
+    exchange step, which fetches balances for the new item immediately) must pass a shorter
+    one so the total can't stack past this function's own Vercel maxDuration."""
+    resp = _plaid_request('/liabilities/get', {'access_token': access_token}, timeout=timeout)
     accounts = {a.get('account_id'): a for a in resp.get('accounts', [])}
     summaries = []
     for card in (resp.get('liabilities') or {}).get('credit') or []:
@@ -370,10 +396,13 @@ def _plaid_fetch_card_summaries(access_token):
     return summaries
 
 
-def _plaid_store_balances(item_id, summaries):
+def _plaid_store_balances(item_id, summaries, timeout=15):
     """Upserts one row per card into plaid_accounts, where the anon-readable plaid_card_summary
     view (sql/plaid_tables.sql) exposes it without ever touching access_token. Shared by
-    plaid_refresh_balance() and the best-effort refresh at the end of a transactions sync."""
+    plaid_refresh_balance() and the best-effort refresh at the end of a transactions sync.
+
+    `timeout` defaults to 15s; a caller chaining this with other calls in one request must pass
+    a shorter one so the total can't stack past this function's own Vercel maxDuration."""
     if not summaries:
         return None
     key = os.environ.get('SUPABASE_KEY', '')
@@ -388,7 +417,7 @@ def _plaid_store_balances(item_id, summaries):
         },
         method='POST',
     )
-    with urllib.request.urlopen(req, timeout=15):
+    with urllib.request.urlopen(req, timeout=timeout):
         pass
     return synced_at
 
