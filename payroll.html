@@ -1876,11 +1876,29 @@ const PLAID_CATEGORIES = ['Supplies','Furniture/Inventory','Truck & Gas','Storag
 const DUE_SOON_DAYS = 7; // owner-confirmable threshold (spec Section 4)
 
 async function plaidApi(job, body){
-  const r = await fetch(`/api/webhook?job=${job}`, {
-    method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify(body||{}),
-  });
-  return r.json();
+  // Never throws -- a thrown error inside an un-awaited callback (e.g. Plaid's onSuccess)
+  // is silently swallowed with no alert and no UI recovery. Every failure path here, network,
+  // non-OK status, or a non-JSON body (e.g. a function timeout page), comes back as a plain
+  // {error: '...'} the caller can check, same as a normal API error.
+  let r;
+  try{
+    r = await fetch(`/api/webhook?job=${job}`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(body||{}),
+    });
+  }catch(e){
+    return { error: `Could not reach the server (${e.message}). Check your connection and try again.` };
+  }
+  let data;
+  try{
+    data = await r.json();
+  }catch(e){
+    return { error: `Server returned an unreadable response (HTTP ${r.status}). This usually means the request took too long or the server hit an error before it could respond.` };
+  }
+  if(!r.ok && !data.error){
+    data = { ...data, error: `Server returned HTTP ${r.status}.` };
+  }
+  return data;
 }
 
 function jobDropdownOptions(selected){
@@ -1974,10 +1992,26 @@ async function plaidConnectAmex(){
     const handler = Plaid.create({
       token: res.link_token,
       onSuccess: async (public_token) => {
+        // Plaid.create() never awaits this callback, so a thrown error here would otherwise be
+        // a silently-swallowed unhandled rejection: no alert, no UI recovery, stuck forever on
+        // "Finishing connection...". Catch everything and always leave the UI retryable.
         btns.forEach(b=>b.textContent = 'Finishing connection…');
-        const exch = await plaidApi('plaid_exchange', { public_token });
-        if(exch.error){ alert('Connected to Amex, but saving the connection failed: ' + exch.error); }
-        else { await loadSpendingTab(); }
+        let exch;
+        try{
+          exch = await plaidApi('plaid_exchange', { public_token });
+        }catch(e){
+          exch = { error: e.message };
+        }
+        if(exch.error){
+          alert('Connected to Amex, but saving the connection failed: ' + exch.error + '\n\nNothing was saved — you can try connecting again.');
+          reset();
+          return;
+        }
+        try{
+          await loadSpendingTab();
+        }catch(e){
+          alert('The connection was saved, but refreshing the Spending tab failed: ' + e.message + '\n\nReload the page to see it.');
+        }
       },
       onExit: () => reset(),
     });

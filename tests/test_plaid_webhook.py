@@ -201,6 +201,119 @@ class MultiItemSyncTests(unittest.TestCase):
         self.assertIn('Bad', result['errors'][0])
 
 
+class PlaidExchangeTests(unittest.TestCase):
+    """Nov 4, 2026 bug: production Plaid Link hangs on 'Finishing connection...' with no
+    server-side record ever created. These tests lock down that the exchange step (the step
+    after Amex's own sign-in) always returns a clear {'error': ...} rather than hanging or
+    crashing uncaught, and never stores a partial plaid_items row when any step of it fails."""
+
+    def setUp(self):
+        self.env = patch.dict(os.environ, {'PLAID_CLIENT_ID': 'secret-client-id-xyz', 'PLAID_SECRET': 'super-secret-value-123', 'SUPABASE_KEY': 'svc-key-abc'})
+        self.env.start()
+
+    def tearDown(self):
+        self.env.stop()
+
+    def test_unconfigured_fails_without_any_network_call(self):
+        with patch.dict(os.environ, {'PLAID_CLIENT_ID': '', 'PLAID_SECRET': ''}):
+            with patch('urllib.request.urlopen') as mock_urlopen:
+                result = webhook.plaid_exchange_public_token('public-abc')
+            mock_urlopen.assert_not_called()
+        self.assertEqual(result, {'error': 'Plaid is not configured yet.'})
+
+    def test_missing_public_token_fails_without_any_network_call(self):
+        with patch('urllib.request.urlopen') as mock_urlopen:
+            result = webhook.plaid_exchange_public_token('')
+        mock_urlopen.assert_not_called()
+        self.assertEqual(result, {'error': 'Missing public_token.'})
+
+    def test_exchange_http_error_surfaces_plaid_detail_never_hangs_never_leaks_secrets(self):
+        err = urllib.error.HTTPError(
+            url='https://production.plaid.com/item/public_token/exchange',
+            code=400, msg='Bad Request',
+            hdrs=None, fp=io.BytesIO(json.dumps({
+                'error_code': 'INVALID_PUBLIC_TOKEN', 'error_message': 'public token is expired',
+                'request_id': 'req-exch-1',
+            }).encode()),
+        )
+        with patch('urllib.request.urlopen', side_effect=err):
+            result = webhook.plaid_exchange_public_token('public-abc')
+        self.assertIn('error', result)
+        self.assertIn('INVALID_PUBLIC_TOKEN', result['error'])
+        self.assertIn('public token is expired', result['error'])
+        dumped = json.dumps(result)
+        self.assertNotIn('secret-client-id-xyz', dumped)
+        self.assertNotIn('super-secret-value-123', dumped)
+
+    def test_missing_access_token_in_response_is_a_clear_error_not_a_crash(self):
+        with patch.object(webhook, '_plaid_request', return_value={'item_id': 'item1'}):
+            result = webhook.plaid_exchange_public_token('public-abc')
+        self.assertEqual(result, {'error': 'Plaid did not return an access token.'})
+
+    def test_institution_lookup_failure_is_cosmetic_only_connection_still_saved(self):
+        def fake_request(path, payload):
+            if path == '/item/public_token/exchange':
+                return {'access_token': 'access-xyz', 'item_id': 'item1'}
+            raise Exception('institution lookup unavailable')
+
+        stored = []
+
+        def fake_urlopen(req, timeout=None):
+            stored.append(json.loads(req.data))
+            class R:
+                def read(self_inner): return b'[]'
+                def __enter__(self_inner): return self_inner
+                def __exit__(self_inner, *a): pass
+            return R()
+
+        with patch.object(webhook, '_plaid_request', side_effect=fake_request), \
+             patch('urllib.request.urlopen', side_effect=fake_urlopen):
+            result = webhook.plaid_exchange_public_token('public-abc')
+
+        self.assertEqual(result, {'ok': True, 'institution_name': ''})
+        self.assertEqual(len(stored), 1)
+        self.assertEqual(stored[0]['item_id'], 'item1')
+
+    def test_supabase_store_failure_surfaces_error_and_never_reports_ok(self):
+        def fake_request(path, payload):
+            return {'access_token': 'access-xyz', 'item_id': 'item1'}
+
+        with patch.object(webhook, '_plaid_request', side_effect=fake_request), \
+             patch('urllib.request.urlopen', side_effect=Exception('Supabase unreachable')):
+            result = webhook.plaid_exchange_public_token('public-abc')
+
+        self.assertIn('error', result)
+        self.assertNotIn('ok', result)
+        self.assertIn('Supabase unreachable', result['error'])
+
+    def test_full_success_response_never_contains_tokens_or_secrets(self):
+        def fake_request(path, payload):
+            if path == '/item/public_token/exchange':
+                return {'access_token': 'access-xyz', 'item_id': 'item1'}
+            if path == '/item/get':
+                return {'item': {'institution_id': 'ins_1'}}
+            if path == '/institutions/get_by_id':
+                return {'institution': {'name': 'American Express'}}
+            raise AssertionError('unexpected path ' + path)
+
+        def fake_urlopen(req, timeout=None):
+            class R:
+                def read(self_inner): return b'[]'
+                def __enter__(self_inner): return self_inner
+                def __exit__(self_inner, *a): pass
+            return R()
+
+        with patch.object(webhook, '_plaid_request', side_effect=fake_request), \
+             patch('urllib.request.urlopen', side_effect=fake_urlopen):
+            result = webhook.plaid_exchange_public_token('public-abc')
+
+        self.assertEqual(result, {'ok': True, 'institution_name': 'American Express'})
+        dumped = json.dumps(result)
+        self.assertNotIn('access-xyz', dumped)
+        self.assertNotIn('public-abc', dumped)
+        self.assertNotIn('super-secret-value-123', dumped)
+
+
 class PlaidErrorSurfacingTests(unittest.TestCase):
     """Gabe's Nov 3, 2026 diagnostic request: a Plaid HTTP error should name Plaid's own
     error_code/error_message/request_id instead of a bare 'HTTP Error 400: Bad Request', so the
