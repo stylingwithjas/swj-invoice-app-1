@@ -225,7 +225,16 @@ def group_timeline(transactions, payouts, schedule):
 def build_snapshot(balance_raw, payouts_raw, balance_transactions_raw, schedule_raw, invoice_lookup):
     """Orchestrates the whole "Money landing soon" payload from already-fetched Stripe objects.
     Never makes a network call itself -- see api/webhook.py's stripe_payout_snapshot() for the
-    fetch side. Dollar amounts come back as Decimal; the caller formats/serializes them."""
+    fetch side. Dollar amounts come back as Decimal; the caller formats/serializes them.
+
+    Owner revision (Nov 3, 2026, after a production bug report): the headline is FOUR tiles,
+    always shown together, never a single "either/or" card -- Available Now and Pending (the
+    Stripe Balance, exactly as before) PLUS In Transit (money that already left the Balance in a
+    real payout, Stripe's own arrival_date) and Next Expected (the next payout still queued, or
+    -- when nothing is queued separately -- the in-transit payout's own info repeated so the
+    tile is never blank, or, only when no payout exists at all, a schedule estimate). A real
+    payout's arrival_date is NEVER replaced by an estimate; an estimate only ever fills a tile
+    that would otherwise have nothing real to show."""
     balance = normalize_balance(balance_raw)
     payouts = [p for p in (normalize_payout(p) for p in (payouts_raw or [])) if p]
     transactions = [t for t in (normalize_balance_transaction(t, invoice_lookup) for t in (balance_transactions_raw or [])) if t]
@@ -233,31 +242,40 @@ def build_snapshot(balance_raw, payouts_raw, balance_transactions_raw, schedule_
     schedule = schedule_raw if isinstance(schedule_raw, dict) else None
     schedule_known = schedule is not None and bool(schedule.get('interval'))
 
-    next_payout = next((p for p in payouts if p['status'] in ('pending', 'in_transit')), None)
-    in_transit = [p for p in payouts if p['status'] == 'in_transit']
+    in_transit_payouts = sorted((p for p in payouts if p['status'] == 'in_transit' and p['arrival_date']), key=lambda p: p['arrival_date'])
+    pending_payouts = sorted((p for p in payouts if p['status'] == 'pending' and p['arrival_date']), key=lambda p: p['arrival_date'])
 
-    if next_payout:
-        headline = {
-            'kind': 'payout', 'status': next_payout['status'], 'amount': next_payout['amount'],
-            'arrival_date': next_payout['arrival_date'], 'destination_label': next_payout['destination_label'],
-            'method': next_payout['method'],
+    in_transit = None
+    if in_transit_payouts:
+        in_transit = {
+            'amount': sum((p['amount'] for p in in_transit_payouts), Decimal(0)),
+            'arrival_date': in_transit_payouts[0]['arrival_date'],
         }
+
+    if pending_payouts:
+        soonest = pending_payouts[0]
+        next_expected = {'amount': soonest['amount'], 'arrival_date': soonest['arrival_date'], 'is_estimate': False}
+    elif in_transit:
+        # Nothing separately queued after the in-transit payout -- repeat its own info so this
+        # tile is never blank (owner rule, Nov 3: "never '—' while an in-transit payout exists").
+        next_expected = {'amount': in_transit['amount'], 'arrival_date': in_transit['arrival_date'], 'is_estimate': False}
     else:
+        next_expected = None
         pending_tx = [t for t in transactions if t['status'] == 'pending']
         earliest_available_on = min((t['available_on'] for t in pending_tx), default=None)
-        next_expected, _ = (estimate_landing_date(earliest_available_on, schedule)
-                             if earliest_available_on and schedule_known else (None, None))
-        headline = {
-            'kind': 'no_payout_yet', 'available': balance['available'], 'pending': balance['pending'],
-            'next_expected_date': next_expected, 'schedule_known': schedule_known,
-        }
+        if earliest_available_on and schedule_known:
+            est_date, _ = estimate_landing_date(earliest_available_on, schedule)
+            if est_date:
+                same_day_total = sum((t['net'] for t in pending_tx if t['available_on'] == earliest_available_on), Decimal(0))
+                next_expected = {'amount': same_day_total, 'arrival_date': est_date, 'is_estimate': True}
+
+    headline = {
+        'available': balance['available'],
+        'pending': balance['pending'],
+        'in_transit': in_transit,
+        'next_expected': next_expected,
+    }
 
     timeline = group_timeline(transactions, payouts, schedule)
 
-    return {
-        'headline': headline,
-        'in_transit': [{'amount': p['amount'], 'arrival_date': p['arrival_date'],
-                         'destination_label': p['destination_label'], 'method': p['method']} for p in in_transit],
-        'timeline': timeline,
-        'schedule_known': schedule_known,
-    }
+    return {'headline': headline, 'timeline': timeline, 'schedule_known': schedule_known}
