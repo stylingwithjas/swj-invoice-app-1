@@ -2615,6 +2615,10 @@ class handler(BaseHTTPRequestHandler):
         # all three before cron or Stripe-webhook processing; none of them can trigger sends,
         # charges, refunds or cron jobs.
         query_params = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query, keep_blank_values=True)
+        if 'cash' in query_params:
+            from lib.cash_http import handle
+            handle(self, 'GET', SUPABASE_URL, os.environ.get('SUPABASE_KEY', ''), _plaid_request, _stripe_payout_get)
+            return
         if 'admin' in query_params:
             from lib.admin_http import handle
             handle(self, 'GET', SUPABASE_URL, os.environ.get('SUPABASE_KEY', ''))
@@ -2698,6 +2702,10 @@ class handler(BaseHTTPRequestHandler):
             self._respond(500, {'error': str(e)})
 
     def do_POST(self):
+        if 'cash' in urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query):
+            from lib.cash_http import handle
+            handle(self, 'POST', SUPABASE_URL, os.environ.get('SUPABASE_KEY', ''), _plaid_request, _stripe_payout_get)
+            return
         # The single admin session, Section 7 and the Stripe reconciliation report are
         # isolated, authenticated surfaces. Dispatch all three before cron or Stripe-webhook
         # processing.

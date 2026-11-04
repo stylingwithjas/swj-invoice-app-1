@@ -13,6 +13,7 @@ function app(file){
  window.eval(mock);window.alerts=[];window.alert=message=>window.alerts.push(message);window.confirm=()=>true;window.scrollTo=()=>{};
  window.fetch=()=>{throw Error('Unexpected network call')};
  window.eval(fs.readFileSync(path.join(root,'assets/invoice-safety.js'),'utf8'));
+ window.eval(fs.readFileSync(path.join(root,'assets/payment-events.js'),'utf8'));
  for(const m of fs.readFileSync(path.join(root,file),'utf8').matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi))if(m[1].trim())window.eval(m[1]);
  return window;
 }

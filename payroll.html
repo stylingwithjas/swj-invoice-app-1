@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <script src="/admin-auth.js"></script>
+<script src="/assets/payment-events.js"></script>
 <meta charset="UTF-8">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -376,7 +377,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
   </div>
 </div>
 
-<div class="wrap">
+<div class="wrap"><div class="card"><a href="/cash.html" style="font-family:Georgia,serif;font-size:24px">Business cash & checking →</a><p style="margin-top:8px;font-size:13px;color:#68685e">Cash carried over, bank payment verification, completed mover payments and job results across months.</p></div>
 
   <div class="pr-hdr">
     <div class="pr-hdr-left">
@@ -1300,27 +1301,7 @@ function finInvoiceSplit(d){
   return { subtotal, tax: grand-subtotal, grand, rentalShare };
 }
 function finPaymentEvents(d){
-  const events = [];
-  const splits = d.payments || [];
-  if(splits.length){
-    // Fix spec Batch A #6 (Nov 2, 2026): exclude Stripe test-mode charges, tagged is_test
-    // at the source (the webhook's own livemode flag) — never a real receipt.
-    splits.filter(p=>p.status==='paid' && p.paid_date && !p.is_test).forEach(p=>{
-      // manual_method:'stripe' is a confirmed-after-the-fact correction (no real Stripe
-      // payment_id captured, e.g. a Stripe Payment Link paid before this field existed) — see
-      // archive.html's Cleanup Review "Other/Manual" section. Never fabricate a payment_id.
-      events.push({ date:p.paid_date, amount:parseFloat(p.amount)||0, method:(p.payment_id||p.manual_method==='stripe')?'Stripe (Card)':'Other/Manual' });
-    });
-  } else if(d.paid && d.paid_date && !d.is_test){
-    // Falls back to the invoice's own total when neither amount_paid nor stripe_amount is
-    // recorded (the common case for a manually-marked-paid invoice, e.g. cash/check/Venmo) —
-    // this app's $0 revenue bug (audit finding) was exactly this falling back to 0 instead,
-    // unlike tax-report.html's paymentEvents(), which has always used this fallback.
-    // manual_method:'stripe' on the invoice itself is the legacy-shape counterpart to the
-    // payments[]-entry correction above — confirmed live Nov 2026 as the common case.
-    events.push({ date:d.paid_date, amount:parseFloat(d.amount_paid ?? d.stripe_amount ?? finComputeGrandForEvents(d)) || 0, method:(d.stripe_payment_id||d.manual_method==='stripe')?'Stripe (Card)':'Other/Manual' });
-  }
-  return events;
+  return SWJPayments.base(d,finComputeGrandForEvents);
 }
 // finInvoiceSplit(d) needs `d`'s own price-led flags, which is already in scope wherever
 // finPaymentEvents is called with the right `d` — just needs the grand total here.
