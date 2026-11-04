@@ -107,3 +107,4 @@
 /* Narrow-device QA: align values beneath wrapped labels; keep operation tools in bounds. */
 @media(max-width:699px){.swj-home .snap-lbl{min-height:2.6em}.swj-home .home-legend-name{overflow-wrap:normal!important;word-break:normal;}}
 @media(max-width:359px){.swj-home #sec-shopping .sec-hdr{flex-wrap:wrap}.swj-home #sec-shopping .sec-hdr>div:last-child{max-width:100%;flex-wrap:wrap;}}
+@media(max-width:359px){.swj-home .home-donut-wrap{gap:12px}.swj-home .home-legend-row{gap:6px!important}.swj-home .home-legend-name{min-width:0;overflow-wrap:anywhere!important;font-size:11px!important}.swj-home .home-legend-amt{font-size:11px!important}}
