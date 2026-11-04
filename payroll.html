@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script src="/auth.js"></script>
+<script src="/admin-auth.js"></script>
 <meta charset="UTF-8">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -326,7 +326,7 @@ tr.paid-row { opacity:0.55; }
   <a class="swj-sb-link on" href="/payroll.html">💼 Finance</a>
   <a class="swj-sb-link" href="/tax-report.html">📊 Reports</a>
   <div class="swj-sb-spacer"></div>
-  <div class="swj-sb-foot">Styling With Jas</div>
+  <div class="swj-sb-foot">Styling With Jas<br><a href="javascript:void(0)" onclick="swjSignOut()" style="color:inherit;text-decoration:underline;cursor:pointer">Sign out</a></div>
 </nav>
 
 <nav class="swj-bottom-nav">
@@ -346,6 +346,7 @@ tr.paid-row { opacity:0.55; }
     <a class="swj-more-link" href="/luxury.html">✚ New Luxury Invoice</a>
     <a class="swj-more-link" href="/gs-invoice.html">🖤 GS Photography Invoice</a>
     <a class="swj-more-link" href="/hours.html">🕒 My Hours</a>
+    <button class="swj-more-link" type="button" style="width:100%;text-align:left;border:none;background:none;font:inherit;cursor:pointer" onclick="swjSignOut()">🔒 Sign out</button>
   </div>
 </div>
 <script>function swjToggleMore(){document.getElementById('swj-more-sheet').classList.toggle('open');}

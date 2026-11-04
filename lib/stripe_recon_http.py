@@ -1,8 +1,9 @@
 """GET-only Stripe + database reader and isolated Stripe-reconciliation HTTP dispatch.
 
 Reuses lib/section7_http.py's invoice scan (same table, same completeness verification) and
-lib/section7_auth.py's session handling directly (same admin password, same signed cookie) --
-this report is independent of Section 7 functionally, but there is no reason to duplicate
+lib/admin_auth.py's single site-wide admin session directly (owner decision, Nov 3, 2026: one
+login unlocks every admin page, Section 7 and this report included, no second password prompt)
+-- this report is independent of Section 7 functionally, but there is no reason to duplicate
 either the invoice-reading or the login machinery a second time.
 
 Imported only for ?stripe_recon= routes in the existing webhook function; no new Vercel
@@ -16,7 +17,7 @@ import time
 import urllib.parse
 import urllib.request
 
-from . import section7_auth as auth
+from . import admin_auth as auth
 from .section7_http import scan as scan_invoices, IncompleteScan
 from .stripe_recon import build_report, csv_report
 
@@ -31,7 +32,7 @@ def _stripe_key():
 
 
 def configured():
-    """Layers one more requirement on top of section7_auth's own (password + SUPABASE_KEY):
+    """Layers one more requirement on top of admin_auth's own (password + SUPABASE_KEY):
     a dedicated, livemode, restricted Stripe key. A standard secret key (sk_) or a test-mode
     restricted key (rk_test_) is refused outright -- this report must never run with more
     access than it needs, and a test-mode key would read Stripe data it structurally cannot
@@ -115,14 +116,19 @@ def handle(handler, method, base_url, supabase_key, invoice_scanner=None, stripe
         if not auth.same_origin(handler, required=method == 'POST'):
             response(handler, 403, {'error': 'Use the report from this site; cross-origin requests are not permitted.'}); return True
         if method == 'GET' and action == 'session':
+            authed = auth.authorized(handler, base_url=base_url, key=supabase_key)
+            headers = []
+            if authed:
+                renewed = auth.renewed_session_cookie(handler, base_url=base_url, key=supabase_key)
+                if renewed: headers.append(('Set-Cookie', renewed))
             response(handler, 200, {
-                'configured': configured(), 'authenticated': auth.authorized(handler),
+                'configured': configured(), 'authenticated': authed,
                 'password_configured': auth.configured(),
                 'stripe_configured': _stripe_key().startswith('rk_live_'),
-            }); return True
+            }, headers); return True
         if method == 'POST' and action == 'login':
             if not auth.configured():
-                response(handler, 503, {'error': 'Secure report sign-in is not configured. No database or Stripe query was made.'}); return True
+                response(handler, 503, {'error': 'Admin sign-in is not configured. No database or Stripe query was made.'}); return True
             if handler.headers.get('Content-Type', '').split(';')[0].strip() != 'application/json':
                 response(handler, 415, {'error': 'JSON request required.'}); return True
             if not auth.allow_login():
@@ -135,12 +141,16 @@ def handle(handler, method, base_url, supabase_key, invoice_scanner=None, stripe
             except (ValueError, TypeError, json.JSONDecodeError):
                 response(handler, 400, {'error': 'Invalid sign-in request.'}); return True
             if not auth.password_matches(body.get('password')):
-                response(handler, 401, {'error': 'Sign-in failed.'}); return True
+                response(handler, 401, {'error': 'Incorrect password.'}); return True
             response(handler, 200, {'authenticated': True}, [('Set-Cookie', auth.cookie_header(auth.issue_session(request_origin)))]); return True
         if method == 'POST' and action == 'logout':
+            nonce = auth.current_nonce(handler)
+            if nonce:
+                try: auth.revoke_session(base_url, supabase_key, nonce)
+                except Exception: pass
             response(handler, 200, {'authenticated': False}, [('Set-Cookie', auth.cookie_header(clear=True))]); return True
-        if not auth.authorized(handler):
-            response(handler, 401, {'error': 'Report administrator sign-in required.'}); return True
+        if not auth.authorized(handler, base_url=base_url, key=supabase_key):
+            response(handler, 401, {'error': 'Admin sign-in required.'}); return True
         if not configured():
             response(handler, 503, {'error': 'Stripe reconciliation is not configured (a livemode restricted Stripe key is required). No query was made.'}); return True
         if method == 'GET' and action == 'report':
