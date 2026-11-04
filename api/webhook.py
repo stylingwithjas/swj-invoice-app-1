@@ -249,6 +249,31 @@ def _plaid_request(path, payload, timeout=20):
         raise Exception(f'HTTP {e.code} {e.reason}{detail}') from None
 
 
+def _supabase_urlopen(req, timeout):
+    """Same reasoning as _plaid_request's own error enrichment, for the direct-to-Supabase
+    REST calls elsewhere in the Plaid jobs: a bare "HTTP Error 400: Bad Request" (Python's
+    default HTTPError string) hides which column, constraint, or row actually caused it.
+    PostgREST's own error body carries message/details/hint/code — pulled in here so a
+    caller's error ends up pointing at the real cause instead of a dead end. Nov 4, 2026: this
+    gap is exactly what left Gabe's "Sync now" reporting ten bare 400s with zero diagnostic
+    value."""
+    try:
+        with urllib.request.urlopen(req, timeout=timeout):
+            pass
+    except urllib.error.HTTPError as e:
+        detail = ''
+        try:
+            body = json.loads(e.read())
+            parts = [p for p in (body.get('message'), body.get('details'), body.get('hint')) if p]
+            if parts:
+                detail = ' — ' + '; '.join(parts)
+            if body.get('code'):
+                detail += f" (code {body['code']})"
+        except Exception:
+            pass  # body wasn't JSON / couldn't be read — fall back to the bare HTTP status below
+        raise Exception(f'HTTP {e.code} {e.reason}{detail}') from None
+
+
 def plaid_create_link_token():
     """Step 1 of connecting an account: a short-lived token the browser's Plaid Link widget
     needs before it can even open. Never a secret itself — safe to hand to the client.
@@ -553,8 +578,7 @@ def plaid_sync_transactions():
                         },
                         method='POST',
                     )
-                    with urllib.request.urlopen(req, timeout=20):
-                        pass
+                    _supabase_urlopen(req, timeout=20)
                 if removed_ids:
                     ids_filter = ','.join(urllib.parse.quote(i) for i in removed_ids)
                     del_req = urllib.request.Request(
@@ -562,8 +586,7 @@ def plaid_sync_transactions():
                         headers={'apikey': key, 'Authorization': f'Bearer {key}'},
                         method='DELETE',
                     )
-                    with urllib.request.urlopen(del_req, timeout=15):
-                        pass
+                    _supabase_urlopen(del_req, timeout=15)
                 cursor = resp.get('next_cursor')
                 has_more = resp.get('has_more', False)
         except Exception as e:
