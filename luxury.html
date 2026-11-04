@@ -416,7 +416,7 @@ body { background:#eceff3; color:var(--ink); }
 <nav class="swj-sidebar">
   <div class="swj-sb-brand">Styling With Jas<span>Staging Operations</span></div>
   <a class="swj-sb-link" href="/today.html">🏠 Home</a>
-  <a class="swj-sb-link" href="/board.html">📋 Jobs</a>
+  <a class="swj-sb-link" href="/board.html">📋 Board</a>
   <a class="swj-sb-link" href="/shop.html">🛍 Shopping</a>
   <a class="swj-sb-link" href="/index.html">📄 Standard Invoice</a>
   <a class="swj-sb-link" href="/index.html">✚ New Invoice</a>
@@ -428,8 +428,9 @@ body { background:#eceff3; color:var(--ink); }
 
 <nav class="swj-bottom-nav">
   <a class="swj-bn-link" href="/today.html"><span class="swj-bn-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 10 9-7 9 7v11h-6v-7H9v7H3z"/></svg></span>Home</a>
-  <a class="swj-bn-link" href="/board.html"><span class="swj-bn-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M8 3v4m8-4v4M4 11h16"/></svg></span>Jobs</a>
+  <a class="swj-bn-link" href="/index.html"><span class="swj-bn-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H5v18h14V8zM14 3v5h5M8 12h8M8 16h6"/></svg></span>Invoice</a>
   <a class="swj-bn-link" href="/payroll.html"><span class="swj-bn-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v5c0 4 16 4 16 0V5M4 10v5c0 4 16 4 16 0v-5M4 15v4c0 4 16 4 16 0v-4"/></svg></span>Finance</a>
+  <a class="swj-bn-link" href="/board.html"><span class="swj-bn-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M8 3v4m8-4v4M4 11h16"/></svg></span>Board</a>
   <button class="swj-bn-link" onclick="swjToggleMore()" type="button"><span class="swj-bn-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg></span>More</button>
 </nav>
 
@@ -516,13 +517,14 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
     <div class="drafts-body open" id="drafts-body">
       <div style="padding:0 18px 14px">
         <div id="drafts-list" style="font-size:12px;color:var(--taupe);font-style:italic">No drafts saved.</div>
-        <button class="add-btn" onclick="saveDraft()" style="margin-top:8px">+ Save current as draft</button>
+
       </div>
     </div>
   </div>
   </div><!-- /gen-panel-drafts -->
 
   <div class="gen-panel on" id="gen-panel-create">
+  <button id="invoice-save" type="button" onclick="saveDraft()" style="display:block;width:100%;margin:0 0 16px;padding:15px 24px;background:#237a45;color:#fff;border:0;border-radius:12px;font-size:16px;font-weight:700;letter-spacing:1px;cursor:pointer">SAVE</button>
   <div class="gen-grid">
   <div class="gen-form">
 
@@ -915,6 +917,18 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
 // toggling never touches form values, never calls recalc() with different inputs, never
 // submits. Desktop (>=1200px) ignores the open/closed state entirely via CSS (every section
 // shows), so this only matters below that width.
+function localInvoiceDate(){
+  const now=new Date();
+  return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+}
+// A restored browser tab may still show yesterday's date on an unsaved new form.
+window.addEventListener('pageshow',()=>{
+  const field=document.getElementById('invdate');
+  if(!_loadedInvoiceData && field && !field.dataset.manuallyEdited)field.value=localInvoiceDate();
+});
+document.addEventListener('change',event=>{
+  if(event.target.id==='invdate')event.target.dataset.manuallyEdited='true';
+});
 function genShowTab(name){
   document.querySelectorAll('.gen-tab').forEach(b=>b.classList.remove('on'));
   document.querySelectorAll('.gen-panel').forEach(p=>p.classList.remove('on'));
@@ -2109,7 +2123,7 @@ async function loadTierSettings(){
 }
 async function saveTierSettingsClicked(btn){
   try{
-    await _sb.from('invoices').upsert({ invnum:'TIER_PRICING', client:'TIER_PRICING', address:'', invdate:new Date().toISOString().split('T')[0], data:{ rates:TIER_RATES, frac:SCOPE_FRAC, basePct:BASE_PCT, roomMult:ROOM_MULT } }, { onConflict:'invnum' });
+    await _sb.from('invoices').upsert({ invnum:'TIER_PRICING', client:'TIER_PRICING', address:'', invdate:localInvoiceDate(), data:{ rates:TIER_RATES, frac:SCOPE_FRAC, basePct:BASE_PCT, roomMult:ROOM_MULT } }, { onConflict:'invnum' });
     btn.classList.remove('changed'); btn.classList.add('saved');
     setTimeout(function(){ btn.classList.remove('saved'); }, 2000);
   }catch(e){}
@@ -2209,7 +2223,7 @@ async function savePriceDefault(ci, si, newPrice){
       invnum: 'PRICING_DEFAULTS',
       client: 'PRICING_DEFAULTS',
       address: '',
-      invdate: new Date().toISOString().split('T')[0],
+      invdate: localInvoiceDate(),
       data: { cats: catsSnapshot, base_price: basePrice, rate_card: _rateCardSnapshot() }
     }, { onConflict: 'invnum' });
     return true;
@@ -2240,7 +2254,7 @@ async function saveRateCardDefaults(){
       invnum: 'PRICING_DEFAULTS',
       client: 'PRICING_DEFAULTS',
       address: '',
-      invdate: new Date().toISOString().split('T')[0],
+      invdate: localInvoiceDate(),
       data: { cats: catsSnapshot, base_price: basePrice, rate_card: _rateCardSnapshot() }
     }, { onConflict: 'invnum' });
     return true;
@@ -2258,7 +2272,7 @@ async function saveBasePriceDefault(newPrice){
       invnum: 'PRICING_DEFAULTS',
       client: 'PRICING_DEFAULTS',
       address: '',
-      invdate: new Date().toISOString().split('T')[0],
+      invdate: localInvoiceDate(),
       data: { cats: catsSnapshot, base_price: newPrice, rate_card: _rateCardSnapshot() }
     }, { onConflict: 'invnum' });
     return true;
@@ -2506,6 +2520,7 @@ function loadInvoiceData(d){
     renderExtraAreas();
     renderCustoms();
     recalc();
+    genShowTab('create');
     window.scrollTo({top:0,behavior:'smooth'});
     setSt('ok','Invoice loaded — edit and regenerate!');
   }catch(e){
@@ -2631,6 +2646,7 @@ async function saveDraft(silent){
   const draft = {
     invnum: invnum||'DRAFT',
     client, address,
+    client_email: document.getElementById('client_email')?.value.trim()||'',
     invdate: document.getElementById('invdate').value,
     startdate: getStartDateValue(),
     baserooms: [...selRooms].join(', '),
@@ -2671,14 +2687,14 @@ async function saveDraft(silent){
       invnum: draftKey,
       client: client||'Draft',
       address: address||'',
-      invdate: draft.invdate||new Date().toISOString().split('T')[0],
+      invdate: draft.invdate||localInvoiceDate(),
       data: draft
     }, { onConflict: 'invnum' });
     if(!error){
       if(!silent) setSt('ok', 'Draft saved!');
       loadDrafts();
-    }
-  } catch(e) { if(!silent) setSt('err','Could not save draft'); }
+    } else if(!silent) setSt('err','Could not save invoice. Please retry.');
+  } catch(e) { if(!silent) setSt('err','Could not save invoice. Please retry.'); }
 }
 
 async function loadDrafts(){
@@ -3246,7 +3262,7 @@ async function generate(){
 
 document.addEventListener('DOMContentLoaded', async function(){
   try {
-    document.getElementById('invdate').value=new Date().toISOString().split('T')[0];
+    document.getElementById('invdate').value=localInvoiceDate();
     const bp=document.getElementById('base_price');
     if(bp){bp.addEventListener('input',recalc);bp.addEventListener('change',recalc);}
     buildRooms();
