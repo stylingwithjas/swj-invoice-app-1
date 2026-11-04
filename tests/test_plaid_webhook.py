@@ -219,6 +219,89 @@ class MultiItemSyncTests(unittest.TestCase):
         self.assertNotIn('category', by_id['tx0'])  # modified row -- never touches category
         self.assertNotIn('category_source', by_id['tx0'])
 
+    def test_sync_write_failure_surfaces_postgrest_detail_not_a_bare_400(self):
+        # Nov 4, 2026 bug: Gabe's "Sync now" reported "American Express: HTTP Error 400: Bad
+        # Request" ten times -- Python's bare default HTTPError string, with zero diagnostic
+        # value, because the direct-to-Supabase write wasn't going through any error
+        # enrichment (unlike every Plaid-side call, via _plaid_request). PostgREST's own error
+        # body (message/details/hint/code) must end up in the surfaced error instead.
+        items = [{'item_id': 'item1', 'access_token': 'tok1', 'institution_name': 'American Express'}]
+        sync_resp = {
+            'added': [{'transaction_id': 'tx1', 'account_id': 'acc1', 'date': '2026-11-01', 'merchant_name': 'Depot', 'amount': 20.0, 'pending': False, 'category': []}],
+            'modified': [], 'removed': [], 'next_cursor': 'c1', 'has_more': False,
+        }
+
+        def fake_request(path, payload, timeout=20):
+            if path == '/transactions/sync':
+                return sync_resp
+            if path == '/liabilities/get':
+                return {'accounts': [], 'liabilities': {'credit': []}}
+            raise AssertionError('unexpected path ' + path)
+
+        def fake_urlopen(req, timeout=None):
+            if req.full_url.startswith(webhook.SUPABASE_URL + '/rest/v1/plaid_transactions') and req.get_method() == 'POST':
+                raise urllib.error.HTTPError(
+                    url=req.full_url, code=400, msg='Bad Request', hdrs=None,
+                    fp=io.BytesIO(json.dumps({
+                        'code': '23502', 'message': 'null value in column "date" violates not-null constraint',
+                        'details': 'Failing row contains (tx1, item1, acc1, null, ...).', 'hint': None,
+                    }).encode()),
+                )
+            class R:
+                def read(self_inner): return b'[]'
+                def __enter__(self_inner): return self_inner
+                def __exit__(self_inner, *a): pass
+            return R()
+
+        with patch.object(webhook, '_plaid_get_items', return_value=items), \
+             patch.object(webhook, '_plaid_request', side_effect=fake_request), \
+             patch('urllib.request.urlopen', side_effect=fake_urlopen):
+            result = webhook.plaid_sync_transactions()
+
+        self.assertTrue(result['errors'])
+        self.assertIn('not-null constraint', result['errors'][0])
+        self.assertIn('23502', result['errors'][0])
+        self.assertNotIn('HTTP Error 400: Bad Request', result['errors'][0])
+
+    def test_orphaned_item_for_an_already_seen_real_card_is_skipped_not_double_synced(self):
+        # Nov 4, 2026 fix: an orphaned Item from a stalled Link attempt can still be a genuine,
+        # live re-authentication against the same real Amex login. Syncing its transactions too
+        # would re-insert the exact same real purchases under DIFFERENT transaction_ids (Plaid
+        # scopes transaction_id per Item, same as account_id -- PR #77), multiplying real spend
+        # instead of just mis-displaying a card list. The second Item here reports back the same
+        # mask as the first and must never reach /transactions/sync at all.
+        items = [
+            {'item_id': 'item_live', 'access_token': 'tok_live', 'institution_name': 'Amex'},
+            {'item_id': 'item_orphaned', 'access_token': 'tok_orphaned', 'institution_name': 'Amex'},
+        ]
+        sync_calls = []
+
+        def fake_request(path, payload, timeout=20):
+            if path == '/liabilities/get':
+                return {'accounts': [{'account_id': 'acc_x', 'name': 'Business Gold', 'mask': '1008', 'balances': {'current': 9144.02}}],
+                        'liabilities': {'credit': [{'account_id': 'acc_x', 'last_statement_balance': 3653.28, 'minimum_payment_amount': 0, 'next_payment_due_date': '2026-11-03', 'last_statement_issue_date': '2026-10-03'}]}}
+            if path == '/transactions/sync':
+                sync_calls.append(payload['access_token'])
+                return {'added': [{'transaction_id': f"tx-{payload['access_token']}", 'account_id': 'acc_x', 'date': '2026-11-01', 'merchant_name': 'Depot', 'amount': 20.0, 'pending': False, 'category': []}],
+                        'modified': [], 'removed': [], 'next_cursor': 'c1', 'has_more': False}
+            raise AssertionError('unexpected path ' + path)
+
+        def fake_urlopen(req, timeout=None):
+            class R:
+                def read(self_inner): return b'[]'
+                def __enter__(self_inner): return self_inner
+                def __exit__(self_inner, *a): pass
+            return R()
+
+        with patch.object(webhook, '_plaid_get_items', return_value=items), \
+             patch.object(webhook, '_plaid_request', side_effect=fake_request), \
+             patch('urllib.request.urlopen', side_effect=fake_urlopen):
+            result = webhook.plaid_sync_transactions()
+
+        self.assertTrue(result['ok'])
+        self.assertEqual(sync_calls, ['tok_live'])  # the orphaned Item's /transactions/sync is never called
+        self.assertEqual(result['added'], 1)
+
     def test_sync_reports_per_item_errors_without_losing_other_items_progress(self):
         items = [
             {'item_id': 'good', 'access_token': 'tok_good', 'institution_name': 'Good'},

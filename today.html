@@ -1342,9 +1342,20 @@ async function buildS10(){
   });
   const total=job+truck+overheadTotal+otherCat;
   if(total<=0.009){
-    const sub=uncategorizedCount
-      ? `${uncategorizedCount} transaction${uncategorizedCount===1?'':'s'} waiting in Needs Attention above.`
-      : 'No categorized spending yet this month.';
+    // Nov 4, 2026 fix (Gabe's note): "Nothing to show yet" read as "no spending happened,"
+    // when the actual, most likely cause is that nothing has ever been SYNCED for this card --
+    // nothing in this app triggers a transaction sync automatically (only a manual "Sync now"
+    // click on Finance -> Spending does), so a connection nobody has clicked that for yet has
+    // zero rows in plaid_transactions, not zero real spending. Distinguish that from the
+    // "synced, but still uncategorized" case, which already has its own correct message.
+    let sub;
+    if(!_monthlyPlaidTx.length){
+      sub='No transactions synced for November yet — click Sync now in Finance → Spending to pull them in.';
+    } else if(uncategorizedCount){
+      sub=`${uncategorizedCount} transaction${uncategorizedCount===1?'':'s'} waiting in Needs Attention above.`;
+    } else {
+      sub='No categorized spending yet this month.';
+    }
     el.innerHTML=`<div class="empty"><div class="empty-icon"><i class="ti ti-chart-donut"></i></div><div class="empty-text">Nothing to show yet.</div><div class="empty-sub">${sub}</div></div>`;
     return;
   }

@@ -249,6 +249,31 @@ def _plaid_request(path, payload, timeout=20):
         raise Exception(f'HTTP {e.code} {e.reason}{detail}') from None
 
 
+def _supabase_urlopen(req, timeout):
+    """Same reasoning as _plaid_request's own error enrichment, for the direct-to-Supabase
+    REST calls elsewhere in the Plaid jobs: a bare "HTTP Error 400: Bad Request" (Python's
+    default HTTPError string) hides which column, constraint, or row actually caused it.
+    PostgREST's own error body carries message/details/hint/code — pulled in here so a
+    caller's error ends up pointing at the real cause instead of a dead end. Nov 4, 2026: this
+    gap is exactly what left Gabe's "Sync now" reporting ten bare 400s with zero diagnostic
+    value."""
+    try:
+        with urllib.request.urlopen(req, timeout=timeout):
+            pass
+    except urllib.error.HTTPError as e:
+        detail = ''
+        try:
+            body = json.loads(e.read())
+            parts = [p for p in (body.get('message'), body.get('details'), body.get('hint')) if p]
+            if parts:
+                detail = ' — ' + '; '.join(parts)
+            if body.get('code'):
+                detail += f" (code {body['code']})"
+        except Exception:
+            pass  # body wasn't JSON / couldn't be read — fall back to the bare HTTP status below
+        raise Exception(f'HTTP {e.code} {e.reason}{detail}') from None
+
+
 def plaid_create_link_token():
     """Step 1 of connecting an account: a short-lived token the browser's Plaid Link widget
     needs before it can even open. Never a secret itself — safe to hand to the client.
@@ -461,7 +486,17 @@ def plaid_sync_transactions():
     a sync always picks up exactly where Plaid last left off for that item). Auto-categorizes
     brand-new transactions only (lib/plaid_categorize) — a re-sync can add new transactions or
     update Plaid's own fields on existing ones, but must never overwrite a category (rule- or
-    manually-assigned) that a transaction already has."""
+    manually-assigned) that a transaction already has.
+
+    Nov 4, 2026: skips an Item entirely if every real card it reports back (by mask — see PR
+    #77, account_id/item_id are scoped per Item, not per physical card) is already covered by
+    an earlier Item in this same run. An orphaned Item from a stalled Link attempt can still be
+    a genuine, live re-authentication against the same real Amex login; syncing its
+    transactions too would re-insert the exact same real purchases under DIFFERENT
+    transaction_ids (transaction_id is Item-scoped the same way), multiplying real spend
+    totals rather than just mis-displaying a card list the way the old balance refresh did
+    before #77. If the mask lookup itself fails for an Item, it's treated as unknown and
+    synced anyway — never skipped on a guess."""
     if not _plaid_configured():
         return {'error': 'Plaid is not configured yet.'}
     items = _plaid_get_items()
@@ -471,8 +506,19 @@ def plaid_sync_transactions():
     added = modified = removed = 0
     key = os.environ.get('SUPABASE_KEY', '')
     errors = []
+    seen_masks = set()
     for item in items:
         try:
+            try:
+                summaries = _plaid_fetch_card_summaries(item['access_token'])
+            except Exception:
+                summaries = None  # unknown masks -- never skip on uncertainty, sync anyway
+            masks = {s.get('mask') for s in (summaries or []) if s.get('mask')}
+            if masks and masks <= seen_masks:
+                continue
+            seen_masks |= masks
+            if summaries:
+                _plaid_store_balances(item['item_id'], summaries)
             cursor = None
             has_more = True
             while has_more:
@@ -532,8 +578,7 @@ def plaid_sync_transactions():
                         },
                         method='POST',
                     )
-                    with urllib.request.urlopen(req, timeout=20):
-                        pass
+                    _supabase_urlopen(req, timeout=20)
                 if removed_ids:
                     ids_filter = ','.join(urllib.parse.quote(i) for i in removed_ids)
                     del_req = urllib.request.Request(
@@ -541,16 +586,9 @@ def plaid_sync_transactions():
                         headers={'apikey': key, 'Authorization': f'Bearer {key}'},
                         method='DELETE',
                     )
-                    with urllib.request.urlopen(del_req, timeout=15):
-                        pass
+                    _supabase_urlopen(del_req, timeout=15)
                 cursor = resp.get('next_cursor')
                 has_more = resp.get('has_more', False)
-            try:
-                summaries = _plaid_fetch_card_summaries(item['access_token'])
-                if summaries:
-                    _plaid_store_balances(item['item_id'], summaries)
-            except Exception:
-                pass  # best-effort only here — plaid_refresh_balance() is the primary path for this
         except Exception as e:
             errors.append(f"{item.get('institution_name') or item['item_id']}: {e}")
     if errors and added == modified == removed == 0:
