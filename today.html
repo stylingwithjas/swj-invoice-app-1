@@ -1186,6 +1186,13 @@ async function buildS8(){
     cards=data||[];
   }catch(e){ /* view may not exist yet if the Plaid migration hasn't been run — treat as not connected */ }
 
+  // Nov 3, 2026 bug (Gabe's note): Home showed the same 2 real cards repeated many times over
+  // (19 rows for 2 cards) while Finance, reading the identical view, correctly showed 2 --
+  // likely stalled Link attempts each left their own connection record, and the live balance
+  // refresh below loops over every one of them. One row per real card, by account_id, no
+  // matter how many connection records exist behind it or how many times this refreshes.
+  cards=Object.values(Object.fromEntries(cards.map(c=>[c.account_id,c])));
+
   if(!cards.length){
     document.getElementById('s8-meta').textContent='not connected';
     el.innerHTML=`<div class="fin-card full" style="cursor:pointer" onclick="window.location.href='/payroll.html?tab=spending'">
@@ -1228,9 +1235,9 @@ async function buildS8(){
       <div class="card-chip">AMEX</div>
       <div class="card-info">
         <div class="card-name">${esc(c.name||c.institution_name||'Business Amex')}${c.mask?' …'+esc(c.mask):''}</div>
-        <div class="card-meta">Balance ${fmt(bal)}<br>Due ${esc(dueLabel)} (${awayLabel})</div>
+        <div class="card-meta">Balance ${fmtExact(bal)}<br>Due ${esc(dueLabel)} (${awayLabel})</div>
       </div>
-      <div class="card-pay-pill${overdue?' overdue':''}">Pay ${fmt(bal)}<small>to avoid interest</small></div>
+      <div class="card-pay-pill${overdue?' overdue':''}">Pay ${fmtExact(bal)}<small>to avoid interest</small></div>
     </div>`;
   }).join('');
 }
