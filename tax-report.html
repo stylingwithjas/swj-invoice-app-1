@@ -521,8 +521,21 @@ function paymentEvents(d){
 }
 
 let _lastSummary = null, _lastDetail = null;
+// Nov 4, 2026 audit bug (highest-risk finding): the page auto-runs a report for the default
+// month on load (see the DOMContentLoaded listener below); if the user changes the month and
+// clicks Run Report before that first fetch finishes, both invoice fetches are in flight at
+// once. The header text is set synchronously above, so it always reflects whichever call
+// started LAST (the user's manual click). But if the EARLIER call's fetch happens to RESOLVE
+// LAST, its processing code runs last too and overwrites _lastSummary/_lastDetail with the
+// stale month's figures underneath the new month's header -- exactly the bug reported
+// ("header said November, every figure was October"). _reportGeneration is a simple token:
+// each call captures its own value, and bails before ever touching _lastSummary/_lastDetail
+// or the DOM if a newer call has started in the meantime, so only the most recently REQUESTED
+// run — never whichever one happens to resolve first — ever gets to render.
+let _reportGeneration = 0;
 
 async function runReport(){
+  const myGeneration = ++_reportGeneration;
   const month = parseInt(document.getElementById('f-month').value, 10);
   const year = parseInt(document.getElementById('f-year').value, 10);
   const periodStart = `${year}-${pad2(month)}-01`;
@@ -543,9 +556,11 @@ async function runReport(){
     // because of its signed flag (see the events.length check below).
     invoices = data||[];
   }catch(e){
+    if(myGeneration !== _reportGeneration) return;  // a newer run already owns the page
     alert('Could not load invoices: '+e.message);
     return;
   }
+  if(myGeneration !== _reportGeneration) return;  // a newer run started while this fetch was in flight
 
   // City -> {rates:Set, taxable:0, tax:0}
   const cityMap = {};
@@ -720,7 +735,8 @@ async function runReport(){
   renderSummary();
   renderDetail();
   renderSavings();
-  await renderReview(`${year}-${pad2(month)}`);
+  await renderReview(`${year}-${pad2(month)}`, myGeneration);
+  if(myGeneration !== _reportGeneration) return;  // a newer run started during renderReview's own fetch
   renderReconciliation();
 }
 
@@ -797,7 +813,7 @@ function renderSummary(){
 // per-user accounts to attach a review to.
 let _lastReviewData = null;
 
-async function renderReview(periodKey){
+async function renderReview(periodKey, myGeneration){
   document.getElementById('review-card').style.display = 'block';
   const statusEl = document.getElementById('review-status');
   const btn = document.getElementById('review-btn');
@@ -808,6 +824,11 @@ async function renderReview(periodKey){
   document.getElementById('dor-save-note').textContent = '';
   try{
     const { data } = await _sb.from('invoices').select('data').eq('invnum', `TAX_REVIEW_${periodKey}`).maybeSingle();
+    // Same stale-run guard as runReport() itself (Nov 4, 2026 audit fix) — this call's own
+    // await can resolve after a newer runReport() already rendered a different period's
+    // review status; without this, whichever call's fetch resolves last would overwrite the
+    // other's review card regardless of which period the user actually asked for last.
+    if(myGeneration !== undefined && myGeneration !== _reportGeneration) return;
     _lastReviewData = (data && data.data) || null;
     if(_lastReviewData && _lastReviewData.reviewed){
       const reconLine = _lastReviewData.reconciled_actual!=null
@@ -828,7 +849,10 @@ async function renderReview(periodKey){
     // DOR confirmation is its own slot, filled in once the return is actually filed — days or
     // weeks after review, so it's prefilled/saved independently of the reviewed flag above.
     if(_lastReviewData && _lastReviewData.dor_confirmation_number) document.getElementById('f-dor-confirmation').value = _lastReviewData.dor_confirmation_number;
-  }catch(e){ statusEl.textContent = ''; _lastReviewData = null; }
+  }catch(e){
+    if(myGeneration !== undefined && myGeneration !== _reportGeneration) return;
+    statusEl.textContent = ''; _lastReviewData = null;
+  }
 }
 
 let _dorSaveTimer = null;
