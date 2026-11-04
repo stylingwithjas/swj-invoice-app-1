@@ -24,6 +24,9 @@ for(const file of ['index.html','luxury.html']){
  assert.ok(w.document.getElementById('gen-panel-create').classList.contains('on'));
  assert.equal(w.document.getElementById('client_email').value,'saved@example.test');
  assert.equal(w.document.getElementById('invdate').value,'2026-01-15');
+ run(`window.__stateForNavigation=captureState();genShowTab('recent');loadInvoiceData({invnum:'TEST-STATE-NAV',client:'Structured state client',invdate:'2026-01-15',base_price:2500,addons:[],state:window.__stateForNavigation})`);
+ assert.ok(w.document.getElementById('gen-panel-create').classList.contains('on'),'structured-state invoice must open editor');
+
  run(`_loadedInvoiceData=null;document.getElementById('client').value='Email test';document.getElementById('client_email').value='saved@example.test';recalc()`);
  run(`window.__originalFrom=_sb.from;_sb.from=()=>({upsert:async row=>{window.__savedDraft=row;return {error:null}}})`);
  await run('saveDraft(true)');

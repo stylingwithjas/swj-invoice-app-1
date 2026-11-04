@@ -949,10 +949,10 @@ function monthRangeISO(){
 async function loadMonthlyFinanceData(){
   const [mStart,mEnd]=monthRangeISO();
   try{
-    const {data}=await _sb.from('plaid_transactions').select('transaction_id,date,merchant_name,name,amount,category,job_invnum').gte('date',mStart).lte('date',mEnd);
+    const {data}=await _sb.from('plaid_transactions').select('transaction_id,date,merchant_name,name,amount,pending,category,job_invnum').gte('date',mStart).lte('date',mEnd);
     // Plaid convention: positive amount = money out. Refunds/credits are excluded from spend
     // totals, same reasoning payroll.html's Job Profit — Real tab uses.
-    _monthlyPlaidTx=(data||[]).filter(t=>(parseFloat(t.amount)||0)>0);
+    _monthlyPlaidTx=(data||[]).filter(t=>!t.pending&&(parseFloat(t.amount)||0)>0);
   }catch(e){ _monthlyPlaidTx=[]; /* plaid_transactions may not exist yet if the migration hasn't been run */ }
   try{
     const {data}=await _sb.from('time_entries').select('invnum,amount').gte('clock_in',mStart+'T00:00:00').lte('clock_in',mEnd+'T23:59:59');
@@ -1500,7 +1500,7 @@ async function buildS10(){
   ].filter(sl=>sl.amt>0.009).sort((a,b)=>b.amt-a.amt);
   let acc=0;
   const stops=slices.map(sl=>{ const pct=sl.amt/total*100; const from=acc; acc+=pct; return `${HOME_SPEND_COLORS[sl.key]} ${from.toFixed(2)}% ${acc.toFixed(2)}%`; });
-  el.innerHTML=`<p class="fin-note">Categorized card spending</p><div class="home-donut-wrap">
+  el.innerHTML=`<p class="fin-note">Posted card spending</p><div class="home-donut-wrap">
     <div class="home-donut" style="background:conic-gradient(${stops.join(',')})">
       <div class="home-donut-center"><div class="dv">${fmt(total)}</div><div class="dl">Total Spent</div></div>
     </div>

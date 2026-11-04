@@ -2450,6 +2450,7 @@ function loadInvoiceData(d){
       restoreState(d.state);
       restoreManualTotals(d);
       recalc();
+      genShowTab('create');
       window.scrollTo({top:0,behavior:'smooth'});
       setSt('ok','Invoice loaded — edit and regenerate!');
       return;
