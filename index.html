@@ -2351,7 +2351,8 @@ async function downloadPdfNow(){
       document.body.appendChild(a);a.click();
       setTimeout(()=>{document.body.removeChild(a);},4000);
     }
-    setTimeout(()=>URL.revokeObjectURL(url),120000);
+    // Keep the PDF URL valid for this document lifetime: iOS can render later
+    // pages lazily while its viewer remains open. The browser releases it on unload.
     setSt('ok','PDF ready! In the new tab, tap the Share icon → Save to Files.');
     setTimeout(()=>saveInvoice(data).catch(()=>{}),100);
   }catch(e){
@@ -2488,7 +2489,8 @@ function openLastPdf(){
     const a=document.createElement('a');a.href=url;a.download=_lastPdfFilename||'invoice.pdf';a.target='_blank';
     document.body.appendChild(a);a.click();setTimeout(()=>document.body.removeChild(a),3000);
   }
-  setTimeout(()=>URL.revokeObjectURL(url),120000);
+  // Keep the PDF URL valid for this document lifetime: iOS can render later
+    // pages lazily while its viewer remains open. The browser releases it on unload.
 }
 
 async function sendEmail(){
@@ -2767,7 +2769,9 @@ async function generate(){
     a.download = filename;
     document.body.appendChild(a);
     a.click();
-    setTimeout(()=>{ document.body.removeChild(a); URL.revokeObjectURL(url); }, 3000);
+    // Remove only the link. Revoking the PDF after 3 seconds can strand
+    // later pages in the iOS viewer; the browser releases the URL on unload.
+    setTimeout(()=>{ document.body.removeChild(a); }, 3000);
     console.log('PDF: click done');
 
     // Save invoice number — always keep the highest number used
