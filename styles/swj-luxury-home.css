@@ -94,3 +94,13 @@
 .swj-home .section.is-folded .sec-hdr{cursor:pointer;}
 .swj-home .hdr-icon-btn{display:flex;align-items:center;justify-content:center;cursor:pointer;}
 @media(max-width:699px){.swj-home .luxury-goal-context{font-size:13px}}
+/* Screenshot comparison pass: align the header gutter, chart scale and card type. */
+.swj-home .hdr-top{padding-left:52px;padding-right:38px;}
+.swj-home .luxury-card-link{position:absolute;right:0;top:1px;font:300 32px/1 var(--swj-font-body);color:var(--swj-olive);text-decoration:none;width:28px;min-height:32px;text-align:center;}
+.swj-home #sec-attention .sec-hdr{position:relative;padding-right:26px;}
+.swj-home #sec-attention .home-fold-toggle{position:static;padding-right:0;}
+.swj-home #sec-attention .home-fold-toggle::before{display:none;}
+.swj-home .luxury-attention-icon{position:absolute;left:0;width:35px;height:35px;color:var(--swj-olive-dark);}
+.swj-home .luxury-attention-icon svg{display:block;width:100%;height:100%;}
+@media(min-width:700px){.swj-home .snap-lbl{font-size:16px!important}.swj-home .profit-goal{font-size:18px}.swj-home .home-donut{width:174px;height:174px}.swj-home .home-donut-center{inset:28px}.swj-home .card-name{font-size:16px!important}.swj-home .card-meta{font-size:14px!important}.swj-home .card-pay-pill{font-size:16px!important}.swj-home .home-legend-name,.swj-home .home-legend-amt{font-size:15px!important}.swj-home .card-row{padding:18px 0!important}.swj-home .card-pay-pill small{font-size:10px!important}.swj-home #s1-meta{font-size:12px!important}}
+@media(max-width:699px){.swj-home .hdr-top{padding-left:20px;padding-right:20px}.swj-home .luxury-attention-icon{width:27px;height:27px}.swj-home .luxury-card-link{font-size:28px}}

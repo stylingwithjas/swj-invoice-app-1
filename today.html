@@ -549,7 +549,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
 
   <div class="section" id="sec-amex">
     <div class="sec-hdr">
-      <div class="sec-title">Card Payments</div>
+      <div class="sec-title">Card Payments</div><a class="luxury-card-link" href="/payroll.html?tab=spending" aria-label="View card payment details">›</a>
       <div class="sec-meta" id="s8-meta">—</div>
     </div>
     <div id="s8-body"><div class="skel" style="height:70px"></div></div>
@@ -557,7 +557,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
 
   <div class="section" id="sec-spending">
     <div class="sec-hdr">
-      <div class="sec-title">Spending Breakdown</div>
+      <div class="sec-title">Spending Breakdown</div><a class="luxury-card-link" href="/payroll.html?tab=spending" aria-label="View spending transactions">›</a>
       <div class="sec-meta" id="s10-meta">—</div>
     </div>
     <div id="s10-body"><div class="skel" style="height:120px"></div></div>
@@ -1353,7 +1353,7 @@ async function buildS8(){
     return `<a class="card-row" href="/payroll.html?tab=spending">
       <div class="card-chip">AMEX</div>
       <div class="card-info">
-        <div class="card-name">${esc((c.name||c.institution_name||'Business Amex').replace(/^AMEX /i,''))}${c.mask?' …'+esc(c.mask):''}</div>
+        <div class="card-name">${esc((c.name||c.institution_name||'Business Amex').replace(/^AMEX /i,'').replace(/\s+Card$/i,''))}${c.mask?' ····'+esc(c.mask):''}</div>
         <div class="card-meta${overdue?' payment-review':''}">Due ${esc(dueLabel)} · ${overdue?'Verify payment':awayLabel}</div>
       </div>
       <div class="card-pay-pill${overdue?' overdue':''}">${fmtExact(bal)}<small>Statement</small></div>
@@ -1488,7 +1488,7 @@ async function buildS10(){
   const slices=[
     {key:'job',label:'Job Costs',amt:job},
     ...HOME_SPEND_CATEGORIES.map(c=>({key:c.key,label:c.label,amt:catTotals[c.cat]||0})),
-  ].filter(sl=>sl.amt>0.009);
+  ].filter(sl=>sl.amt>0.009).sort((a,b)=>b.amt-a.amt);
   let acc=0;
   const stops=slices.map(sl=>{ const pct=sl.amt/total*100; const from=acc; acc+=pct; return `${HOME_SPEND_COLORS[sl.key]} ${from.toFixed(2)}% ${acc.toFixed(2)}%`; });
   el.innerHTML=`<p class="fin-note">Categorized card spending</p><div class="home-donut-wrap">
@@ -1981,7 +1981,11 @@ function initHomeFolds(){
     const button=document.createElement('button');button.type='button';button.className='home-fold-toggle';
     const text=document.createElement('span');text.textContent=title.textContent;
     const chevron=document.createElement('span');chevron.className='home-fold-chevron';chevron.setAttribute('aria-hidden','true');chevron.textContent='›';
-    button.append(chevron,text);title.replaceChildren(button);button.setAttribute('aria-controls',panel.id);
+    button.append(chevron,text);
+    if(id==='sec-attention'){
+      const icon=document.createElement('span');icon.className='luxury-attention-icon';icon.setAttribute('aria-hidden','true');icon.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="7" width="18" height="14" rx="2"/><path d="M8 7V4h8v3M3 12h18M10 11v3h4v-3"/></svg>';button.prepend(icon);
+    }
+    title.replaceChildren(button);button.setAttribute('aria-controls',panel.id);
     const setOpen=open=>{button.setAttribute('aria-expanded',String(open));panel.hidden=!open;section.classList.toggle('is-folded',!open);};
     button.addEventListener('click',()=>setOpen(panel.hidden));
     header.addEventListener('click',event=>{if(!event.target.closest('button,a'))setOpen(panel.hidden);});

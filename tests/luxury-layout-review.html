@@ -13,5 +13,7 @@ const sizes={reference:[1024,1536],mobile:[390,844],narrow:[320,844],desktop:[14
 const mode=new URLSearchParams(location.search).get('view')||'reference';
 const [width,height]=sizes[mode]||sizes.reference;
 const frame=document.createElement('iframe');frame.title='SWJ Home at '+width+' by '+height;frame.width=String(width);frame.height=String(height);frame.src='/today.html';document.body.appendChild(frame);
+const controls=document.createElement('nav');controls.setAttribute('aria-label','Review viewport');controls.style.cssText='padding:16px;display:flex;gap:12px';
+for(const [label,size] of Object.entries(sizes)){const button=document.createElement('button');button.type='button';button.textContent=label;button.onclick=()=>{frame.width=String(size[0]);frame.height=String(size[1]);frame.title='SWJ Home at '+size[0]+' by '+size[1];};controls.appendChild(button);}document.body.appendChild(controls);
 </script>
 </body></html>
