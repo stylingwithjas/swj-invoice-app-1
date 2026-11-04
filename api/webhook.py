@@ -569,16 +569,32 @@ def plaid_sync_transactions():
                 removed_ids = [t.get('transaction_id') for t in resp.get('removed', []) if t.get('transaction_id')]
                 removed += len(removed_ids)
                 if rows:
-                    req = urllib.request.Request(
-                        f'{SUPABASE_URL}/rest/v1/plaid_transactions?on_conflict=transaction_id',
-                        data=json.dumps(rows).encode(),
-                        headers={
-                            'apikey': key, 'Authorization': f'Bearer {key}', 'Content-Type': 'application/json',
-                            'Prefer': 'resolution=merge-duplicates',
-                        },
-                        method='POST',
-                    )
-                    _supabase_urlopen(req, timeout=20)
+                    # Nov 4, 2026 fix: categorize_new_rows() only ADDS category/category_source
+                    # to a matched new row, and modified_rows never carry those keys at all
+                    # (both deliberate -- see the comments above). PostgREST's bulk upsert
+                    # requires every object in ONE request to share the exact same key set
+                    # (code PGRST102, "All object keys must match") -- a batch mixing matched
+                    # new rows, unmatched new rows, and modified rows in a single POST got
+                    # rejected wholesale, which is exactly what surfaced in production once
+                    # the bare-400 fix above started naming the real PostgREST error. Filling
+                    # every row with category: null to make the keys uniform isn't safe either
+                    # -- that would null out a modified row's real, already-assigned category
+                    # on upsert. Grouping by each row's actual key set and posting each group
+                    # separately keeps both behaviors intact.
+                    by_shape = {}
+                    for row in rows:
+                        by_shape.setdefault(frozenset(row.keys()), []).append(row)
+                    for shape_rows in by_shape.values():
+                        req = urllib.request.Request(
+                            f'{SUPABASE_URL}/rest/v1/plaid_transactions?on_conflict=transaction_id',
+                            data=json.dumps(shape_rows).encode(),
+                            headers={
+                                'apikey': key, 'Authorization': f'Bearer {key}', 'Content-Type': 'application/json',
+                                'Prefer': 'resolution=merge-duplicates',
+                            },
+                            method='POST',
+                        )
+                        _supabase_urlopen(req, timeout=20)
                 if removed_ids:
                     ids_filter = ','.join(urllib.parse.quote(i) for i in removed_ids)
                     del_req = urllib.request.Request(

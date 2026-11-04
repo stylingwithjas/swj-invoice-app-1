@@ -211,13 +211,70 @@ class MultiItemSyncTests(unittest.TestCase):
             result = webhook.plaid_sync_transactions()
 
         self.assertEqual(result, {'ok': True, 'added': 2, 'modified': 1, 'removed': 0, 'errors': None})
-        self.assertEqual(len(posted_batches), 1)
-        by_id = {r['transaction_id']: r for r in posted_batches[0]}
+        # Nov 4, 2026 fix: a matched new row (extra category/category_source keys) must never
+        # share a batch with an unmatched new row or a modified row (neither key present) --
+        # PostgREST rejects a batch whose objects don't all share the same keys (PGRST102,
+        # "All object keys must match"), which is exactly what surfaced on production once the
+        # bare-400 fix started naming the real error. Every batch posted must be internally
+        # key-consistent; categorization behavior is then checked across all of them combined.
+        for batch in posted_batches:
+            key_shapes = {frozenset(r.keys()) for r in batch}
+            self.assertEqual(len(key_shapes), 1, f'batch has mixed key shapes: {key_shapes}')
+        by_id = {r['transaction_id']: r for batch in posted_batches for r in batch}
+        self.assertEqual(len(by_id), 3)
         self.assertEqual(by_id['tx1']['category'], 'Truck & Gas')
         self.assertEqual(by_id['tx1']['category_source'], 'rule')
         self.assertNotIn('category', by_id['tx2'])  # unmatched -- no key sent at all
         self.assertNotIn('category', by_id['tx0'])  # modified row -- never touches category
         self.assertNotIn('category_source', by_id['tx0'])
+
+    def test_mixed_key_shapes_never_reach_postgrest_in_one_batch(self):
+        # Nov 4, 2026 production bug: Gabe's "Sync now" reported "American Express: HTTP 400
+        # Bad Request -- All object keys must match (code PGRST102)" after the bare-400 fix
+        # started naming the real error. A single batch mixing a matched new row (extra
+        # category/category_source keys) with an unmatched new row and a modified row (neither
+        # has those keys) is exactly what PostgREST rejects. This fake PostgREST enforces that
+        # real constraint directly, so the test fails the way production did if the fix regresses.
+        items = [{'item_id': 'item1', 'access_token': 'tok1', 'institution_name': 'Amex'}]
+        sync_resp = {
+            'added': [
+                {'transaction_id': 'tx1', 'account_id': 'acc1', 'date': '2026-11-01', 'merchant_name': 'U-HAUL #1', 'name': 'U-HAUL', 'amount': 85.0, 'pending': False, 'category': ['Transportation']},
+                {'transaction_id': 'tx2', 'account_id': 'acc1', 'date': '2026-11-02', 'merchant_name': 'Unknown Vendor LLC', 'name': 'Unknown Vendor', 'amount': 42.0, 'pending': False, 'category': []},
+            ],
+            'modified': [
+                {'transaction_id': 'tx0', 'account_id': 'acc1', 'date': '2026-10-28', 'merchant_name': 'U-HAUL #0', 'name': 'U-HAUL', 'amount': 90.0, 'pending': False, 'category': ['Transportation']},
+            ],
+            'removed': [], 'next_cursor': 'cursor1', 'has_more': False,
+        }
+
+        def fake_request(path, payload, timeout=20):
+            if path == '/transactions/sync':
+                return sync_resp
+            if path == '/liabilities/get':
+                return {'accounts': [], 'liabilities': {'credit': []}}
+            raise AssertionError('unexpected path ' + path)
+
+        def fake_postgrest_upsert(req, timeout=None):
+            if req.full_url.startswith(webhook.SUPABASE_URL + '/rest/v1/plaid_transactions') and req.get_method() == 'POST':
+                batch = json.loads(req.data)
+                key_shapes = {frozenset(r.keys()) for r in batch}
+                if len(key_shapes) > 1:
+                    raise urllib.error.HTTPError(
+                        url=req.full_url, code=400, msg='Bad Request', hdrs=None,
+                        fp=io.BytesIO(json.dumps({'code': 'PGRST102', 'message': 'All object keys must match'}).encode()),
+                    )
+            class R:
+                def read(self_inner): return b'[]'
+                def __enter__(self_inner): return self_inner
+                def __exit__(self_inner, *a): pass
+            return R()
+
+        with patch.object(webhook, '_plaid_get_items', return_value=items), \
+             patch.object(webhook, '_plaid_request', side_effect=fake_request), \
+             patch('urllib.request.urlopen', side_effect=fake_postgrest_upsert):
+            result = webhook.plaid_sync_transactions()
+
+        self.assertEqual(result, {'ok': True, 'added': 2, 'modified': 1, 'removed': 0, 'errors': None})
 
     def test_sync_write_failure_surfaces_postgrest_detail_not_a_bare_400(self):
         # Nov 4, 2026 bug: Gabe's "Sync now" reported "American Express: HTTP Error 400: Bad
