@@ -383,6 +383,36 @@ button,a{touch-action:manipulation}button:focus-visible,a:focus-visible,[tabinde
 @media(min-width:1000px){.content{grid-template-columns:repeat(2,minmax(0,1fr));}.greeting,.qa-row,#week-view{grid-column:1/-1}.hdr-top,.date-bar{max-width:1160px!important;}.greeting{padding-top:8px;}.section{margin-bottom:0!important}}
 @media(max-width:600px){.content{padding:14px 14px 110px!important;gap:14px}.section{padding:18px 16px}.sec-title{font-size:25px}.snap-val{font-size:26px!important}.greeting-hello{font-size:36px}.qa-row{gap:8px}.qa-tile{font-size:11px!important}.card-meta{font-size:13px!important}.home-donut-wrap{flex-wrap:wrap}.home-legend{min-width:180px;flex:1}.swj-bn-link{min-height:48px}}
 </style>
+<style>
+/* Compact, colorful Home refinement — owner reference, Nov 4. */
+:root{--bg:#f3f5f4;--bg-card:#fff;--green:#38795c;--olive:#3b7c70;--olive-dark:#285f57;--olive-tint:#e7f2ed;--gold-soft:#fff3da;--gold:#b58432;}
+body{background:var(--bg)}.hdr{background:#fbfcfb}.content{gap:12px!important;padding-top:10px!important;align-items:start;}
+.section{padding:15px 17px!important;border-radius:15px;border-color:#dfe6e2;background:#fff;box-shadow:0 2px 7px #163f2b06;}
+.sec-hdr{margin-bottom:10px;gap:8px}.sec-title{font-size:25px!important}.sec-meta{font-size:10px!important;letter-spacing:.5px;}
+.greeting{padding:10px 0 4px}.greeting-hello{font-size:35px;color:#285f49}.greeting-date{font-size:10px;letter-spacing:1.3px;}
+.briefing{margin-top:8px;padding:8px 11px;border:0;background:#e5efeb;}
+#send-brief-row{display:none!important}.qa-row{gap:8px}.qa-tile{padding:10px 3px;font-size:11px!important;background:#fff;min-height:64px;}
+.qa-tile:nth-child(1){background:#e8f1fa;color:#315c88}.qa-tile:nth-child(2){background:#e7f2ed;color:#2e6752}.qa-tile:nth-child(3){background:#f8ecdf;color:#8b5c2f}.qa-tile:nth-child(4){background:#efebf8;color:#69518e}
+#sec-financial{border-top:3px solid #5e9276}#sec-payout{border-top:3px solid #5687ad}#sec-amex{border-top:3px solid #c39c4f}#sec-spending{border-top:3px solid #8672ab}
+.snap-grid{gap:6px}.snap-cell{padding:10px!important;background:#f1f6fa;border-radius:10px}.snap-cell:nth-child(2){background:#fbf1e7}.snap-cell.profit{background:#e8f3eb}.snap-cell.loss{background:#faeae6}
+.snap-val{font-size:28px!important;line-height:1.15}.snap-lbl{font-size:11px!important;margin-bottom:6px}.profit-goal{padding:10px 12px;margin-top:10px;font-size:13px;line-height:1.45;background:#f0f5ed}.profit-goal .fin-note{font-size:11px!important;margin-top:6px}.profit-track{height:6px;margin:8px 0}.home-detail{margin-top:7px}.home-detail summary{padding:8px 0;min-height:36px}
+.payout-hero{padding:12px 14px;margin-bottom:8px;background:#e8f1f8}.payout-hero strong{font-size:32px}.payout-hero p{font-size:14px;margin-top:4px}.payout-hero .fin-note{font-size:11px!important}.payout-tile{padding:9px 10px}.payout-tile-val{font-size:18px!important}.payout-tiles{gap:7px}
+/* The compact reference row: card badge / name + dates / payment callout. */
+.card-row{display:grid!important;grid-template-columns:32px minmax(0,1fr) auto;align-items:center;gap:9px;padding:13px 0!important;text-decoration:none;color:var(--ink);}
+.card-chip{display:flex!important;width:32px;height:25px;border-radius:5px;background:#2763ae;font-size:8px;letter-spacing:0;}
+.card-info{min-width:0}.card-name{font-size:12px!important;line-height:1.35;font-weight:600;overflow-wrap:anywhere;}
+.card-meta{font-size:11px!important;line-height:1.55;margin-top:4px}.card-meta b{font-weight:500;color:var(--ink)}
+.card-pay-pill{margin:0!important;padding:9px!important;font-size:12px!important;text-align:center!important;white-space:normal;max-width:113px;border-radius:11px;line-height:1.35;}
+.card-pay-pill small{font-size:10px!important;line-height:1.35}.card-pay-pill.overdue{background:#fff0d9;border-color:#e9cf99;color:#795b24}.card-pay-pill.overdue small{color:#795b24}
+#sec-spending{order:6;grid-column:1/-1}#sec-attention{order:7}#sec-schedule{order:8}#sec-glance{order:9}
+.home-donut{width:124px;height:124px}.home-donut-center{inset:21px}.home-donut-center .dv{font-size:23px}.home-donut-center .dl{font-size:9px}.home-legend-row{padding:6px 0!important}.home-legend-dot{width:10px;height:10px}.home-legend-name{font-size:12px!important}.home-legend-amt{font-size:13px!important}
+.home-fold-toggle{display:flex;align-items:center;gap:8px;width:100%;border:0;padding:4px 0;background:none;font:inherit;color:inherit;text-align:left;cursor:pointer;min-height:36px}.home-fold-chevron{font-family:Inter,sans-serif;font-size:15px;color:#57796b;transition:transform .15s}.home-fold-toggle[aria-expanded="true"] .home-fold-chevron{transform:rotate(90deg)}
+.section.is-folded .sec-hdr{margin-bottom:0}.section.is-folded .pf-toggle{display:none}.home-fold-panel[hidden]{display:none!important}
+#qa-bar{display:none!important}
+@media(max-width:1199px){.swj-bottom-nav{left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px));padding:6px!important;border-radius:19px;border:1px solid #44483e;box-shadow:0 5px 22px #14281f30;}.swj-bn-link{font-size:11px;min-height:48px;}.swj-more-sheet{padding-bottom:calc(96px + env(safe-area-inset-bottom,0px))}.content{padding-bottom:calc(108px + env(safe-area-inset-bottom,0px))!important;}}
+@media(max-width:600px){.content{padding-left:12px!important;padding-right:12px!important;gap:12px!important}.section{padding:14px!important}.snap-val{font-size:25px!important}.sec-title{font-size:24px!important}.home-donut-wrap{flex-wrap:nowrap;gap:12px}.home-legend{min-width:0!important}.home-legend-pct{display:none}.home-legend-name{overflow-wrap:anywhere}.home-legend-amt{font-size:12px!important}.fin-note{font-size:12px!important}}
+@media(max-width:359px){.card-row{grid-template-columns:25px minmax(0,1fr) 94px;gap:6px}.card-chip{width:25px;font-size:6px}.card-pay-pill{font-size:11px!important;padding:7px!important}.home-donut{width:104px;height:104px}.home-donut-center{inset:17px}.snap-val{font-size:21px!important}}
+</style>
 </head>
 <body>
 
@@ -483,7 +513,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
     <div class="qa-tile" onclick="window.location.href='/index.html'"><i class="ti ti-file-text"></i>New Invoice</div>
     <div class="qa-tile" onclick="sheetMode='add';editingTaskId=null;setQAType('schedule');openSheet('schedule',{})"><i class="ti ti-calendar-plus"></i>Add to Schedule</div>
     <div class="qa-tile" onclick="sheetMode='add';editingTaskId=null;setQAType('shopping');openSheet('shopping',{})"><i class="ti ti-shopping-bag"></i>Add Shopping</div>
-    <div class="qa-tile" onclick="setQAType('task');document.getElementById('qa-input').focus()"><i class="ti ti-plus"></i>Add Task</div>
+    <div class="qa-tile" onclick="sheetMode='add';editingTaskId=null;setQAType('task');openSheet('task',{})"><i class="ti ti-plus"></i>Add Task</div>
   </div>
 
   <!-- S6: BUSINESS SNAPSHOT — revenue/expenses/profit for the current month. Revenue is the
@@ -602,7 +632,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
       <div class="sec-title">Tasks</div>
       <div style="display:flex;align-items:center;gap:8px">
         <div class="sec-meta" id="s3-meta">—</div>
-        <button class="sec-add-btn" onclick="setQAType('task');document.getElementById('qa-input').focus()">+ Add</button>
+        <button class="sec-add-btn" onclick="sheetMode='add';editingTaskId=null;setQAType('task');openSheet('task',{})">+ Add</button>
       </div>
     </div>
     <div id="s3-body"><div class="skel" style="height:50px"></div></div>
@@ -1004,7 +1034,7 @@ function buildS3(){
   const done=tasks.filter(t=>t.status==='done');
   const el=document.getElementById('s3-body');
   document.getElementById('s3-meta').textContent=pending.length?`${pending.length} pending${done.length?' · '+done.length+' done':''}`:'nothing';
-  if(!tasks.length){el.innerHTML=`<div class="empty"><div class="empty-icon"><i class="ti ti-clipboard-list"></i></div><div class="empty-text">No tasks.</div><div class="empty-sub">Type a task in the bar below.</div></div>`;return 0;}
+  if(!tasks.length){el.innerHTML=`<div class="empty"><div class="empty-icon"><i class="ti ti-clipboard-list"></i></div><div class="empty-text">No tasks.</div><div class="empty-sub">Use + Add to create a task.</div></div>`;return 0;}
   el.innerHTML=[...pending,...done].map(t=>taskCardHTML(t)).join('');
   initSwipe();
   return pending.length;
@@ -1283,15 +1313,15 @@ async function buildS8(){
     const dueLabel=due.toLocaleDateString('en-US',{month:'short',day:'numeric'});
     const awayLabel=overdue?'date passed · verify payment':(away===0?'today':`${away} day${away===1?'':'s'}`);
     const bal=parseFloat(c.statement_balance)||0;
-    return `<div class="card-row" onclick="window.location.href='/payroll.html?tab=spending'">
+    return `<a class="card-row" href="/payroll.html?tab=spending">
       <div class="card-chip">AMEX</div>
       <div class="card-info">
-        <div class="card-name">${esc(c.name||c.institution_name||'Business Amex')}${c.mask?' …'+esc(c.mask):''}</div>
-        <div class="card-due">Due ${esc(dueLabel)}</div><div class="card-meta">${awayLabel}<br>Statement balance ${fmtExact(bal)}<br>Current balance ${c.current_balance==null?'unavailable':fmtExact(c.current_balance)}</div>
+        <div class="card-name">${esc((c.name||c.institution_name||'Business Amex').replace(/^AMEX /i,''))}${c.mask?' …'+esc(c.mask):''}</div>
+        <div class="card-meta">Statement <b>${fmtExact(bal)}</b><br>Due <b>${esc(dueLabel)}</b> · ${awayLabel}</div>
       </div>
-      <div class="card-pay-pill${overdue?' overdue':''}">${fmtExact(bal)} statement<small>Remaining to avoid interest: not verified</small></div>
-    </div>`;
-  }).join('');
+      <div class="card-pay-pill${overdue?' overdue':''}">${fmtExact(bal)}<small>Statement amount<br>Review payment ›</small></div>
+    </a>`;
+  }).join('')+`<details class="home-detail"><summary>Current balances &amp; payment status</summary><p>Statement amount is not a verified remaining payment. Check recent payments with your card provider before paying.</p>${synced.map(c=>`<p>${esc(c.name||'Card')} …${esc(c.mask||'')} · Current balance ${c.current_balance==null?'unavailable':fmtExact(c.current_balance)}</p>`).join('')}</details>`;
 }
 
 // ── S9: THIS MONTH AT A GLANCE ─────────────────────────
@@ -1361,18 +1391,18 @@ async function buildS9(){
 // in Needs Attention (buildS1's gap rows) only. Excluded below entirely; the empty-state text
 // says so when that's the only reason the donut is empty.
 const HOME_SPEND_CATEGORIES=[
-  {cat:'Truck & Gas', key:'truck', label:'Truck & Gas', color:'#b77b62'},
-  {cat:'Storage', key:'storage', label:'Storage', color:'#9c7b4f'},
-  {cat:'Furniture/Inventory', key:'furniture', label:'Furniture/Inventory', color:'#a98f6b'},
-  {cat:'Supplies', key:'supplies', label:'Supplies', color:'#c9a86a'},
-  {cat:'Insurance', key:'insurance', label:'Insurance', color:'#8a93a6'},
-  {cat:'Software/Subscriptions', key:'software', label:'Software/Subscriptions', color:'#7c92a8'},
-  {cat:'Marketing', key:'marketing', label:'Marketing', color:'#b98a9a'},
-  {cat:'Meals', key:'meals', label:'Meals', color:'#c08552'},
-  {cat:'Office', key:'office', label:'Office', color:'#9a9183'},
-  {cat:'Other', key:'other', label:'Other', color:'#b8ada1'},
+  {cat:'Truck & Gas', key:'truck', label:'Truck & Gas', color:'#dd8856'},
+  {cat:'Storage', key:'storage', label:'Storage', color:'#5a83b4'},
+  {cat:'Furniture/Inventory', key:'furniture', label:'Furniture/Inventory', color:'#8d6eaf'},
+  {cat:'Supplies', key:'supplies', label:'Supplies', color:'#dbb64f'},
+  {cat:'Insurance', key:'insurance', label:'Insurance', color:'#4d9392'},
+  {cat:'Software/Subscriptions', key:'software', label:'Software/Subscriptions', color:'#6278bc'},
+  {cat:'Marketing', key:'marketing', label:'Marketing', color:'#ca7190'},
+  {cat:'Meals', key:'meals', label:'Meals', color:'#cf6162'},
+  {cat:'Office', key:'office', label:'Office', color:'#73a17b'},
+  {cat:'Other', key:'other', label:'Other', color:'#8b99aa'},
 ];
-const HOME_SPEND_COLORS={job:'#6f8a72', ...Object.fromEntries(HOME_SPEND_CATEGORIES.map(c=>[c.key,c.color]))};
+const HOME_SPEND_COLORS={job:'#397c61', ...Object.fromEntries(HOME_SPEND_CATEGORIES.map(c=>[c.key,c.color]))};
 async function buildS10(){
   const el=document.getElementById('s10-body');
   const now=new Date();
@@ -1902,5 +1932,25 @@ document.addEventListener('DOMContentLoaded',async()=>{
 });
 </script>
 <script>document.addEventListener('DOMContentLoaded',()=>{try{document.querySelector('.nav-sw .nav-btn.on')?.scrollIntoView({inline:'center',block:'nearest'});}catch(e){}});</script>
+
+<script>
+// Native buttons preserve keyboard access; changing sections never writes business data.
+function initHomeFolds(){
+  ['sec-attention','sec-schedule','sec-profit','sec-tasks','sec-shopping','sec-followups'].forEach(id=>{
+    const section=document.getElementById(id),header=section.querySelector('.sec-hdr'),title=header.querySelector('.sec-title');
+    if(section.querySelector('.home-fold-toggle'))return;
+    const panel=document.createElement('div');panel.id=id+'-panel';panel.className='home-fold-panel';
+    [...section.children].filter(child=>child!==header).forEach(child=>panel.appendChild(child));section.appendChild(panel);
+    const button=document.createElement('button');button.type='button';button.className='home-fold-toggle';
+    const text=document.createElement('span');text.textContent=title.textContent;
+    const chevron=document.createElement('span');chevron.className='home-fold-chevron';chevron.setAttribute('aria-hidden','true');chevron.textContent='›';
+    button.append(chevron,text);title.replaceChildren(button);button.setAttribute('aria-controls',panel.id);
+    const setOpen=open=>{button.setAttribute('aria-expanded',String(open));panel.hidden=!open;section.classList.toggle('is-folded',!open);};
+    button.addEventListener('click',()=>setOpen(panel.hidden));setOpen(false);
+    header.querySelectorAll('.sec-add-btn').forEach(add=>add.addEventListener('click',()=>setOpen(true)));
+  });
+}
+document.addEventListener('DOMContentLoaded',initHomeFolds);
+</script>
 </body>
 </html>
