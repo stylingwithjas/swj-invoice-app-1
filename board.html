@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <script src="/admin-auth.js"></script>
+<script src="/assets/payment-events.js"></script>
 <script src="/assets/invoice-safety.js"></script>
 <meta charset="UTF-8">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2411,22 +2412,17 @@ function updatePipelineStats(grouped){
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   let mtdTotal = 0, mtdCount = 0;
-  Object.values(CARDS).forEach(inv => {
-    const d = inv.data || {};
-    if(d.paid && d.paid_date && !d.payer_unknown && !d.is_test){
-      const pd = new Date(d.paid_date + 'T00:00:00');
-      if(pd >= monthStart){
-        mtdTotal += computeGrand(d);
-        mtdCount++;
-      }
-    }
-  });
+  const monthEnd=new Date(now.getFullYear(),now.getMonth()+1,1);
+  Object.values(CARDS).forEach(inv => SWJPayments.all(inv,computeGrand).forEach(e=>{
+    const pd=new Date(e.date.slice(0,10)+'T00:00:00');
+    if(pd>=monthStart&&pd<monthEnd){mtdTotal+=e.amount;mtdCount++;}
+  }));
   document.getElementById('stat-mtd-total').textContent = fmtMoney(mtdTotal);
   // This counts every PAID job this month regardless of board stage (a "confirmed" or
   // "staged" job that's already paid still counts toward revenue) — it's a different
   // dimension from the Completed STAGE column, which only counts stage==='done'. The two
   // were never meant to match; "completed" here was misleading wording (audit finding).
-  document.getElementById('stat-mtd-count').textContent = mtdCount + ' paid';
+  document.getElementById('stat-mtd-count').textContent = mtdCount + ' receipts';
   renderMtdSpark();
 
   // Needs Attention tile: set inside updateTodayStrip(), from the SAME items list the strip
@@ -2448,13 +2444,11 @@ function renderMtdSpark(){
     const end = new Date(now.getFullYear(), now.getMonth()-i+1, 1);
     months.push({ start, end, total:0 });
   }
-  Object.values(CARDS).forEach(inv=>{
-    const d = inv.data || {};
-    if(!d.paid || !d.paid_date || d.payer_unknown) return;
-    const pd = new Date(d.paid_date + 'T00:00:00');
-    const m = months.find(m => pd >= m.start && pd < m.end);
-    if(m) m.total += computeGrand(d);
-  });
+  Object.values(CARDS).forEach(inv=>SWJPayments.all(inv,computeGrand).forEach(e=>{
+    const pd=new Date(e.date.slice(0,10)+'T00:00:00');
+    const m=months.find(m=>pd>=m.start&&pd<m.end);
+    if(m)m.total+=e.amount;
+  }));
   const max = Math.max(1, ...months.map(m=>m.total));
   el.innerHTML = months.map((m,i)=>{
     const h = Math.max(2, Math.round(m.total/max*20));

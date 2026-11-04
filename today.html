@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <script src="/admin-auth.js"></script>
+<script src="/assets/payment-events.js"></script>
 <meta charset="UTF-8">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -427,6 +428,7 @@ body{background:var(--bg)}.hdr{background:#fbfcfb}.content{gap:12px!important;pa
 </style>
 <link rel="stylesheet" href="/styles/swj-luxury-theme.css">
 <link rel="stylesheet" href="/styles/swj-luxury-home.css">
+<script src="/assets/home-cash.js" defer></script>
 </head>
 <body class="swj-home">
 
@@ -462,7 +464,7 @@ body{background:var(--bg)}.hdr{background:#fbfcfb}.content{gap:12px!important;pa
     <button class="swj-more-link" type="button" style="width:100%;text-align:left;border:none;background:none;font:inherit;cursor:pointer" onclick="swjSignOut()">🔒 Sign out</button>
   </div>
 </div>
-<script>function swjToggleMore(){document.getElementById('swj-more-sheet').classList.toggle('open');}
+<script>window.addEventListener('DOMContentLoaded',()=>{if(location.hash==='#swj-more-sheet')document.getElementById('swj-more-sheet')?.classList.add('open');});function swjToggleMore(){document.getElementById('swj-more-sheet').classList.toggle('open');}
 document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=document.getElementById('swj-more-sheet');if(m&&m.classList.contains('open'))m.classList.remove('open');}});</script>
 
 <!-- HEADER -->
@@ -545,6 +547,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
       <div class="sec-title">Business Snapshot</div>
       <div class="sec-meta" id="s6-meta">this month</div>
     </div>
+    <p id="home-cash-context" style="margin:0 0 12px;font-size:12px;color:var(--swj-text-secondary)"><a href="/cash.html">Business cash — includes money carried over from earlier months →</a></p>
     <div id="s6-body"><div class="skel" style="height:100px"></div></div>
   </div>
 
@@ -1129,16 +1132,20 @@ function buildS5(){
 // and Job Profit — Real tabs remain the detailed, actionable numbers. Pending/pipeline figures
 // that used to live here are still fully visible via Needs Attention and Follow-ups below.
 function buildS6(){
+  if(window.SWJCashUnavailable){document.getElementById('s6-body').innerHTML='<p>Financial sources could not be verified. <a href="/cash.html">Refresh Business cash →</a></p>';return;}
   const now=new Date();
   const monthStart=new Date(now.getFullYear(),now.getMonth(),1);
   let mtd=0,mtdN=0;
-  allInvoices.forEach(inv=>{
-    const d=inv.data||{};
-    if(d.paid&&d.paid_date){const pd=new Date(d.paid_date+'T00:00:00');if(pd>=monthStart){mtd+=computeGrand(d);mtdN++;}}
-  });
-  const expenses=_monthlyPlaidTx.reduce((t,x)=>t+(parseFloat(x.amount)||0),0);
-  const profit=mtd-expenses;
-  const margin=mtd>0?profit/mtd*100:null;
+  const monthEnd=new Date(now.getFullYear(),now.getMonth()+1,1);
+  allInvoices.forEach(inv=>SWJPayments.all(inv,computeGrand).forEach(e=>{
+    const pd=new Date(e.date.slice(0,10)+'T00:00:00');
+    if(pd>=monthStart&&pd<monthEnd){mtd+=e.amount;mtdN++;}
+  }));
+  const verified=window.SWJCashSnapshot?.monthly;
+  if(verified)mtd=verified.collected_cents/100;
+  const expenses=verified?verified.costs_cents/100:_monthlyPlaidTx.reduce((t,x)=>t+(parseFloat(x.amount)||0),0);
+  const profit=verified?(verified.result_cents==null?null:verified.result_cents/100):mtd-expenses;
+  const margin=verified?verified.margin_percent:mtd>0?profit/mtd*100:null;
   const gap=Math.max(0,mtd*.25-profit);
   const progress=margin==null?0:Math.max(0,Math.min(100,margin/25*100));
   document.getElementById('s6-meta').textContent=now.toLocaleDateString('en-US',{month:'long'})+' so far';
@@ -1146,14 +1153,14 @@ function buildS6(){
     <div class="snap-grid">
       <div class="snap-cell"><div class="snap-lbl">Collected receipts</div><div class="snap-val">${fmt(mtd)}</div></div>
       <div class="snap-cell"><div class="snap-lbl">Recorded spending</div><div class="snap-val">${fmt(expenses)}</div></div>
-      <div class="snap-cell ${profit<0?'loss':'profit'}"><div class="snap-lbl">Provisional surplus</div><div class="snap-val">${profit<0?'−'+fmt(Math.abs(profit)):fmt(profit)}</div></div>
+      <div class="snap-cell ${profit<0?'loss':'profit'}"><div class="snap-lbl">Provisional surplus</div><div class="snap-val">${profit==null?'Pending':profit<0?'−'+fmt(Math.abs(profit)):fmt(profit)}</div></div>
     </div>
     <div class="profit-goal"><b>Your net profit goal: 25%</b>
       <div class="profit-track"><span style="width:${progress}%"></span></div>
       <span class="luxury-goal-context">${margin==null?'Margin pending until revenue is collected.':`Recorded surplus is ${margin.toFixed(1)}% of receipts · ${gap>0?fmt(gap)+' below the 25% benchmark':'at or above the 25% benchmark'}.`}</span>
 
     </div>
-    <details class="home-detail"><summary>What these numbers include</summary>Early-month bills can arrive before customer payments. This is a provisional cash snapshot, not verified net profit or money available to withdraw. Uses Home’s existing paid-invoice receipts and synced positive card transactions. Sales tax, refunds, transfers, payment timing, missing costs and transaction coverage need reconciliation before measuring true net profit. Card payments must not be counted again as purchases. <a href="/payroll.html?tab=spending">Review spending and data coverage →</a></details>`;
+    <details class="home-detail"><summary>What these numbers include</summary>Early-month bills can arrive before customer payments. This is a provisional cash snapshot, not verified net profit or money available to withdraw. Recorded customer payments by received date drive receipts, regardless of signature; bank deposits are settlement only. Uses synced positive card transactions. See Business cash for mover payments, actual fees and reconciliation. Sales tax, refunds, transfers, payment timing, missing costs and transaction coverage need reconciliation before measuring true net profit. Card payments must not be counted again as purchases. <a href="/payroll.html?tab=spending">Review spending and data coverage →</a></details>`;
 }
 
 // ── S6B: MONEY LANDING SOON ─────────────────────────────

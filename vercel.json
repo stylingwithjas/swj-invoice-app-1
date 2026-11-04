@@ -5,7 +5,9 @@
       "includeFiles": "{assets/**,lib/**}",
       "maxDuration": 60
     },
-    "api/invoices.py": { "includeFiles": "lib/**" },
+    "api/invoices.py": {
+      "includeFiles": "lib/**"
+    },
     "api/taxrate.py": {
       "maxDuration": 15
     },
@@ -28,36 +30,126 @@
     }
   },
   "redirects": [
-    { "source": "/", "destination": "/today.html", "permanent": false }
+    {
+      "source": "/",
+      "destination": "/today.html",
+      "permanent": false
+    }
   ],
   "rewrites": [
-    { "source": "/tests/luxury-layout-review.html", "destination": "/tests/luxury-layout-review.html" },
-    { "source": "/api/:path*", "destination": "/api/:path*" },
-    { "source": "/index.html", "destination": "/index.html" },
-    { "source": "/luxury.html", "destination": "/luxury.html" },
-    { "source": "/pricelist.html", "destination": "/pricelist.html" },
-    { "source": "/pricelist-full.html", "destination": "/pricelist-full.html" },
-    { "source": "/board.html", "destination": "/board.html" },
-    { "source": "/today.html", "destination": "/today.html" },
-    { "source": "/shop.html", "destination": "/shop.html" },
-    { "source": "/proposal.html", "destination": "/proposal.html" },
-    { "source": "/confirm.html", "destination": "/confirm.html" },
-    { "source": "/gs-invoice.html", "destination": "/gs-invoice.html" },
-    { "source": "/hours.html", "destination": "/hours.html" },
-    { "source": "/payroll.html", "destination": "/payroll.html" },
-    { "source": "/approve-hours.html", "destination": "/approve-hours.html" },
-    { "source": "/archive.html", "destination": "/archive.html" },
-    { "source": "/tax-report.html", "destination": "/tax-report.html" },
-    { "source": "/reconciliation.html", "destination": "/reconciliation.html" },
-    { "source": "/stripe-reconciliation.html", "destination": "/stripe-reconciliation.html" },
-    { "source": "/sw.js", "destination": "/sw.js" },
-    { "source": "/manifest.webmanifest", "destination": "/manifest.webmanifest" },
-    { "source": "/assets/:path*", "destination": "/assets/:path*" },
-    { "source": "/", "destination": "/today.html" },
-    { "source": "/((?!api/).*)", "destination": "/today.html" }
+    {
+      "source": "/tests/luxury-layout-review.html",
+      "destination": "/tests/luxury-layout-review.html"
+    },
+    {
+      "source": "/api/:path*",
+      "destination": "/api/:path*"
+    },
+    {
+      "source": "/cash.html",
+      "destination": "/cash.html"
+    },
+    {
+      "source": "/styles/:path*",
+      "destination": "/styles/:path*"
+    },
+    {
+      "source": "/index.html",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/luxury.html",
+      "destination": "/luxury.html"
+    },
+    {
+      "source": "/pricelist.html",
+      "destination": "/pricelist.html"
+    },
+    {
+      "source": "/pricelist-full.html",
+      "destination": "/pricelist-full.html"
+    },
+    {
+      "source": "/board.html",
+      "destination": "/board.html"
+    },
+    {
+      "source": "/today.html",
+      "destination": "/today.html"
+    },
+    {
+      "source": "/shop.html",
+      "destination": "/shop.html"
+    },
+    {
+      "source": "/proposal.html",
+      "destination": "/proposal.html"
+    },
+    {
+      "source": "/confirm.html",
+      "destination": "/confirm.html"
+    },
+    {
+      "source": "/gs-invoice.html",
+      "destination": "/gs-invoice.html"
+    },
+    {
+      "source": "/hours.html",
+      "destination": "/hours.html"
+    },
+    {
+      "source": "/payroll.html",
+      "destination": "/payroll.html"
+    },
+    {
+      "source": "/approve-hours.html",
+      "destination": "/approve-hours.html"
+    },
+    {
+      "source": "/archive.html",
+      "destination": "/archive.html"
+    },
+    {
+      "source": "/tax-report.html",
+      "destination": "/tax-report.html"
+    },
+    {
+      "source": "/reconciliation.html",
+      "destination": "/reconciliation.html"
+    },
+    {
+      "source": "/stripe-reconciliation.html",
+      "destination": "/stripe-reconciliation.html"
+    },
+    {
+      "source": "/sw.js",
+      "destination": "/sw.js"
+    },
+    {
+      "source": "/manifest.webmanifest",
+      "destination": "/manifest.webmanifest"
+    },
+    {
+      "source": "/assets/:path*",
+      "destination": "/assets/:path*"
+    },
+    {
+      "source": "/",
+      "destination": "/today.html"
+    },
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/today.html"
+    }
   ],
   "crons": [
-    { "path": "/api/webhook", "schedule": "0 15 * * *" },
-    { "path": "/api/webhook?job=monthly_close", "schedule": "0 15 1 * *" }
+    {
+      "path": "/api/webhook",
+      "schedule": "0 15 * * *"
+    },
+    {
+      "path": "/api/webhook?job=monthly_close",
+      "schedule": "0 15 1 * *"
+    }
   ]
 }
