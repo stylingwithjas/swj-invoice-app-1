@@ -29,6 +29,7 @@ import urllib.request
 import urllib.parse
 import urllib.error
 import datetime
+from decimal import Decimal
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.application import MIMEApplication
@@ -508,6 +509,138 @@ def plaid_sync_transactions():
     if errors and added == modified == removed == 0:
         return {'error': '; '.join(errors)}
     return {'ok': True, 'added': added, 'modified': modified, 'removed': removed, 'errors': errors or None}
+
+
+# ════════════════════════════════════════════════════════════════
+# STRIPE PAYOUT SNAPSHOT ("Money landing soon", Jasmine's request, Nov 3 2026) — read-only.
+# Answers "when will this money actually arrive in the bank," never "has the client paid" (that
+# question is already answered elsewhere). Reuses the same STRIPE_RECONCILE_KEY the Stripe
+# reconciliation report (lib/stripe_recon_http.py) already uses — a livemode restricted key —
+# rather than creating a second one; lib/stripe_payout.py holds the actual date/grouping rules
+# so they live in exactly one place. Server-side only: the key, and every raw Stripe object,
+# never reach the client — the client only ever sees this job's already-computed, already-masked
+# response.
+# ════════════════════════════════════════════════════════════════
+
+def _stripe_payout_key():
+    return os.environ.get('STRIPE_RECONCILE_KEY', '')
+
+
+def _stripe_payout_configured():
+    # Same rule the Stripe reconciliation report enforces (lib/stripe_recon_http.configured): a
+    # livemode restricted key only, never this app's broader STRIPE_SECRET_KEY.
+    return _stripe_payout_key().startswith('rk_live_')
+
+
+class StripePermissionError(Exception):
+    """Raised when Stripe's own response says this key lacks a permission this feature needs
+    (HTTP 403) -- kept distinct from other failures so the caller can report exactly which read
+    (balance vs payouts) was denied, per Gabe's Nov 3 note: "STOP and report exactly which
+    permission is missing," never a generic failure."""
+    def __init__(self, resource, detail):
+        self.resource = resource
+        self.detail = detail
+        super().__init__(f'{resource}: {detail}')
+
+
+def _stripe_payout_get(path, params=None):
+    """GET against Stripe's API with the restricted key. On an HTTP error, Stripe's own
+    error.type/error.code/error.message are read from the response body and folded into the
+    raised message -- same enrichment approach this file's _plaid_request() uses for Plaid --
+    so a permission problem names itself instead of a bare '403 Forbidden'. The key itself is
+    never read back from, logged, or present in any error."""
+    url = 'https://api.stripe.com' + path
+    if params:
+        url += '?' + urllib.parse.urlencode(params)
+    req = urllib.request.Request(url, headers={'Authorization': f'Bearer {_stripe_payout_key()}'})
+    try:
+        with urllib.request.urlopen(req, timeout=15) as r:
+            return json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        detail = f'HTTP {e.code} {e.reason}'
+        try:
+            stripe_err = json.loads(e.read()).get('error') or {}
+            parts = [p for p in (stripe_err.get('type'), stripe_err.get('code'), stripe_err.get('message')) if p]
+            if parts:
+                detail = ' — '.join(parts)
+        except Exception:
+            pass
+        if e.code == 403:
+            raise StripePermissionError(path, detail) from None
+        raise Exception(detail) from None
+
+
+def _stripe_payout_invoice_lookup():
+    """Recent invoices only (client/invnum) -- the same non-invoice-row exclusions today.html's
+    own queries use -- plenty to label any metadata.invoice a recent balance transaction names."""
+    try:
+        key = os.environ.get('SUPABASE_KEY', '')
+        req = urllib.request.Request(
+            f"{SUPABASE_URL}/rest/v1/invoices?select=invnum,client&order=created_at.desc&limit=300"
+            f"&invnum=not.like.DRAFT-%25&invnum=not.like.GS%25&invnum=neq.PRICING_DEFAULTS"
+            f"&invnum=neq.TIER_PRICING&invnum=not.like.TAX_REVIEW_%25&invnum=neq.FINANCE_CONFIG"
+            f"&invnum=neq.FINANCE_OVERRIDES",
+            headers={'apikey': key, 'Authorization': f'Bearer {key}'})
+        with urllib.request.urlopen(req, timeout=10) as r:
+            rows = json.loads(r.read())
+        return {row['invnum']: {'client': row.get('client')} for row in rows if row.get('invnum')}
+    except Exception:
+        return {}
+
+
+def _serialize_payout_snapshot(snapshot):
+    """Decimal -> float for JSON; every other field is already JSON-safe."""
+    def dec(v):
+        return float(v) if isinstance(v, Decimal) else v
+    headline = {k: dec(v) for k, v in snapshot['headline'].items()}
+    in_transit = [{k: dec(v) for k, v in row.items()} for row in snapshot['in_transit']]
+    timeline = [{
+        **{k: dec(v) for k, v in row.items() if k != 'items'},
+        'items': [{'label': it['label'], 'amount': dec(it['amount'])} for it in row['items']],
+    } for row in snapshot['timeline']]
+    return {'headline': headline, 'in_transit': in_transit, 'timeline': timeline, 'schedule_known': snapshot['schedule_known']}
+
+
+def stripe_payout_snapshot():
+    """Builds the whole "Money landing soon" payload for Home. Fails closed and honestly:
+    unconfigured key -> a clear "not configured" error; a 403 on Balance or Payouts specifically
+    -> "Payout info unavailable" plus which permission is missing (for diagnosis -- never shown
+    to Jasmine as Stripe's raw error text); any other failure -> the same safe "unavailable,"
+    never a stale or fabricated number. Account/schedule read is best-effort only -- Balance and
+    Payouts are the two permissions this feature actually requires per the owner's note; a
+    missing schedule just means every "Expected" date below says so honestly instead of
+    guessing a cadence."""
+    if not _stripe_payout_configured():
+        return {'error': 'Stripe payout snapshot is not configured yet — STRIPE_RECONCILE_KEY is not set.'}
+
+    from lib.stripe_payout import build_snapshot
+
+    try:
+        balance_raw = _stripe_payout_get('/v1/balance')
+        payouts_raw = _stripe_payout_get('/v1/payouts', {'limit': 10}).get('data', [])
+        fourteen_days_ago = int((datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=14)).timestamp())
+        btx_raw = _stripe_payout_get('/v1/balance_transactions', {
+            'limit': 50, 'type': 'charge', 'created[gte]': fourteen_days_ago, 'expand[]': 'data.source',
+        }).get('data', [])
+    except StripePermissionError as e:
+        return {'error': 'Payout info unavailable.', 'missing_permission': e.resource, 'detail': e.detail}
+    except Exception as e:
+        return {'error': 'Payout info unavailable.', 'detail': str(e)}
+
+    schedule_raw = None
+    try:
+        account = _stripe_payout_get('/v1/account')
+        schedule_raw = ((account.get('settings') or {}).get('payouts') or {}).get('schedule')
+    except Exception:
+        pass
+
+    invoice_lookup = _stripe_payout_invoice_lookup()
+    snapshot = build_snapshot(balance_raw, payouts_raw, btx_raw, schedule_raw, invoice_lookup)
+    return {
+        'ok': True,
+        'as_of': datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        **_serialize_payout_snapshot(snapshot),
+    }
 
 
 # ════════════════════════════════════════════════════════════════
@@ -2440,6 +2573,12 @@ class handler(BaseHTTPRequestHandler):
                 self._respond(200, plaid_refresh_balance())
             else:
                 self._respond(404, {'error': f'Unknown job: {job}'})
+            return
+
+        # "Money landing soon" (Home page) -- same reachable-by-anyone-who-knows-the-URL model
+        # as the Plaid jobs just above; read-only, no charge/payout/refund is ever created here.
+        if job == 'stripe_payout_snapshot':
+            self._respond(200, stripe_payout_snapshot())
             return
 
         sig_header = self.headers.get('Stripe-Signature', '')
