@@ -18,6 +18,18 @@ function app(file){
 }
 for(const file of ['index.html','luxury.html']){
  const w=app(file),run=code=>w.eval(code),get=code=>JSON.parse(JSON.stringify(run(code)));
+ assert.equal(w.document.getElementById('invoice-save').textContent,'SAVE');
+ run(`genShowTab('drafts');loadInvoiceData({invnum:'TEST-NAV',client:'Saved client',invdate:'2026-01-15',client_email:'saved@example.test',base_price:2500,addons:[]})`);
+ assert.ok(w.document.getElementById('gen-panel-create').classList.contains('on'));
+ assert.equal(w.document.getElementById('client_email').value,'saved@example.test');
+ assert.equal(w.document.getElementById('invdate').value,'2026-01-15');
+ run(`_loadedInvoiceData=null;document.getElementById('client').value='Email test';document.getElementById('client_email').value='saved@example.test';recalc()`);
+ run(`window.__originalFrom=_sb.from;_sb.from=()=>({upsert:async row=>{window.__savedDraft=row;return {error:null}}})`);
+ await run('saveDraft(true)');
+ assert.equal(run('window.__savedDraft.data.client_email'),'saved@example.test');
+ run('_sb.from=window.__originalFrom');
+ run('window.__dbWrites=[]');
+
  run(`document.getElementById('base_price').value='3933';document.getElementById('taxrate').value='10.55';document.getElementById('rental-term-days').value='45';customs=[{desc:'Logistics & Handling',price:185,scope:''}];selRooms.add('Living Room');recalc();`);
  assert.deepEqual(get(`(()=>{const p=buildPricingPayload();return [p.ovSub,p.ovTax,p.grand,p.rental_total,p.service_total,p.reconcile]})()`),[4118,226.98,4344.98,2151.5,1966.5,[]]);
  run(`customs.push({desc:'Additional adjustment visit',price:250,scope:''});recalc()`);
