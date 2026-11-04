@@ -2071,7 +2071,13 @@ async function renderSpendingTransactions(){
   const month = document.getElementById('pr-spend-month').value;
   const jobFilter = document.getElementById('pr-spend-job-filter').value;
   let q = _sb.from('plaid_transactions').select('transaction_id,date,merchant_name,name,amount,pending,category,plaid_category,job_invnum').order('date',{ascending:false}).limit(500);
-  if(month){ q = q.gte('date', month+'-01').lte('date', month+'-31'); }
+  if(month){
+    // Nov 4, 2026 bug: a hardcoded "-31" end date doesn't exist in every month (Postgres
+    // rejects "2026-11-31" outright) -- day 0 of the next month is always the real last day
+    // of this one, same trick renderRealLedger() above already uses.
+    const monthEnd = new Date(Number(month.slice(0,4)), Number(month.slice(5,7)), 0).toISOString().slice(0,10);
+    q = q.gte('date', month+'-01').lte('date', monthEnd);
+  }
   if(jobFilter){ q = q.eq('job_invnum', jobFilter); }
   const { data, error } = await q;
   if(error){ body.innerHTML = '<div class="empty-note">Could not load transactions: '+esc(error.message)+'</div>'; return; }

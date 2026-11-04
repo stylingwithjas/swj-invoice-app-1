@@ -2,7 +2,7 @@
   "name": "SWJ — Styling With Jas",
   "short_name": "SWJ",
   "description": "Invoice generator and job tools for Styling With Jas.",
-  "start_url": "/index.html",
+  "start_url": "/today.html",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",

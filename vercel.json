@@ -27,6 +27,9 @@
       "includeFiles": "api/Parisienne-Regular.ttf"
     }
   },
+  "redirects": [
+    { "source": "/", "destination": "/today.html", "permanent": false }
+  ],
   "rewrites": [
     { "source": "/api/:path*", "destination": "/api/:path*" },
     { "source": "/index.html", "destination": "/index.html" },
