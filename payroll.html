@@ -395,6 +395,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
     </div>
   </div>
 
+  <p data-revenue-basis style="font-size:12px;color:#68685e">Revenue: paid invoice payments and extensions, by received month, regardless of signature. Stripe and checking deposits verify settlement only.</p>
   <div class="pr-tabs" id="pr-tabs">
     <button class="pr-tab on" onclick="prShowTab('finance')">Finance &amp; Allocation</button>
     <button class="pr-tab" onclick="prShowTab('employee')">Employee Pay</button>
@@ -402,7 +403,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
     <button class="pr-tab" onclick="prShowTab('projects')">Project Budgets</button>
     <button class="pr-tab" onclick="prShowTab('history')">History</button>
     <button class="pr-tab" onclick="prShowTab('spending')">Spending</button>
-    <button class="pr-tab" onclick="prShowTab('ledger')">Job Profit — Real</button>
+    <button class="pr-tab" onclick="prShowTab('ledger')">Job Results</button>
   </div>
 
   <div class="pr-panel on" id="pr-panel-finance">
@@ -498,7 +499,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
       <div id="fin-reconcile-result" style="font-size:13px"></div>
     </div>
 
-    <div class="disclaimer">Collected receipts use payment-received dates, including unsigned paid invoices and paid extensions, excluding test charges. They include collected sales tax. Budget exclusions can differ from the Tax Report; any difference is shown above. Mover pay is actual, from logged hours this month. Truck and warehouse costs use the editable assumptions above, since this app doesn't track per-job truck receipts yet — correct the defaults above if your actual costs differ. Tax set-aside reuses the Tax Report's B&amp;O + sales-tax method (not CPA-certified — see TAX_METHODOLOGY.md). "Jasmine keep (actual net)" is the existing allocation result, including estimated costs, not accounting profit; "Jasmine keep (target)" is a benchmark line only — the two are never blended, and the target is capped at actual profit so it can never exceed what the month really made. Inventory (shopping budget) is derived, never entered: whatever is left after costs and the keep target. A month with unreconciled revenue is flagged, not presented as final. Viewing this page never changes a stored record — only the Manual Override controls write anything.</div>
+    <div class="disclaimer">Collected receipts use payment-received dates, including unsigned paid invoices and paid extensions, excluding test charges. They include collected sales tax. Planning exclusions do not change recorded receipts. Checking deposits and transfers are excluded from revenue. Mover pay is actual, from logged hours this month. Truck and warehouse costs use the editable assumptions above, since this app doesn't track per-job truck receipts yet — correct the defaults above if your actual costs differ. Tax set-aside reuses the Tax Report's B&amp;O + sales-tax method (not CPA-certified — see TAX_METHODOLOGY.md). "Jasmine keep (actual net)" is the existing planning allocation result, including estimated costs, not accounting profit; "Jasmine keep (target)" is a benchmark line only — the two are never blended, and the target is capped at actual profit so it can never exceed what the month really made. Inventory (shopping budget) is derived, never entered: whatever is left after costs and the keep target. A month with unreconciled revenue is flagged, not presented as final. Viewing this page never changes a stored record — only the Manual Override controls write anything.</div>
   </div>
 
   </div><!-- /pr-panel-finance -->
@@ -1414,6 +1415,7 @@ async function runFinanceView(){
   // contract is signed yet — signature status no longer gates revenue here, in Monthly
   // Performance, or in the Board MTD strip (which already worked this way). excludeInvnums/
   // includeInvnums overrides still let a specific job be pulled out of or forced into a month.
+  // Planning exclusions affect upcoming jobs/budgets, never recorded receipts.
   const counted = _financeInvoices.filter(inv=>!excludeSet.has(inv.invnum));
   _financeInvoices.forEach(inv=>{ if(includeSet.has(inv.invnum) && !counted.some(x=>x.invnum===inv.invnum)) counted.push(inv); });
 
@@ -1429,7 +1431,7 @@ async function runFinanceView(){
   // ---- Received: payment events this period, named ----
   let revenue=0, salesTax=0, retailRev=0, serviceRev=0, stripeFee=0;
   const received = [];
-  counted.forEach(inv=>{
+  _financeInvoices.forEach(inv=>{
     const d = inv.data||{};
     const split = finInvoiceSplit(d);
     const events = finPaymentEvents(d).filter(e=>e.date>=periodStart && e.date<=periodEnd);
@@ -1448,7 +1450,7 @@ async function runFinanceView(){
       if(e.method==='Stripe (Card)') stripeFee += amt*FINANCE_CONFIG.stripe_pct/100 + FINANCE_CONFIG.stripe_flat;
       received.push({ invnum:inv.invnum, client:inv.client||'Client', amount:amt, method:e.method, date:e.date });
     });
-    (d.extensions||[]).forEach(ext=>{
+    SWJPayments.extensions(d).forEach(ext=>{
       if(!ext.paid || !ext.paid_date || ext.is_test) return;
       if(ext.paid_date<periodStart || ext.paid_date>periodEnd) return;
       const amt = Math.round((parseFloat(ext.amount)||0)*100)/100; if(amt<=0.009) return;
@@ -1460,15 +1462,11 @@ async function runFinanceView(){
     });
   });
 
-  const allReceipts=_financeInvoices.reduce((sum,inv)=>{
-    const d=inv.data||{};
-    return sum+finPaymentEvents(d).filter(e=>e.date>=periodStart&&e.date<=periodEnd).reduce((n,e)=>n+Math.round(e.amount*100)/100,0)
-      +(d.extensions||[]).filter(e=>e.paid&&!e.is_test&&e.paid_date>=periodStart&&e.paid_date<=periodEnd&&Math.round((parseFloat(e.amount)||0)*100)/100>0.009).reduce((n,e)=>n+Math.round((parseFloat(e.amount)||0)*100)/100,0);
-  },0);
+  const allReceipts=_financeInvoices.reduce((sum,inv)=>sum+SWJPayments.total(SWJPayments.inPeriod(inv,finComputeGrandForEvents,periodStart,periodEnd)),0);
   const receiptDifference=Math.round((allReceipts-revenue)*100)/100;
   const status=document.getElementById('finance-data-status');
   status.textContent=`Cash receipts (${periodStart} through ${periodEnd}), including sales tax: ${finMoney(allReceipts)} across all SWJ source records. Signature status is not a revenue filter.`
-    +(Math.abs(receiptDifference)>0.009?` Reconciliation warning: this budget view excludes ${finMoney(receiptDifference)} through its month overrides. Budget-view receipts ${finMoney(revenue)} differ from the unfiltered Tax Report basis. Review exclusions; no records were changed.`:' No receipt difference from budget exclusions.');
+    +(Math.abs(receiptDifference)>0.009?` Reconciliation warning: this budget view excludes ${finMoney(receiptDifference)} through its month overrides. Budget-view receipts ${finMoney(revenue)} differ from the unfiltered Tax Report basis. Review exclusions; no records were changed.`:' Recorded receipts are not changed by planning exclusions; deposits and transfers are not revenue.');
 
   // ---- Expected (unpaid balance, staged by this period's end, overdue if staged earlier) and
   // Committed (unpaid balance, staged more than 60 days out from TODAY — a forward strip that
@@ -2143,86 +2141,20 @@ async function loadRealLedgerTab(){
 }
 
 async function renderRealLedger(){
-  const overheadEl = document.getElementById('pr-ledger-overhead');
-  const bodyEl = document.getElementById('pr-ledger-body');
-  bodyEl.innerHTML = '<div class="empty-note">Loading…</div>';
-  const month = document.getElementById('pr-ledger-month').value;
-  if(!month) return;
-  const periodStart = month+'-01';
-  const periodEnd = new Date(Number(month.slice(0,4)), Number(month.slice(5,7)), 0).toISOString().slice(0,10);
-
-  let spend = [];
+  const overheadEl=document.getElementById('pr-ledger-overhead'),bodyEl=document.getElementById('pr-ledger-body');
+  const month=document.getElementById('pr-ledger-month').value;
+  if(!month)return;
+  const generation=(window._cashLedgerGeneration||0)+1;window._cashLedgerGeneration=generation;
+  bodyEl.textContent='Loading verified payment and cost sources…';overheadEl.replaceChildren();
   try{
-    const { data } = await _sb.from('plaid_transactions').select('transaction_id,date,merchant_name,name,amount,category,job_invnum').gte('date', periodStart).lte('date', periodEnd);
-    // Plaid convention: positive amount = money out (a spend); negative = credit/refund —
-    // refunds reduce real spending but are excluded from these cost totals rather than shown
-    // as a negative cost line, same reasoning Stripe reconciliation uses for refunds.
-    spend = (data||[]).filter(t=>(parseFloat(t.amount)||0) > 0);
-  }catch(e){ /* plaid_transactions may not exist yet if the migration hasn't been run */ }
-
-  // Real labor, already job-tagged — the SAME time_entries query shape runFinanceView() uses
-  // for moverByProject, so this tab's labor figure never silently disagrees with Finance &
-  // Allocation's own actual-mover-cost number.
-  let laborByJob = {};
-  try{
-    const { data: entries } = await _sb.from('time_entries').select('invnum,amount')
-      .gte('clock_in', periodStart+'T00:00:00').lte('clock_in', periodEnd+'T23:59:59');
-    (entries||[]).forEach(e=>{ const amt = parseFloat(e.amount)||0; if(e.invnum) laborByJob[e.invnum] = (laborByJob[e.invnum]||0) + amt; });
-  }catch(e){}
-
-  // Job-tagged spend = job cost; untagged = overhead. Uncategorized dollars tracked separately
-  // within each — never silently folded into either "categorized" bucket.
-  const jobSpend = {};
-  let overheadTotal = 0, overheadUncategorized = 0;
-  spend.forEach(t=>{
-    const amt = parseFloat(t.amount)||0;
-    if(t.job_invnum){
-      const j = jobSpend[t.job_invnum] || (jobSpend[t.job_invnum] = {total:0, byCategory:{}, uncategorized:0});
-      j.total += amt;
-      if(t.category) j.byCategory[t.category] = (j.byCategory[t.category]||0) + amt;
-      else j.uncategorized += amt;
-    }else{
-      overheadTotal += amt;
-      if(!t.category) overheadUncategorized += amt;
-    }
-  });
-
-  // Real revenue per job — finPaymentEvents() is the SAME receipt-classification function
-  // Finance & Allocation already uses; this never defines "revenue this month" a second way.
-  const jobRevenue = {};
-  (_financeInvoices||[]).forEach(inv=>{
-    const events = finPaymentEvents(inv.data||{}).filter(e=>e.date>=periodStart && e.date<=periodEnd);
-    if(events.length) jobRevenue[inv.invnum] = (jobRevenue[inv.invnum]||0) + events.reduce((t,e)=>t+e.amount,0);
-  });
-
-  const allJobs = new Set([...Object.keys(laborByJob), ...Object.keys(jobSpend), ...Object.keys(jobRevenue)]);
-  const jobRows = [...allJobs].map(invnum=>{
-    const inv = (_financeInvoices||[]).find(i=>i.invnum===invnum);
-    const revenue = jobRevenue[invnum]||0, labor = laborByJob[invnum]||0;
-    const s = jobSpend[invnum] || {total:0, byCategory:{}, uncategorized:0};
-    const totalCost = labor + s.total;
-    return { invnum, label: inv?jobLabelFor(inv):invnum, revenue, labor, spend:s.total, byCategory:s.byCategory, uncategorized:s.uncategorized, net: revenue-totalCost };
-  }).sort((a,b)=>b.revenue-a.revenue);
-
-  overheadEl.innerHTML = `<div class="fin-lbl">Business overhead this month (untagged Amex spending — storage, insurance, software, general truck/supplies not tied to one job)</div>
-    <div class="fin-val">${finMoney(overheadTotal)}</div>
-    <div class="fin-note">${overheadUncategorized>0.009?finMoney(overheadUncategorized)+' of this is uncategorized — review in the Spending tab.':(spend.length?'All categorized.':'No spending data yet — connect and sync the business Amex in the Spending tab.')}</div>`;
-
-  if(!jobRows.length){
-    bodyEl.innerHTML = '<div class="empty-note">No real revenue, labor, or job-tagged spending found for this month yet.</div>';
-    return;
-  }
-  bodyEl.innerHTML = jobRows.map(j=>`
-    <div class="alloc-card" style="margin-bottom:12px">
-      <div class="alloc-ttl">${esc(j.label)}</div>
-      <div class="alloc-row"><span>Revenue (real receipts)</span><span>${finMoney(j.revenue)}</span></div>
-      <div class="alloc-row sub"><span>Labor (actual hours)</span><span>-${finMoney(j.labor)}</span></div>
-      <div class="alloc-row sub"><span>Tagged Amex spending</span><span>-${finMoney(j.spend)}</span></div>
-      ${Object.entries(j.byCategory).map(([cat,amt])=>`<div class="alloc-row sub" style="padding-left:18px;font-size:11px"><span>${esc(cat)}</span><span>-${finMoney(amt)}</span></div>`).join('')}
-      <div class="alloc-row total"><span>Real net (federal lens)</span><span class="${j.net<0?'note-strong':''}">${finMoney(j.net)}</span></div>
-      ${j.uncategorized>0.009?`<div class="alloc-row sub" style="color:var(--amber,#c97c2e)"><span>Partial — ${finMoney(j.uncategorized)} of tagged spending still needs a category</span><span></span></div>`:''}
-      <div class="fin-note" style="margin-top:6px">Based on tagged transactions as of now — other spending for this job may exist in Amex but isn't tagged yet. Never a finished number.</div>
-    </div>`).join('');
+    const response=await fetch('/api/webhook?cash=snapshot&period='+encodeURIComponent(month),{credentials:'same-origin'});
+    if(!response.ok)throw Error('Cash sources unavailable');
+    const data=await response.json();
+    if(window._cashLedgerGeneration!==generation)return;
+    overheadEl.innerHTML='<div class="fin-lbl">Recorded shared costs this month</div><div class="fin-val">'+finMoney((data.monthly.shared_costs_cents||0)/100)+'</div><div class="fin-note">Unassigned Amex purchases, reviewed bank fees and unassigned actual Stripe fees. Checking transfers are excluded.</div>';
+    const rows=data.monthly_jobs||[];
+    bodyEl.innerHTML='<p class="fin-note">'+esc(data.revenue_source)+'</p>'+(rows.length?rows.map(j=>'<div class="alloc-card" style="margin-bottom:12px"><div class="alloc-ttl">'+esc(j.client)+' #'+esc(j.invnum)+'</div><div class="alloc-row"><span>Recorded customer receipts</span><span>'+finMoney(j.receipts_cents/100)+'</span></div><div class="alloc-row"><span>Tagged Amex, completed mover payments and actual Stripe fees</span><span>'+finMoney(j.recorded_cost_cents/100)+'</span></div><div class="alloc-row total"><span>Provisional contribution</span><span>'+finMoney(j.contribution_cents/100)+'</span></div><div class="fin-note">Includes collected sales tax; excludes shared costs. This month only; not net profit.</div></div>').join(''):'<div class="empty-note">No recorded receipts or tagged costs this month.</div>')+'<p class="fin-note">'+esc(data.monthly.issues.join(' '))+'</p><a href="/cash.html">Review cash, payment evidence and results across months →</a>';
+  }catch(error){if(window._cashLedgerGeneration===generation)bodyEl.textContent='Payment and cost sources could not be verified. Retry or open Business cash. No zero-profit conclusion has been made.';}
 }
 
 async function prAddNote(){
@@ -2511,11 +2443,7 @@ async function loadMonthlyPerformance(){
     const periodEnd = `${y}-${String(m+1).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`;
     let revenue=0;
     counted.forEach(inv=>{
-      const d = inv.data||{};
-      finPaymentEvents(d).filter(e=>e.date>=periodStart && e.date<=periodEnd).forEach(e=>{ revenue += e.amount; });
-      (d.extensions||[]).forEach(ext=>{
-        if(ext.paid && !ext.is_test && ext.paid_date>=periodStart && ext.paid_date<=periodEnd) revenue += parseFloat(ext.amount)||0;
-      });
+      revenue += SWJPayments.total(SWJPayments.inPeriod(inv,finComputeGrandForEvents,periodStart,periodEnd));
     });
     const moverCost = entries.filter(e=>e.clock_in>=periodStart+'T00:00:00' && e.clock_in<=periodEnd+'T23:59:59').reduce((t,e)=>t+(parseFloat(e.amount)||0),0);
     const jobsCount = counted.filter(inv=>{ const d=inv.data||{}; return d.startdate && d.startdate!=='TBD' && d.startdate>=periodStart && d.startdate<=periodEnd; }).length || (revenue>0.009?1:0);

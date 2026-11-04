@@ -32,6 +32,38 @@ class HTTPTests(unittest.TestCase):
         db.rpc.assert_not_called()
         stripe.assert_not_called()
         db.rows.assert_called_once_with('cash_review_history',select='revision_id',order='revision_id.asc')
+    def bank_assignment(self, **changes):
+        from unittest.mock import Mock
+        from lib.cash_ledger import fingerprint
+        tx={'transaction_id':'venmo-bank-1','account_id':'checking','date':'2026-11-03','amount':75,'pending':False}
+        payload={'transaction_id':tx['transaction_id'],'fingerprint':fingerprint(tx),'confirmed_payment':True,
+                 'note':'Confirmed direct mover payments','allocations':[{'mover_name':'Mover A','job_invnum':'JOB-A','amount':'25.00'},
+                                                                          {'mover_name':'Mover B','job_invnum':'JOB-B','amount':'50.00'}]}
+        payload.update(changes)
+        db=Mock(url='https://example.test',key='private')
+        db.rows.side_effect=lambda table,**kw:[tx] if table=='cash_bank_transactions' else []
+        with patch.object(cash_http,'scan_invoices',return_value=([{'invnum':'JOB-A'},{'invnum':'JOB-B'}],{})):
+            result=cash_http.assign_bank_movers(db,payload)
+        return db,result
+    def test_checking_mover_split_saves_once_atomically_and_retry_uses_same_ids(self):
+        db,result=self.bank_assignment()
+        self.assertEqual(result['allocations_recorded'],2)
+        db.rpc.assert_called_once()
+        name,payload=db.rpc.call_args.args
+        self.assertEqual(name,'cash_assign_bank_movers')
+        self.assertEqual([p['amount'] for p in payload['p_rows']],['25.00','50.00'])
+        self.assertTrue(all(p['paid_date']=='2026-11-03' for p in payload['p_rows']))
+        retry,_=self.bank_assignment()
+        self.assertEqual(retry.rpc.call_args.args[1]['p_rows'],payload['p_rows'])
+    def test_wallet_funding_requires_explicit_mover_payment_confirmation(self):
+        with self.assertRaisesRegex(ValueError,'wallet funding'):
+            self.bank_assignment(confirmed_payment=False)
+    def test_mover_allocation_cannot_exceed_checking_debit(self):
+        with self.assertRaisesRegex(ValueError,'exactly'):
+            self.bank_assignment(allocations=[{'mover_name':'A','job_invnum':'JOB-A','amount':'100'}])
+    def test_changed_checking_payment_cannot_create_mover_costs(self):
+        with self.assertRaisesRegex(ValueError,'changed'):
+            self.bank_assignment(fingerprint='old')
     def test_partial_read_fails_closed(self):
         db=cash_http.Store('https://example.test','private')
         with patch.object(db,'request',return_value=([{'id':1}],{'Content-Range':'0-0/2'})):

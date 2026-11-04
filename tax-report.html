@@ -183,6 +183,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
 </div>
 
 <div class="wrap">
+<p data-revenue-basis style="font-size:11px;color:#68685e">Revenue: paid invoice payments and extensions, by received month, regardless of signature. Stripe and checking deposits verify settlement only.</p>
 
   <div class="card">
     <div class="card-hdr">Reporting Period</div>
@@ -650,7 +651,7 @@ async function runReport(){
     // to this report entirely. Each paid extension is its own 100%-rental cash-basis event,
     // taxed at the SAME property's location rate (see api/webhook.py's
     // supabase_update_extension_payment for how paid/paid_date get set).
-    (d.extensions || []).forEach(ext=>{
+    SWJPayments.extensions(d).forEach(ext=>{
       if(!ext.paid || !ext.paid_date || ext.is_test) return;
       if(ext.paid_date < periodStart || ext.paid_date > periodEnd) return;
       const amt = parseFloat(ext.amount) || 0;

@@ -2,6 +2,7 @@
 Plaid checking uses Transactions only; existing Amex Items are never reused or changed.
 """
 import datetime as dt
+import hashlib
 import json
 import os
 import re
@@ -41,6 +42,8 @@ class Store:
                 return json.loads(payload) if payload else None, response.headers
         except urllib.error.HTTPError as error:
             # Never relay database response bodies, tokens, SQL text or imported raw data.
+            if error.code==404 and path=='rpc/cash_assign_bank_movers':
+                raise SetupRequired('Direct mover assignment needs the checking_bank_mover_assignment.sql follow-up. No payment or review was saved.') from None
             if error.code in (404,400) and method=='GET':
                 raise SetupRequired('Checking schema is incomplete. Review the applied migration and pending follow-up SQL; do not rerun the original migration.') from None
             raise ValueError('Database action was not completed. Check the migration, permissions or conflicting evidence; no success was assumed.') from None
@@ -269,6 +272,10 @@ def confirm_review(db, payload, stripe_get):
     if len(transactions)!=1: raise ValueError('Choose an existing bank transaction.')
     tx=transactions[0]
     if payload.get('fingerprint')!=fingerprint(tx): raise ValueError('This bank transaction changed; refresh before matching.')
+    existing=db.rows('cash_bank_reviews',filters={'transaction_id':'eq.'+txid},order='transaction_id.asc')
+    if existing and any(str(ref).startswith('mover:bank-') for ref in existing[0].get('source_refs',[])):
+        if payload.get('kind')!=existing[0]['kind'] or payload.get('source_refs')!=existing[0]['source_refs']:
+            raise ValueError('This movement already created mover costs. Its allocation cannot be reclassified separately from those costs.')
     cards,txs=card_data(db); movers=db.rows('cash_mover_payments',order='event_id.asc')
     refs=payload.get('source_refs') or []; kind=payload.get('kind');payout=None
     if not isinstance(refs,list) or any(not isinstance(r,str) for r in refs): raise ValueError('Choose valid source references.')
@@ -279,6 +286,45 @@ def confirm_review(db, payload, stripe_get):
     db.rpc('cash_confirm_review',{'p_transaction':txid,'p_fingerprint':checked['fingerprint'],'p_kind':kind,
                                 'p_refs':refs,'p_note':safe_label(payload.get('note'),500),'p_expected_revision':payload.get('review_version')})
     return {'ok':True}
+
+
+def assign_bank_movers(db, payload):
+    """A checking debit is the payment evidence; allocations supply mover/job detail.
+    One RPC records costs and confirms the bank movement atomically. No Venmo sync.
+    """
+    txid=str(payload.get('transaction_id') or '')
+    transactions=db.rows('cash_bank_transactions',filters={'transaction_id':'eq.'+txid},order='transaction_id.asc')
+    if len(transactions)!=1:
+        raise ValueError('Choose an existing posted checking payment.')
+    tx=transactions[0]
+    if tx.get('pending') or tx.get('removed') or cents(tx.get('amount'))<=0:
+        raise ValueError('Only a posted outgoing payment can be assigned to movers.')
+    if payload.get('fingerprint')!=fingerprint(tx):
+        raise ValueError('This checking payment changed. Refresh before assigning movers.')
+    raw=payload.get('allocations')
+    if not isinstance(raw,list) or not 1<=len(raw)<=30 or any(not isinstance(r,dict) for r in raw):
+        raise ValueError('Assign this payment to 1–30 mover/job rows.')
+    if payload.get('confirmed_payment') is not True:
+        raise ValueError('Confirm this paid movers directly; wallet funding remains a transfer.')
+    note=str(payload.get('note') or '').strip()
+    if not note or len(note)>500:
+        raise ValueError('Add a confirmation note (maximum 500 characters).')
+    invoices,_=scan_invoices(db.url,db.key)
+    from .section7 import real_invoice
+    jobs={str(i['invnum']) for i in invoices if real_invoice(i)}
+    hours={str(r['id']):r for r in db.rows('time_entries',select='id,invnum,amount',order='id.asc')}
+    prefix='bank-'+hashlib.sha256(txid.encode()).hexdigest()[:40]
+    rows=[mover_record({**r,'event_id':prefix+'-'+str(i+1),'paid_date':tx['date'],'source':'manual_venmo'},jobs,hours)
+          for i,r in enumerate(raw)]
+    if sum(cents(r['amount']) for r in rows)!=cents(tx['amount']):
+        raise ValueError('Mover/job amounts must add up exactly to this checking payment.')
+    links=[link for r in rows for link in r['time_entry_ids']]
+    if len(links)!=len(set(links)):
+        raise ValueError('The same hours cannot be assigned to two movers.')
+    db.rpc('cash_assign_bank_movers',{'p_transaction':txid,'p_fingerprint':fingerprint(tx),
+                                   'p_rows':rows,'p_note':safe_label(note,500),
+                                   'p_expected_revision':payload.get('review_version')})
+    return {'ok':True,'allocations_recorded':len(rows)}
 
 
 def response(handler, status, data):
@@ -313,6 +359,7 @@ def handle(handler, method, base_url, key, plaid_request, stripe_get):
         elif action=='sync': result=checking_sync(db,plaid_request)
         elif action=='settings': result=save_settings(db,payload)
         elif action=='movers': result=add_movers(db,payload)
+        elif action=='bank_movers': result=assign_bank_movers(db,payload)
         elif action=='review': result=confirm_review(db,payload,stripe_get)
         elif action=='stripe_fees': result=stripe_sync(db,str(payload.get('period') or ''))
         else: raise ValueError('Unknown cash action.')
