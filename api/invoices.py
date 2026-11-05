@@ -1,3 +1,4 @@
+from lib.owner_guard import require_owner
 import json
 import os
 import urllib.request
@@ -34,6 +35,8 @@ class handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
+        if not require_owner(self, write=False):
+            return
         # Return last 10 invoices
         status, data = supabase_request(
             'GET',
@@ -42,6 +45,8 @@ class handler(BaseHTTPRequestHandler):
         self._respond(status if status < 300 else 200, data if isinstance(data, list) else [])
 
     def do_POST(self):
+        if not require_owner(self, write=True):
+            return
         try:
             length = int(self.headers.get('Content-Length', 0))
             body = json.loads(self.rfile.read(length))

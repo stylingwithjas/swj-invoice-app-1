@@ -1,3 +1,4 @@
+from lib.owner_guard import require_owner
 import json
 import os
 from http.server import BaseHTTPRequestHandler
@@ -29,11 +30,15 @@ class handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
+        if not require_owner(self, write=False):
+            return
         # Return current value — page will show current + 1
         current = read_current()
         self._respond(200, {'value': current})
 
     def do_POST(self):
+        if not require_owner(self, write=True):
+            return
         # Save whatever number was actually used
         length = int(self.headers.get('Content-Length', 0))
         try:

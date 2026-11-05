@@ -16,10 +16,12 @@
       "maxDuration": 60
     },
     "api/stripe.py": {
-      "maxDuration": 30
+      "maxDuration": 30,
+      "includeFiles": "lib/**"
     },
     "api/agent.py": {
-      "maxDuration": 60
+      "maxDuration": 60,
+      "includeFiles": "lib/**"
     },
     "api/webhook.py": {
       "includeFiles": "{api/Parisienne-Regular.ttf,lib/**}",
@@ -27,6 +29,12 @@
     },
     "api/generate_receipt.py": {
       "includeFiles": "api/Parisienne-Regular.ttf"
+    },
+    "api/search.py": {
+      "includeFiles": "lib/**"
+    },
+    "api/counter.py": {
+      "includeFiles": "lib/**"
     }
   },
   "redirects": [
