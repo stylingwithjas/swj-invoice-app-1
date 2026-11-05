@@ -316,8 +316,10 @@ tr.paid-row { opacity:0.55; }
 }
 </style>
 <link rel="stylesheet" href="/styles/swj-luxury-theme.css">
+<link rel="stylesheet" href="/styles/swj-workspace.css">
+<script src="/assets/swj-workspace.js" defer></script>
 </head>
-<body>
+<body data-swj-workspace="payroll">
 
 <nav class="swj-sidebar">
   <div class="swj-sb-brand">Styling With Jas<span>Staging Operations</span></div>
@@ -377,7 +379,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
   </div>
 </div>
 
-<div class="wrap"><div class="card"><a href="/cash.html" style="font-family:Georgia,serif;font-size:24px">Business cash & checking →</a><p style="margin-top:8px;font-size:13px;color:#68685e">Cash carried over, bank payment verification, completed mover payments and job results across months.</p></div>
+<div class="wrap">
 
   <div class="pr-hdr">
     <div class="pr-hdr-left">
@@ -395,7 +397,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
     </div>
   </div>
 
-  <p data-revenue-basis style="font-size:12px;color:#68685e">Revenue: paid invoice payments and extensions, by received month, regardless of signature. Stripe and checking deposits verify settlement only.</p>
+  <p data-revenue-basis style="font-size:12px;color:#68685e">Revenue: paid invoice payments and extensions, by received month, regardless of signature. Stripe deposits verify settlement only.</p>
   <div class="pr-tabs" id="pr-tabs">
     <button class="pr-tab on" onclick="prShowTab('finance')">Finance &amp; Allocation</button>
     <button class="pr-tab" onclick="prShowTab('employee')">Employee Pay</button>
@@ -725,6 +727,8 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
       <div style="font-size:11px;color:var(--taupe-dk);margin-bottom:14px">Built from recorded customer payments, posted job-tagged Amex purchases, completed mover payments and actual Stripe fees. Logged hours remain commitments until paid. Contributions include collected sales tax and exclude shared costs; they are provisional, not net profit. Tax Report remains separate.</div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px">
         <label style="margin:0;font-size:11px">Month<input type="month" id="pr-ledger-month" style="margin-left:6px"></label>
+        <button type="button" class="filter-btn" id="pr-stripe-fees-sync" onclick="syncLedgerStripeFees(this)">Sync actual Stripe fees</button>
+        <span id="pr-stripe-fees-status" role="status" style="font-size:12px"></span>
       </div>
       <div id="pr-ledger-overhead" class="fin-card full" style="margin-bottom:14px"></div>
       <div id="pr-ledger-body"><div class="empty-note">Loading…</div></div>
@@ -2151,10 +2155,23 @@ async function renderRealLedger(){
     if(!response.ok)throw Error('Cash sources unavailable');
     const data=await response.json();
     if(window._cashLedgerGeneration!==generation)return;
-    overheadEl.innerHTML='<div class="fin-lbl">Recorded shared costs this month</div><div class="fin-val">'+finMoney((data.monthly.shared_costs_cents||0)/100)+'</div><div class="fin-note">Unassigned Amex purchases, reviewed bank fees and unassigned actual Stripe fees. Checking transfers are excluded.</div>';
+    overheadEl.innerHTML='<div class="fin-lbl">Recorded shared costs this month</div><div class="fin-val">'+finMoney((data.monthly.shared_costs_cents||0)/100)+'</div><div class="fin-note">Recorded shared costs and actual Stripe fees. Transfers are excluded.</div>';
     const rows=data.monthly_jobs||[];
-    bodyEl.innerHTML='<p class="fin-note">'+esc(data.revenue_source)+'</p>'+(rows.length?rows.map(j=>'<div class="alloc-card" style="margin-bottom:12px"><div class="alloc-ttl">'+esc(j.client)+' #'+esc(j.invnum)+'</div><div class="alloc-row"><span>Recorded customer receipts</span><span>'+finMoney(j.receipts_cents/100)+'</span></div><div class="alloc-row"><span>Tagged Amex, completed mover payments and actual Stripe fees</span><span>'+finMoney(j.recorded_cost_cents/100)+'</span></div><div class="alloc-row total"><span>Provisional contribution</span><span>'+finMoney(j.contribution_cents/100)+'</span></div><div class="fin-note">Includes collected sales tax; excludes shared costs. This month only; not net profit.</div></div>').join(''):'<div class="empty-note">No recorded receipts or tagged costs this month.</div>')+'<p class="fin-note">'+esc(data.monthly.issues.join(' '))+'</p><a href="/cash.html">Review cash, payment evidence and results across months →</a>';
-  }catch(error){if(window._cashLedgerGeneration===generation)bodyEl.textContent='Payment and cost sources could not be verified. Retry or open Business cash. No zero-profit conclusion has been made.';}
+    bodyEl.innerHTML='<p class="fin-note">'+esc(data.revenue_source)+'</p>'+(rows.length?rows.map(j=>'<div class="alloc-card" style="margin-bottom:12px"><div class="alloc-ttl">'+esc(j.client)+' #'+esc(j.invnum)+'</div><div class="alloc-row"><span>Recorded customer receipts</span><span>'+finMoney(j.receipts_cents/100)+'</span></div><div class="alloc-row"><span>Tagged Amex, completed mover payments and actual Stripe fees</span><span>'+finMoney(j.recorded_cost_cents/100)+'</span></div><div class="alloc-row total"><span>Provisional contribution</span><span>'+finMoney(j.contribution_cents/100)+'</span></div><div class="fin-note">Includes collected sales tax; excludes shared costs. This month only; not net profit.</div></div>').join(''):'<div class="empty-note">No recorded receipts or tagged costs this month.</div>')+'<p class="fin-note">'+esc(data.monthly.issues.join(' '))+'</p>';
+  }catch(error){if(window._cashLedgerGeneration===generation)bodyEl.textContent='Payment and cost sources could not be verified. Retry from Finance. No zero-profit conclusion has been made.';}
+}
+
+async function syncLedgerStripeFees(button){
+  const status=document.getElementById('pr-stripe-fees-status');
+  const period=document.getElementById('pr-ledger-month').value;
+  if(!period){status.textContent='Select a month first.';return;}
+  button.disabled=true;status.textContent='Reading actual Stripe fees…';
+  try{
+    const response=await fetch('/api/webhook?cash=stripe_fees',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({period})});
+    const result=await response.json();if(!response.ok)throw Error(result.error||'Stripe fees could not be verified.');
+    await renderRealLedger();status.textContent='Stripe fee sync completed.';
+  }catch(error){status.textContent=error.message||'Stripe fees could not be verified. Retry.';}
+  finally{button.disabled=false;}
 }
 
 async function prAddNote(){

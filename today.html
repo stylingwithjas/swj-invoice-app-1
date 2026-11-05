@@ -429,6 +429,8 @@ body{background:var(--bg)}.hdr{background:#fbfcfb}.content{gap:12px!important;pa
 <link rel="stylesheet" href="/styles/swj-luxury-theme.css">
 <link rel="stylesheet" href="/styles/swj-luxury-home.css">
 <script src="/assets/home-cash.js" defer></script>
+<link rel="stylesheet" href="/styles/swj-workspace.css">
+<script src="/assets/swj-workspace.js" defer></script>
 </head>
 <body class="swj-home">
 
@@ -499,7 +501,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
 
 
 <div class="content">
-<p data-revenue-basis style="margin:0;font-size:12px;color:#68685e">Revenue: paid invoice payments and extensions, by received month, regardless of signature. Stripe and checking deposits verify settlement only.</p>
+<p data-revenue-basis style="margin:0;font-size:12px;color:#68685e">Revenue: paid invoice payments and extensions, by received month, regardless of signature. Stripe deposits verify settlement only.</p>
 
   <!-- GREETING -->
   <div class="greeting" id="greeting-area">
@@ -548,7 +550,6 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
       <div class="sec-title">Business Snapshot</div>
       <div class="sec-meta" id="s6-meta">this month</div>
     </div>
-    <p id="home-cash-context" style="margin:0 0 12px;font-size:12px;color:var(--swj-text-secondary)"><a href="/cash.html">Business cash — includes money carried over from earlier months →</a></p>
     <div id="s6-body"><div class="skel" style="height:100px"></div></div>
   </div>
 
@@ -1133,7 +1134,7 @@ function buildS5(){
 // and Job Profit — Real tabs remain the detailed, actionable numbers. Pending/pipeline figures
 // that used to live here are still fully visible via Needs Attention and Follow-ups below.
 function buildS6(){
-  if(window.SWJCashUnavailable){document.getElementById('s6-body').innerHTML='<p>Financial sources could not be verified. <a href="/cash.html">Refresh Business cash →</a></p>';return;}
+  if(window.SWJCashUnavailable){document.getElementById('s6-body').innerHTML='<p>Financial sources could not be verified. <a href="/payroll.html">Review Finance →</a></p>';return;}
   const now=new Date();
   const monthStart=new Date(now.getFullYear(),now.getMonth(),1);
   let mtd=0,mtdN=0;
@@ -1161,7 +1162,7 @@ function buildS6(){
       <span class="luxury-goal-context">${margin==null?'Margin pending until revenue is collected.':`Recorded surplus is ${margin.toFixed(1)}% of receipts · ${gap>0?fmt(gap)+' below the 25% benchmark':'at or above the 25% benchmark'}.`}</span>
 
     </div>
-    <details class="home-detail"><summary>What these numbers include</summary>Early-month bills can arrive before customer payments. This is a provisional cash snapshot, not verified net profit or money available to withdraw. Recorded customer payments by received date drive receipts, regardless of signature; bank deposits are settlement only. Uses synced positive card transactions. See Business cash for mover payments, actual fees and reconciliation. Sales tax, refunds, transfers, payment timing, missing costs and transaction coverage need reconciliation before measuring true net profit. Card payments must not be counted again as purchases. <a href="/payroll.html?tab=spending">Review spending and data coverage →</a></details>`;
+    <details class="home-detail"><summary>What these numbers include</summary>Early-month bills can arrive before customer payments. This is a provisional cash snapshot, not verified net profit or money available to withdraw. Recorded customer payments by received date drive receipts, regardless of signature; bank deposits are settlement only. Uses synced positive card transactions. Review Finance for recorded costs and actual Stripe fees. Sales tax, refunds, transfers, payment timing, missing costs and transaction coverage need reconciliation before measuring true net profit. Card payments must not be counted again as purchases. <a href="/payroll.html?tab=spending">Review spending and data coverage →</a></details>`;
 }
 
 // ── S6B: MONEY LANDING SOON ─────────────────────────────
@@ -1533,13 +1534,13 @@ function buildS11(){
   const viewAllBtn=`<div class="pf-view-all" onclick="window.location.href='/payroll.html?tab=ledger'"><i class="ti ti-chart-bar"></i>View All Jobs &amp; Profitability</div>`;
 
   const verified=window.SWJCashSnapshot;
-  if(!verified||window.SWJCashUnavailable){el.innerHTML='<div class="fin-note">Verifying paid receipts and recorded costs. <a href="/cash.html">Open Business cash →</a></div>'+viewAllBtn;return;}
+  if(!verified||window.SWJCashUnavailable){el.innerHTML='<div class="fin-note">Verifying paid receipts and recorded costs. <a href="/payroll.html?tab=ledger">Open Finance →</a></div>'+viewAllBtn;return;}
   if(pfView==='monthly'){
     const m=verified.monthly;
     el.innerHTML='<div class="pf-job-row"><div class="pf-job-body"><div class="pf-job-title">This month’s provisional result</div><div class="pf-job-sub">Receipts '+fmt(m.collected_cents/100)+' · Recorded costs '+fmt(m.costs_cents/100)+' · sales tax excluded from result</div></div><div class="pf-job-amt">'+(m.result_cents==null?'Pending':fmt(m.result_cents/100))+'</div></div>'+viewAllBtn;return;
   }
   const rows=[...(verified.monthly_jobs||[])].sort((a,b)=>b.contribution_cents-a.contribution_cents);
-  if(!rows.length){el.innerHTML='<div class="fin-note">No recorded job receipts or tagged costs this month. <a href="/cash.html">See results across months →</a></div>'+viewAllBtn;return;}
+  if(!rows.length){el.innerHTML='<div class="fin-note">No recorded job receipts or tagged costs this month. <a href="/payroll.html?tab=ledger">Review job results →</a></div>'+viewAllBtn;return;}
   const top=rows[0];
   el.innerHTML='<div class="pf-job-row"><div class="pf-job-body"><div class="pf-job-title">'+esc(top.client)+' #'+esc(top.invnum)+'</div><div class="pf-job-sub">Receipts '+fmt(top.receipts_cents/100)+' · Recorded costs '+fmt(top.recorded_cost_cents/100)+'<br>This month only; includes sales tax and excludes shared costs. Not net profit.</div></div><div class="pf-job-amt">'+fmt(top.contribution_cents/100)+'</div></div>'+viewAllBtn;
 
