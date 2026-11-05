@@ -4,7 +4,7 @@ import vm from 'node:vm';
 const {Window}=await import(process.env.SWJ_HAPPY_DOM||'happy-dom');
 function functionCode(file,name){const s=fs.readFileSync(file,'utf8');const start=s.indexOf('async function '+name+'(');return s.slice(start,s.indexOf('\n}',start)+2);}
 const w=new Window({url:'https://fixture.test/payroll.html',settings:{disableJavaScriptEvaluation:true}});
-w.document.write('<input id="pr-spend-month" value="2026-11"><input id="pr-spend-job-filter" value="JOB"><div id="pr-spend-body"></div>');
+w.document.write('<input id="pr-spend-month" value="2026-11"><input id="pr-spend-job-filter" value="JOB"><input id="pr-spend-show-pending" type="checkbox"><div id="pr-spend-body"></div>');
 const context=vm.createContext(w);vm.runInContext(fs.readFileSync('assets/records.js','utf8'),context);
 w._spendingLoadSeq=0;w.esc=s=>String(s||'');w.PLAID_CATEGORIES=[];w.jobDropdownOptions=()=>'';
 const rows=Array.from({length:1201},(_,i)=>({transaction_id:'tx'+String(i).padStart(5,'0'),amount:1,date:'2026-11-04',job_invnum:'JOB',name:'Fixture'}));
@@ -16,6 +16,15 @@ w._sb={from:table=>{assert.equal(table,'plaid_transactions');let min,max,job;
  }});return q;}};
 vm.runInContext(functionCode('payroll.html','renderSpendingTransactions'),context);await w.renderSpendingTransactions();
 assert.equal(w.document.querySelectorAll('#pr-spend-body tbody tr').length,1201);assert.match(w.document.querySelector('#pr-spend-body tfoot').textContent,/1201 transaction/);assert.match(w.document.querySelector('#pr-spend-body tfoot').textContent,/1,201\.00/);assert.ok(filtered>2);
+rows.push({transaction_id:'pending',amount:999,date:'2026-11-04',job_invnum:'JOB',name:'Authorization fixture',pending:true});
+await w.renderSpendingTransactions();
+assert.equal(w.document.querySelectorAll('#pr-spend-body tbody tr').length,1201);
+assert.match(w.document.querySelector('#pr-spend-body tfoot').textContent,/Posted total.*1,201\.00/);
+w.document.getElementById('pr-spend-show-pending').checked=true;
+await w.renderSpendingTransactions();
+assert.equal(w.document.querySelectorAll('#pr-spend-body tbody tr').length,1202);
+assert.match(w.document.querySelector('#pr-spend-body tbody').textContent,/Authorization fixture pending/);
+assert.match(w.document.querySelector('#pr-spend-body tfoot').textContent,/Posted total.*1,201\.00/);
 fail=true;await w.renderSpendingTransactions();assert.equal(w.document.querySelector('#pr-spend-body tfoot'),null);assert.match(w.document.getElementById('pr-spend-body').textContent,/Could not load/);
 // Board failure clears old cards and cannot run its stage transitions on partial data.
 w.document.body.innerHTML='<div id="swj-jobs-mobile"></div>'+['proposal','confirmed','staged','destage','done'].map(s=>'<div id="col-body-'+s+'"></div>').join('');

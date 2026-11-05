@@ -709,6 +709,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
         <label style="margin:0;font-size:11px">Month<input type="month" id="pr-spend-month" style="margin-left:6px" onchange="renderSpendingTransactions()"></label>
         <label style="margin:0;font-size:11px">Job<select id="pr-spend-job-filter" style="margin-left:6px" onchange="renderSpendingTransactions()"><option value="">All</option></select></label>
+        <label style="margin:0;font-size:11px"><input type="checkbox" id="pr-spend-show-pending" onchange="renderSpendingTransactions()"> Show pending authorizations</label>
       </div>
       <div id="pr-spend-body">
         <div class="empty-note">Loading…</div>
@@ -2101,14 +2102,17 @@ async function renderSpendingTransactions(){
   },{key:'transaction_id'});
   if(generation!==_spendingLoadSeq)return;
   if(error){ body.innerHTML = '<div class="empty-note">Could not load transactions: '+esc(error.message)+'</div>'; return; }
-  if(!data || !data.length){
-    body.innerHTML = '<div class="empty-note">Connected, but no transactions match this filter yet — click Sync now to pull Amex’s transaction history, or widen the month/job filter.</div>';
+  const showPending = document.getElementById('pr-spend-show-pending')?.checked;
+  const posted = (data||[]).filter(t=>!t.pending);
+  const visible = showPending ? (data||[]) : posted;
+  if(!visible.length){
+    body.innerHTML = '<div class="empty-note">No '+(showPending?'':'posted ')+'transactions match these filters.</div>';
     return;
   }
-  let total = 0;
-  const rows = data.map(t=>{
+  const total = posted.reduce((sum, t)=>sum + (parseFloat(t.amount)||0), 0);
+  const rows = visible.map(t=>{
     const label = esc(t.merchant_name || t.name || '—');
-    const amtNum = parseFloat(t.amount)||0; total += amtNum;
+    const amtNum = parseFloat(t.amount)||0;
     const amt = Math.abs(amtNum).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
     const amtSign = amtNum < 0 ? '+' : '';   // Plaid: positive = spend, negative = credit/refund
     const catOpts = PLAID_CATEGORIES.map(c=>`<option value="${esc(c)}" ${t.category===c?'selected':''}>${esc(c)}</option>`).join('');
@@ -2128,7 +2132,7 @@ async function renderSpendingTransactions(){
   body.innerHTML = `<div style="overflow-x:auto"><table>
     <thead><tr><th>Date</th><th>Payee/vendor</th><th style="text-align:right">Amount</th><th>Category</th><th>Job</th><th>Source</th></tr></thead>
     <tbody>${rows}</tbody>
-    <tfoot><tr class="total-row"><td colspan="2">Total — ${data.length} transaction(s)</td><td style="text-align:right">$${Math.abs(total).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</td><td colspan="3"></td></tr></tfoot>
+    <tfoot><tr class="total-row"><td colspan="2">Posted total — ${posted.length} transaction(s)</td><td style="text-align:right">${total<0?'+':''}$${Math.abs(total).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</td><td colspan="3"></td></tr></tfoot>
   </table></div>`;
 }
 
