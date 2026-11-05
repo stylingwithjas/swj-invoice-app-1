@@ -1,0 +1,38 @@
+/* UI only: no network, storage or business calculations. */
+(()=>{
+ const nav=document.querySelector('.swj-bottom-nav');
+ const measure=()=>{
+  const h=nav?.getBoundingClientRect().height||0;
+  document.documentElement.style.setProperty('--swj-nav-height',h+'px');
+  const action=document.querySelector('.gen-sticky-bar');
+  if(action)document.documentElement.style.setProperty('--swj-action-height',action.getBoundingClientRect().height+'px');
+ };
+ if(nav){new ResizeObserver(measure).observe(nav);nav.setAttribute('aria-label','Primary navigation');}
+ const action=document.querySelector('.gen-sticky-bar');if(action)new ResizeObserver(measure).observe(action);measure();
+ const sheet=document.querySelector('.swj-more-sheet'),card=sheet?.querySelector('.swj-more-card');
+ if(card){
+  const heading=document.createElement('h2');heading.className='swj-more-title';heading.id='swj-more-heading';heading.textContent='More';card.prepend(heading);
+  const close=document.createElement('button');close.type='button';close.className='swj-more-close';close.setAttribute('aria-label','Close More menu');close.textContent='×';heading.prepend(close);close.onclick=()=>window.swjToggleMore();
+  sheet.setAttribute('role','dialog');sheet.setAttribute('aria-modal','true');sheet.setAttribute('aria-labelledby',heading.id);
+  let lastGroup='';
+  card.querySelectorAll('.swj-more-link').forEach(link=>{
+   const href=link.getAttribute('href')||'';
+   const group=link.tagName==='BUTTON'?'Account':/hours/.test(href)?'Team':/luxury|gs-invoice/.test(href)?'Specialized invoices':'Business tools';
+   if(group!==lastGroup){const label=document.createElement('div');label.className='swj-more-group';label.textContent=group;link.before(label);lastGroup=group;}
+   link.textContent=link.textContent.replace(/^[^\p{L}\p{N}]+/u,'');
+  });
+  let returnFocus;
+  new MutationObserver(()=>{const open=sheet.classList.contains('open');if(open){returnFocus=document.activeElement;close.focus();}else if(returnFocus?.isConnected)returnFocus.focus();}).observe(sheet,{attributes:true,attributeFilter:['class']});
+  sheet.addEventListener('keydown',e=>{if(e.key!=='Tab')return;const nodes=[...card.querySelectorAll('a[href],button')].filter(n=>n.getClientRects().length);const first=nodes[0],last=nodes.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}});
+ }
+ // Keep all editor nodes mounted: collapsing never discards unsaved input values.
+ document.querySelectorAll('#overlay .m-sec').forEach((section,i)=>{
+  const title=section.querySelector(':scope > .m-sec-ttl');if(!title)return;
+  const body=document.createElement('div');body.id='swj-job-section-'+i;
+  [...section.childNodes].forEach(node=>{if(node!==title)body.append(node);});
+  const button=document.createElement('button');button.type='button';button.className='swj-section-toggle';button.setAttribute('aria-controls',body.id);button.setAttribute('aria-expanded','true');
+  const text=document.createElement('span');text.textContent=title.textContent.replace(/^[^\p{L}\p{N}]+/u,'');button.append(text);
+  title.replaceWith(button);section.append(body);
+  button.onclick=()=>{const open=button.getAttribute('aria-expanded')==='true';button.setAttribute('aria-expanded',String(!open));body.hidden=open;};
+ });
+})();
