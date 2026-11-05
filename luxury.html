@@ -17,6 +17,8 @@
 <title>SWJ — Luxury Collection</title>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="/assets/swj-owner-data.js"></script>
+<script src="/assets/swj-private-links.js"></script>
 <style>
 *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
 
@@ -2879,10 +2881,13 @@ async function generateAndEmail(){
   if(!result) return;
   _lastPdfBlob=result.blob; _lastPdfFilename=result.filename;
   showContributorLinksOverlay(result.data.payments);
-  openEmailModal(result.data);
+  await openEmailModal(result.data);
 }
 
-function openEmailModal(data){
+async function openEmailModal(data){
+  let approvalLink;
+  try { approvalLink = await swjPrivateLink(data.invnum,'client'); }
+  catch(error) { alert(error.message); return; }
   const client=data.client||"";
   const address=data.address||"";
   const firstName=client.toLowerCase().startsWith("estate of")?client.split(" ").slice(2).join(" ").split(" ")[0]:client.split(" ")[0];
@@ -2895,7 +2900,7 @@ function openEmailModal(data){
   const scopeWord=data.scope?(data.scope+" staging"):"staging";
   const spacesBit=spaceCount?(" · "+spaceCount+" curated spaces"):"";
   const clientRoleParam=data.cosigner&&data.cosigner.name?"&role=client":"";
-  const proposalUrl=location.origin+"/proposal.html?inv="+(data.invnum||"")+clientRoleParam;
+  const proposalUrl=approvalLink;
   const approveLine="\n\nTo approve this proposal, review & sign here:\n"+proposalUrl;
   document.getElementById("email-to").value=data.client_email||"";
   document.getElementById("email-cc").value="";
@@ -3022,7 +3027,7 @@ async function sendCosignerInviteEmail(data, pdfBase64){
   const client=data.client||'';
   const address=data.address||'';
   const roleLabel=cosigner.role||'Co-Signer';
-  const link=location.origin+"/proposal.html?inv="+(data.invnum||"")+"&role=cosigner";
+  const link=await swjPrivateLink(data.invnum,'cosigner');
   const subject=`Please Review & Sign — ${address}`;
   // Joint clients (spouse/co-buyer) get equal framing — neither name is presented as the
   // "primary" who set things up. Third-party roles (agent, witness) keep the original wording.

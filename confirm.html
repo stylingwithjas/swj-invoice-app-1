@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<meta name="referrer" content="no-referrer">
 <meta charset="UTF-8">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -13,7 +14,7 @@
 <title>SWJ — Confirm Availability</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Cormorant+Garamond:wght@300;400;500;600&display=swap">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
 :root{
@@ -70,10 +71,7 @@ body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var
 </div>
 
 <script>
-const _sb = supabase.createClient(
-  'https://cwvdfgrjlrpsdfwduwvn.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN3dmRmZ3JqbHJwc2Rmd2R1d3ZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwMDcyODUsImV4cCI6MjA5MzU4MzI4NX0.zam9AnIwW91TI6eCKUcg05LhvFcRa7op4QsjRpdcrCY'
-);
+
 
 const ROLE_INFO = {
   mover1:      { jobType: 'Staging Crew',  dateField: 'startdate',     timeField: 'truck_pickup_time', nameField: 'mover_name' },
@@ -99,7 +97,14 @@ async function load(){
   }
 
   try{
-    const {data,error} = await _sb.from('invoices').select('*').eq('invnum',_invnum).limit(1);
+    const response = await fetch('/api/webhook?public=confirm', {
+      method:'POST', cache:'no-store', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({invnum:_invnum,role:_role,token:params.get('token')})
+    });
+    const result = await response.json();
+    const data = result.invoice ? [result.invoice] : [];
+    const error = !response.ok;
+    if(error){ showError(result.error || 'Please ask Jasmine for a new private confirmation link.'); return; }
     if(error || !data || !data[0]){
       showError('Job not found. Please contact Jasmine at 206-422-5618.');
       return;
@@ -145,42 +150,24 @@ function renderAsk(inv, d){
 async function respond(status){
   document.getElementById('btn-yes').disabled = true;
   document.getElementById('btn-no').disabled = true;
-  try{
-    // Re-read fresh right before writing so we merge into the current data blob rather
-    // than a snapshot from page load (someone else may have edited the card meanwhile).
-    const {data,error} = await _sb.from('invoices').select('*').eq('invnum',_invnum).limit(1);
-    if(error || !data || !data[0]) throw new Error('Job no longer found');
-    const inv = data[0];
-    const d = inv.data || {};
-    const name = d[_roleInfo.nameField] || '';
-    const confirmed_at = new Date().toISOString();
-    const updated = {
-      ...d,
-      confirmations: { ...(d.confirmations||{}), [_role]: { status, name, confirmed_at } },
-    };
-    await _sb.from('invoices').upsert({
-      invnum: inv.invnum, client: inv.client, address: inv.address, invdate: inv.invdate, data: updated,
-    }, { onConflict: 'invnum' });
-
-    // Notify Jasmine — best-effort, don't block the thank-you screen on it.
-    const address = inv.address || d.address || '';
-    _jobAddress = address;
-    const date = fmtDate(d[_roleInfo.dateField]);
-    const verb = status==='confirmed' ? 'confirmed availability for' : 'is NOT available for';
-    fetch('/api/email', {
+  try {
+    const response = await fetch('/api/webhook?public=respond', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({
-        to: 'info@stylingwithjas.com',
-        subject: `${status==='confirmed'?'✓':'✗'} ${_roleInfo.jobType} — ${name||'Reply'} ${status}`,
-        message: `${name||'Someone'} ${verb} ${_roleInfo.jobType.toLowerCase()} at ${address} on ${date}.\n\nInvoice #${_invnum}.`,
-      })
-    }).catch(()=>{});
-
-    showResult(status, updated);
-  }catch(e){
+      body:JSON.stringify({invnum:_invnum,role:_role,status,token:new URLSearchParams(location.search).get('token')})
+    });
+    const result = await response.json();
+    if(!response.ok || !result.invoice) throw new Error(result.error || 'Could not save your response.');
+    _jobAddress = result.invoice.address || '';
+    const data = result.invoice.data || {};
+    const savedStatus = (data.confirmations[_role] || {}).status || status;
+    showResult(savedStatus,data);
+    if(result.notified === false) {
+      document.querySelector('.result-sub').textContent = 'Your reply is saved. Jasmine can see it in the project board; the email notification could not be delivered.';
+    }
+  } catch(error) {
     document.getElementById('btn-yes').disabled = false;
     document.getElementById('btn-no').disabled = false;
-    alert('Something went wrong — please try again, or just call/text Jasmine at 206-422-5618.');
+    alert(error.message);
   }
 }
 

@@ -16,17 +16,31 @@
       "maxDuration": 60
     },
     "api/stripe.py": {
-      "maxDuration": 30
+      "maxDuration": 30,
+      "includeFiles": "lib/**"
     },
     "api/agent.py": {
-      "maxDuration": 60
+      "maxDuration": 60,
+      "includeFiles": "lib/**"
     },
     "api/webhook.py": {
       "includeFiles": "{api/Parisienne-Regular.ttf,lib/**}",
       "maxDuration": 60
     },
     "api/generate_receipt.py": {
-      "includeFiles": "api/Parisienne-Regular.ttf"
+      "includeFiles": "{api/Parisienne-Regular.ttf,lib/**}"
+    },
+    "api/search.py": {
+      "includeFiles": "lib/**"
+    },
+    "api/counter.py": {
+      "includeFiles": "lib/**"
+    },
+    "api/email.py": {
+      "includeFiles": "lib/**"
+    },
+    "api/distance.py": {
+      "includeFiles": "lib/**"
     }
   },
   "redirects": [
@@ -161,6 +175,42 @@
     {
       "path": "/api/webhook?job=monthly_close",
       "schedule": "0 15 1 * *"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/proposal.html",
+      "headers": [
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "no-store, private"
+        },
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
+    },
+    {
+      "source": "/confirm.html",
+      "headers": [
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "no-store, private"
+        },
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
     }
   ]
 }

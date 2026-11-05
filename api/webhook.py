@@ -2562,6 +2562,19 @@ def run_monthly_close():
 # ════════════════════════════════════════════════════════════════
 
 class handler(BaseHTTPRequestHandler):
+    def _owner_data_method(self, method):
+        from lib.owner_data_http import handle
+        handle(self, method)
+
+    def do_PATCH(self):
+        self._owner_data_method('PATCH')
+
+    def do_DELETE(self):
+        self._owner_data_method('DELETE')
+
+    def do_HEAD(self):
+        self._owner_data_method('HEAD')
+
     def do_OPTIONS(self):
         query_params = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query, keep_blank_values=True)
         if 'admin' in query_params:
@@ -2581,6 +2594,14 @@ class handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
+        if 'public' in urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query, keep_blank_values=True):
+            from lib.public_invoice_http import handle
+            handle(self, 'GET')
+            return
+        if 'data' in urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query, keep_blank_values=True):
+            from lib.owner_data_http import handle
+            handle(self, 'GET')
+            return
         # The single admin session, and Section 7 / the Stripe reconciliation report (both
         # authenticated through that same session) are isolated, read-only surfaces. Dispatch
         # all three before cron or Stripe-webhook processing; none of them can trigger sends,
@@ -2602,15 +2623,15 @@ class handler(BaseHTTPRequestHandler):
             from lib.stripe_recon_http import handle
             handle(self, 'GET', SUPABASE_URL, os.environ.get('SUPABASE_KEY', ''))
             return
-        # Vercel Cron Jobs hit this via GET (see vercel.json — two schedules share this same
-        # path/handler: the daily destage-reminder job, and the monthly tax-report job
-        # distinguished by a ?job= query param). Guarded by CRON_SECRET if it's set — Vercel
-        # auto-sends it as a Bearer token when the env var exists. Worst case without it is
-        # an extra email, not data loss, so this doesn't hard-fail while unconfigured.
+        # Scheduled sends require the configured Vercel cron secret. Missing
+        # configuration must never turn a client reminder into a public action.
         secret = os.environ.get('CRON_SECRET', '')
-        if secret and self.headers.get('Authorization', '') != f'Bearer {secret}':
+        if not secret or not hmac.compare_digest(self.headers.get('Authorization', ''), f'Bearer {secret}'):
             self._respond(401, {'error': 'Unauthorized'})
             return
+        return self._run_scheduled_job()
+
+    def _run_scheduled_job(self):
         query = urllib.parse.urlparse(self.path).query
         job = urllib.parse.parse_qs(query).get('job', [''])[0]
         try:
@@ -2673,6 +2694,14 @@ class handler(BaseHTTPRequestHandler):
             self._respond(500, {'error': str(e)})
 
     def do_POST(self):
+        if 'public' in urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query, keep_blank_values=True):
+            from lib.public_invoice_http import handle
+            handle(self, 'POST')
+            return
+        if 'data' in urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query, keep_blank_values=True):
+            from lib.owner_data_http import handle
+            handle(self, 'POST')
+            return
         if 'cash' in urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query):
             from lib.cash_http import handle
             handle(self, 'POST', SUPABASE_URL, os.environ.get('SUPABASE_KEY', ''), _plaid_request, _stripe_payout_get)
@@ -2693,18 +2722,26 @@ class handler(BaseHTTPRequestHandler):
             from lib.stripe_recon_http import handle
             handle(self, 'POST', SUPABASE_URL, os.environ.get('SUPABASE_KEY', ''))
             return
+        manual_job = query_params.get('job', [''])[0]
+        if manual_job in {'monthly_tax_report','monthly_audit_packet','monthly_backup_export','weekly_digest'}:
+            from lib.owner_guard import require_owner
+            if not require_owner(self):
+                return
+            return self._run_scheduled_job()
         length = int(self.headers.get('Content-Length', 0))
         raw_body = self.rfile.read(length)
 
         # Plaid actions (Amex spending snapshot) — same ?job= dispatch convention do_GET
         # already uses for cron jobs, kept entirely separate from the Stripe-event handling
         # below since a Plaid request is never Stripe-shaped and never carries a
-        # Stripe-Signature header. Reachable by anyone who knows the URL, same as every other
-        # admin-only surface in this app (a client-side password gate on the page, not a
-        # server-side token) — not a new gap, just this app's existing model extended here.
+        # Stripe-Signature header. Owner-session verification is required before
+        # any Plaid account or synchronization action can run.
         query = urllib.parse.urlparse(self.path).query
         job = urllib.parse.parse_qs(query).get('job', [''])[0]
         if job.startswith('plaid_'):
+            from lib.owner_guard import require_owner
+            if not require_owner(self):
+                return
             try:
                 payload = json.loads(raw_body) if raw_body else {}
             except Exception:
@@ -2721,19 +2758,24 @@ class handler(BaseHTTPRequestHandler):
                 self._respond(404, {'error': f'Unknown job: {job}'})
             return
 
-        # "Money landing soon" (Home page) -- same reachable-by-anyone-who-knows-the-URL model
-        # as the Plaid jobs just above; read-only, no charge/payout/refund is ever created here.
+        # "Money landing soon" is read-only but contains private business data,
+        # so it uses the owner session too.
         if job == 'stripe_payout_snapshot':
+            from lib.owner_guard import require_owner
+            if not require_owner(self):
+                return
             self._respond(200, stripe_payout_snapshot())
             return
 
         sig_header = self.headers.get('Stripe-Signature', '')
         webhook_secret = os.environ.get('STRIPE_WEBHOOK_SECRET', '')
 
-        if webhook_secret and sig_header:
-            if not verify_signature(raw_body, sig_header, webhook_secret):
-                self._respond(400, {'error': 'Invalid signature'})
-                return
+        if not webhook_secret:
+            self._respond(503, {'error': 'Webhook verification is not configured.'})
+            return
+        if not sig_header or not verify_signature(raw_body, sig_header, webhook_secret):
+            self._respond(400, {'error': 'Invalid signature'})
+            return
 
         try:
             event = json.loads(raw_body)
