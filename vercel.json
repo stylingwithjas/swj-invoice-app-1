@@ -31,6 +31,21 @@
   },
   "redirects": [
     {
+      "source": "/cash",
+      "destination": "/payroll.html",
+      "permanent": false
+    },
+    {
+      "source": "/cash/",
+      "destination": "/payroll.html",
+      "permanent": false
+    },
+    {
+      "source": "/cash.html",
+      "destination": "/payroll.html",
+      "permanent": false
+    },
+    {
       "source": "/",
       "destination": "/today.html",
       "permanent": false
@@ -44,10 +59,6 @@
     {
       "source": "/api/:path*",
       "destination": "/api/:path*"
-    },
-    {
-      "source": "/cash.html",
-      "destination": "/cash.html"
     },
     {
       "source": "/styles/:path*",
