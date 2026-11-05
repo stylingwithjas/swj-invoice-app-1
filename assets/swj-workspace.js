@@ -26,6 +26,7 @@
   sheet.addEventListener('keydown',e=>{if(e.key!=='Tab')return;const nodes=[...card.querySelectorAll('a[href],button')].filter(n=>n.getClientRects().length);const first=nodes[0],last=nodes.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}});
  }
  // Keep all editor nodes mounted: collapsing never discards unsaved input values.
+ const sectionSummaries=[];
  document.querySelectorAll('#overlay .m-sec').forEach((section,i)=>{
   const title=section.querySelector(':scope > .m-sec-ttl');if(!title)return;
   const body=document.createElement('div');body.id='swj-job-section-'+i;
@@ -34,9 +35,18 @@
   const text=document.createElement('span');text.textContent=title.textContent.replace(/^[^\p{L}\p{N}]+/u,'');button.append(text);
   title.replaceWith(button);section.append(body);
   const summary=document.createElement('small');summary.className='swj-section-summary';text.append(summary);
-  const summarize=()=>{const fields=[...body.querySelectorAll('input:not([type=hidden]),select,textarea')].filter(el=>el.getClientRects().length&&el.value);summary.textContent=fields.slice(0,2).map(el=>el.tagName==='SELECT'?el.selectedOptions[0]?.textContent:el.value).join(' · ');};
+  const summarize=()=>{const fields=[...body.querySelectorAll('input:not([type=hidden]),select,textarea')].filter(el=>!el.disabled&&el.value);summary.textContent=fields.slice(0,2).map(el=>el.tagName==='SELECT'?el.selectedOptions[0]?.textContent:el.value).join(' · ').slice(0,100);};
+  sectionSummaries.push(summarize);
+  if(matchMedia('(max-width:767px)').matches&&i>1){button.setAttribute('aria-expanded','false');body.hidden=true;}
   button.onclick=()=>{const open=button.getAttribute('aria-expanded')==='true';if(open)summarize();button.setAttribute('aria-expanded',String(!open));body.hidden=open;};
  });
+ const editor=document.getElementById('overlay');
+ if(editor){
+  editor.setAttribute('role','dialog');editor.setAttribute('aria-modal','true');editor.setAttribute('aria-labelledby','m-name');
+  const name=document.getElementById('m-name');name.setAttribute('tabindex','-1');let previousFocus;
+  new MutationObserver(()=>{if(editor.classList.contains('on')){sectionSummaries.forEach(update=>update());previousFocus=document.activeElement;name.focus({preventScroll:true});}else if(previousFocus?.isConnected)previousFocus.focus({preventScroll:true});}).observe(editor,{attributes:true,attributeFilter:['class']});
+  editor.addEventListener('keydown',event=>{if(event.key!=='Tab')return;const focusable=[...editor.querySelectorAll('button,a[href],input,select,textarea,[tabindex="0"]')].filter(el=>!el.disabled&&el.getClientRects().length);const first=focusable[0],last=focusable.at(-1);if(event.shiftKey&&(document.activeElement===first||document.activeElement===name)){event.preventDefault();last?.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus();}});
+ }
  const actions=document.querySelector('#overlay .m-btns');
  if(actions){const footer=document.createElement('div');footer.className='swj-job-save-footer';actions.querySelectorAll('button').forEach(b=>{if(b.getAttribute('onclick')==='closeModal()'||b.getAttribute('onclick')==='saveCard()')footer.append(b);});actions.after(footer);}
 })();
