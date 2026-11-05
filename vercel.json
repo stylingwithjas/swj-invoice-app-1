@@ -29,6 +29,10 @@
     },
     "api/generate_receipt.py": {
       "includeFiles": "api/Parisienne-Regular.ttf"
+    },
+    "api/counter.py": {
+      "includeFiles": "lib/**",
+      "maxDuration": 30
     }
   },
   "redirects": [

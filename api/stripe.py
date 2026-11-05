@@ -1,3 +1,5 @@
+from lib.invoice_numbers import require_number, existing_payment_parent
+from lib.invoice_protection import stored_invoice
 from lib.tax_verification import require_verified
 import json
 import os
@@ -19,6 +21,10 @@ class handler(BaseHTTPRequestHandler):
 
             if body.get('source') == 'invoice_generator':
                 try:
+                    number_context={'invnum':body.get('invnum'),'invoice_number':body.get('invoice_number')}
+                    metadata=body.get('invoice_number') or {}
+                    saved=stored_invoice(metadata.get('invnum')) if metadata.get('mode')=='existing' else None
+                    require_number(number_context,saved=saved,payment=True)
                     require_verified(body.get('tax_context') or {}, payment=True)
                 except ValueError as error:
                     self._respond(422, {'error':str(error)}); return
@@ -88,6 +94,14 @@ class handler(BaseHTTPRequestHandler):
             invnum  = str(body.get('invnum', ''))
             address = str(body.get('address', ''))
             label   = str(body.get('label', '')).strip()
+
+            if body.get('source') != 'invoice_generator':
+                try:
+                    parent=existing_payment_parent(invnum)
+                except Exception:
+                    self._respond(503, {'error':'Could not verify the existing invoice. Nothing was created.'}); return
+                if parent is None:
+                    self._respond(422, {'error':'Reload the invoice editor and reserve a number before creating a new payment link.'}); return
 
             if grand < 1:
                 self._respond(400, {'error': 'Invalid amount'})

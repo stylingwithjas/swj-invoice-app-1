@@ -1,3 +1,4 @@
+from lib.invoice_numbers import require_number
 import json
 import os
 import urllib.request
@@ -59,8 +60,9 @@ class handler(BaseHTTPRequestHandler):
             self._respond(503, {'error': 'Could not verify stored invoice status. Nothing was saved.'})
             return
 
-        if body.get('tax_guard_version') == 1 and not body.get('_is_draft') and not body.get('gs_invoice'):
+        if (body.get('tax_guard_version') == 1 or body.get('generator_request')) and not body.get('_is_draft') and not body.get('gs_invoice'):
             try:
+                require_number(body,saved=saved)
                 require_verified(body)
             except ValueError as error:
                 self._respond(422, {'error':str(error)}); return
