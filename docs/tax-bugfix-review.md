@@ -67,7 +67,7 @@ are handled by the separate security PR #91.
 | PDF downloads | ASCII fallback plus UTF-8 filename header supports accented/non-Latin client names and strips header-control characters. |
 | Invoice numbering | Only numeric staging IDs and vN revisions influence the next suggestion. Draft/system/photography IDs cannot inflate it. |
 | Task carry-forward | Source task/date gets a deterministic UUID. Ignore-duplicate upserts make retries/concurrent refreshes idempotent and do not overwrite an already completed carried task. Original tasks remain. |
-| Finance settings | A database error preserves the previous in-memory configuration, shows the error and never reports Saved. |
+| Finance settings | Database errors preserve the previous configuration/monthly overrides, show the error and never report Saved or refresh a falsely saved override. |
 | Navigation | Adds the existing photography destination to Home/Board More menus. |
 | Unknown routes | Removes Home's catch-all rewrite so invalid links receive a real 404. |
 
