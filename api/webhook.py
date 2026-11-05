@@ -1714,6 +1714,10 @@ def _tax_list_invoices():
     )
     with urllib.request.urlopen(req, timeout=20) as r:
         invoices = json.loads(r.read())
+    return _tax_business_invoices(invoices)
+
+
+def _tax_business_invoices(invoices):
     out = []
     for inv in invoices:
         invnum = str(inv.get('invnum', ''))
@@ -1725,7 +1729,7 @@ def _tax_list_invoices():
     return out
 
 
-def build_monthly_tax_report(year, month):
+def build_monthly_tax_report(year, month, *, invoices=None):
     """Returns (summary_csv_bytes, detail_csv_bytes, stats_dict) for the given year/month,
     same cash-basis / every-staging-payment-regardless-of-signature / SWJ-only rules as
     tax-report.html — signature status is a flag per line, never a filter (fix spec, Nov 2026)."""
@@ -1734,7 +1738,7 @@ def build_monthly_tax_report(year, month):
     period_end = f'{year:04d}-{month:02d}-{last_day:02d}'
     period_label = f'{MONTH_NAMES[month-1]} {year}'
 
-    invoices = _tax_list_invoices()
+    invoices = _tax_list_invoices() if invoices is None else _tax_business_invoices(invoices)
 
     city_map = {}  # city -> {rates:set, taxable:float, tax:float}
     gross_receipts = tax_collected = retail_total = service_total = extension_total = card_fees = 0.0
@@ -2568,7 +2572,7 @@ class handler(BaseHTTPRequestHandler):
         query_params = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query, keep_blank_values=True)
         if 'cash' in query_params:
             from lib.cash_http import handle
-            handle(self, 'GET', SUPABASE_URL, os.environ.get('SUPABASE_KEY', ''), _plaid_request, _stripe_payout_get)
+            handle(self, 'GET', SUPABASE_URL, os.environ.get('SUPABASE_KEY', ''), _plaid_request, _stripe_payout_get, tax_report=build_monthly_tax_report)
             return
         if 'admin' in query_params:
             from lib.admin_http import handle
