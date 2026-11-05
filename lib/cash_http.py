@@ -110,10 +110,16 @@ def load_data(db):
     return data
 
 
-def public_snapshot(db, period):
+def public_snapshot(db, period, *, tax_report=None):
     data=load_data(db)
     marker=db.rows('cash_source_sync',filters={'source':'eq.stripe:'+period},order='source.asc')
     result=snapshot(**{k:v for k,v in data.items() if k!='verification'},stripe_complete=bool(marker) and fresh(marker[0].get('completed_at'),dt.datetime.now(dt.timezone.utc)),period=period)
+    result['manual_checking_balance'] = manual_checking_balance(data['settings'])
+    if tax_report is not None:
+        try:
+            result['wa_tax_estimate'] = home_tax_estimate(period, data['invoices'], tax_report)
+        except (ArithmeticError, KeyError, TypeError, ValueError):
+            result['wa_tax_estimate'] = None
     result['verification']=data['verification']
     result['accounts']=[{k:r.get(k) for k in ('account_id','name','mask','current_balance','available_balance','currency','balance_synced_at','transactions_synced_at','sync_pending')} for r in data['bank_accounts']]
     result['settings']=data['settings']
@@ -327,6 +333,45 @@ def assign_bank_movers(db, payload):
     return {'ok':True,'allocations_recorded':len(rows)}
 
 
+def home_tax_estimate(period, invoices, tax_report):
+    previous_month = dt.date.fromisoformat(period + '-01') - dt.timedelta(days=1)
+    _, _, tax = tax_report(previous_month.year, previous_month.month, invoices=invoices)
+    period_key = previous_month.strftime('%Y-%m')
+    review = next((row.get('data') or {} for row in invoices
+                   if row.get('invnum') == f'TAX_REVIEW_{period_key}'), {})
+    return {
+        'period': period_key,
+        'label': tax['period_label'],
+        'estimated_cents': cents(tax['tax_collected']) + cents(tax['bo_total']),
+        'filing_recorded': bool(review.get('dor_confirmation_number')),
+    }
+
+
+def manual_checking_balance(settings):
+    settings = settings or {}
+    amount = settings.get('manual_balance_cents')
+    as_of = settings.get('manual_balance_as_of')
+    if amount is None or not as_of:
+        return None
+    return {'balance_cents': amount, 'as_of': as_of}
+
+
+def save_manual_checking_balance(db, payload):
+    amount = payload.get('amount')
+    as_of = payload.get('as_of')
+    if not isinstance(amount, str) or not re.fullmatch(r'-?\d{1,10}(?:\.\d{1,2})?', amount):
+        raise ValueError('Enter a checking balance with up to two decimal places.')
+    if not isinstance(as_of, str) or not re.fullmatch(r'\d{4}-\d{2}-\d{2}', as_of):
+        raise ValueError('Enter the date shown by your bank.')
+    balance_date = dt.date.fromisoformat(as_of)
+    if balance_date > dt.datetime.now(LA).date():
+        raise ValueError('The balance date cannot be in the future.')
+    balance = cents(amount)
+    db.put('cash_settings', {'id': 'business', 'manual_balance_cents': balance,
+                             'manual_balance_as_of': as_of}, 'id')
+    return {'manual_checking_balance': {'balance_cents': balance, 'as_of': as_of}}
+
+
 def response(handler, status, data):
     body=json.dumps(data,allow_nan=False,default=str).encode()
     if len(body)>4500000:
@@ -336,7 +381,7 @@ def response(handler, status, data):
     handler.end_headers();handler.wfile.write(body)
 
 
-def handle(handler, method, base_url, key, plaid_request, stripe_get):
+def handle(handler, method, base_url, key, plaid_request, stripe_get, *, tax_report=None):
     query=urllib.parse.parse_qs(urllib.parse.urlparse(handler.path).query)
     action=query.get('cash',[''])[0]
     if not auth.same_origin(handler,required=method=='POST') or not auth.authorized(handler,base_url=base_url,key=key):
@@ -345,13 +390,15 @@ def handle(handler, method, base_url, key, plaid_request, stripe_get):
         db=Store(base_url,key)
         if method=='GET' and action=='snapshot':
             period=query.get('period',[dt.datetime.now(LA).strftime('%Y-%m')])[0]
-            response(handler,200,public_snapshot(db,period));return
+            response(handler,200,public_snapshot(db,period,tax_report=tax_report if query.get('home')==['1'] else None));return
         if method!='POST': response(handler,405,{'error':'Use a supported same-origin action.'});return
         if handler.headers.get('Content-Type','').split(';')[0]!='application/json': raise ValueError('JSON is required.')
         size=int(handler.headers.get('Content-Length','0'))
         if not 0<size<=150000: raise ValueError('Invalid request size.')
         payload=json.loads(handler.rfile.read(size))
         if not isinstance(payload,dict): raise ValueError('Invalid request body.')
+        if action=='manual_balance':
+            response(handler, 200, save_manual_checking_balance(db, payload));return
         # Check schema before exchanging/storing any new permanent Plaid credential.
         db.rows('cash_settings',order='id.asc')
         if action=='link': result=checking_link(plaid_request)

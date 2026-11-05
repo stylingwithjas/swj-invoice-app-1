@@ -1,7 +1,7 @@
 import io
 import json
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 from lib import cash_http
 class Handler:
     path='/api/webhook?cash=sync'
@@ -68,6 +68,30 @@ class HTTPTests(unittest.TestCase):
         db=cash_http.Store('https://example.test','private')
         with patch.object(db,'request',return_value=([{'id':1}],{'Content-Range':'0-0/2'})):
             with self.assertRaises(ValueError):db.rows('test')
+    def test_home_estimate_uses_prior_tax_period_and_only_returns_safe_summary(self):
+        rows = [{'invnum': 'TAX_REVIEW_2026-12', 'data': {'dor_confirmation_number': 'private'}}]
+        report = Mock(return_value=(b'', b'', {'period_label': 'December 2026', 'tax_collected': 120.25, 'bo_total': 15.01}))
+        summary = cash_http.home_tax_estimate('2027-01', rows, report)
+        report.assert_called_once_with(2026, 12, invoices=rows)
+        self.assertEqual(summary, {'period': '2026-12', 'label': 'December 2026',
+                                   'estimated_cents': 13526, 'filing_recorded': True})
+
+    def test_manual_balance_updates_only_private_settings(self):
+        db = Mock()
+        result = cash_http.save_manual_checking_balance(db, {'amount': '-50.25', 'as_of': '2020-10-31'})
+        expected = {'balance_cents': -5025, 'as_of': '2020-10-31'}
+        self.assertEqual(result['manual_checking_balance'], expected)
+        db.put.assert_called_once_with('cash_settings', {'id': 'business', 'manual_balance_cents': -5025,
+                                                        'manual_balance_as_of': '2020-10-31'}, 'id')
+        for payload in ({'amount': '0.001', 'as_of': '2020-10-31'},
+                        {'amount': '1', 'as_of': '2099-10-31'},
+                        {'amount': '1', 'as_of': '2020-02-30'}):
+            with self.assertRaises(ValueError):
+                cash_http.save_manual_checking_balance(db, payload)
+        self.assertEqual(db.put.call_count, 1)
+        self.assertEqual(cash_http.manual_checking_balance({'manual_balance_cents': 0,
+                                                           'manual_balance_as_of': '2020-10-31'})['balance_cents'], 0)
+
     def test_errors_do_not_echo_tokens(self):
         h=Handler()
         with patch.object(cash_http.auth,'same_origin',return_value=True),patch.object(cash_http.auth,'authorized',return_value=True),patch.object(cash_http,'Store',side_effect=RuntimeError('secret-token')):

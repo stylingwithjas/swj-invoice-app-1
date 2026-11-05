@@ -353,8 +353,14 @@ function initPeriodPickers(){
   }
   // Default to last month (the month most likely being filed for right now)
   const last = new Date(now.getFullYear(), now.getMonth()-1, 1);
-  mSel.value = last.getMonth()+1;
-  ySel.value = last.getFullYear();
+  const period = new URLSearchParams(location.search).get('period') || '';
+  const match = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(period);
+  const selectedYear = match ? Number(match[1]) : 0;
+  const selected = selectedYear >= thisYear-5 && selectedYear <= thisYear
+    ? new Date(selectedYear, Number(match[2])-1, 1)
+    : last;
+  mSel.value = selected.getMonth()+1;
+  ySel.value = selected.getFullYear();
 }
 
 // Best-effort city extraction from a free-text address like "5015 128th St E, Tacoma, WA 98446" —
