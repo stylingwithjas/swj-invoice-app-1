@@ -424,7 +424,7 @@ def _plaid_fetch_card_summaries(access_token, timeout=20):
 def _plaid_store_balances(item_id, summaries, timeout=15):
     """Upserts one row per card into plaid_accounts, where the anon-readable plaid_card_summary
     view (sql/plaid_tables.sql) exposes it without ever touching access_token. Shared by
-    plaid_refresh_balance() and the best-effort refresh at the end of a transactions sync.
+    plaid_refresh_balance() and the balance check during a transaction sync.
 
     `timeout` defaults to 15s; a caller chaining this with other calls in one request must pass
     a shorter one so the total can't stack past this function's own Vercel maxDuration."""
@@ -480,136 +480,123 @@ def plaid_refresh_balance():
     return {'ok': True, 'balance_synced_at': synced_at, 'accounts': deduped, 'errors': errors or None}
 
 
-def plaid_sync_transactions():
-    """Pulls new/changed/removed transactions since the last sync, across every connected
-    item, via Plaid's own cursor (Plaid tracks the cursor; nothing is stored locally for it, so
-    a sync always picks up exactly where Plaid last left off for that item). Auto-categorizes
-    brand-new transactions only (lib/plaid_categorize) — a re-sync can add new transactions or
-    update Plaid's own fields on existing ones, but must never overwrite a category (rule- or
-    manually-assigned) that a transaction already has.
+def _plaid_get_sync_items():
+    key = os.environ.get('SUPABASE_KEY', '')
+    query = urllib.parse.urlencode({
+        'select': 'item_id,access_token,institution_name,transactions_cursor,plaid_accounts(mask),plaid_transactions(id)',
+        'plaid_transactions.limit': '1',
+        'order': 'created_at.asc,item_id.asc',
+    })
+    req = urllib.request.Request(
+        f'{SUPABASE_URL}/rest/v1/plaid_items?{query}',
+        headers={'apikey': key, 'Authorization': f'Bearer {key}'},
+    )
+    with urllib.request.urlopen(req, timeout=8) as response:
+        items = json.load(response)
+    # Keep importing through the connection that already owns the transaction history.
+    return sorted(items, key=lambda item: not (item['transactions_cursor'] or item['plaid_transactions']))
 
-    Nov 4, 2026: skips an Item entirely if every real card it reports back (by mask — see PR
-    #77, account_id/item_id are scoped per Item, not per physical card) is already covered by
-    an earlier Item in this same run. An orphaned Item from a stalled Link attempt can still be
-    a genuine, live re-authentication against the same real Amex login; syncing its
-    transactions too would re-insert the exact same real purchases under DIFFERENT
-    transaction_ids (transaction_id is Item-scoped the same way), multiplying real spend
-    totals rather than just mis-displaying a card list the way the old balance refresh did
-    before #77. If the mask lookup itself fails for an Item, it's treated as unknown and
-    synced anyway — never skipped on a guess."""
+
+def _plaid_transaction_updates(item):
+    cursor = item.get('transactions_cursor')
+    rows, removed_ids = {}, set()
+    counts = dict(added=0, modified=0, removed=0)
+    from lib.plaid_categorize import categorize_new_rows
+
+    while True:
+        resp = _plaid_request('/transactions/sync', {
+            'access_token': item['access_token'], 'cursor': cursor or '',
+        }, timeout=8)
+        for action in ('added', 'modified'):
+            updates = []
+            for transaction in resp[action]:
+                row = {key: transaction[key] for key in ('transaction_id', 'account_id', 'date', 'amount')}
+                row.update(
+                    merchant_name=transaction.get('merchant_name'), name=transaction.get('name'),
+                    pending=transaction.get('pending', False),
+                    plaid_category=','.join(transaction.get('category') or []) or None,
+                )
+                updates.append(row)
+            if action == 'added':
+                categorize_new_rows(updates)
+            for row in updates:
+                tx_id = row['transaction_id']
+                rows[tx_id] = {**rows.get(tx_id, {}), **row}
+            counts[action] += len(updates)
+        removed_ids.update(transaction['transaction_id'] for transaction in resp['removed'])
+        counts['removed'] += len(resp['removed'])
+        next_cursor = resp['next_cursor']
+        if resp['has_more'] and (not next_cursor or next_cursor == cursor):
+            raise ValueError('Plaid returned an invalid pagination cursor.')
+        cursor = next_cursor
+        if not resp['has_more']:
+            break
+
+    key = os.environ.get('SUPABASE_KEY', '')
+    req = urllib.request.Request(
+        f'{SUPABASE_URL}/rest/v1/rpc/commit_plaid_transaction_sync',
+        data=json.dumps({
+            'p_item_id': item['item_id'],
+            'p_expected_cursor': item.get('transactions_cursor'),
+            'p_next_cursor': cursor,
+            'p_rows': [row for tx_id, row in rows.items() if tx_id not in removed_ids],
+            'p_removed_ids': sorted(removed_ids),
+        }).encode(),
+        headers={'apikey': key, 'Authorization': f'Bearer {key}', 'Content-Type': 'application/json'},
+        method='POST',
+    )
+    _supabase_urlopen(req, timeout=8)
+    return counts
+
+
+def plaid_sync_transactions():
+    """Refresh Amex card balances and import transaction updates for each connection."""
     if not _plaid_configured():
         return {'error': 'Plaid is not configured yet.'}
-    items = _plaid_get_items()
+    try:
+        items = _plaid_get_sync_items()
+    except (urllib.error.URLError, ValueError, TimeoutError):
+        return {'error': 'Amex sync configuration could not be loaded.'}
     if not items:
         return {'error': 'No Amex account connected yet — use Connect Amex first.'}
-    from lib.plaid_categorize import categorize_new_rows
-    added = modified = removed = 0
-    key = os.environ.get('SUPABASE_KEY', '')
+    counts = dict(added=0, modified=0, removed=0)
     errors = []
     seen_masks = set()
+    imported = False
     for item in items:
+        name = item.get('institution_name') or 'Amex'
+        masks = {card['mask'] for card in item.get('plaid_accounts', []) if card.get('mask')}
+        if masks and masks <= seen_masks:
+            continue
         try:
-            try:
-                summaries = _plaid_fetch_card_summaries(item['access_token'])
-            except Exception:
-                summaries = None  # unknown masks -- never skip on uncertainty, sync anyway
-            masks = {s.get('mask') for s in (summaries or []) if s.get('mask')}
+            summaries = _plaid_fetch_card_summaries(item['access_token'], timeout=5)
+            masks.update(card['mask'] for card in summaries if card.get('mask'))
             if masks and masks <= seen_masks:
                 continue
-            seen_masks |= masks
             if summaries:
-                _plaid_store_balances(item['item_id'], summaries)
-            cursor = None
-            has_more = True
-            while has_more:
-                payload = {'access_token': item['access_token']}
-                if cursor:
-                    payload['cursor'] = cursor
-                resp = _plaid_request('/transactions/sync', payload)
-                new_rows = []
-                for t in resp.get('added', []):
-                    new_rows.append({
-                        'transaction_id': t.get('transaction_id'),
-                        'item_id': item['item_id'],
-                        'account_id': t.get('account_id'),
-                        'date': t.get('date'),
-                        'merchant_name': t.get('merchant_name'),
-                        'name': t.get('name'),
-                        'amount': t.get('amount'),
-                        'pending': t.get('pending', False),
-                        'plaid_category': ','.join(t.get('category') or []) if t.get('category') else None,
-                        'updated_at': datetime.datetime.utcnow().isoformat(),
-                    })
-                # categorize_new_rows() only ADDS category/category_source keys on a match —
-                # an unmatched row keeps no 'category' key in its payload at all (not even
-                # category: null), so a merge-duplicates upsert can never use it to clobber an
-                # existing value in the unlikely event Plaid ever re-sends a transaction_id
-                # already in 'added' (its sync contract says it won't, but this costs nothing).
-                categorize_new_rows(new_rows)
-                modified_rows = []
-                for t in resp.get('modified', []):
-                    # Deliberately omits category/category_source/job_invnum — an update to an
-                    # existing transaction (e.g. pending -> posted) must never touch a category
-                    # or job tag a human (or the rule engine, on first sync) already assigned.
-                    modified_rows.append({
-                        'transaction_id': t.get('transaction_id'),
-                        'item_id': item['item_id'],
-                        'account_id': t.get('account_id'),
-                        'date': t.get('date'),
-                        'merchant_name': t.get('merchant_name'),
-                        'name': t.get('name'),
-                        'amount': t.get('amount'),
-                        'pending': t.get('pending', False),
-                        'plaid_category': ','.join(t.get('category') or []) if t.get('category') else None,
-                        'updated_at': datetime.datetime.utcnow().isoformat(),
-                    })
-                rows = new_rows + modified_rows
-                added += len(resp.get('added', []))
-                modified += len(resp.get('modified', []))
-                removed_ids = [t.get('transaction_id') for t in resp.get('removed', []) if t.get('transaction_id')]
-                removed += len(removed_ids)
-                if rows:
-                    # Nov 4, 2026 fix: categorize_new_rows() only ADDS category/category_source
-                    # to a matched new row, and modified_rows never carry those keys at all
-                    # (both deliberate -- see the comments above). PostgREST's bulk upsert
-                    # requires every object in ONE request to share the exact same key set
-                    # (code PGRST102, "All object keys must match") -- a batch mixing matched
-                    # new rows, unmatched new rows, and modified rows in a single POST got
-                    # rejected wholesale, which is exactly what surfaced in production once
-                    # the bare-400 fix above started naming the real PostgREST error. Filling
-                    # every row with category: null to make the keys uniform isn't safe either
-                    # -- that would null out a modified row's real, already-assigned category
-                    # on upsert. Grouping by each row's actual key set and posting each group
-                    # separately keeps both behaviors intact.
-                    by_shape = {}
-                    for row in rows:
-                        by_shape.setdefault(frozenset(row.keys()), []).append(row)
-                    for shape_rows in by_shape.values():
-                        req = urllib.request.Request(
-                            f'{SUPABASE_URL}/rest/v1/plaid_transactions?on_conflict=transaction_id',
-                            data=json.dumps(shape_rows).encode(),
-                            headers={
-                                'apikey': key, 'Authorization': f'Bearer {key}', 'Content-Type': 'application/json',
-                                'Prefer': 'resolution=merge-duplicates',
-                            },
-                            method='POST',
-                        )
-                        _supabase_urlopen(req, timeout=20)
-                if removed_ids:
-                    ids_filter = ','.join(urllib.parse.quote(i) for i in removed_ids)
-                    del_req = urllib.request.Request(
-                        f'{SUPABASE_URL}/rest/v1/plaid_transactions?transaction_id=in.({ids_filter})',
-                        headers={'apikey': key, 'Authorization': f'Bearer {key}'},
-                        method='DELETE',
-                    )
-                    _supabase_urlopen(del_req, timeout=15)
-                cursor = resp.get('next_cursor')
-                has_more = resp.get('has_more', False)
+                _plaid_store_balances(item['item_id'], summaries, timeout=5)
+            else:
+                errors.append(f'{name}: No card balance data returned.')
         except Exception as e:
-            errors.append(f"{item.get('institution_name') or item['item_id']}: {e}")
-    if errors and added == modified == removed == 0:
-        return {'error': '; '.join(errors)}
-    return {'ok': True, 'added': added, 'modified': modified, 'removed': removed, 'errors': errors or None}
+            errors.append(f'{name}: Card balance check failed: {e}')
+            if not masks and not item.get('transactions_cursor') and not item.get('plaid_transactions'):
+                # Without a card identity or prior import, this may duplicate an existing card.
+                continue
+
+        # Keep ownership of known cards even if this attempt fails. A duplicate Link
+        # connection would import the same purchases under different Plaid IDs.
+        seen_masks.update(masks)
+        try:
+            updates = _plaid_transaction_updates(item)
+            for action, count in updates.items():
+                counts[action] += count
+            imported = True
+        except Exception as e:
+            errors.append(f'{name}: {e}')
+
+    if not imported:
+        return {'error': '; '.join(errors) or 'No Amex transactions could be checked.'}
+    return {'ok': True, **counts, 'errors': errors or None}
 
 
 # ════════════════════════════════════════════════════════════════
@@ -1004,10 +991,7 @@ def run_destage_reminders():
 
 
 # ════════════════════════════════════════════════════════════════
-# QUOTE LIFECYCLE SWEEP + WEEKLY DIGEST (Phase 1 — folds into the SAME daily cron as
-# run_destage_reminders(), rather than adding new vercel.json cron entries, since the
-# Vercel Hobby plan this project is on caps a project at 2 cron jobs and both are already
-# spoken for — see vercel.json)
+# QUOTE LIFECYCLE SWEEP + WEEKLY DIGEST (shares the daily reminder schedule)
 # ════════════════════════════════════════════════════════════════
 
 QUOTE_SILENCE_DAYS = 30   # keep in sync with board.html's constant of the same name
@@ -2539,14 +2523,7 @@ def run_monthly_tax_report():
 
 
 def run_monthly_close():
-    """The real monthly close, fired by the ONE monthly cron entry this project has (Vercel
-    Hobby plan caps a project at 2 cron jobs; both are already spoken for — see the comment
-    on the daily job dispatch below). Sends all three monthly emails in one run: the tax
-    report, the audit packet, and the full backup export — mirroring exactly how the daily
-    no-job-param path already bundles multiple jobs under one shared firing instead of
-    adding more cron entries. Each piece's own ?job= value still exists below for isolated
-    on-demand testing of just that one piece, same relationship as weekly_digest/quote_sweep
-    have to the bundled daily path."""
+    """Send the tax report, audit packet and backup from the monthly close schedule."""
     report_sent, report_stats = run_monthly_tax_report()
     packet_sent, packet_stats = run_monthly_audit_packet()
     backup_sent, backup_stats = run_monthly_backup()
@@ -2603,24 +2580,28 @@ class handler(BaseHTTPRequestHandler):
             from lib.stripe_recon_http import handle
             handle(self, 'GET', SUPABASE_URL, os.environ.get('SUPABASE_KEY', ''))
             return
-        # Vercel Cron Jobs hit this via GET (see vercel.json — two schedules share this same
-        # path/handler: the daily destage-reminder job, and the monthly tax-report job
-        # distinguished by a ?job= query param). Guarded by CRON_SECRET if it's set — Vercel
-        # auto-sends it as a Bearer token when the env var exists. Worst case without it is
-        # an extra email, not data loss, so this doesn't hard-fail while unconfigured.
+        # Vercel sends CRON_SECRET as a bearer token for scheduled GET requests.
         secret = os.environ.get('CRON_SECRET', '')
-        if secret and self.headers.get('Authorization', '') != f'Bearer {secret}':
+        authorization = self.headers.get('Authorization', '')
+        if not secret or not hmac.compare_digest(authorization.encode(), f'Bearer {secret}'.encode()):
             self._respond(401, {'error': 'Unauthorized'})
             return
-        query = urllib.parse.urlparse(self.path).query
-        job = urllib.parse.parse_qs(query).get('job', [''])[0]
+        return self._run_scheduled_job()
+
+    def _run_scheduled_job(self):
+        job = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query).get('job', [''])[0]
+        if job == 'amex_daily_sync':
+            try:
+                result = plaid_sync_transactions()
+                if result.get('error') or result.get('errors'):
+                    self._respond(502, {'error': 'Amex sync was incomplete. Check Finance → Spending.'})
+                else:
+                    self._respond(200, result)
+            except Exception:
+                self._respond(502, {'error': 'Amex sync failed. Check Finance → Spending.'})
+            return
         try:
             if job == 'monthly_close':
-                # This is what the one monthly cron entry in vercel.json actually calls — the
-                # whole monthly close (tax report + audit packet + backup export) in one
-                # firing, since there's no spare cron slot to schedule the other two
-                # separately (Hobby plan caps a project at 2 cron jobs; both are already
-                # spoken for — this monthly one and the daily one below).
                 result = run_monthly_close()
                 self._respond(200, {'ok': True, **result})
                 return
@@ -2658,10 +2639,7 @@ class handler(BaseHTTPRequestHandler):
                 archived = run_quote_lifecycle_sweep()
                 self._respond(200, {'ok': True, 'quotes_archived': archived})
                 return
-            # Default (no ?job=) is the daily cron. Three jobs share this one daily firing
-            # instead of adding separate vercel.json cron entries — this project is on the
-            # Vercel Hobby plan, which caps a project at 2 cron jobs, and both are already
-            # spoken for (this daily path + the monthly tax report above).
+            # The default schedule runs reminders, the quote sweep and the Monday digest.
             sent = run_destage_reminders()
             archived = run_quote_lifecycle_sweep()
             digest_sent = False
@@ -2694,6 +2672,17 @@ class handler(BaseHTTPRequestHandler):
             from lib.stripe_recon_http import handle
             handle(self, 'POST', SUPABASE_URL, os.environ.get('SUPABASE_KEY', ''))
             return
+        manual_job = query_params.get('job', [''])[0]
+        if manual_job in {'reminders_now', 'monthly_tax_report', 'monthly_audit_packet', 'monthly_backup_export', 'weekly_digest'}:
+            from lib.owner_guard import require_owner
+            if require_owner(self):
+                return self._run_scheduled_job()
+            return
+        if manual_job == 'plaid_sync':
+            from lib.owner_guard import require_owner
+            if require_owner(self):
+                self._respond(200, plaid_sync_transactions())
+            return
         length = int(self.headers.get('Content-Length', 0))
         raw_body = self.rfile.read(length)
 
@@ -2714,8 +2703,6 @@ class handler(BaseHTTPRequestHandler):
                 self._respond(200, plaid_create_link_token())
             elif job == 'plaid_exchange':
                 self._respond(200, plaid_exchange_public_token(payload.get('public_token')))
-            elif job == 'plaid_sync':
-                self._respond(200, plaid_sync_transactions())
             elif job == 'plaid_balance':
                 self._respond(200, plaid_refresh_balance())
             else:

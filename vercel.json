@@ -157,6 +157,10 @@
   ],
   "crons": [
     {
+      "path": "/api/webhook?job=amex_daily_sync",
+      "schedule": "0 14 * * *"
+    },
+    {
       "path": "/api/webhook",
       "schedule": "0 15 * * *"
     },

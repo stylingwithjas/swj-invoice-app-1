@@ -2249,7 +2249,7 @@ async function checkRemindersNow(){
   const btn = document.getElementById('check-reminders-btn');
   if(btn){ btn.disabled = true; btn.textContent = '🔔 Checking…'; }
   try{
-    const r = await fetch('/api/webhook', { method: 'GET' });
+    const r = await fetch('/api/webhook?job=reminders_now', { method: 'POST' });
     const j = await r.json();
     if(j.ok){
       const sent = j.reminders_sent || [];
@@ -2280,7 +2280,7 @@ async function testWeeklyDigestNow(){
   const btn = document.getElementById('test-digest-btn');
   if(btn){ btn.disabled = true; btn.textContent = '📧 Sending…'; }
   try{
-    const r = await fetch('/api/webhook?job=weekly_digest', { method: 'GET' });
+    const r = await fetch('/api/webhook?job=weekly_digest', { method: 'POST' });
     const j = await r.json();
     alert(j.ok
       ? (j.digest_sent ? '✓ Weekly digest sent — check info@stylingwithjas.com.' : 'Digest ran but the email failed to send — check that EMAIL_PASSWORD is configured.')

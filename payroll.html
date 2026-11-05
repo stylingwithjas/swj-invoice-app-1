@@ -4,6 +4,7 @@
 <script src="/admin-auth.js"></script>
 <script src="/assets/records.js"></script>
 <script src="/assets/payment-events.js"></script>
+<script src="/assets/amex-freshness.js"></script>
 <meta charset="UTF-8">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -694,14 +695,15 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
         <span>Business Amex</span>
         <span id="pr-spend-status" style="font-size:11px;color:var(--taupe-dk);font-weight:500;text-transform:none;letter-spacing:0">Checking connection…</span>
       </div>
-      <div style="font-size:11px;color:var(--taupe-dk);margin-bottom:12px">The two business American Express cards only, linked here via this site's own Plaid connection — never Muse's, never a personal card. Statement balance, due date and the full-balance amount that avoids interest, per card.</div>
+      <div style="font-size:11px;color:var(--taupe-dk);margin-bottom:12px">The two business American Express cards only, linked here via this site's own Plaid connection — never Muse's, never a personal card. Statement balance, due date, and the latest current balance reported by Amex.</div>
       <div id="pr-spend-connect-row" style="display:none;margin-bottom:14px">
         <button class="filter-btn primary" onclick="plaidConnectAmex()" id="pr-spend-connect-btn">Connect business Amex</button>
       </div>
       <div id="pr-spend-connected-row" style="display:none;margin-bottom:14px;gap:8px;flex-wrap:wrap;align-items:center">
         <button class="filter-btn primary" onclick="plaidConnectAmex()" id="pr-spend-connect-btn2">Connect another card</button>
         <button class="filter-btn" onclick="plaidSyncNow()" id="pr-spend-sync-btn">Sync now</button>
-        <span id="pr-spend-sync-note" style="font-size:11px;color:var(--taupe-dk);display:block;margin-top:6px;width:100%"></span>
+        <span id="pr-spend-last-check" class="fin-note"></span>
+        <span id="pr-spend-sync-note" role="status" style="font-size:11px;color:var(--taupe-dk);display:block;margin-top:6px;width:100%"></span>
       </div>
       <div id="pr-spend-cards" style="display:grid;gap:10px;margin-bottom:16px"></div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
@@ -1953,13 +1955,7 @@ async function loadSpendingTab(){
     if(!error && data) cards = data;
   }catch(e){ /* view may not exist yet — fall through to "not connected" */ }
 
-  // Same dedup Home applies (Nov 4, 2026 fix) -- a stalled Link attempt can leave its own
-  // plaid_items row with its own Plaid-assigned account_id for the same real card, so
-  // account_id can't tell two rows for the same physical card apart; mask can. This tab hasn't
-  // shown the symptom yet only because nothing here has triggered a multi-item balance
-  // refresh the way Home's background sync does -- keeping this in sync avoids it regressing
-  // here too once it does.
-  cards = Object.values(Object.fromEntries(cards.map(c=>[c.mask||c.account_id,c])));
+  cards = SWJAmex.uniqueCards(cards);
 
   if(!cards.length){
     statusEl.textContent = 'Not connected';
@@ -1970,6 +1966,7 @@ async function loadSpendingTab(){
   statusEl.textContent = `✓ ${cards.length} card${cards.length===1?'':'s'} connected`;
   connectedRow.style.display = 'flex';
   renderSpendCards(cards);
+  document.getElementById('pr-spend-last-check').textContent = SWJAmex.transactionLabel(cards);
   await renderSpendingTransactions();
 }
 
@@ -1991,16 +1988,16 @@ function renderSpendCards(cards){
     const due = new Date(c.next_payment_due_date+'T00:00:00');
     const daysUntil = Math.round((due-now)/86400000);
     let status, statusClass;
-    if(daysUntil < 0){ status = `Overdue by ${Math.abs(daysUntil)} day${Math.abs(daysUntil)===1?'':'s'} — interest accruing`; statusClass = 'a'; }
+    if(daysUntil < 0){ status = `Due date passed · Verify payment in Amex`; statusClass = 'a'; }
     else if(daysUntil <= DUE_SOON_DAYS){ status = `Due in ${daysUntil} day${daysUntil===1?'':'s'}`; statusClass = 'a'; }
     else { status = `Due in ${daysUntil} days`; statusClass = 'g'; }
     const dueStr = due.toLocaleDateString('en-US',{month:'short',day:'numeric'});
-    const synced = c.balance_synced_at ? new Date(c.balance_synced_at).toLocaleString() : 'never';
+    const synced = SWJAmex.checkedLabel(c.balance_synced_at, 'Balance');
     return `<div class="fin-card full">
       <div class="fin-lbl">${label}</div>
-      <div class="fin-val ${statusClass}" style="font-size:22px">Pay ${fmtUSD(c.statement_balance)} by ${dueStr} to avoid interest</div>
+      <div class="fin-val ${statusClass}" style="font-size:22px">Statement balance ${fmtUSD(c.statement_balance)} · Due ${dueStr}</div>
       <div class="fin-note">${status} · Minimum due ${fmtUSD(c.minimum_payment)} (paying only the minimum does NOT avoid interest) · Current balance ${fmtUSD(c.current_balance)}</div>
-      <div class="fin-note">Balance last synced ${esc(synced)} — this is the balance only; transaction history needs its own "Sync now" below</div>
+      <div class="fin-note">${esc(synced)}. Confirm payments and the remaining amount in Amex.</div>
     </div>`;
   }).join('');
 }
