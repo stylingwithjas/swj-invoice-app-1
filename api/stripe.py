@@ -1,3 +1,4 @@
+from lib.tax_verification import require_verified
 import json
 import os
 import urllib.parse
@@ -15,6 +16,12 @@ class handler(BaseHTTPRequestHandler):
         try:
             length = int(self.headers.get('Content-Length', 0))
             body = json.loads(self.rfile.read(length))
+
+            if body.get('source') == 'invoice_generator':
+                try:
+                    require_verified(body.get('tax_context') or {}, payment=True)
+                except ValueError as error:
+                    self._respond(422, {'error':str(error)}); return
 
             secret_key = os.environ.get('STRIPE_SECRET_KEY', '')
             if not secret_key:

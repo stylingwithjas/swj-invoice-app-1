@@ -31,6 +31,13 @@ FIXTURE={'client':'Preview Test Only','address':'Synthetic property','invnum':'T
          'contract_terms_version':'v2_2026_11_ext_tax_on_top'}
 
 class BackendTests(unittest.TestCase):
+    def setUp(self):
+        # Pricing/paid-record tests assume independently verified tax input.
+        # Real tax-evidence acceptance/denial is covered in test_tax_guard.py.
+        for mod in (generate,invoices):
+            guard=patch.object(mod,'require_verified',return_value=True)
+            guard.start();self.addCleanup(guard.stop)
+
     def fake_handler(self, cls, body):
         h=cls.__new__(cls);raw=json.dumps(body).encode();h.headers={'Content-Length':str(len(raw))};h.rfile=io.BytesIO(raw)
         h.result=None

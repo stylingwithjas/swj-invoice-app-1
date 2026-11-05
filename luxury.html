@@ -3,6 +3,8 @@
 <head>
 <script src="/admin-auth.js"></script>
 <script src="/assets/invoice-safety.js"></script>
+<script src="/assets/tax-guard.js"></script>
+<script src="/assets/invoice-number.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -577,7 +579,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
       <div style="display:flex;gap:10px">
         <div class="field" style="flex:1">
           <div class="field-lbl">City <span style="text-transform:none;letter-spacing:0;font-weight:400;color:var(--taupe);font-size:10px">— stored separately for tax reporting, never parsed from the address above</span></div>
-          <input class="field-input" id="city" type="text" placeholder="Seattle" autocomplete="address-level2">
+          <input class="field-input" id="city" oninput="lookupTaxRate()" type="text" placeholder="Seattle" autocomplete="address-level2">
         </div>
         <div class="field" style="max-width:180px">
           <div class="field-lbl">ZIP Code</div>
@@ -753,7 +755,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
     <div class="card-body collapsible" id="body-tax">
       <div class="field" style="max-width:160px">
         <div class="field-lbl">Rate (%)</div>
-        <input class="field-input" id="taxrate" type="number" value="10.25" step="0.01" inputmode="decimal" oninput="recalc()">
+        <input class="field-input" id="taxrate" type="number" value="" placeholder="Verify address" step="0.01" inputmode="decimal" oninput="recalc()">
       </div>
     </div>
   </div>
@@ -1282,14 +1284,7 @@ async function initInvNum(){
   let next = 202093;
   try {
     const { data } = await _sb.from('invoices').select('invnum').not('invnum', 'like', 'GS%');
-    if(data && data.length){
-      let max = 0;
-      data.forEach(function(r){
-        const m = String(r.invnum||'').match(/\d+/);   // leading digits; ignores any vN revision suffix
-        if(m){ const v = parseInt(m[0],10); if(v>max) max=v; }
-      });
-      if(max>0) next = max + 1;
-    }
+    next = SWJInvoiceNumber.next(data,next);
   } catch(e) {}
   currentInvNum = String(next);
   const disp = document.getElementById('invnum-display');
@@ -1600,6 +1595,8 @@ function invoiceActionAllowed(action){
     renderInvoiceSafety(null); alert('Paid invoice protected. Use the stored-data path in Archive; no figures have been saved.');return false;
   }
   const P=buildPricingPayload();renderInvoiceSafety(P);
+  if(!SWJTaxGuard.allowed(action,P)) return false;
+  if(action==='sending' && !SWJTaxGuard.artifactAllowed(window._lastInvoiceData,P)) return false;
   if(P.termError || P.blocked){alert(P.termError || 'Manual Totals do not reconcile. Clear or correct them before '+action+'.');return false;}
   if(P.reconcile?.length) alert('Reconciliation warning before '+action+':\n\n'+P.reconcile.join('\n'));
   return true;
@@ -1804,7 +1801,7 @@ async function createPaymentLink(grand, client, invnum, address, client_email, l
     const r = await fetch('/api/stripe', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ grand, client, invnum, address, client_email, label }),
+      body: JSON.stringify({ grand, client, invnum, address, client_email, label, source:'invoice_generator', tax_context:SWJTaxGuard.context() }),
       signal: ctrl.signal,
     });
     clearTimeout(timeout);
@@ -1881,39 +1878,7 @@ async function petDepositWithLink(client, invnum, address, client_email){
 // Live, address-accurate WA sales-tax lookup via the official Department of Revenue API
 // (server-proxied at /api/taxrate). Uses the full street address + ZIP so the EXACT
 // location-code rate is applied -- not an approximate ZIP guess. The field stays editable.
-let _taxLookupTimer=null, _taxLookupSeq=0;
-function lookupTaxRate(){
-  const note=document.getElementById('tax-note');
-  const addr=(document.getElementById('address')?.value||'').trim();
-  const zip=(document.getElementById('zipcode')?.value||'').replace(/\D/g,'').slice(0,5);
-  if(zip.length<5){ if(note){note.textContent='';note.style.color='';} return; }
-  if(note){ note.textContent='Checking official WA tax rate…'; note.style.color='#888'; }
-  clearTimeout(_taxLookupTimer);
-  const seq=++_taxLookupSeq;
-  _taxLookupTimer=setTimeout(async()=>{
-    try{
-      const params=new URLSearchParams({addr, city:'', zip});
-      const r=await fetch('/api/taxrate?'+params.toString());
-      const d=await r.json();
-      if(seq!==_taxLookupSeq) return;   // a newer keystroke superseded this lookup
-      if(d && d.ok && typeof d.rate==='number'){
-        document.getElementById('taxrate').value=d.rate.toFixed(2);
-        recalc();
-        if(note){
-          note.textContent=d.exact
-            ? '✓ Official WA rate '+d.rate.toFixed(2)+'% — exact address'
-            : '✓ WA rate '+d.rate.toFixed(2)+'% — matched by ZIP (confirm street address)';
-          note.style.color=d.exact?'#22c55e':'#f59e0b';
-        }
-      } else {
-        if(note){ note.textContent='⚠ Couldn’t verify — please enter the tax rate manually'; note.style.color='#f59e0b'; }
-      }
-    }catch(e){
-      if(seq!==_taxLookupSeq) return;
-      if(note){ note.textContent='⚠ Tax lookup unavailable — enter rate manually'; note.style.color='#f59e0b'; }
-    }
-  },500);
-}
+function lookupTaxRate(){ SWJTaxGuard.lookup(); }
 // Back-compat shims: older inline handlers route into the live lookup.
 function getWATaxByZip(){ lookupTaxRate(); }
 function getWATax(){ lookupTaxRate(); }
@@ -2421,9 +2386,10 @@ function loadInvoiceData(d){
     if(document.getElementById('zipcode')) document.getElementById('zipcode').value = d.zip||'';
     if(document.getElementById('city')) document.getElementById('city').value = d.city||'';
     document.getElementById('invdate').value = d.invdate||'';
+    SWJTaxGuard.reset();
     setStartDateFromData(d.startdate);
     document.getElementById('invnum-display').value = d.invnum||'';   // keep the same number so editing + regenerating UPDATES this invoice (and its Approve/Sign link)
-    document.getElementById('taxrate').value = d.taxrate||10.25;
+    document.getElementById('taxrate').value = d.taxrate??'';
     document.getElementById('base_price').value = d.base_price||2500;
     // Restore manual total overrides (blank if none were set)
     restoreManualTotals(d);
@@ -2684,6 +2650,7 @@ async function saveDraft(silent){
     _draft_saved: new Date().toLocaleDateString()
   };
 
+  SWJTaxGuard.attach(draft,true);
   const draftKey = `DRAFT-${invnum||Date.now()}`;
   try {
     const { error } = await _sb.from('invoices').upsert({
@@ -2781,6 +2748,7 @@ async function downloadPdfNow(){
 
   const _contribList=contributions.filter(c=>c.label&&parseFloat(c.amount)>0).map(c=>({label:c.label,amount:parseFloat(c.amount)}));
   const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:getStartDateValue(),baserooms:[...selRooms].join(', '),baseroom_scopes:roomScopesObj(),extrate,taxrate,base_price:base,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,city:document.getElementById('city')?.value.trim()||'',zip:zipVal,property_state:'WA',rental_share_base:BASE_RENTAL_SHARE,price_led_tax:P.priceLedTax,pricing_mode:P.pricing_mode,rc_term_days:P.rc_term_days,rc_rate_30day:P.rc_rate_30day,rc_design_fee:P.rc_design_fee,manual_totals_fields:P.manualFields||[],manual_totals_unverified_fields:P.unverifiedManualFields||[],rental_service_split:P.rental_service_split,rental_term_days:P.rental_term_days,rental_total:P.rental_total,service_total:P.service_total,base_split:P.base_split,contract_terms_version:resolveContractVersion(),state:captureState(),home_value:homeValue,home_sqft:homeSqft,tier:selTier,scope:selScope,promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,promo4:document.getElementById('promo4')?.checked||false,payment_url:null,contributions:_contribList,cosigner:getCosigner(),cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||'',pet_deposit:petDepositBase(),payer_unknown:!!payerUnknown};
+  if(!SWJTaxGuard.attach(data)) return null;
   data.generator_request=true;
   preserveBoardFields(data, invNumFinal);
 
@@ -3104,6 +3072,7 @@ async function generatePDF(){
   const _contribList=contributions.filter(c=>c.label&&parseFloat(c.amount)>0).map(c=>({label:c.label,amount:parseFloat(c.amount)}));
   const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:getStartDateValue(),baserooms:[...selRooms].join(', '),baseroom_scopes:roomScopesObj(),extrate,taxrate,base_price:base,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,city:document.getElementById('city')?.value.trim()||'',zip:zipVal,property_state:'WA',rental_share_base:BASE_RENTAL_SHARE,price_led_tax:P.priceLedTax,pricing_mode:P.pricing_mode,rc_term_days:P.rc_term_days,rc_rate_30day:P.rc_rate_30day,rc_design_fee:P.rc_design_fee,manual_totals_fields:P.manualFields||[],manual_totals_unverified_fields:P.unverifiedManualFields||[],rental_service_split:P.rental_service_split,rental_term_days:P.rental_term_days,rental_total:P.rental_total,service_total:P.service_total,base_split:P.base_split,contract_terms_version:resolveContractVersion(),state:captureState(),home_value:homeValue,home_sqft:homeSqft,tier:selTier,scope:selScope,promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
             promo4:document.getElementById('promo4').checked,payment_url,payment_link_id,contributions:_contribList,payments:splitPayments,active_client_payment_id:activeClientPaymentId,pet_deposit:petDeposit,cosigner:getCosigner(),cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||'',payer_unknown:!!payerUnknown};
+  if(!SWJTaxGuard.attach(data)) return null;
   data.generator_request=true;
   preserveBoardFields(data, invNumFinal);
 
@@ -3202,6 +3171,7 @@ async function generate(){
   const _contribList=contributions.filter(c=>c.label&&parseFloat(c.amount)>0).map(c=>({label:c.label,amount:parseFloat(c.amount)}));
   const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:getStartDateValue(),baserooms:[...selRooms].join(', '),baseroom_scopes:roomScopesObj(),extrate,taxrate,base_price:base,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,city:document.getElementById('city')?.value.trim()||'',zip:zipVal,property_state:'WA',rental_share_base:BASE_RENTAL_SHARE,price_led_tax:P.priceLedTax,pricing_mode:P.pricing_mode,rc_term_days:P.rc_term_days,rc_rate_30day:P.rc_rate_30day,rc_design_fee:P.rc_design_fee,manual_totals_fields:P.manualFields||[],manual_totals_unverified_fields:P.unverifiedManualFields||[],rental_service_split:P.rental_service_split,rental_term_days:P.rental_term_days,rental_total:P.rental_total,service_total:P.service_total,base_split:P.base_split,contract_terms_version:resolveContractVersion(),state:captureState(),home_value:homeValue,home_sqft:homeSqft,tier:selTier,scope:selScope,promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
             promo4:document.getElementById('promo4').checked,payment_url,payment_link_id,contributions:_contribList,payments:splitPayments,active_client_payment_id:activeClientPaymentId,pet_deposit:petDeposit,cosigner:getCosigner(),cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||'',payer_unknown:!!payerUnknown};
+  if(!SWJTaxGuard.attach(data)) return null;
   data.generator_request=true;
   preserveBoardFields(data, invNumFinal);
 
