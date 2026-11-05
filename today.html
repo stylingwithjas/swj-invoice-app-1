@@ -1290,12 +1290,7 @@ async function buildS7(){
     </div>`;
 }
 
-// Amex balance snapshot — reads the cached plaid_card_summary view, totaled across every
-// connected card (never recomputed from raw plaid_transactions rows here), then fires a live
-// ?job=plaid_balance refresh so the
-// numbers are current as of this visit. Plaid's own liability data only updates roughly once a
-// day, so refreshing on every Home load never over-calls their API; a failed refresh just
-// leaves whatever was already cached on screen rather than breaking the page.
+// Home shares the cached card balances and import timestamps across both Amex sections.
 async function loadHomeAmexCards(){
   try{
     const {data}=await _sb.from('plaid_card_summary').select('*');
