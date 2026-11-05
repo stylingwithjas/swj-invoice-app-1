@@ -3,6 +3,7 @@
 <head>
 <script src="/admin-auth.js"></script>
 <script src="/assets/payment-events.js"></script>
+<script src="/assets/amex-freshness.js"></script>
 <meta charset="UTF-8">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -890,9 +891,10 @@ async function loadAll(){
   buildS6();
   buildPayoutSnapshot();
   buildS7();
-  buildS8();
+  const amexCards=loadHomeAmexCards();
+  buildS8(amexCards);
   buildS9();
-  buildS10();
+  buildS10(amexCards);
   buildS11();
   buildBriefing(urgentCount,schedCount,taskCount,shopCount,followCount);
   updateNavBadge(urgentCount);
@@ -1294,30 +1296,16 @@ async function buildS7(){
 // numbers are current as of this visit. Plaid's own liability data only updates roughly once a
 // day, so refreshing on every Home load never over-calls their API; a failed refresh just
 // leaves whatever was already cached on screen rather than breaking the page.
-async function buildS8(){
-  // Full per-card rows — balance, due date, and a pay-to-avoid-interest pill for EVERY
-  // connected card, not just a totals summary. payroll.html's Spending tab still owns the
-  // actual connect/transaction-list UI; every row here links straight through to it.
-  const el=document.getElementById('s8-body');
-  let cards=[];
+async function loadHomeAmexCards(){
   try{
     const {data}=await _sb.from('plaid_card_summary').select('*');
-    cards=data||[];
-  }catch(e){ /* view may not exist yet if the Plaid migration hasn't been run — treat as not connected */ }
+    return SWJAmex.uniqueCards(data||[]);
+  }catch(e){ return []; }
+}
 
-  // Nov 3-4, 2026 bug (Gabe's note): Home showed the same 2 real cards repeated many times
-  // over (19 rows for 2 cards) while Finance, reading the identical view, correctly showed 2.
-  // account_id alone isn't the real card's identity here -- Plaid assigns a NEW account_id
-  // per Item/connection, so a stalled Link attempt that still exchanged server-side (each one
-  // its own plaid_items row) produces a genuinely different account_id for the exact same
-  // physical card every time it's re-queried. The mask (last 4 digits, e.g. "1008") is what
-  // actually identifies the card Gabe sees on his statement, and stays the same no matter how
-  // many separate connection records point at it -- so that's the real dedup key, not
-  // account_id. One row per real card, no matter how many connection records exist behind it
-  // or how many times this refreshes.
-  const cardKey=c=>c.mask||c.account_id;
-  cards=Object.values(Object.fromEntries(cards.map(c=>[cardKey(c),c])));
-
+async function buildS8(amexCards){
+  const el=document.getElementById('s8-body');
+  const cards=await amexCards;
   if(!cards.length){
     document.getElementById('s8-meta').textContent='not connected';
     el.innerHTML=`<div class="fin-card full" style="cursor:pointer" onclick="window.location.href='/payroll.html?tab=spending'">
@@ -1328,32 +1316,10 @@ async function buildS8(){
     return;
   }
 
-  try{
-    const r=await fetch('/api/webhook?job=plaid_balance',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
-    const fresh=await r.json();
-    if(fresh && !fresh.error && Array.isArray(fresh.accounts)){
-      // Matched by the same mask-based key as above -- a fresh account_id from a different
-      // (possibly orphaned) Item for the same physical card must still update that one row,
-      // not silently miss it and leave stale cached data on screen.
-      const byKey=Object.fromEntries(fresh.accounts.map(a=>[cardKey(a),a]));
-      cards=cards.map(c=>byKey[cardKey(c)]?{...c,...byKey[cardKey(c)],balance_synced_at:fresh.balance_synced_at}:c);
-    }
-  }catch(e){ /* keep showing the cached rows */ }
-
   document.getElementById('s8-meta').textContent=`${cards.length} business card${cards.length===1?'':'s'}`;
-
   const synced=cards.slice().sort((a,b)=>(a.next_payment_due_date||'9999').localeCompare(b.next_payment_due_date||'9999'));
-  if(!synced.length){
-    el.innerHTML=`<div class="fin-card full" style="cursor:pointer" onclick="window.location.href='/payroll.html?tab=spending'">
-      <div class="fin-lbl">${cards.length} card${cards.length===1?'':'s'} connected</div>
-      <div class="fin-val" style="font-size:18px">Balance not synced yet</div>
-      <div class="fin-note">Open Finance → Spending and click Sync now</div>
-    </div>`;
-    return;
-  }
-
   el.innerHTML=synced.map(c=>{
-    if(c.statement_balance==null || !c.next_payment_due_date)return `<a class="card-row" href="/payroll.html?tab=spending">${esc(c.name||'Business card')} …${esc(c.mask||'')}<p>Statement or due date unavailable · Review card</p></a>`;
+    if(c.statement_balance==null || !c.next_payment_due_date)return `<a class="card-row" href="/payroll.html?tab=spending">${esc(c.name||'Business card')} …${esc(c.mask||'')}<p>Statement or due date unavailable · Review card</p><p>${esc(SWJAmex.checkedLabel(c.balance_synced_at,'Balance'))}</p></a>`;
     const due=new Date(c.next_payment_due_date+'T00:00:00');
     const away=Math.round((due-todayDate)/864e5);
     const overdue=away<0;
@@ -1365,10 +1331,11 @@ async function buildS8(){
       <div class="card-info">
         <div class="card-name">${esc((c.name||c.institution_name||'Business Amex').replace(/^AMEX /i,'').replace(/\s+Card$/i,''))}${c.mask?' ····'+esc(c.mask):''}</div>
         <div class="card-meta${overdue?' payment-review':''}">Due ${esc(dueLabel)} · ${overdue?'Verify payment':awayLabel}</div>
+        <div class="fin-note">${esc(SWJAmex.checkedLabel(c.balance_synced_at,'Balance'))}</div>
       </div>
       <div class="card-pay-pill${overdue?' overdue':''}">${fmtExact(bal)}<small>Statement</small></div>
     </a>`;
-  }).join('')+`<details class="home-detail"><summary>Current balances &amp; payment status</summary><p>Statement amount is not a verified remaining payment. Check recent payments with your card provider before paying.</p>${synced.map(c=>`<p>${esc(c.name||'Card')} …${esc(c.mask||'')} · Current balance ${c.current_balance==null?'unavailable':fmtExact(c.current_balance)}</p>`).join('')}</details>`;
+  }).join('')+`<details class="home-detail"><summary>Current balances &amp; payment status</summary><p>Statement amounts are from the last billing cycle. Confirm recent payments in Amex before paying.</p>${synced.map(c=>`<p>${esc(c.name||'Card')} …${esc(c.mask||'')} · Current balance ${c.current_balance==null?'unavailable':fmtExact(c.current_balance)}</p>`).join('')}</details>`;
 }
 
 // ── S9: THIS MONTH AT A GLANCE ─────────────────────────
@@ -1450,17 +1417,13 @@ const HOME_SPEND_CATEGORIES=[
   {cat:'Other', key:'other', label:'Other', color:'#B6AF9B'},
 ];
 const HOME_SPEND_COLORS={job:'#536F50', ...Object.fromEntries(HOME_SPEND_CATEGORIES.map(c=>[c.key,c.color]))};
-async function buildS10(){
+async function buildS10(amexCards){
   const el=document.getElementById('s10-body');
   const now=new Date();
   document.getElementById('s10-meta').textContent=now.toLocaleDateString('en-US',{month:'long'}).toUpperCase();
 
-  let connected=true;
-  try{
-    const {data}=await _sb.from('plaid_card_summary').select('account_id').limit(1);
-    connected=!!(data&&data.length);
-  }catch(e){ connected=false; }
-  if(!connected){
+  const cards=await amexCards;
+  if(!cards.length){
     el.innerHTML=`<div class="empty"><div class="empty-icon"><i class="ti ti-chart-donut"></i></div><div class="empty-text">Not connected.</div><div class="empty-sub">Connect the business Amex in Finance → Spending.</div></div>`;
     return;
   }
@@ -1475,21 +1438,15 @@ async function buildS10(){
   });
   const total=job+Object.values(catTotals).reduce((s,v)=>s+v,0);
   if(total<=0.009){
-    // Nov 4, 2026 fix (Gabe's note): "Nothing to show yet" read as "no spending happened,"
-    // when the actual, most likely cause is that nothing has ever been SYNCED for this card --
-    // nothing in this app triggers a transaction sync automatically (only a manual "Sync now"
-    // click on Finance -> Spending does), so a connection nobody has clicked that for yet has
-    // zero rows in plaid_transactions, not zero real spending. Distinguish that from the
-    // "synced, but still uncategorized" case, which already has its own correct message.
     let sub;
     if(!_monthlyPlaidTx.length){
-      sub='No transactions synced for this month yet — click Sync now in Finance → Spending to pull them in.';
+      sub='No posted purchases have been imported for this month. Check Finance → Spending to refresh.';
     } else if(uncategorizedCount){
       sub=`${uncategorizedCount} transaction${uncategorizedCount===1?'':'s'} waiting in Needs Attention above.`;
     } else {
       sub='No categorized spending yet this month.';
     }
-    el.innerHTML=`<div class="empty"><div class="empty-icon"><i class="ti ti-chart-donut"></i></div><div class="empty-text">Nothing to show yet.</div><div class="empty-sub">${sub}</div></div>`;
+    el.innerHTML=`<div class="empty"><div class="empty-icon"><i class="ti ti-chart-donut"></i></div><div class="empty-text">Nothing to show yet.</div><div class="empty-sub">${sub}</div><p class="fin-note">${esc(SWJAmex.transactionLabel(cards))}</p></div>`;
     return;
   }
   // Only categories with real spend this month show in the legend -- with 10 possible
@@ -1501,7 +1458,7 @@ async function buildS10(){
   ].filter(sl=>sl.amt>0.009).sort((a,b)=>b.amt-a.amt);
   let acc=0;
   const stops=slices.map(sl=>{ const pct=sl.amt/total*100; const from=acc; acc+=pct; return `${HOME_SPEND_COLORS[sl.key]} ${from.toFixed(2)}% ${acc.toFixed(2)}%`; });
-  el.innerHTML=`<p class="fin-note">Posted card spending</p><div class="home-donut-wrap">
+  el.innerHTML=`<p class="fin-note">Posted card spending · ${esc(SWJAmex.transactionLabel(cards))}</p><div class="home-donut-wrap">
     <div class="home-donut" style="background:conic-gradient(${stops.join(',')})">
       <div class="home-donut-center"><div class="dv">${fmt(total)}</div><div class="dl">Total Spent</div></div>
     </div>

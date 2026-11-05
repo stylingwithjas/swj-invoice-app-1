@@ -31,7 +31,8 @@ class PlaidConfigTests(unittest.TestCase):
 
     def test_no_connected_account_fails_gracefully(self):
         with patch.dict(os.environ, {'PLAID_CLIENT_ID': 'x', 'PLAID_SECRET': 'y'}), \
-             patch.object(webhook, '_plaid_get_items', return_value=[]):
+             patch.object(webhook, '_plaid_get_items', return_value=[]), \
+             patch.object(webhook, '_plaid_get_sync_items', return_value=[]):
             self.assertEqual(webhook.plaid_refresh_balance(), {'error': 'No Amex account connected yet.'})
             result = webhook.plaid_sync_transactions()
             self.assertIn('No Amex account connected yet', result['error'])
@@ -192,11 +193,11 @@ class MultiItemSyncTests(unittest.TestCase):
                 return {'accounts': [], 'liabilities': {'credit': []}}
             raise AssertionError('unexpected path ' + path)
 
-        posted_batches = []
+        posted = []
 
         def fake_urlopen(req, timeout=None):
-            if req.full_url.startswith(webhook.SUPABASE_URL + '/rest/v1/plaid_transactions') and req.get_method() == 'POST':
-                posted_batches.append(json.loads(req.data))
+            if req.full_url.endswith('/rpc/commit_plaid_transaction_sync'):
+                posted.append(json.loads(req.data))
             import io
 
             class R:
@@ -205,22 +206,17 @@ class MultiItemSyncTests(unittest.TestCase):
                 def __exit__(self_inner, *a): pass
             return R()
 
-        with patch.object(webhook, '_plaid_get_items', return_value=items), \
+        with patch.object(webhook, '_plaid_get_sync_items', return_value=items), \
              patch.object(webhook, '_plaid_request', side_effect=fake_request), \
              patch('urllib.request.urlopen', side_effect=fake_urlopen):
             result = webhook.plaid_sync_transactions()
 
-        self.assertEqual(result, {'ok': True, 'added': 2, 'modified': 1, 'removed': 0, 'errors': None})
-        # Nov 4, 2026 fix: a matched new row (extra category/category_source keys) must never
-        # share a batch with an unmatched new row or a modified row (neither key present) --
-        # PostgREST rejects a batch whose objects don't all share the same keys (PGRST102,
-        # "All object keys must match"), which is exactly what surfaced on production once the
-        # bare-400 fix started naming the real error. Every batch posted must be internally
-        # key-consistent; categorization behavior is then checked across all of them combined.
-        for batch in posted_batches:
-            key_shapes = {frozenset(r.keys()) for r in batch}
-            self.assertEqual(len(key_shapes), 1, f'batch has mixed key shapes: {key_shapes}')
-        by_id = {r['transaction_id']: r for batch in posted_batches for r in batch}
+        self.assertTrue(result['ok'])
+        self.assertEqual(result['added'], 2)
+        self.assertEqual(result['modified'], 1)
+        self.assertEqual(len(posted), 1)
+        self.assertEqual(posted[0]['p_next_cursor'], 'cursor1')
+        by_id = {r['transaction_id']: r for r in posted[0]['p_rows']}
         self.assertEqual(len(by_id), 3)
         self.assertEqual(by_id['tx1']['category'], 'Truck & Gas')
         self.assertEqual(by_id['tx1']['category_source'], 'rule')
@@ -228,53 +224,30 @@ class MultiItemSyncTests(unittest.TestCase):
         self.assertNotIn('category', by_id['tx0'])  # modified row -- never touches category
         self.assertNotIn('category_source', by_id['tx0'])
 
-    def test_mixed_key_shapes_never_reach_postgrest_in_one_batch(self):
-        # Nov 4, 2026 production bug: Gabe's "Sync now" reported "American Express: HTTP 400
-        # Bad Request -- All object keys must match (code PGRST102)" after the bare-400 fix
-        # started naming the real error. A single batch mixing a matched new row (extra
-        # category/category_source keys) with an unmatched new row and a modified row (neither
-        # has those keys) is exactly what PostgREST rejects. This fake PostgREST enforces that
-        # real constraint directly, so the test fails the way production did if the fix regresses.
-        items = [{'item_id': 'item1', 'access_token': 'tok1', 'institution_name': 'Amex'}]
-        sync_resp = {
-            'added': [
-                {'transaction_id': 'tx1', 'account_id': 'acc1', 'date': '2026-11-01', 'merchant_name': 'U-HAUL #1', 'name': 'U-HAUL', 'amount': 85.0, 'pending': False, 'category': ['Transportation']},
-                {'transaction_id': 'tx2', 'account_id': 'acc1', 'date': '2026-11-02', 'merchant_name': 'Unknown Vendor LLC', 'name': 'Unknown Vendor', 'amount': 42.0, 'pending': False, 'category': []},
-            ],
-            'modified': [
-                {'transaction_id': 'tx0', 'account_id': 'acc1', 'date': '2026-10-28', 'merchant_name': 'U-HAUL #0', 'name': 'U-HAUL', 'amount': 90.0, 'pending': False, 'category': ['Transportation']},
-            ],
-            'removed': [], 'next_cursor': 'cursor1', 'has_more': False,
-        }
+    def test_paginated_sync_commits_once_with_the_final_cursor(self):
+        item = {'item_id': 'item1', 'access_token': 'tok1', 'transactions_cursor': 'existing'}
+        first = dict(added=[], modified=[], removed=[], has_more=True, next_cursor='page-two')
+        second = dict(added=[], modified=[], removed=[{'transaction_id': 'old'}],
+                      has_more=False, next_cursor='checkpoint')
+        with patch.object(webhook, '_plaid_request', side_effect=[first, second]) as plaid, \
+             patch.object(webhook, '_supabase_urlopen') as write:
+            counts = webhook._plaid_transaction_updates(item)
+        self.assertEqual([call.args[1]['cursor'] for call in plaid.call_args_list], ['existing', 'page-two'])
+        self.assertEqual(counts, {'added': 0, 'modified': 0, 'removed': 1})
+        write.assert_called_once()
+        payload = json.loads(write.call_args.args[0].data)
+        self.assertEqual(payload['p_expected_cursor'], 'existing')
+        self.assertEqual(payload['p_next_cursor'], 'checkpoint')
+        self.assertEqual(payload['p_removed_ids'], ['old'])
 
-        def fake_request(path, payload, timeout=20):
-            if path == '/transactions/sync':
-                return sync_resp
-            if path == '/liabilities/get':
-                return {'accounts': [], 'liabilities': {'credit': []}}
-            raise AssertionError('unexpected path ' + path)
-
-        def fake_postgrest_upsert(req, timeout=None):
-            if req.full_url.startswith(webhook.SUPABASE_URL + '/rest/v1/plaid_transactions') and req.get_method() == 'POST':
-                batch = json.loads(req.data)
-                key_shapes = {frozenset(r.keys()) for r in batch}
-                if len(key_shapes) > 1:
-                    raise urllib.error.HTTPError(
-                        url=req.full_url, code=400, msg='Bad Request', hdrs=None,
-                        fp=io.BytesIO(json.dumps({'code': 'PGRST102', 'message': 'All object keys must match'}).encode()),
-                    )
-            class R:
-                def read(self_inner): return b'[]'
-                def __enter__(self_inner): return self_inner
-                def __exit__(self_inner, *a): pass
-            return R()
-
-        with patch.object(webhook, '_plaid_get_items', return_value=items), \
-             patch.object(webhook, '_plaid_request', side_effect=fake_request), \
-             patch('urllib.request.urlopen', side_effect=fake_postgrest_upsert):
-            result = webhook.plaid_sync_transactions()
-
-        self.assertEqual(result, {'ok': True, 'added': 2, 'modified': 1, 'removed': 0, 'errors': None})
+    def test_second_page_failure_never_writes_an_incomplete_update(self):
+        first = dict(added=[], modified=[], removed=[], has_more=True, next_cursor='page-two')
+        item = {'item_id': 'item1', 'access_token': 'tok1'}
+        with patch.object(webhook, '_plaid_request', side_effect=[first, RuntimeError('Plaid unavailable')]), \
+             patch.object(webhook, '_supabase_urlopen') as write:
+            with self.assertRaisesRegex(RuntimeError, 'Plaid unavailable'):
+                webhook._plaid_transaction_updates(item)
+        write.assert_not_called()
 
     def test_sync_write_failure_surfaces_postgrest_detail_not_a_bare_400(self):
         # Nov 4, 2026 bug: Gabe's "Sync now" reported "American Express: HTTP Error 400: Bad
@@ -296,7 +269,7 @@ class MultiItemSyncTests(unittest.TestCase):
             raise AssertionError('unexpected path ' + path)
 
         def fake_urlopen(req, timeout=None):
-            if req.full_url.startswith(webhook.SUPABASE_URL + '/rest/v1/plaid_transactions') and req.get_method() == 'POST':
+            if req.full_url.endswith('/rpc/commit_plaid_transaction_sync'):
                 raise urllib.error.HTTPError(
                     url=req.full_url, code=400, msg='Bad Request', hdrs=None,
                     fp=io.BytesIO(json.dumps({
@@ -310,15 +283,14 @@ class MultiItemSyncTests(unittest.TestCase):
                 def __exit__(self_inner, *a): pass
             return R()
 
-        with patch.object(webhook, '_plaid_get_items', return_value=items), \
+        with patch.object(webhook, '_plaid_get_sync_items', return_value=items), \
              patch.object(webhook, '_plaid_request', side_effect=fake_request), \
              patch('urllib.request.urlopen', side_effect=fake_urlopen):
             result = webhook.plaid_sync_transactions()
 
-        self.assertTrue(result['errors'])
-        self.assertIn('not-null constraint', result['errors'][0])
-        self.assertIn('23502', result['errors'][0])
-        self.assertNotIn('HTTP Error 400: Bad Request', result['errors'][0])
+        self.assertIn('not-null constraint', result['error'])
+        self.assertIn('23502', result['error'])
+        self.assertNotIn('HTTP Error 400: Bad Request', result['error'])
 
     def test_orphaned_item_for_an_already_seen_real_card_is_skipped_not_double_synced(self):
         # Nov 4, 2026 fix: an orphaned Item from a stalled Link attempt can still be a genuine,
@@ -328,13 +300,16 @@ class MultiItemSyncTests(unittest.TestCase):
         # instead of just mis-displaying a card list. The second Item here reports back the same
         # mask as the first and must never reach /transactions/sync at all.
         items = [
-            {'item_id': 'item_live', 'access_token': 'tok_live', 'institution_name': 'Amex'},
-            {'item_id': 'item_orphaned', 'access_token': 'tok_orphaned', 'institution_name': 'Amex'},
+            {'item_id': 'item_live', 'access_token': 'tok_live', 'institution_name': 'Amex',
+             'plaid_accounts': [{'mask': '1008'}]},
+            {'item_id': 'item_orphaned', 'access_token': 'tok_orphaned', 'institution_name': 'Amex',
+             'plaid_accounts': [{'mask': '1008'}]},
         ]
         sync_calls = []
 
         def fake_request(path, payload, timeout=20):
             if path == '/liabilities/get':
+                self.assertEqual(payload['access_token'], 'tok_live')
                 return {'accounts': [{'account_id': 'acc_x', 'name': 'Business Gold', 'mask': '1008', 'balances': {'current': 9144.02}}],
                         'liabilities': {'credit': [{'account_id': 'acc_x', 'last_statement_balance': 3653.28, 'minimum_payment_amount': 0, 'next_payment_due_date': '2026-11-03', 'last_statement_issue_date': '2026-10-03'}]}}
             if path == '/transactions/sync':
@@ -350,7 +325,7 @@ class MultiItemSyncTests(unittest.TestCase):
                 def __exit__(self_inner, *a): pass
             return R()
 
-        with patch.object(webhook, '_plaid_get_items', return_value=items), \
+        with patch.object(webhook, '_plaid_get_sync_items', return_value=items), \
              patch.object(webhook, '_plaid_request', side_effect=fake_request), \
              patch('urllib.request.urlopen', side_effect=fake_urlopen):
             result = webhook.plaid_sync_transactions()
@@ -382,15 +357,47 @@ class MultiItemSyncTests(unittest.TestCase):
                 def __exit__(self_inner, *a): pass
             return R()
 
-        with patch.object(webhook, '_plaid_get_items', return_value=items), \
+        with patch.object(webhook, '_plaid_get_sync_items', return_value=items), \
              patch.object(webhook, '_plaid_request', side_effect=fake_request), \
              patch('urllib.request.urlopen', side_effect=fake_urlopen):
             result = webhook.plaid_sync_transactions()
 
         self.assertTrue(result['ok'])
         self.assertEqual(result['added'], 1)
-        self.assertEqual(len(result['errors']), 1)
-        self.assertIn('Bad', result['errors'][0])
+        self.assertTrue(any('Bad' in error for error in result['errors']))
+
+
+class AmexCronTests(unittest.TestCase):
+    def handler(self, authorization=None):
+        from unittest.mock import Mock
+        handler = webhook.handler.__new__(webhook.handler)
+        handler.path = '/api/webhook?job=amex_daily_sync'
+        handler.headers = {'Authorization': authorization} if authorization else {}
+        handler._respond = Mock()
+        return handler
+
+    def test_cron_requires_the_secret_and_rejects_missing_configuration(self):
+        for secret, authorization in [('', None), ('configured', None), ('configured', 'Bearer incorrect')]:
+            with self.subTest(secret=secret, authorization=authorization):
+                handler = self.handler(authorization)
+                with patch.dict(os.environ, {'CRON_SECRET': secret}), \
+                     patch.object(webhook, 'plaid_sync_transactions') as sync:
+                    handler.do_GET()
+                sync.assert_not_called()
+                handler._respond.assert_called_once_with(401, {'error': 'Unauthorized'})
+
+    def test_cron_invokes_only_amex_sync_and_reports_failures(self):
+        for result, status in [({'ok': True, 'added': 0}, 200), ({'ok': True, 'errors': ['details']}, 502)]:
+            with self.subTest(status=status):
+                handler = self.handler('Bearer configured')
+                with patch.dict(os.environ, {'CRON_SECRET': 'configured'}), \
+                     patch.object(webhook, 'plaid_sync_transactions', return_value=result) as sync, \
+                     patch.object(webhook, 'run_destage_reminders') as reminders:
+                    handler.do_GET()
+                sync.assert_called_once_with()
+                reminders.assert_not_called()
+                self.assertEqual(handler._respond.call_args.args[0], status)
+                self.assertNotIn('details', str(handler._respond.call_args))
 
 
 class PlaidExchangeTests(unittest.TestCase):
