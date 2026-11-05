@@ -1246,10 +1246,11 @@ async function saveFinanceConfig(){
   };
   const msg = document.getElementById('fc-msg');
   try{
-    await _sb.from('invoices').upsert({
+    const {error}=await _sb.from('invoices').upsert({
       invnum:'FINANCE_CONFIG', client:'FINANCE_CONFIG', address:'',
       invdate:new Date().toISOString().split('T')[0], data: cfg,
     }, { onConflict:'invnum' });
+    if(error)throw error;
     FINANCE_CONFIG = cfg;
     if(msg){ msg.textContent = 'Saved ✓'; msg.className='msg'; setTimeout(()=>msg.textContent='',2000); }
     runFinanceView();
