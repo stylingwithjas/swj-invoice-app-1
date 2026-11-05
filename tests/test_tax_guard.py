@@ -89,7 +89,7 @@ class TaxEvidenceTests(unittest.TestCase):
         self.assertEqual(h.result[0],422)
 
     def test_paid_stored_invoice_uses_existing_data_without_current_rate_lookup(self):
-        mod=module('generate');stored={'paid':True,'client':'Historical','taxrate':9.6,'invnum':'TEST'};h=handler(mod,{'invnum':'TEST'})
+        mod=module('generate');stored={'paid':True,'client':'Historical','taxrate':9.6,'invnum':'TEST','generator_request':True};h=handler(mod,{'invnum':'TEST'})
         with patch.object(mod,'stored_invoice',return_value=stored),patch.object(mod,'require_verified') as evidence,patch.object(mod,'generate_invoice_pdf',side_effect=RuntimeError('sentinel')) as pdf:
             mod.handler.do_POST(h);evidence.assert_not_called();self.assertEqual(pdf.call_args.args[0],stored)
 

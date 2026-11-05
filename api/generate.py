@@ -1579,6 +1579,7 @@ class handler(BaseHTTPRequestHandler):
             self._error(400, f'Invalid JSON: {e}')
             return
 
+        live_generator = bool(data.get('generator_request'))
         try:
             # Extensions and balance notices are separate documents, not edits of
             # the original invoice. Preserve those existing Board workflows.
@@ -1601,7 +1602,7 @@ class handler(BaseHTTPRequestHandler):
             # because nothing stored exists yet — so it may proceed without the lookup.
             # Only loading/regenerating an existing invoice stays fail-closed, above.
 
-        if data.get('generator_request') and not data.get('gs_invoice'):
+        if live_generator and not data.get('gs_invoice'):
             try:
                 require_verified(data)
             except ValueError as error:
