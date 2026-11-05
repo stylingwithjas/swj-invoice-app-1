@@ -364,13 +364,13 @@ function initPeriodPickers(){
 function parseAddress(address){
   const addr = (address||'').trim();
   if(!addr) return {city:'', zip:'', ok:false};
-  const zipMatch = addr.match(/\b(\d{5})(-\d{4})?\b/);
+  const zipMatch = addr.match(/(?:\bWA[ ,]+|,\s*[A-Za-z .'-]+[ ,]+)(\d{5})(?:-\d{4})?\s*$/i);
   const zip = zipMatch ? zipMatch[1] : '';
   const cityMatch = addr.match(/,\s*([A-Za-z .'-]+?)[, ]+WA\b/i);
-  if(cityMatch) return {city:cityMatch[1].trim(), zip, ok:true};
+  if(cityMatch) return {city:cityMatch[1].trim(), zip, ok:!!zip};
   // Fallback: "Street, City" with no state/zip captured on the same segment
   const parts = addr.split(',').map(s=>s.trim()).filter(Boolean);
-  if(parts.length>=2) return {city:parts[1].replace(/\s+WA.*$/i,'').trim(), zip, ok: !!zip};
+  if(parts.length>=2) return {city:parts[1].replace(/\s+WA.*$/i,'').replace(/\s+\d{5}(?:-\d{4})?$/,'').trim(), zip, ok: !!zip};
   return {city:'', zip, ok:false};
 }
 
@@ -378,7 +378,7 @@ function parseAddress(address){
 // creation; older invoices only have them inside the free-text address, so fall back to the
 // same best-effort parse the report has always used for those.
 function resolveLocation(inv, d){
-  if(d.price_led_tax && d.zip) return { city: d.city||'', zip: d.zip, ok: !!d.city };
+  if(d.city || d.zip) return {city:d.city||'',zip:d.zip||'',ok:!!d.city && /^\d{5}$/.test(d.zip||'')};
   return parseAddress(inv.address || d.address || '');
 }
 

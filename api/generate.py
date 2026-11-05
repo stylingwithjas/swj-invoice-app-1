@@ -3,6 +3,8 @@ import os
 import tempfile
 import base64
 from lib.invoice_protection import stored_invoice, is_paid
+from lib.tax_verification import require_verified
+from lib.downloads import content_disposition
 
 ASSETS = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'assets')
 
@@ -1577,6 +1579,7 @@ class handler(BaseHTTPRequestHandler):
             self._error(400, f'Invalid JSON: {e}')
             return
 
+        live_generator = bool(data.get('generator_request'))
         try:
             # Extensions and balance notices are separate documents, not edits of
             # the original invoice. Preserve those existing Board workflows.
@@ -1599,6 +1602,12 @@ class handler(BaseHTTPRequestHandler):
             # because nothing stored exists yet — so it may proceed without the lookup.
             # Only loading/regenerating an existing invoice stays fail-closed, above.
 
+        if live_generator and not data.get('gs_invoice'):
+            try:
+                require_verified(data)
+            except ValueError as error:
+                self._error(422, str(error)); return
+
         try:
             pdf_path = generate_invoice_pdf(data)
             with open(pdf_path, 'rb') as f:
@@ -1612,7 +1621,7 @@ class handler(BaseHTTPRequestHandler):
             self.send_response(200)
             self._cors()
             self.send_header('Content-Type', 'application/pdf')
-            self.send_header('Content-Disposition', f'attachment; filename="{filename}"')
+            self.send_header('Content-Disposition', content_disposition(filename))
             self.send_header('Content-Length', len(pdf_bytes))
             self.end_headers()
             self.wfile.write(pdf_bytes)

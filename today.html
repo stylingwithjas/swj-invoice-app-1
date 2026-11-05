@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <script src="/admin-auth.js"></script>
+<script src="/assets/task-carry.js"></script>
 <script src="/assets/payment-events.js"></script>
 <meta charset="UTF-8">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -462,6 +463,7 @@ body{background:var(--bg)}.hdr{background:#fbfcfb}.content{gap:12px!important;pa
     <a class="swj-more-link" href="/tax-report.html">📊 Reports (Tax Report)</a>
     <a class="swj-more-link" href="/archive.html">🧾 Invoices (Archive)</a>
     <a class="swj-more-link" href="/luxury.html">✚ New Luxury Invoice</a>
+    <a class="swj-more-link" href="/gs-invoice.html">Photography Invoice</a>
     <a class="swj-more-link" href="/hours.html">🕒 My Hours</a>
     <button class="swj-more-link" type="button" style="width:100%;text-align:left;border:none;background:none;font:inherit;cursor:pointer" onclick="swjSignOut()">🔒 Sign out</button>
   </div>
@@ -859,11 +861,17 @@ async function carryForward(){
   const yesterday=new Date(todayDate);yesterday.setDate(yesterday.getDate()-1);
   const {data}=await _sb.from('tasks').select('*').eq('date',toISODate(yesterday)).eq('status','pending');
   if(!data||!data.length) return;
-  // Carry each one forward
-  const carried=data.map(t=>({...t,id:undefined,date:toISODate(todayDate),sort_order:(t.sort_order||0)}));
-  if(carried.length){
-    await _sb.from('tasks').insert(carried);
-    console.log(`Carried forward ${carried.length} task(s) from yesterday`);
+  // Same source/date always has the same primary key. Concurrent refreshes,
+  // retries and completed carried tasks cannot create another copy.
+  try {
+    const carried=await SWJTaskCarry.rows(data,toISODate(todayDate));
+    const {error}=await _sb.from('tasks').upsert(carried,{onConflict:'id',ignoreDuplicates:true});
+    if(error)throw error;
+    document.getElementById('carry-warning')?.remove();
+  } catch(error) {
+    let warning=document.getElementById('carry-warning');
+    if(!warning){warning=document.createElement('div');warning.id='carry-warning';warning.setAttribute('role','alert');document.body.prepend(warning);}
+    warning.textContent='Could not carry yesterday’s pending tasks forward. Reload to retry; the original tasks are unchanged.';
   }
 }
 

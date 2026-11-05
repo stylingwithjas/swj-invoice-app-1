@@ -1605,14 +1605,15 @@ def tax_parse_address(address):
     addr = (address or '').strip()
     if not addr:
         return {'city': '', 'zip': '', 'ok': False}
-    zip_match = re.search(r'\b(\d{5})(-\d{4})?\b', addr)
+    zip_match = re.search(r"(?:\bWA[ ,]+|,\s*[A-Za-z .'-]+[ ,]+)(\d{5})(?:-\d{4})?\s*$", addr, re.IGNORECASE)
     zip_code = zip_match.group(1) if zip_match else ''
     city_match = re.search(r",\s*([A-Za-z .'-]+?)[, ]+WA\b", addr, re.IGNORECASE)
     if city_match:
-        return {'city': city_match.group(1).strip(), 'zip': zip_code, 'ok': True}
+        return {'city': city_match.group(1).strip(), 'zip': zip_code, 'ok': bool(zip_code)}
     parts = [p.strip() for p in addr.split(',') if p.strip()]
     if len(parts) >= 2:
         city = re.sub(r'\s+WA.*$', '', parts[1], flags=re.IGNORECASE).strip()
+        city = re.sub(r'\s+\d{5}(?:-\d{4})?$', '', city).strip()
         return {'city': city, 'zip': zip_code, 'ok': bool(zip_code)}
     return {'city': '', 'zip': zip_code, 'ok': False}
 
@@ -1632,8 +1633,8 @@ def tax_categorize(desc):
 # older invoices only have them inside the free-text address, so fall back to the same
 # best-effort parse this report has always used for those.
 def tax_resolve_location(inv, d):
-    if d.get('price_led_tax') and d.get('zip'):
-        return {'city': d.get('city') or '', 'zip': d.get('zip'), 'ok': bool(d.get('city'))}
+    if d.get('city') or d.get('zip'):
+        return {'city':d.get('city') or '', 'zip':d.get('zip') or '', 'ok':bool(d.get('city')) and bool(re.fullmatch(r'\d{5}',str(d.get('zip') or '')))}
     return tax_parse_address(inv.get('address') or d.get('address') or '')
 
 

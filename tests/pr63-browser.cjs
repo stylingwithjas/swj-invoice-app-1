@@ -30,6 +30,8 @@ window.supabase={createClient:()=>({from:table=>{
    await page.route('**/*',route=>{
     const url=route.request().url();
     if(url.includes('supabase-js'))return route.fulfill({contentType:'application/javascript',body:''});
+    // Pricing-only fixtures assume tax verification; the real guard has dedicated DOM/browser coverage.
+    if(url.endsWith('/assets/tax-guard.js'))return route.fulfill({contentType:'application/javascript',body:'window.SWJTaxGuard={allowed:()=>true,artifactAllowed:()=>true,reset(){},attach:data=>data};'});
     if(!url.startsWith('http://127.0.0.1:8765/'))return route.abort();
     if(url.includes('/api/')){requests.push(url);return route.fulfill({contentType:'application/json',body:'{"value":2020999,"url":"https://example.test/payment","saved":true}'});}
     return route.continue();

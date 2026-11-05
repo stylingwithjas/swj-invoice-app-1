@@ -1246,10 +1246,11 @@ async function saveFinanceConfig(){
   };
   const msg = document.getElementById('fc-msg');
   try{
-    await _sb.from('invoices').upsert({
+    const {error}=await _sb.from('invoices').upsert({
       invnum:'FINANCE_CONFIG', client:'FINANCE_CONFIG', address:'',
       invdate:new Date().toISOString().split('T')[0], data: cfg,
     }, { onConflict:'invnum' });
+    if(error)throw error;
     FINANCE_CONFIG = cfg;
     if(msg){ msg.textContent = 'Saved ✓'; msg.className='msg'; setTimeout(()=>msg.textContent='',2000); }
     runFinanceView();
@@ -1344,10 +1345,12 @@ function moverPlanningPerJob(){ return FINANCE_CONFIG.mover_plan_staging + FINAN
 // Allocation views, or force/clear a one-off classification. Same system-record pattern as
 // FINANCE_CONFIG, keyed by month so one override doesn't bleed into another period.
 let FINANCE_OVERRIDES = {};
+let _savedFinanceOverrides = {};
 async function loadFinanceOverrides(){
   try{
     const { data } = await _sb.from('invoices').select('data').eq('invnum','FINANCE_OVERRIDES').maybeSingle();
     FINANCE_OVERRIDES = (data && data.data) || {};
+    _savedFinanceOverrides = JSON.parse(JSON.stringify(FINANCE_OVERRIDES));
   }catch(e){ FINANCE_OVERRIDES = {}; }
 }
 function periodKey(periodStart){ return periodStart.slice(0,7); }
@@ -1356,13 +1359,22 @@ function getOverridesFor(periodStart){
   return FINANCE_OVERRIDES[k] || { excludeInvnums:[], includeInvnums:[], oneOff:{force:null} };
 }
 async function saveFinanceOverrides(){
+  const snapshot = JSON.parse(JSON.stringify(FINANCE_OVERRIDES));
   try{
-    await _sb.from('invoices').upsert({
+    const {error} = await _sb.from('invoices').upsert({
       invnum:'FINANCE_OVERRIDES', client:'FINANCE_OVERRIDES', address:'',
-      invdate:new Date().toISOString().split('T')[0], data: FINANCE_OVERRIDES,
+      invdate:new Date().toISOString().split('T')[0], data: snapshot,
     }, { onConflict:'invnum' });
-  }catch(e){ alert('Could not save override: '+e.message); }
+    if(error)throw error;
+    _savedFinanceOverrides = snapshot;
+    return true;
+  }catch(e){
+    FINANCE_OVERRIDES = JSON.parse(JSON.stringify(_savedFinanceOverrides));
+    alert('Could not save override: '+e.message);
+    return false;
+  }
 }
+
 function currentOverrideBucket(){
   const periodStart = _lastFinancePeriod && _lastFinancePeriod.start; if(!periodStart) return null;
   const k = periodKey(periodStart);
@@ -1374,7 +1386,7 @@ async function financeExcludeProject(invnum){
   const ov = currentOverrideBucket(); if(!ov) return;
   if(!ov.excludeInvnums.includes(invnum)) ov.excludeInvnums.push(invnum);
   ov.includeInvnums = (ov.includeInvnums||[]).filter(n=>n!==invnum);
-  await saveFinanceOverrides();
+  if(!await saveFinanceOverrides()) return;
   runFinanceView();
 }
 async function financeIncludeProject(){
@@ -1382,14 +1394,14 @@ async function financeIncludeProject(){
   const ov = currentOverrideBucket(); if(!ov) return;
   if(!ov.includeInvnums.includes(invnum)) ov.includeInvnums.push(invnum);
   ov.excludeInvnums = (ov.excludeInvnums||[]).filter(n=>n!==invnum);
-  await saveFinanceOverrides();
+  if(!await saveFinanceOverrides()) return;
   runFinanceView();
 }
 async function financeToggleOneOff(){
   const ov = currentOverrideBucket(); if(!ov) return;
   const current = _lastFinanceSummary ? _lastFinanceSummary.oneOff.flagged : false;
   ov.oneOff = { force: current ? false : true };
-  await saveFinanceOverrides();
+  if(!await saveFinanceOverrides()) return;
   runFinanceView();
 }
 
@@ -2180,7 +2192,7 @@ async function prAddNote(){
   const note = prompt('Note for ' + (document.getElementById('fin-period')?.textContent||'this month') + ':', ov.note||'');
   if(note===null) return;
   ov.note = note.trim();
-  await saveFinanceOverrides();
+  if(!await saveFinanceOverrides()) return;
   renderPrNotes();
 }
 
