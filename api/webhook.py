@@ -2594,6 +2594,10 @@ class handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
+        if 'public' in urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query, keep_blank_values=True):
+            from lib.public_invoice_http import handle
+            handle(self, 'GET')
+            return
         if 'data' in urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query, keep_blank_values=True):
             from lib.owner_data_http import handle
             handle(self, 'GET')
@@ -2625,6 +2629,9 @@ class handler(BaseHTTPRequestHandler):
         if not secret or not hmac.compare_digest(self.headers.get('Authorization', ''), f'Bearer {secret}'):
             self._respond(401, {'error': 'Unauthorized'})
             return
+        return self._run_scheduled_job()
+
+    def _run_scheduled_job(self):
         query = urllib.parse.urlparse(self.path).query
         job = urllib.parse.parse_qs(query).get('job', [''])[0]
         try:
@@ -2687,6 +2694,10 @@ class handler(BaseHTTPRequestHandler):
             self._respond(500, {'error': str(e)})
 
     def do_POST(self):
+        if 'public' in urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query, keep_blank_values=True):
+            from lib.public_invoice_http import handle
+            handle(self, 'POST')
+            return
         if 'data' in urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query, keep_blank_values=True):
             from lib.owner_data_http import handle
             handle(self, 'POST')
@@ -2711,15 +2722,20 @@ class handler(BaseHTTPRequestHandler):
             from lib.stripe_recon_http import handle
             handle(self, 'POST', SUPABASE_URL, os.environ.get('SUPABASE_KEY', ''))
             return
+        manual_job = query_params.get('job', [''])[0]
+        if manual_job in {'monthly_tax_report','monthly_audit_packet','monthly_backup_export','weekly_digest'}:
+            from lib.owner_guard import require_owner
+            if not require_owner(self):
+                return
+            return self._run_scheduled_job()
         length = int(self.headers.get('Content-Length', 0))
         raw_body = self.rfile.read(length)
 
         # Plaid actions (Amex spending snapshot) — same ?job= dispatch convention do_GET
         # already uses for cron jobs, kept entirely separate from the Stripe-event handling
         # below since a Plaid request is never Stripe-shaped and never carries a
-        # Stripe-Signature header. Reachable by anyone who knows the URL, same as every other
-        # admin-only surface in this app (a client-side password gate on the page, not a
-        # server-side token) — not a new gap, just this app's existing model extended here.
+        # Stripe-Signature header. Owner-session verification is required before
+        # any Plaid account or synchronization action can run.
         query = urllib.parse.urlparse(self.path).query
         job = urllib.parse.parse_qs(query).get('job', [''])[0]
         if job.startswith('plaid_'):
@@ -2742,8 +2758,8 @@ class handler(BaseHTTPRequestHandler):
                 self._respond(404, {'error': f'Unknown job: {job}'})
             return
 
-        # "Money landing soon" (Home page) -- same reachable-by-anyone-who-knows-the-URL model
-        # as the Plaid jobs just above; read-only, no charge/payout/refund is ever created here.
+        # "Money landing soon" is read-only but contains private business data,
+        # so it uses the owner session too.
         if job == 'stripe_payout_snapshot':
             from lib.owner_guard import require_owner
             if not require_owner(self):

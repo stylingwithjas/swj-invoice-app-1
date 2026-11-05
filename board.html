@@ -18,6 +18,7 @@
 <title>SWJ — Project Board</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="/assets/swj-owner-data.js"></script>
+<script src="/assets/swj-private-links.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
@@ -1215,7 +1216,8 @@ function textMover(type){
 
   const fmtDate = date ? new Date(date+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'}) : '[date TBD]';
   const action = (type==='staging'||type==='staging2') ? 'staging' : 'destage/pickup';
-  const link = `${location.origin}/confirm.html?inv=${encodeURIComponent(currentCardId||'')}&role=${MOVER_ROLE_KEY[type]}`;
+  const link = swjCrewLink(currentCardId, MOVER_ROLE_KEY[type]);
+  if (!link) return;
   const msg = `Hi ${name}, we have a new ${action} coming up at ${addr} on ${fmtDate}. Please confirm here: ${link}`;
 
   const clean = tel.replace(/\D/g,'');
@@ -1234,7 +1236,8 @@ function textPhotographer(){
   const addr = document.getElementById('m-addr').textContent;
   const date = document.getElementById('m-photo').value;
   const fmtDate = date ? new Date(date+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'}) : '[date TBD]';
-  const link = `${location.origin}/confirm.html?inv=${encodeURIComponent(currentCardId||'')}&role=photographer`;
+  const link = swjCrewLink(currentCardId, 'photographer');
+  if (!link) return;
   const msg = `Hi ${name}, photos are scheduled for ${addr} on ${fmtDate}. Please confirm here: ${link}`;
   const clean = tel.replace(/\D/g,'');
   window.open(`sms:${clean}&body=${encodeURIComponent(msg)}`);
@@ -1571,7 +1574,9 @@ async function resendSignatureInvite(role){
     }catch(e){ /* still send the email even if the save hiccups — don't block on it */ }
   }
 
-  const link = location.origin+'/proposal.html?inv='+encodeURIComponent(currentCardId)+'&role='+role;
+  let link;
+  try { link = await swjPrivateLink(currentCardId,role); }
+  catch(error) { if(statusEl) statusEl.textContent=error.message; return; }
   const subject = 'Please Review & Sign — '+(inv.address||d.address||'');
   let intro;
   if(role==='client'){
@@ -2279,7 +2284,7 @@ async function testWeeklyDigestNow(){
   const btn = document.getElementById('test-digest-btn');
   if(btn){ btn.disabled = true; btn.textContent = '📧 Sending…'; }
   try{
-    const r = await fetch('/api/webhook?job=weekly_digest', { method: 'GET' });
+    const r = await fetch('/api/webhook?job=weekly_digest', { method:'POST', headers:{'Content-Type':'application/json'}, body:'{}' });
     const j = await r.json();
     alert(j.ok
       ? (j.digest_sent ? '✓ Weekly digest sent — check info@stylingwithjas.com.' : 'Digest ran but the email failed to send — check that EMAIL_PASSWORD is configured.')
@@ -2940,6 +2945,7 @@ async function downloadSignedContract(invnum, btn){
 
 function realOpenCard(invnum){
   currentCardId = invnum;
+  swjPrepareCrewLinks(invnum);
   const inv = CARDS[invnum];
   if(!inv){
     console.warn('Card not found:', invnum);

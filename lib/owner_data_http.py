@@ -6,7 +6,6 @@ can be revoked. The service credential stays on the server.
 """
 import json
 import os
-import re
 import urllib.error
 import urllib.parse
 import urllib.request

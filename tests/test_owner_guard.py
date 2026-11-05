@@ -15,7 +15,8 @@ ROOT = Path(__file__).resolve().parents[1]
 class OwnerBoundaryTests(unittest.TestCase):
     def test_missing_session_rejected_before_financial_work(self):
         for name, methods in {'stripe':['POST'], 'invoices':['GET','POST'],
-                              'agent':['POST'], 'search':['POST'],
+                              'agent':['POST'], 'search':['POST'], 'email':['POST'],
+                              'generate_receipt':['POST'], 'distance':['POST'],
                               'counter':['GET','POST'], 'generate':['POST']}.items():
             spec = importlib.util.spec_from_file_location('boundary_'+name, ROOT/'api'/f'{name}.py')
             module = importlib.util.module_from_spec(spec)

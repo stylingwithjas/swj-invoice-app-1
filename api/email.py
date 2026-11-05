@@ -1,3 +1,5 @@
+from lib.owner_guard import require_owner
+from lib import admin_auth, private_links
 import json
 import os
 import smtplib
@@ -111,6 +113,8 @@ class handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_POST(self):
+        if not require_owner(self):
+            return
         try:
             length = int(self.headers.get('Content-Length', 0))
             body = json.loads(self.rfile.read(length))
@@ -129,7 +133,13 @@ class handler(BaseHTTPRequestHandler):
         message    = body.get('message', '')
         pdf_base64 = body.get('pdf', '')
         filename   = body.get('filename', 'SWJ_Proposal.pdf')
-        proposal_link = body.get('proposal_link', None)
+        try:
+            origin = admin_auth.origin(self)
+            message = private_links.secure_email_links(message, origin)
+            proposal_link = private_links.secure_email_links(body.get('proposal_link') or '', origin) or None
+        except (ValueError, TypeError):
+            self._respond(400, {'error':'Could not prepare a private approval link. Nothing was sent.'})
+            return
         client_first_name = body.get('client_first_name', '')
 
         # Accept multiple recipients: comma or semicolon separated (matches the browser's

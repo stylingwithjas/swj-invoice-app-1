@@ -1077,7 +1077,7 @@ async function sendTestEmail(){
   const orig = btn.textContent;
   btn.disabled = true; btn.textContent = 'Sending…';
   try{
-    const r = await fetch('/api/webhook?job=monthly_tax_report');
+    const r = await fetch('/api/webhook?job=monthly_tax_report', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
     const j = await r.json();
     if(!r.ok) throw new Error(j.error || `Server error ${r.status}`);
     alert(j.emailed ? `Sent! Check info@stylingwithjas.com for the ${j.period} report.` : `The report ran but the email failed to send — check that EMAIL_PASSWORD is configured.`);
@@ -1093,7 +1093,7 @@ async function sendTestAuditPacket(){
   const orig = btn.textContent;
   btn.disabled = true; btn.textContent = 'Sending…';
   try{
-    const r = await fetch('/api/webhook?job=monthly_audit_packet');
+    const r = await fetch('/api/webhook?job=monthly_audit_packet', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
     const j = await r.json();
     if(!r.ok) throw new Error(j.error || `Server error ${r.status}`);
     const emailMsg = j.emailed ? `Sent! Check info@stylingwithjas.com for the ${j.period} audit packet.` : `The packet ran but the email failed to send — check that EMAIL_PASSWORD is configured.`;
@@ -1111,7 +1111,7 @@ async function sendTestBackupExport(){
   const orig = btn.textContent;
   btn.disabled = true; btn.textContent = 'Sending…';
   try{
-    const r = await fetch('/api/webhook?job=monthly_backup_export');
+    const r = await fetch('/api/webhook?job=monthly_backup_export', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
     const j = await r.json();
     if(!r.ok) throw new Error(j.error || `Server error ${r.status}`);
     const emailMsg = j.emailed ? `Sent! Check info@stylingwithjas.com for the full website backup export.` : `The export ran but the email failed to send — check that EMAIL_PASSWORD is configured.`;

@@ -1,3 +1,5 @@
+from lib import admin_auth, private_links
+from lib.owner_guard import require_owner
 import json
 import os
 import urllib.request
@@ -584,6 +586,8 @@ class handler(BaseHTTPRequestHandler):
     def do_POST(self):
         try:
             length = int(self.headers.get('Content-Length', 0))
+            if not 0 < length <= 4 * 1024 * 1024:
+                raise ValueError('Request too large')
             body = json.loads(self.rfile.read(length))
         except Exception as e:
             self._respond(400, {'error': f'Invalid request: {e}'})
@@ -595,6 +599,8 @@ class handler(BaseHTTPRequestHandler):
         # Self-heals by saving the new link back onto the invoice so this only has to
         # run once per stale contract.
         if body.get('action') == 'refresh_link':
+            if not require_owner(self):
+                return
             refresh_invnum = body.get('invnum', '').strip()
             if not refresh_invnum:
                 self._respond(400, {'error': 'Missing invnum'})
@@ -620,8 +626,14 @@ class handler(BaseHTTPRequestHandler):
         sig_image = body.get('sig_image', None)
         sig_mode = body.get('sig_mode', 'typed')
         role = (body.get('role') or 'client').strip()
-        if role not in ('client', 'cosigner'):
-            role = 'client'
+        try:
+            allowed = (admin_auth.same_origin(self, required=True)
+                and private_links.verify(body.get('token'), invnum, role, 'proposal', admin_auth.origin(self)))
+        except ValueError:
+            allowed = False
+        if not allowed:
+            self._respond(403, {'error':'Please use the private approval link sent by Jasmine.'})
+            return
 
         if not invnum:
             self._respond(400, {'error': 'Missing invnum'})
@@ -651,13 +663,17 @@ class handler(BaseHTTPRequestHandler):
                 return
 
             d = inv.get('data', {})
+            if d.get('voided'):
+                self._respond(409, {'error':'This proposal is no longer available. Please contact Jasmine.'})
+                return
             client = inv.get('client', signed_by)
             client_email = d.get('client_email', '')
             cosigner = d.get('cosigner') or {}
             cosigner_role_label = (cosigner.get('role') or '').strip() or 'Co-Signer'
             has_cosigner = bool(cosigner.get('name') and cosigner.get('email'))
             if role == 'cosigner' and not has_cosigner:
-                role = 'client'  # defensive — UI shouldn't offer this role otherwise
+                self._respond(403, {'error':'This signer is no longer required. Please contact Jasmine.'})
+                return
 
             required_roles = ['client'] + (['cosigner'] if has_cosigner else [])
             existing_signatures = d.get('signatures') or []
@@ -705,8 +721,8 @@ class handler(BaseHTTPRequestHandler):
                 waiting_role = next(r for r in required_roles if not any(s.get('role') == r for s in signatures))
                 waiting_name = client if waiting_role == 'client' else cosigner.get('name', '')
                 waiting_email = client_email if waiting_role == 'client' else cosigner.get('email', '')
-                origin = 'https://' + (self.headers.get('X-Forwarded-Host') or self.headers.get('Host') or 'stylingwithjas.com')
-                proposal_link = f'{origin}/proposal.html?inv={urllib.parse.quote(invnum)}&role={waiting_role}'
+                origin = admin_auth.origin(self)
+                proposal_link = private_links.link(origin, invnum, waiting_role)
                 if waiting_email:
                     send_pending_signature_email(waiting_email, waiting_name, signed_by, invnum, proposal_link)
 
@@ -783,6 +799,8 @@ class handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def _cors(self):
+        self.send_header('Cache-Control', 'no-store, private')
+        self.send_header('Referrer-Policy', 'no-referrer')
         self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Access-Control-Allow-Methods', 'POST, OPTIONS')
         self.send_header('Access-Control-Allow-Headers', 'Content-Type')
