@@ -9,14 +9,16 @@
       "includeFiles": "lib/**"
     },
     "api/taxrate.py": {
-      "maxDuration": 15
+      "maxDuration": 15,
+      "includeFiles": "lib/**"
     },
     "api/sign.py": {
       "includeFiles": "{api/generate.py,assets/**,lib/**}",
       "maxDuration": 60
     },
     "api/stripe.py": {
-      "maxDuration": 30
+      "maxDuration": 30,
+      "includeFiles": "lib/**"
     },
     "api/agent.py": {
       "maxDuration": 60
@@ -27,6 +29,10 @@
     },
     "api/generate_receipt.py": {
       "includeFiles": "api/Parisienne-Regular.ttf"
+    },
+    "api/counter.py": {
+      "includeFiles": "lib/**",
+      "maxDuration": 30
     }
   },
   "redirects": [
@@ -146,10 +152,6 @@
     },
     {
       "source": "/",
-      "destination": "/today.html"
-    },
-    {
-      "source": "/((?!api/).*)",
       "destination": "/today.html"
     }
   ],

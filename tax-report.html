@@ -364,13 +364,13 @@ function initPeriodPickers(){
 function parseAddress(address){
   const addr = (address||'').trim();
   if(!addr) return {city:'', zip:'', ok:false};
-  const zipMatch = addr.match(/\b(\d{5})(-\d{4})?\b/);
+  const zipMatch = addr.match(/(?:\bWA[ ,]+|,\s*[A-Za-z .'-]+[ ,]+)(\d{5})(?:-\d{4})?\s*$/i);
   const zip = zipMatch ? zipMatch[1] : '';
   const cityMatch = addr.match(/,\s*([A-Za-z .'-]+?)[, ]+WA\b/i);
-  if(cityMatch) return {city:cityMatch[1].trim(), zip, ok:true};
+  if(cityMatch) return {city:cityMatch[1].trim(), zip, ok:!!zip};
   // Fallback: "Street, City" with no state/zip captured on the same segment
   const parts = addr.split(',').map(s=>s.trim()).filter(Boolean);
-  if(parts.length>=2) return {city:parts[1].replace(/\s+WA.*$/i,'').trim(), zip, ok: !!zip};
+  if(parts.length>=2) return {city:parts[1].replace(/\s+WA.*$/i,'').replace(/\s+\d{5}(?:-\d{4})?$/,'').trim(), zip, ok: !!zip};
   return {city:'', zip, ok:false};
 }
 
@@ -378,7 +378,7 @@ function parseAddress(address){
 // creation; older invoices only have them inside the free-text address, so fall back to the
 // same best-effort parse the report has always used for those.
 function resolveLocation(inv, d){
-  if(d.price_led_tax && d.zip) return { city: d.city||'', zip: d.zip, ok: !!d.city };
+  if(d.city || d.zip) return {city:d.city||'',zip:d.zip||'',ok:!!d.city && /^\d{5}$/.test(d.zip||'')};
   return parseAddress(inv.address || d.address || '');
 }
 
@@ -1076,7 +1076,7 @@ async function sendTestEmail(){
   const orig = btn.textContent;
   btn.disabled = true; btn.textContent = 'Sending…';
   try{
-    const r = await fetch('/api/webhook?job=monthly_tax_report');
+    const r = await fetch('/api/webhook?job=monthly_tax_report', {method:'POST'});
     const j = await r.json();
     if(!r.ok) throw new Error(j.error || `Server error ${r.status}`);
     alert(j.emailed ? `Sent! Check info@stylingwithjas.com for the ${j.period} report.` : `The report ran but the email failed to send — check that EMAIL_PASSWORD is configured.`);
@@ -1092,7 +1092,7 @@ async function sendTestAuditPacket(){
   const orig = btn.textContent;
   btn.disabled = true; btn.textContent = 'Sending…';
   try{
-    const r = await fetch('/api/webhook?job=monthly_audit_packet');
+    const r = await fetch('/api/webhook?job=monthly_audit_packet', {method:'POST'});
     const j = await r.json();
     if(!r.ok) throw new Error(j.error || `Server error ${r.status}`);
     const emailMsg = j.emailed ? `Sent! Check info@stylingwithjas.com for the ${j.period} audit packet.` : `The packet ran but the email failed to send — check that EMAIL_PASSWORD is configured.`;
@@ -1110,7 +1110,7 @@ async function sendTestBackupExport(){
   const orig = btn.textContent;
   btn.disabled = true; btn.textContent = 'Sending…';
   try{
-    const r = await fetch('/api/webhook?job=monthly_backup_export');
+    const r = await fetch('/api/webhook?job=monthly_backup_export', {method:'POST'});
     const j = await r.json();
     if(!r.ok) throw new Error(j.error || `Server error ${r.status}`);
     const emailMsg = j.emailed ? `Sent! Check info@stylingwithjas.com for the full website backup export.` : `The export ran but the email failed to send — check that EMAIL_PASSWORD is configured.`;

@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <script src="/admin-auth.js"></script>
+<script src="/assets/records.js"></script>
 <script src="/assets/payment-events.js"></script>
 <script src="/assets/invoice-safety.js"></script>
 <meta charset="UTF-8">
@@ -540,6 +541,7 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
     <a class="swj-more-link" href="/tax-report.html">📊 Reports (Tax Report)</a>
     <a class="swj-more-link" href="/archive.html">🧾 Invoices (Archive)</a>
     <a class="swj-more-link" href="/luxury.html">✚ New Luxury Invoice</a>
+    <a class="swj-more-link" href="/gs-invoice.html">Photography Invoice</a>
     <a class="swj-more-link" href="/hours.html">🕒 My Hours</a>
     <button class="swj-more-link" type="button" style="width:100%;text-align:left;border:none;background:none;font:inherit;cursor:pointer" onclick="swjSignOut()">🔒 Sign out</button>
   </div>
@@ -2247,7 +2249,7 @@ async function checkRemindersNow(){
   const btn = document.getElementById('check-reminders-btn');
   if(btn){ btn.disabled = true; btn.textContent = '🔔 Checking…'; }
   try{
-    const r = await fetch('/api/webhook', { method: 'GET' });
+    const r = await fetch('/api/webhook?job=reminders_now', { method: 'POST' });
     const j = await r.json();
     if(j.ok){
       const sent = j.reminders_sent || [];
@@ -2278,7 +2280,7 @@ async function testWeeklyDigestNow(){
   const btn = document.getElementById('test-digest-btn');
   if(btn){ btn.disabled = true; btn.textContent = '📧 Sending…'; }
   try{
-    const r = await fetch('/api/webhook?job=weekly_digest', { method: 'GET' });
+    const r = await fetch('/api/webhook?job=weekly_digest', { method: 'POST' });
     const j = await r.json();
     alert(j.ok
       ? (j.digest_sent ? '✓ Weekly digest sent — check info@stylingwithjas.com.' : 'Digest ran but the email failed to send — check that EMAIL_PASSWORD is configured.')
@@ -2290,14 +2292,19 @@ async function testWeeklyDigestNow(){
   }
 }
 
+let _boardLoadSeq=0;
 async function loadBoard(){
+  const generation=++_boardLoadSeq;
   try {
-    const { data, error } = await _sb
+    const { data, error } = await SWJRecords.all(()=>_sb
       .from('invoices')
-      .select('invnum,client,address,invdate,data,created_at')
+      .select('invnum,client,address,invdate,data,created_at',{count:'exact'})
       .order('created_at', { ascending: false })
-      .limit(200);
+      .order('invnum',{ascending:true}),{key:'invnum'});
+    if(generation!==_boardLoadSeq)return;
     if(error){
+      CARDS={};
+      SWJRecords.warning('board-record-warning','Projects are incomplete. Refresh to retry; no partial board is shown.');
       console.error('Board load error:', error);
       document.getElementById('swj-jobs-mobile').textContent='Could not load projects. Use Refresh to try again.';
       ['proposal','confirmed','staged','destage','done'].forEach(s => {
@@ -2306,6 +2313,7 @@ async function loadBoard(){
       });
       return;
     }
+    SWJRecords.warning('board-record-warning','');
     // Filter out drafts (DRAFT- prefix) and GS Photography invoices (GS prefix) — GS shares
     // this Supabase table but is a separate business with its own gs-invoice.html generator,
     // not part of Jasmine's board.
@@ -2779,11 +2787,11 @@ async function moveToStagePrompt(targetStage){
   // Find invoices in earlier stages (or with unknown/no stage) that could move into targetStage
   // Strategy: load ALL non-DRAFT invoices and let user pick any one that's currently in a different stage
   try {
-    const { data, error } = await _sb
+    const { data, error } = await SWJRecords.all(()=>_sb
       .from('invoices')
-      .select('invnum,client,address,invdate,data')
+      .select('invnum,client,address,invdate,data',{count:'exact'})
       .order('created_at', { ascending: false })
-      .limit(100);
+      .order('invnum',{ascending:true}),{key:'invnum'});
     if(error){ alert('Could not load invoices: ' + error.message); return; }
 
     const candidates = (data||[])

@@ -2,6 +2,8 @@
 <html lang="en">
 <head>
 <script src="/admin-auth.js"></script>
+<script src="/assets/records.js"></script>
+<script src="/assets/task-carry.js"></script>
 <script src="/assets/payment-events.js"></script>
 <script src="/assets/amex-freshness.js"></script>
 <meta charset="UTF-8">
@@ -463,6 +465,7 @@ body{background:var(--bg)}.hdr{background:#fbfcfb}.content{gap:12px!important;pa
     <a class="swj-more-link" href="/tax-report.html">📊 Reports (Tax Report)</a>
     <a class="swj-more-link" href="/archive.html">🧾 Invoices (Archive)</a>
     <a class="swj-more-link" href="/luxury.html">✚ New Luxury Invoice</a>
+    <a class="swj-more-link" href="/gs-invoice.html">Photography Invoice</a>
     <a class="swj-more-link" href="/hours.html">🕒 My Hours</a>
     <button class="swj-more-link" type="button" style="width:100%;text-align:left;border:none;background:none;font:inherit;cursor:pointer" onclick="swjSignOut()">🔒 Sign out</button>
   </div>
@@ -823,7 +826,8 @@ async function renderWeek(){
   // Load tasks for the week
   const start=toISODate(days[0]);
   const end=toISODate(days[6]);
-  const {data}=await _sb.from('tasks').select('id,date,type,status,title').gte('date',start).lte('date',end);
+  const {data,error}=await SWJRecords.all(()=>_sb.from('tasks').select('id,date,type,status,title',{count:'exact'}).gte('date',start).lte('date',end).order('id',{ascending:true}),{key:'id'});
+  if(error){cols.textContent='Week data is incomplete. Refresh to retry.';return;}
   const byDate={};
   (data||[]).forEach(t=>{if(!byDate[t.date])byDate[t.date]=[];byDate[t.date].push(t);});
 
@@ -858,44 +862,69 @@ async function carryForward(){
   if(!isToday(viewDate)) return;
   // Find incomplete tasks from yesterday that aren't already for today
   const yesterday=new Date(todayDate);yesterday.setDate(yesterday.getDate()-1);
-  const {data}=await _sb.from('tasks').select('*').eq('date',toISODate(yesterday)).eq('status','pending');
+  const {data,error:sourceError}=await SWJRecords.all(()=>_sb.from('tasks').select('*',{count:'exact'}).eq('date',toISODate(yesterday)).eq('status','pending').order('id',{ascending:true}),{key:'id'});
+  if(sourceError){SWJRecords.warning('carry-warning','Could not load all pending tasks for carry-forward. Reload to retry.');return;}
   if(!data||!data.length) return;
-  // Carry each one forward
-  const carried=data.map(t=>({...t,id:undefined,date:toISODate(todayDate),sort_order:(t.sort_order||0)}));
-  if(carried.length){
-    await _sb.from('tasks').insert(carried);
-    console.log(`Carried forward ${carried.length} task(s) from yesterday`);
+  // Same source/date always has the same primary key. Concurrent refreshes,
+  // retries and completed carried tasks cannot create another copy.
+  try {
+    const carried=await SWJTaskCarry.rows(data,toISODate(todayDate));
+    const {error}=await _sb.from('tasks').upsert(carried,{onConflict:'id',ignoreDuplicates:true});
+    if(error)throw error;
+    document.getElementById('carry-warning')?.remove();
+  } catch(error) {
+    let warning=document.getElementById('carry-warning');
+    if(!warning){warning=document.createElement('div');warning.id='carry-warning';warning.setAttribute('role','alert');document.body.prepend(warning);}
+    warning.textContent='Could not carry yesterday’s pending tasks forward. Reload to retry; the original tasks are unchanged.';
   }
 }
 
 // ── LOAD ALL ───────────────────────────────────────────
+let _homeLoadSeq=0;
 async function loadAll(){
+  const generation=++_homeLoadSeq;
   // Parallel: load tasks for date + invoices
   showSkeletons();
   const dateStr=toISODate(viewDate);
   const [tasksRes,invRes]=await Promise.all([
-    _sb.from('tasks').select('*').eq('date',dateStr).order('sort_order',{ascending:true}).order('created_at',{ascending:true}),
-    _sb.from('invoices').select('invnum,client,address,invdate,data').not('invnum','like','DRAFT-%').not('invnum','like','GS%').neq('invnum','PRICING_DEFAULTS').neq('invnum','TIER_PRICING').not('invnum','like','TAX_REVIEW_%').neq('invnum','FINANCE_CONFIG').neq('invnum','FINANCE_OVERRIDES').order('created_at',{ascending:false}).limit(100)
+    SWJRecords.all(()=>_sb.from('tasks').select('*',{count:'exact'}).eq('date',dateStr).order('sort_order',{ascending:true}).order('created_at',{ascending:true}).order('id',{ascending:true}),{key:'id'}),
+    SWJRecords.all(()=>_sb.from('invoices').select('invnum,client,address,invdate,data',{count:'exact'}).not('invnum','like','DRAFT-%').not('invnum','like','GS%').neq('invnum','PRICING_DEFAULTS').neq('invnum','TIER_PRICING').not('invnum','like','TAX_REVIEW_%').neq('invnum','FINANCE_CONFIG').neq('invnum','FINANCE_OVERRIDES').order('created_at',{ascending:false}).order('invnum',{ascending:true}),{key:'invnum'})
   ]);
+  if(generation!==_homeLoadSeq)return;
+  if(tasksRes.error||invRes.error){
+    allTasks=[];allInvoices=[];activeInvoices=[];
+    const message='Home data is incomplete. Refresh to retry; no totals are shown from a partial list.';
+    SWJRecords.warning('home-record-warning',message);
+    document.querySelectorAll('[id^="s"][id$="-body"]').forEach(el=>el.textContent=message);
+    return;
+  }
+  SWJRecords.warning('home-record-warning','');
   allTasks=(tasksRes.data||[]);
   allInvoices=(invRes.data||[]).filter(inv=>{const s=(inv.data&&inv.data.stage)||'proposal';return s!=='denied'&&s!=='closed_lost';});
   activeInvoices=allInvoices;
 
-  await loadMonthlyFinanceData();
+  const monthlyComplete=await loadMonthlyFinanceData(generation);
+  if(generation!==_homeLoadSeq)return;
 
   const urgentCount=buildS1();
   const schedCount=buildS2();
   const taskCount=buildS3();
   const shopCount=buildS4();
   const followCount=buildS5();
-  buildS6();
+  if(monthlyComplete!==false) buildS6();
   buildPayoutSnapshot();
   buildS7();
   const amexCards=loadHomeAmexCards();
   buildS8(amexCards);
-  buildS9();
-  buildS10(amexCards);
-  buildS11();
+  if(monthlyComplete!==false){
+    buildS9();
+    buildS10(amexCards);
+    buildS11();
+  }
+  if(monthlyComplete===false){
+    SWJRecords.warning('home-monthly-warning','Monthly card or hours data is incomplete. Refresh before relying on spending or profitability.');
+    ['s6-body','s9-body','s10-body','s11-body'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent='Financial data is incomplete. Refresh to retry.';});
+  }else{SWJRecords.warning('home-monthly-warning','');}
   buildBriefing(urgentCount,schedCount,taskCount,shopCount,followCount);
   updateNavBadge(urgentCount);
   if(weekViewOpen) renderWeek();
@@ -949,18 +978,16 @@ function monthRangeISO(){
   const now=new Date();
   return [toISODate(new Date(now.getFullYear(),now.getMonth(),1)), toISODate(new Date(now.getFullYear(),now.getMonth()+1,0))];
 }
-async function loadMonthlyFinanceData(){
+async function loadMonthlyFinanceData(generation){
   const [mStart,mEnd]=monthRangeISO();
-  try{
-    const {data}=await _sb.from('plaid_transactions').select('transaction_id,date,merchant_name,name,amount,pending,category,job_invnum').gte('date',mStart).lte('date',mEnd);
-    // Plaid convention: positive amount = money out. Refunds/credits are excluded from spend
-    // totals, same reasoning payroll.html's Job Profit — Real tab uses.
-    _monthlyPlaidTx=(data||[]).filter(t=>!t.pending&&(parseFloat(t.amount)||0)>0);
-  }catch(e){ _monthlyPlaidTx=[]; /* plaid_transactions may not exist yet if the migration hasn't been run */ }
-  try{
-    const {data}=await _sb.from('time_entries').select('invnum,amount').gte('clock_in',mStart+'T00:00:00').lte('clock_in',mEnd+'T23:59:59');
-    _monthlyTimeEntries=data||[];
-  }catch(e){ _monthlyTimeEntries=[]; }
+  const [cards,hours]=await Promise.all([
+    SWJRecords.all(()=>_sb.from('plaid_transactions').select('transaction_id,date,merchant_name,name,amount,pending,category,job_invnum',{count:'exact'}).gte('date',mStart).lte('date',mEnd).order('transaction_id',{ascending:true}),{key:'transaction_id'}),
+    SWJRecords.all(()=>_sb.from('time_entries').select('id,invnum,amount',{count:'exact'}).gte('clock_in',mStart+'T00:00:00').lte('clock_in',mEnd+'T23:59:59').order('id',{ascending:true}),{key:'id'})
+  ]);
+  if(generation!==undefined && generation!==_homeLoadSeq)return false;
+  _monthlyPlaidTx=cards.error?[]:cards.data.filter(t=>!t.pending&&(parseFloat(t.amount)||0)>0);
+  _monthlyTimeEntries=hours.error?[]:hours.data;
+  return !cards.error&&!hours.error;
 }
 
 // Categories that are always business-wide overhead, never tied to one job — everything else
@@ -1314,23 +1341,24 @@ async function buildS8(amexCards){
   document.getElementById('s8-meta').textContent=`${cards.length} business card${cards.length===1?'':'s'}`;
   const synced=cards.slice().sort((a,b)=>(a.next_payment_due_date||'9999').localeCompare(b.next_payment_due_date||'9999'));
   el.innerHTML=synced.map(c=>{
-    if(c.statement_balance==null || !c.next_payment_due_date)return `<a class="card-row" href="/payroll.html?tab=spending">${esc(c.name||'Business card')} …${esc(c.mask||'')}<p>Statement or due date unavailable · Review card</p><p>${esc(SWJAmex.checkedLabel(c.balance_synced_at,'Balance'))}</p></a>`;
-    const due=new Date(c.next_payment_due_date+'T00:00:00');
-    const away=Math.round((due-todayDate)/864e5);
-    const overdue=away<0;
-    const dueLabel=due.toLocaleDateString('en-US',{month:'short',day:'numeric'});
-    const awayLabel=overdue?'date passed · verify payment':(away===0?'today':`${away} day${away===1?'':'s'}`);
-    const bal=parseFloat(c.statement_balance)||0;
+    const due=c.next_payment_due_date ? new Date(c.next_payment_due_date+'T00:00:00') : null;
+    const away=due ? Math.round((due-todayDate)/864e5) : null;
+    const overdue=away!=null && away<0;
+    const dueLabel=due ? due.toLocaleDateString('en-US',{month:'short',day:'numeric'}) : '';
+    const awayLabel=overdue?'Verify payment':(away===0?'Today':`${away} day${away===1?'':'s'}`);
+    const statement=c.statement_balance==null?'Unavailable':fmtExact(c.statement_balance);
+    const current=c.current_balance==null?'Unavailable':fmtExact(c.current_balance);
     return `<a class="card-row" href="/payroll.html?tab=spending">
       <div class="card-chip">AMEX</div>
       <div class="card-info">
         <div class="card-name">${esc((c.name||c.institution_name||'Business Amex').replace(/^AMEX /i,'').replace(/\s+Card$/i,''))}${c.mask?' ····'+esc(c.mask):''}</div>
-        <div class="card-meta${overdue?' payment-review':''}">Due ${esc(dueLabel)} · ${overdue?'Verify payment':awayLabel}</div>
+        <div class="card-meta">Statement ${statement}</div>
+        <div class="card-meta${overdue?' payment-review':''}">${due?`Due ${esc(dueLabel)} · ${awayLabel}`:'Due date unavailable'}</div>
         <div class="fin-note">${esc(SWJAmex.checkedLabel(c.balance_synced_at,'Balance'))}</div>
       </div>
-      <div class="card-pay-pill${overdue?' overdue':''}">${fmtExact(bal)}<small>Statement</small></div>
+      <div class="card-pay-pill">${current}<small>Current balance</small></div>
     </a>`;
-  }).join('')+`<details class="home-detail"><summary>Current balances &amp; payment status</summary><p>Statement amounts are from the last billing cycle. Confirm recent payments in Amex before paying.</p>${synced.map(c=>`<p>${esc(c.name||'Card')} …${esc(c.mask||'')} · Current balance ${c.current_balance==null?'unavailable':fmtExact(c.current_balance)}</p>`).join('')}</details>`;
+  }).join('')+`<p class="fin-note">Confirm the remaining amount due in Amex before paying.</p>`;
 }
 
 // ── S9: THIS MONTH AT A GLANCE ─────────────────────────
@@ -1350,13 +1378,15 @@ async function buildS9(){
 
   let weekScheduled=0, shoppingCount=0;
   try{
-    const {data}=await _sb.from('tasks').select('id').eq('type','schedule').neq('status','done').gte('date',weekStart).lte('date',weekEnd);
-    weekScheduled=(data||[]).length;
-  }catch(e){}
+    const {count,error}=await _sb.from('tasks').select('id',{count:'exact',head:true}).eq('type','schedule').neq('status','done').gte('date',weekStart).lte('date',weekEnd);
+    if(error||!Number.isSafeInteger(count))throw Error('Incomplete schedule count');
+    weekScheduled=count;
+  }catch(e){el.textContent='Monthly counts are incomplete. Refresh to retry.';return;}
   try{
-    const {data}=await _sb.from('tasks').select('id').eq('type','shopping').eq('status','pending').gte('date',monthStart).lte('date',monthEnd);
-    shoppingCount=(data||[]).length;
-  }catch(e){}
+    const {count,error}=await _sb.from('tasks').select('id',{count:'exact',head:true}).eq('type','shopping').eq('status','pending').gte('date',monthStart).lte('date',monthEnd);
+    if(error||!Number.isSafeInteger(count))throw Error('Incomplete shopping count');
+    shoppingCount=count;
+  }catch(e){el.textContent='Monthly counts are incomplete. Refresh to retry.';return;}
 
   allInvoices.forEach(inv=>{
     const d=inv.data||{};

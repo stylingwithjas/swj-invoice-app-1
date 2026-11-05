@@ -1,0 +1,111 @@
+{
+  "checked_at": "2026-11-05T02:54:40.220577+00:00",
+  "invoice_date": "2026-11-05",
+  "fixtures": "Public government addresses only; no invoice writes or payment/client communications",
+  "results": [
+    {
+      "city": "Seattle",
+      "street": "600 4th Ave",
+      "zip": "98104",
+      "rate_percent": 10.55,
+      "location_code": "1726",
+      "result_code": 2,
+      "period": "Q42026",
+      "matched_address": "600 4TH AVE SEATTLE WA 98104",
+      "requires_confirmation": true,
+      "tax_on_1325_rental": "139.79",
+      "direct_DOR_matches": true
+    },
+    {
+      "city": "Tacoma",
+      "street": "747 Market St",
+      "zip": "98402",
+      "rate_percent": 10.5,
+      "location_code": "2717",
+      "result_code": 2,
+      "period": "Q42026",
+      "matched_address": "747 MARKET ST TACOMA WA 98402",
+      "requires_confirmation": true,
+      "tax_on_1325_rental": "139.13",
+      "direct_DOR_matches": true
+    },
+    {
+      "city": "Bonney Lake",
+      "street": "9002 Main St E",
+      "zip": "98391",
+      "rate_percent": 9.6,
+      "location_code": "2701",
+      "result_code": 2,
+      "period": "Q42026",
+      "matched_address": "9002 MAIN ST E BONNEY LAKE WA 98391",
+      "requires_confirmation": true,
+      "tax_on_1325_rental": "127.20",
+      "direct_DOR_matches": true
+    },
+    {
+      "city": "Federal Way",
+      "street": "33325 8th Ave S",
+      "zip": "98003",
+      "rate_percent": 10.4,
+      "location_code": "1732",
+      "result_code": 2,
+      "period": "Q42026",
+      "matched_address": "33325 8TH AVE S FEDERAL WAY WA 98003",
+      "requires_confirmation": true,
+      "tax_on_1325_rental": "137.80",
+      "direct_DOR_matches": true
+    },
+    {
+      "city": "Bellevue",
+      "street": "450 110th Ave NE",
+      "zip": "98004",
+      "rate_percent": 10.3,
+      "location_code": "1704",
+      "result_code": 2,
+      "period": "Q42026",
+      "matched_address": "450 110TH AVE NE BELLEVUE WA 98004",
+      "requires_confirmation": true,
+      "tax_on_1325_rental": "136.48",
+      "direct_DOR_matches": true
+    },
+    {
+      "city": "Auburn",
+      "street": "25 W Main St",
+      "zip": "98001",
+      "rate_percent": 10.5,
+      "location_code": "1702",
+      "result_code": 2,
+      "period": "Q42026",
+      "matched_address": "25 W MAIN ST AUBURN WA 98001",
+      "requires_confirmation": true,
+      "tax_on_1325_rental": "139.13",
+      "direct_DOR_matches": true
+    },
+    {
+      "city": "Kent",
+      "street": "220 4th Ave S",
+      "zip": "98032",
+      "rate_percent": 10.4,
+      "location_code": "1715",
+      "result_code": 2,
+      "period": "Q42026",
+      "matched_address": "220 4TH AVE S KENT WA 98032",
+      "requires_confirmation": true,
+      "tax_on_1325_rental": "137.80",
+      "direct_DOR_matches": true
+    },
+    {
+      "city": "Tumwater",
+      "street": "6500 Linderson Way",
+      "zip": "98501",
+      "rate_percent": 9.8,
+      "location_code": "3406",
+      "result_code": 2,
+      "period": "Q42026",
+      "matched_address": "6500 LINDERSON WAY SW TUMWATER WA 98501",
+      "requires_confirmation": true,
+      "tax_on_1325_rental": "129.85",
+      "direct_DOR_matches": true
+    }
+  ]
+}

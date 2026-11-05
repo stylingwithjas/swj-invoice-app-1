@@ -270,6 +270,7 @@ class AccessTests(unittest.TestCase):
         webhook.handler.do_OPTIONS(h);self.assertEqual(h.code,405);self.assertNotIn('Access-Control-Allow-Origin',h.out_headers)
         h=FakeHandler('/api/webhook?job=monthly_close',headers={'Authorization':'Bearer fixture-cron-secret'})
         h._respond=lambda code,data:api.response(h,code,data)
+        h._run_scheduled_job = webhook.handler._run_scheduled_job.__get__(h)
         with patch.dict(os.environ,{'CRON_SECRET':'fixture-cron-secret'}),patch.object(webhook,'run_monthly_close',return_value={'test':True}) as close:
             webhook.handler.do_GET(h);self.assertEqual(h.code,200);close.assert_called_once()
 

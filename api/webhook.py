@@ -1589,14 +1589,15 @@ def tax_parse_address(address):
     addr = (address or '').strip()
     if not addr:
         return {'city': '', 'zip': '', 'ok': False}
-    zip_match = re.search(r'\b(\d{5})(-\d{4})?\b', addr)
+    zip_match = re.search(r"(?:\bWA[ ,]+|,\s*[A-Za-z .'-]+[ ,]+)(\d{5})(?:-\d{4})?\s*$", addr, re.IGNORECASE)
     zip_code = zip_match.group(1) if zip_match else ''
     city_match = re.search(r",\s*([A-Za-z .'-]+?)[, ]+WA\b", addr, re.IGNORECASE)
     if city_match:
-        return {'city': city_match.group(1).strip(), 'zip': zip_code, 'ok': True}
+        return {'city': city_match.group(1).strip(), 'zip': zip_code, 'ok': bool(zip_code)}
     parts = [p.strip() for p in addr.split(',') if p.strip()]
     if len(parts) >= 2:
         city = re.sub(r'\s+WA.*$', '', parts[1], flags=re.IGNORECASE).strip()
+        city = re.sub(r'\s+\d{5}(?:-\d{4})?$', '', city).strip()
         return {'city': city, 'zip': zip_code, 'ok': bool(zip_code)}
     return {'city': '', 'zip': zip_code, 'ok': False}
 
@@ -1616,8 +1617,8 @@ def tax_categorize(desc):
 # older invoices only have them inside the free-text address, so fall back to the same
 # best-effort parse this report has always used for those.
 def tax_resolve_location(inv, d):
-    if d.get('price_led_tax') and d.get('zip'):
-        return {'city': d.get('city') or '', 'zip': d.get('zip'), 'ok': bool(d.get('city'))}
+    if d.get('city') or d.get('zip'):
+        return {'city':d.get('city') or '', 'zip':d.get('zip') or '', 'ok':bool(d.get('city')) and bool(re.fullmatch(r'\d{5}',str(d.get('zip') or '')))}
     return tax_parse_address(inv.get('address') or d.get('address') or '')
 
 
@@ -2580,14 +2581,16 @@ class handler(BaseHTTPRequestHandler):
             handle(self, 'GET', SUPABASE_URL, os.environ.get('SUPABASE_KEY', ''))
             return
         # Vercel sends CRON_SECRET as a bearer token for scheduled GET requests.
-        # The legacy reminder and monthly jobs retain their existing authentication.
         secret = os.environ.get('CRON_SECRET', '')
-        if query_params.get('job', [''])[0] == 'amex_daily_sync':
-            # This route must fail closed even if CRON_SECRET is missing.
-            authorization = self.headers.get('Authorization', '')
-            if not secret or not hmac.compare_digest(authorization.encode(), f'Bearer {secret}'.encode()):
-                self._respond(401, {'error': 'Unauthorized'})
-                return
+        authorization = self.headers.get('Authorization', '')
+        if not secret or not hmac.compare_digest(authorization.encode(), f'Bearer {secret}'.encode()):
+            self._respond(401, {'error': 'Unauthorized'})
+            return
+        return self._run_scheduled_job()
+
+    def _run_scheduled_job(self):
+        job = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query).get('job', [''])[0]
+        if job == 'amex_daily_sync':
             try:
                 result = plaid_sync_transactions()
                 if result.get('error') or result.get('errors'):
@@ -2597,11 +2600,6 @@ class handler(BaseHTTPRequestHandler):
             except Exception:
                 self._respond(502, {'error': 'Amex sync failed. Check Finance → Spending.'})
             return
-        if secret and self.headers.get('Authorization', '') != f'Bearer {secret}':
-            self._respond(401, {'error': 'Unauthorized'})
-            return
-        query = urllib.parse.urlparse(self.path).query
-        job = urllib.parse.parse_qs(query).get('job', [''])[0]
         try:
             if job == 'monthly_close':
                 result = run_monthly_close()
@@ -2674,6 +2672,17 @@ class handler(BaseHTTPRequestHandler):
             from lib.stripe_recon_http import handle
             handle(self, 'POST', SUPABASE_URL, os.environ.get('SUPABASE_KEY', ''))
             return
+        manual_job = query_params.get('job', [''])[0]
+        if manual_job in {'reminders_now', 'monthly_tax_report', 'monthly_audit_packet', 'monthly_backup_export', 'weekly_digest'}:
+            from lib.owner_guard import require_owner
+            if require_owner(self):
+                return self._run_scheduled_job()
+            return
+        if manual_job == 'plaid_sync':
+            from lib.owner_guard import require_owner
+            if require_owner(self):
+                self._respond(200, plaid_sync_transactions())
+            return
         length = int(self.headers.get('Content-Length', 0))
         raw_body = self.rfile.read(length)
 
@@ -2694,8 +2703,6 @@ class handler(BaseHTTPRequestHandler):
                 self._respond(200, plaid_create_link_token())
             elif job == 'plaid_exchange':
                 self._respond(200, plaid_exchange_public_token(payload.get('public_token')))
-            elif job == 'plaid_sync':
-                self._respond(200, plaid_sync_transactions())
             elif job == 'plaid_balance':
                 self._respond(200, plaid_refresh_balance())
             else:

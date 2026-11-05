@@ -399,6 +399,20 @@ class AmexCronTests(unittest.TestCase):
                 self.assertEqual(handler._respond.call_args.args[0], status)
                 self.assertNotIn('details', str(handler._respond.call_args))
 
+    def test_manual_post_routes_require_the_owner_before_dispatch(self):
+        for job in ('reminders_now', 'weekly_digest', 'monthly_tax_report', 'plaid_sync'):
+            for authorized in (False, True):
+                with self.subTest(job=job, authorized=authorized):
+                    handler = self.handler()
+                    handler.path = '/api/webhook?job=' + job
+                    with patch('lib.owner_guard.require_owner', return_value=authorized) as guard, \
+                         patch.object(handler, '_run_scheduled_job') as scheduled, \
+                         patch.object(webhook, 'plaid_sync_transactions') as sync:
+                        handler.do_POST()
+                    guard.assert_called_once_with(handler)
+                    self.assertEqual(scheduled.call_count, int(authorized and job != 'plaid_sync'))
+                    self.assertEqual(sync.call_count, int(authorized and job == 'plaid_sync'))
+
 
 class PlaidExchangeTests(unittest.TestCase):
     """Nov 4, 2026 bug: production Plaid Link hangs on 'Finishing connection...' with no
