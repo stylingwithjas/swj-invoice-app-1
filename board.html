@@ -508,6 +508,7 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
 <link rel="stylesheet" href="/styles/swj-luxury-theme.css">
 <link rel="stylesheet" href="/styles/swj-workspace.css">
 <script src="/assets/swj-workspace.js" defer></script>
+<script src="/assets/swj-jobs-mobile.js"></script>
 </head>
 <body data-swj-workspace="board">
 
@@ -593,6 +594,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
      Needs Action, Pipeline, Future Hold, in that order. This is the default view; the
      kanban below is secondary and hidden by default at phone width (see "Show Full
      Kanban Board" toggle at the end of this block). -->
+<section class="swj-jobs-mobile" id="swj-jobs-mobile" aria-label="Projects"><p role="status">Loading projects…</p></section>
 <div class="tsv-greeting" id="tsv-greeting"></div>
 
 <div class="tsv-section" id="tsv-onsite-section" style="display:none">
@@ -2297,6 +2299,7 @@ async function loadBoard(){
       .limit(200);
     if(error){
       console.error('Board load error:', error);
+      document.getElementById('swj-jobs-mobile').textContent='Could not load projects. Use Refresh to try again.';
       ['proposal','confirmed','staged','destage','done'].forEach(s => {
         const body = document.getElementById('col-body-'+s);
         if(body) body.innerHTML = `<div style="padding:24px 12px;text-align:center;font-size:11px;color:var(--red);font-style:italic">Could not load: ${error.message}</div>`;
@@ -2375,6 +2378,7 @@ async function loadBoard(){
 
     // Update the Today-style view (Phase 7 — On Site Now, Destage Needs Scheduling, Future Hold)
     renderTodayStyleView(invoices);
+    renderMobileJobs(invoices);
 
     // Re-apply compact mode if it was on
     if(compact){
@@ -2382,6 +2386,7 @@ async function loadBoard(){
     }
   } catch(e){
     console.error('loadBoard exception:', e);
+    document.getElementById('swj-jobs-mobile').textContent='Could not load projects. Use Refresh to try again.';
   }
 }
 
