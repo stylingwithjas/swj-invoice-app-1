@@ -226,19 +226,22 @@ class MultiItemSyncTests(unittest.TestCase):
 
     def test_paginated_sync_commits_once_with_the_final_cursor(self):
         item = {'item_id': 'item1', 'access_token': 'tok1', 'transactions_cursor': 'existing'}
-        first = dict(added=[], modified=[], removed=[], has_more=True, next_cursor='page-two')
-        second = dict(added=[], modified=[], removed=[{'transaction_id': 'old'}],
+        posted = dict(transaction_id='posted', pending_transaction_id='old',
+                      account_id='card', date='2026-11-04', amount=122.88)
+        first = dict(added=[posted], modified=[], removed=[], has_more=True, next_cursor='page-two')
+        second = dict(added=[], modified=[{k: v for k, v in posted.items() if k != 'pending_transaction_id'}], removed=[{'transaction_id': 'old'}],
                       has_more=False, next_cursor='checkpoint')
         with patch.object(webhook, '_plaid_request', side_effect=[first, second]) as plaid, \
              patch.object(webhook, '_supabase_urlopen') as write:
             counts = webhook._plaid_transaction_updates(item)
         self.assertEqual([call.args[1]['cursor'] for call in plaid.call_args_list], ['existing', 'page-two'])
-        self.assertEqual(counts, {'added': 0, 'modified': 0, 'removed': 1})
+        self.assertEqual(counts, {'added': 1, 'modified': 1, 'removed': 1})
         write.assert_called_once()
         payload = json.loads(write.call_args.args[0].data)
         self.assertEqual(payload['p_expected_cursor'], 'existing')
         self.assertEqual(payload['p_next_cursor'], 'checkpoint')
         self.assertEqual(payload['p_removed_ids'], ['old'])
+        self.assertEqual(payload['p_rows'][0]['pending_transaction_id'], 'old')
 
     def test_second_page_failure_never_writes_an_incomplete_update(self):
         first = dict(added=[], modified=[], removed=[], has_more=True, next_cursor='page-two')

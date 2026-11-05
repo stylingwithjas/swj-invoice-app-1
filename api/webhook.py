@@ -516,6 +516,8 @@ def _plaid_transaction_updates(item):
                     pending=transaction.get('pending', False),
                     plaid_category=','.join(transaction.get('category') or []) or None,
                 )
+                if transaction.get('pending_transaction_id'):
+                    row['pending_transaction_id'] = transaction['pending_transaction_id']
                 updates.append(row)
             if action == 'added':
                 categorize_new_rows(updates)
