@@ -415,7 +415,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
       <div class="brand-sub">Invoice Generator</div>
     </div>
     <div class="hdr-right">
-      <input class="inv-badge" id="invnum-display" type="text" value="202093">
+      <input class="inv-badge" id="invnum-display" type="text" value="" placeholder="Reserving…">
       <div class="nav-sw">
         <button class="nav-btn on" id="nav-invoice">Invoice</button>
         <button class="nav-btn off" id="nav-luxury" onclick="window.location.href='luxury.html'">Luxury</button>
@@ -1102,18 +1102,10 @@ function setStartDateFromData(v){
   inp.value = tbd ? '' : (v||'');
 }
 async function initInvNum(){
-  // Derive the next number from Supabase (persistent) — the old /tmp counter reset on every cold serverless instance.
-  let next = 202093;
-  try {
-    const { data } = await _sb.from('invoices').select('invnum').not('invnum', 'like', 'GS%');
-    next = SWJInvoiceNumber.next(data,next);
-  } catch(e) {}
-  currentInvNum = String(next);
-  const disp = document.getElementById('invnum-display');
-  const note = document.getElementById('invnum-note');
-  if(disp) disp.value = currentInvNum;
-  if(note) note.textContent = 'Tap to edit if needed';
+  await SWJInvoiceNumber.initialize();
+  currentInvNum=document.getElementById('invnum-display')?.value||'';
 }
+
 function nextRevision(inv){
   inv = String(inv||'').trim();
   const m = inv.match(/^(.*?)[vV](\d+)$/);
@@ -1612,7 +1604,7 @@ async function createPaymentLink(grand, client, invnum, address, client_email, l
     const r = await fetch('/api/stripe', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ grand, client, invnum, address, client_email, label, source:'invoice_generator', tax_context:SWJTaxGuard.context() }),
+      body: JSON.stringify({ grand, client, invnum, address, client_email, label, source:'invoice_generator', invoice_number:SWJInvoiceNumber.context(), tax_context:SWJTaxGuard.context() }),
       signal: ctrl.signal,
     });
     clearTimeout(timeout);
@@ -1926,7 +1918,7 @@ function loadInvoice(idx){
   try{
     const inv = window._recentInvoices[idx];
     const d = inv.data || inv;
-    loadInvoiceData(d);
+    loadInvoiceData(d,inv.invnum);
   }catch(e){console.log('Load error:',e);}
 }
 
@@ -1944,8 +1936,9 @@ function preserveBoardFields(data, invNumFinal){
   return data;
 }
 
-function loadInvoiceData(d){
+function loadInvoiceData(d,recordKey){
   _loadedInvoiceData = d;
+  SWJInvoiceNumber.loaded(d,recordKey?{draft:recordKey.startsWith('DRAFT-')}:{});
   renderInvoiceSafety(null);
   if(SWJInvoiceSafety.isPaid(d)){ alert("Paid invoice protected — open the stored invoice from Archive. Generator fields were not loaded or recalculated."); return; }
   try{
@@ -2170,6 +2163,7 @@ function buildPricingPayload(){
 
 async function saveDraft(silent){
   if(!invoiceActionAllowed('saving a draft')) return null;
+  if(!await SWJInvoiceNumber.ensure()) return null;
   const client = document.getElementById('client').value.trim();
   const address = document.getElementById('address').value.trim();
   const invnum = document.getElementById('invnum-display').value.trim();
@@ -2218,6 +2212,7 @@ async function saveDraft(silent){
     _draft_saved: new Date().toLocaleDateString()
   };
 
+  if(!SWJInvoiceNumber.attach(draft)) return null;
   SWJTaxGuard.attach(draft,true);
   const draftKey = `DRAFT-${invnum||Date.now()}`;
   try {
@@ -2267,7 +2262,7 @@ function loadInvoice2(type, idx){
   const inv = type==='draft' ? window._draftInvoices[idx] : window._recentInvoices[idx];
   if(!inv) return;
   const d = inv.data || inv;
-  loadInvoiceData(d);
+  loadInvoiceData(d,inv.invnum);
 }
 
 
@@ -2277,6 +2272,7 @@ let _lastPdfBlob=null,_lastPdfFilename='';
 // and any failure shows a visible message instead of spinning forever.
 async function downloadPdfNow(){
   if(!invoiceActionAllowed('generating')) return null;
+  if(!await SWJInvoiceNumber.ensure()) return null;
   let valid=true;
   const payerUnknown = document.getElementById('payer-unknown')?.checked;
   [['f-client','e-client','client'],['f-address','e-address','address'],['f-invdate','e-invdate','invdate'],['f-startdate','e-startdate','startdate']].forEach(([fid,eid,iid])=>{
@@ -2317,6 +2313,7 @@ async function downloadPdfNow(){
 
   const _contribList=contributions.filter(c=>c.label&&parseFloat(c.amount)>0).map(c=>({label:c.label,amount:parseFloat(c.amount)}));
   const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:getStartDateValue(),baserooms:[...selRooms].join(', '),baseroom_scopes:roomScopesObj(),extrate,taxrate,base_price:base,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,city:document.getElementById('city')?.value.trim()||'',zip:zipVal,property_state:'WA',rental_share_base:BASE_RENTAL_SHARE,price_led_tax:P.priceLedTax,pricing_mode:P.pricing_mode,rc_term_days:P.rc_term_days,rc_rate_30day:P.rc_rate_30day,rc_design_fee:P.rc_design_fee,manual_totals_fields:P.manualFields||[],manual_totals_unverified_fields:P.unverifiedManualFields||[],rental_service_split:P.rental_service_split,rental_term_days:P.rental_term_days,rental_total:P.rental_total,service_total:P.service_total,base_split:P.base_split,contract_terms_version:resolveContractVersion(),state:captureState(),promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,promo4:document.getElementById('promo4').checked,payment_url:null,contributions:_contribList,pet_deposit:petDepositBase(),cosigner:getCosigner(),cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||'',payer_unknown:!!payerUnknown};
+  if(!SWJInvoiceNumber.attach(data)) return null;
   if(!SWJTaxGuard.attach(data)) return null;
   data.generator_request=true;
   preserveBoardFields(data, invNumFinal);
@@ -2561,6 +2558,7 @@ async function sendCosignerInviteEmail(data, pdfBase64){
 
 async function generatePDF(){
   if(!invoiceActionAllowed('generating')) return null;
+  if(!await SWJInvoiceNumber.ensure()) return null;
   if(!await invoiceTargetUnpaid()) return null;
   let valid=true;
   const payerUnknown = document.getElementById('payer-unknown')?.checked;
@@ -2625,6 +2623,7 @@ async function generatePDF(){
   const _contribList=contributions.filter(c=>c.label&&parseFloat(c.amount)>0).map(c=>({label:c.label,amount:parseFloat(c.amount)}));
   const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:getStartDateValue(),baserooms:[...selRooms].join(', '),baseroom_scopes:roomScopesObj(),extrate,taxrate,base_price:base,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,city:document.getElementById('city')?.value.trim()||'',zip:zipVal,property_state:'WA',rental_share_base:BASE_RENTAL_SHARE,price_led_tax:P.priceLedTax,pricing_mode:P.pricing_mode,rc_term_days:P.rc_term_days,rc_rate_30day:P.rc_rate_30day,rc_design_fee:P.rc_design_fee,manual_totals_fields:P.manualFields||[],manual_totals_unverified_fields:P.unverifiedManualFields||[],rental_service_split:P.rental_service_split,rental_term_days:P.rental_term_days,rental_total:P.rental_total,service_total:P.service_total,base_split:P.base_split,contract_terms_version:resolveContractVersion(),state:captureState(),promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
             promo4:document.getElementById('promo4').checked,payment_url,payment_link_id,contributions:_contribList,payments:splitPayments,active_client_payment_id:activeClientPaymentId,pet_deposit:petDeposit,cosigner:getCosigner(),cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||'',payer_unknown:!!payerUnknown};
+  if(!SWJInvoiceNumber.attach(data)) return null;
   if(!SWJTaxGuard.attach(data)) return null;
   data.generator_request=true;
   preserveBoardFields(data, invNumFinal);
@@ -2638,7 +2637,7 @@ async function generatePDF(){
     const blob=await response.blob();
     const filename=`SWJ_${data.client.replace(/ /g,'_')}_${data.invnum}.pdf`;
     setTimeout(()=>saveInvoice(data).catch(()=>{}),100);
-    await fetch('/api/counter',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({value:parseInt(data.invnum)})}).catch(()=>{});
+
     setSt('ok','Invoice generated!');
     window._lastInvoiceData = data;
     window._lastGrand = grand;
@@ -2654,6 +2653,7 @@ async function generatePDF(){
 
 async function generate(){
   if(!invoiceActionAllowed('generating')) return null;
+  if(!await SWJInvoiceNumber.ensure()) return null;
   if(!await invoiceTargetUnpaid()) return null;
   let valid=true;
   const payerUnknown = document.getElementById('payer-unknown')?.checked;
@@ -2725,6 +2725,7 @@ async function generate(){
   const _contribList=contributions.filter(c=>c.label&&parseFloat(c.amount)>0).map(c=>({label:c.label,amount:parseFloat(c.amount)}));
   const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:getStartDateValue(),baserooms:[...selRooms].join(', '),baseroom_scopes:roomScopesObj(),extrate,taxrate,base_price:base,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,city:document.getElementById('city')?.value.trim()||'',zip:zipVal,property_state:'WA',rental_share_base:BASE_RENTAL_SHARE,price_led_tax:P.priceLedTax,pricing_mode:P.pricing_mode,rc_term_days:P.rc_term_days,rc_rate_30day:P.rc_rate_30day,rc_design_fee:P.rc_design_fee,manual_totals_fields:P.manualFields||[],manual_totals_unverified_fields:P.unverifiedManualFields||[],rental_service_split:P.rental_service_split,rental_term_days:P.rental_term_days,rental_total:P.rental_total,service_total:P.service_total,base_split:P.base_split,contract_terms_version:resolveContractVersion(),state:captureState(),promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
             promo4:document.getElementById('promo4').checked,payment_url,payment_link_id,contributions:_contribList,payments:splitPayments,active_client_payment_id:activeClientPaymentId,pet_deposit:petDeposit,cosigner:getCosigner(),cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||'',payer_unknown:!!payerUnknown};
+  if(!SWJInvoiceNumber.attach(data)) return null;
   if(!SWJTaxGuard.attach(data)) return null;
   data.generator_request=true;
   preserveBoardFields(data, invNumFinal);
@@ -2764,11 +2765,7 @@ async function generate(){
     console.log('PDF: click done');
 
     // Save invoice number — always keep the highest number used
-    await fetch('/api/counter', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({value: parseInt(data.invnum)})
-    }).catch(()=>{});
+
 
     setSt('ok', 'Invoice generated and downloaded! Check your Downloads folder.');
     setTimeout(()=>saveInvoice(data).catch(()=>{}), 100);

@@ -9,7 +9,7 @@ const mock=`window.__dbRows={};window.__dbWrites=[];window.__dbFailure=false;
 window.supabase={createClient:()=>({from:table=>{
  let filter=[],single=false,write=null;
  const q=new Proxy({}, {get:(_,key)=>{
- if(key==='then')return (resolve,reject)=>{let rows=window.__dbRows[table]||[];for(const [col,v]of filter)rows=rows.filter(r=>r[col]===v);if(write)window.__dbWrites.push({table,write});return Promise.resolve({data:single?(rows[0]||null):rows,error:window.__dbFailure?{message:'Test connection failure'}:null}).then(resolve,reject)};
+ if(key==='then')return (resolve,reject)=>{let rows=window.__dbRows[table]||[];for(const [col,v]of filter)rows=rows.filter(r=>r[col]===v);if(write)window.__dbWrites.push({table,write});return Promise.resolve({data:single?(rows[0]||null):rows,count:rows.length,error:window.__dbFailure?{message:'Test connection failure'}:null}).then(resolve,reject)};
  return (...args)=>{if(key==='eq')filter.push(args);if(key==='single'||key==='maybeSingle')single=true;if(['upsert','insert','update','delete'].includes(key))write=key;return q};
  }});return q;
 }})};`;

@@ -37,6 +37,8 @@ class BackendTests(unittest.TestCase):
         for mod in (generate,invoices):
             guard=patch.object(mod,'require_verified',return_value=True)
             guard.start();self.addCleanup(guard.stop)
+            numbering=patch.object(mod,'require_number',return_value=True)
+            numbering.start();self.addCleanup(numbering.stop)
 
     def fake_handler(self, cls, body):
         h=cls.__new__(cls);raw=json.dumps(body).encode();h.headers={'Content-Length':str(len(raw))};h.rfile=io.BytesIO(raw)

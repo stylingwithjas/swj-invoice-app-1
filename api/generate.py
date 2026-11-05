@@ -1,3 +1,4 @@
+from lib.invoice_numbers import require_number
 import json
 import os
 import tempfile
@@ -1580,6 +1581,7 @@ class handler(BaseHTTPRequestHandler):
             return
 
         live_generator = bool(data.get('generator_request'))
+        saved = None
         try:
             # Extensions and balance notices are separate documents, not edits of
             # the original invoice. Preserve those existing Board workflows.
@@ -1604,6 +1606,7 @@ class handler(BaseHTTPRequestHandler):
 
         if live_generator and not data.get('gs_invoice'):
             try:
+                require_number(data,saved=saved)
                 require_verified(data)
             except ValueError as error:
                 self._error(422, str(error)); return

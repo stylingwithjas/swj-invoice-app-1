@@ -76,15 +76,15 @@ class TaxEvidenceTests(unittest.TestCase):
 
     def test_no_or_bad_evidence_rejected_before_pdf_save_or_stripe_calls(self):
         generate=module('generate');h=handler(generate,{'invnum':'TEST','generator_request':True})
-        with patch.object(generate,'stored_invoice',return_value=None),patch.object(generate,'generate_invoice_pdf') as pdf:
+        with patch.object(generate,'require_number',return_value=True),patch.object(generate,'stored_invoice',return_value=None),patch.object(generate,'generate_invoice_pdf') as pdf:
             generate.handler.do_POST(h);pdf.assert_not_called()
         self.assertEqual(h.result[0],422)
         save=module('invoices');h=handler(save,{'invnum':'TEST','tax_guard_version':1})
-        with patch.object(save,'stored_invoice',return_value=None),patch.object(save,'supabase_request') as db:
+        with patch.object(save,'require_number',return_value=True),patch.object(save,'stored_invoice',return_value=None),patch.object(save,'supabase_request') as db:
             save.handler.do_POST(h);db.assert_not_called()
         self.assertEqual(h.result[0],422)
         stripe=module('stripe');h=handler(stripe,{'source':'invoice_generator','tax_context':{}})
-        with patch('urllib.request.urlopen') as call:
+        with patch.object(stripe,'require_number',return_value=True),patch('urllib.request.urlopen') as call:
             stripe.handler.do_POST(h);call.assert_not_called()
         self.assertEqual(h.result[0],422)
 
