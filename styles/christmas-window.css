@@ -65,7 +65,9 @@
   text-shadow: 0 1px 3px #7b8a82b3;
 }
 .swj-christmas-play .swj-lights b { animation: swj-christmas-light .84s var(--on) both; }
-.swj-christmas-play .swj-flurries span { animation: swj-christmas-fall var(--duration, 3.3s) var(--delay) both; }
+.swj-christmas-play .swj-flurries span {
+  animation: swj-christmas-fall calc(var(--duration, 3.3s) + 2.7s) var(--delay) linear both;
+}
 .swj-christmas-play .swj-holiday { animation: swj-christmas-greeting .85s 1.22s both; }
 
 .swj-christmas-window .swj-corner {
@@ -110,10 +112,10 @@
   70%, 100% { opacity: 1; }
 }
 @keyframes swj-christmas-fall {
-  0% { opacity: 0; transform: translate(0,-26px) rotate(-14deg); }
-  26% { opacity: .75; }
-  72% { opacity: .45; }
-  100% { opacity: 0; transform: translate(var(--drift),65px) rotate(20deg); }
+  0% { top: calc(var(--y) - 26px); opacity: 0; transform: rotate(-14deg); }
+  20% { opacity: .75; }
+  90% { opacity: .58; }
+  100% { top: calc(100% + 12px); opacity: 0; transform: translateX(var(--drift)) rotate(20deg); }
 }
 @keyframes swj-christmas-greeting {
   from { opacity: .2; transform: translateY(4px); }
