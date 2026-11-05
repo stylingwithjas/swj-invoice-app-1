@@ -33,6 +33,10 @@
   const button=document.createElement('button');button.type='button';button.className='swj-section-toggle';button.setAttribute('aria-controls',body.id);button.setAttribute('aria-expanded','true');
   const text=document.createElement('span');text.textContent=title.textContent.replace(/^[^\p{L}\p{N}]+/u,'');button.append(text);
   title.replaceWith(button);section.append(body);
-  button.onclick=()=>{const open=button.getAttribute('aria-expanded')==='true';button.setAttribute('aria-expanded',String(!open));body.hidden=open;};
+  const summary=document.createElement('small');summary.className='swj-section-summary';text.append(summary);
+  const summarize=()=>{const fields=[...body.querySelectorAll('input:not([type=hidden]),select,textarea')].filter(el=>el.getClientRects().length&&el.value);summary.textContent=fields.slice(0,2).map(el=>el.tagName==='SELECT'?el.selectedOptions[0]?.textContent:el.value).join(' · ');};
+  button.onclick=()=>{const open=button.getAttribute('aria-expanded')==='true';if(open)summarize();button.setAttribute('aria-expanded',String(!open));body.hidden=open;};
  });
+ const actions=document.querySelector('#overlay .m-btns');
+ if(actions){const footer=document.createElement('div');footer.className='swj-job-save-footer';actions.querySelectorAll('button').forEach(b=>{if(b.getAttribute('onclick')==='closeModal()'||b.getAttribute('onclick')==='saveCard()')footer.append(b);});actions.after(footer);}
 })();
