@@ -440,6 +440,8 @@ body{background:var(--bg)}.hdr{background:#fbfcfb}.content{gap:12px!important;pa
 <link rel="stylesheet" href="/styles/swj-luxury-theme.css">
 <link rel="stylesheet" href="/styles/swj-luxury-home.css">
 <script src="/assets/home-cash.js" defer></script>
+<link rel="stylesheet" href="/styles/christmas-window.css">
+<script src="/assets/christmas-window.js" defer></script>
 <link rel="stylesheet" href="/styles/swj-workspace.css">
 <script src="/assets/swj-workspace.js" defer></script>
 </head>
@@ -513,6 +515,52 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
 
 
 <div class="content">
+  <template id="christmas-window-template">
+    <section class="swj-christmas-window" aria-label="Christmas greeting">
+      <div class="swj-corner swj-corner-left" aria-hidden="true">
+        <div class="swj-sprig"></div><div class="swj-satin"></div><div class="swj-berries"><b></b><b></b><b></b></div>
+      </div>
+      <div class="swj-corner swj-corner-right" aria-hidden="true">
+        <div class="swj-sprig"></div><div class="swj-satin"></div><div class="swj-berries"><b></b><b></b><b></b></div>
+      </div>
+      <div class="swj-cord" aria-hidden="true"></div>
+      <div class="swj-lights" aria-hidden="true">
+        <b style="--x:5%;--y:22px;--on:.10s"></b><b style="--x:14%;--y:33px;--on:.23s"></b>
+        <b style="--x:24%;--y:40px;--on:.39s"></b><b style="--x:34%;--y:44px;--on:.50s"></b>
+        <b style="--x:44%;--y:46px;--on:.67s"></b><b style="--x:55%;--y:46px;--on:.79s"></b>
+        <b style="--x:66%;--y:44px;--on:.91s"></b><b style="--x:76%;--y:40px;--on:1.04s"></b>
+        <b style="--x:86%;--y:33px;--on:1.19s"></b><b style="--x:95%;--y:22px;--on:1.31s"></b>
+      </div>
+      <div class="swj-flurries" aria-hidden="true">
+        <span style="--x:8%;--y:53px;--delay:.10s;--drift:13px">·</span>
+        <span style="--x:19%;--y:64px;--delay:.70s;--drift:-17px">✧</span>
+        <span style="--x:28%;--y:79px;--delay:.25s;--drift:-15px">·</span>
+        <span style="--x:72%;--y:64px;--delay:.2s;--drift:17px">✧</span>
+        <span style="--x:85%;--y:42px;--delay:.4s;--drift:11px">·</span>
+        <span style="--x:91%;--y:78px;--delay:.55s;--drift:-12px">✧</span>
+        <span style="--x:13%;--y:95px;--delay:.35s;--drift:9px">✦</span>
+        <span style="--x:78%;--y:89px;--delay:.55s;--drift:19px">·</span>
+        <span style="--x:5%;--y:69px;--delay:.72s;--drift:18px;--size:14px;--duration:3.8s">❄</span>
+        <span style="--x:12%;--y:32px;--delay:.51s;--drift:-10px;--size:10px">·</span>
+        <span style="--x:17%;--y:87px;--delay:.97s;--drift:14px;--size:11px">❅</span>
+        <span style="--x:23%;--y:36px;--delay:.15s;--drift:19px;--size:9px">·</span>
+        <span style="--x:31%;--y:57px;--delay:.63s;--drift:-17px;--size:14px">❄</span>
+        <span style="--x:35%;--y:14px;--delay:.37s;--drift:8px;--size:11px">❅</span>
+        <span style="--x:42%;--y:54px;--delay:.86s;--drift:-12px;--size:10px">·</span>
+        <span style="--x:49%;--y:20px;--delay:.31s;--drift:20px;--size:12px;--duration:4s">❄</span>
+        <span style="--x:56%;--y:64px;--delay:1.1s;--drift:10px;--size:9px">·</span>
+        <span style="--x:61%;--y:28px;--delay:.46s;--drift:-17px;--size:12px">❅</span>
+        <span style="--x:67%;--y:82px;--delay:.59s;--drift:14px;--size:10px">·</span>
+        <span style="--x:74%;--y:30px;--delay:.78s;--drift:9px;--size:14px">❄</span>
+        <span style="--x:81%;--y:60px;--delay:1.15s;--drift:-12px;--size:10px">·</span>
+        <span style="--x:89%;--y:52px;--delay:.24s;--drift:11px;--size:13px;--duration:3.9s">❅</span>
+        <span style="--x:95%;--y:101px;--delay:.88s;--drift:-20px;--size:12px">❄</span>
+      </div>
+      <div class="swj-mark" aria-hidden="true">SWJ</div>
+      <div class="swj-brand">Styling With Jas</div>
+      <div class="swj-holiday">Merry Christmas</div>
+    </section>
+  </template>
 <p data-revenue-basis style="margin:0;font-size:12px;color:#68685e">Revenue: paid invoice payments and extensions, by received month, regardless of signature. Stripe deposits verify settlement only.</p>
 
   <!-- GREETING -->

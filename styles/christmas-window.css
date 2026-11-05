@@ -1,0 +1,133 @@
+.swj-christmas-window {
+  --christmas-gold: #fff0ba;
+  position: relative;
+  isolation: isolate;
+  grid-column: 1 / -1;
+  overflow: hidden;
+  padding: 53px 12px 15px;
+  border: 1px solid #ded6c8;
+  border-radius: 16px;
+  background: radial-gradient(ellipse at 47% 36%, #fffaf0, #ede8dc 90%);
+  color: #2a352a;
+  text-align: center;
+  pointer-events: none;
+}
+.swj-christmas-window .swj-mark {
+  position: relative;
+  font: 400 43px/.98 'Cormorant Garamond', Georgia, serif;
+  letter-spacing: .13em;
+  text-indent: .13em;
+}
+.swj-christmas-window .swj-brand {
+  position: relative;
+  margin-top: 6px;
+  color: #6c5340;
+  font-size: 11px;
+  letter-spacing: .3em;
+  text-transform: uppercase;
+}
+.swj-christmas-window .swj-holiday {
+  position: relative;
+  margin-top: 8px;
+  color: #8e2434;
+  font: italic 400 17px Georgia, serif;
+}
+.swj-christmas-window .swj-cord {
+  position: absolute;
+  top: -29px;
+  left: max(15%, calc(50% - 245px));
+  right: max(15%, calc(50% - 245px));
+  height: 70px;
+  border-bottom: 1px solid #b8aa94;
+  border-radius: 0 0 50% 50%;
+}
+.swj-christmas-window .swj-lights,
+.swj-christmas-window .swj-flurries { position: absolute; inset: 0; }
+.swj-christmas-window .swj-lights { left: max(16%, calc(50% - 245px)); right: max(16%, calc(50% - 245px)); }
+.swj-christmas-window .swj-lights b {
+  position: absolute;
+  left: var(--x);
+  top: calc(var(--y) - 5px);
+  width: 5px;
+  height: 8px;
+  transform: translateX(-50%);
+  border-radius: 55%;
+  background: var(--christmas-gold);
+  box-shadow: 0 0 0 1px #b6934a64, 0 0 8px 3px #ffc1549c;
+}
+.swj-christmas-window .swj-flurries span {
+  position: absolute;
+  left: var(--x);
+  top: var(--y);
+  color: #fff;
+  opacity: 0;
+  font-size: var(--size, 13px);
+  text-shadow: 0 1px 3px #7b8a82b3;
+}
+.swj-christmas-play .swj-lights b { animation: swj-christmas-light .84s var(--on) both; }
+.swj-christmas-play .swj-flurries span { animation: swj-christmas-fall var(--duration, 3.3s) var(--delay) both; }
+.swj-christmas-play .swj-holiday { animation: swj-christmas-greeting .85s 1.22s both; }
+
+.swj-christmas-window .swj-corner {
+  position: absolute;
+  width: 114px;
+  height: 109px;
+  filter: drop-shadow(0 3px 2px #5f312828);
+}
+.swj-christmas-window .swj-corner-left { left: -9px; top: -9px; }
+.swj-christmas-window .swj-corner-right { right: -17px; bottom: -18px; transform: rotate(180deg) scale(.86); }
+.swj-christmas-window .swj-satin {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(126deg,#871224 9%,#dd203a 24%,#f54c58 31%,#b10926 47%,#810921 53%,#d21c37 68%,#ed4d57 73%,#9d0b26 87%);
+  clip-path: path("M -4 10 C 24 0 38 14 35 35 C 32 54 30 65 42 67 C 54 68 61 35 83 32 C 96 30 105 35 112 42 L 108 49 C 98 42 90 40 84 43 C 66 48 58 83 42 79 C 20 75 21 56 24 34 C 27 14 13 17 -4 23 Z");
+}
+.swj-christmas-window .swj-sprig {
+  position: absolute;
+  left: 1px;
+  top: 11px;
+  width: 88px;
+  height: 31px;
+  transform: rotate(23deg);
+  background: repeating-linear-gradient(27deg,transparent 0 4px,#728471 4px 5px,#d4ddd1 5px 6px,transparent 6px 8px), linear-gradient(0deg,transparent 47%,#50634e 48% 53%,transparent 54%);
+  clip-path: polygon(0 25%,60% 0,100% 54%,59% 86%,0 79%);
+}
+.swj-christmas-window .swj-berries { position: absolute; left: 10px; top: 51px; }
+.swj-christmas-window .swj-berries b {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 32% 25%,#ff9d9d 0 8%,#d8203c 30%,#86112a 88%);
+}
+.swj-christmas-window .swj-berries b:nth-child(2) { left: 8px; top: 6px; }
+.swj-christmas-window .swj-berries b:nth-child(3) { left: 1px; top: 11px; }
+
+@keyframes swj-christmas-light {
+  0% { opacity: .18; box-shadow: none; }
+  27% { opacity: .9; }
+  42% { opacity: .42; }
+  70%, 100% { opacity: 1; }
+}
+@keyframes swj-christmas-fall {
+  0% { opacity: 0; transform: translate(0,-26px) rotate(-14deg); }
+  26% { opacity: .75; }
+  72% { opacity: .45; }
+  100% { opacity: 0; transform: translate(var(--drift),65px) rotate(20deg); }
+}
+@keyframes swj-christmas-greeting {
+  from { opacity: .2; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (max-width: 360px) {
+  .swj-christmas-window .swj-corner-left { transform: scale(.83); transform-origin: top left; }
+  .swj-christmas-window .swj-corner-right { transform: rotate(180deg) scale(.71); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .swj-christmas-play .swj-lights b,
+  .swj-christmas-play .swj-flurries span,
+  .swj-christmas-play .swj-holiday { animation: none; }
+}
+@media print {
+  .swj-christmas-window { display: none; }
+}
