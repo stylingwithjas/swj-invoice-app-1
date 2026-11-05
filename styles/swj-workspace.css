@@ -81,3 +81,14 @@
 .swj-job-save-footer{position:sticky;bottom:0;display:flex;gap:12px;padding:12px 20px calc(12px + env(safe-area-inset-bottom,0px));background:var(--swj-surface);border-top:1px solid var(--swj-border);z-index:2}
 .swj-job-save-footer .mbtn{min-height:48px;flex:1}
 .swj-section-summary{max-width:100%;overflow-wrap:anywhere}
+[data-swj-workspace] :is(.wrap,.content) a:not([class]){color:var(--swj-olive-dark);text-decoration-color:var(--swj-gold);text-underline-offset:4px}
+[data-swj-workspace="payroll"] :is(.pr-card,.pr-kpi){background:var(--swj-surface);border-color:var(--swj-border);border-radius:var(--swj-radius-small);box-shadow:none}
+[data-swj-workspace="payroll"] .pr-kpi-ic{display:none}
+[data-swj-workspace="payroll"] .pr-kpi-val{font-size:clamp(26px,5vw,34px);line-height:1.15;overflow-wrap:anywhere;font-variant-numeric:lining-nums tabular-nums}
+[data-swj-workspace="payroll"] .pr-kpi-lbl{line-height:1.5;letter-spacing:.08em}
+[data-swj-workspace="payroll"] .pr-card-ttl{font:400 25px var(--swj-font-display);flex-wrap:wrap}
+[data-swj-workspace="payroll"] .pr-notes-body{font-size:13px;line-height:1.6;color:var(--swj-text-secondary)}
+[data-swj-workspace="payroll"] .pr-qa-btn .ic{display:none}
+[data-swj-workspace="payroll"] .pr-qa-btn{min-height:44px}
+[data-swj-workspace="payroll"] #pr-donut:has(.pr-donut-center:empty){display:none}
+@media(max-width:767px){[data-swj-workspace="payroll"] .pr-kpi:first-child{grid-column:1/-1;background:#E9EDE5}[data-swj-workspace="payroll"] .pr-kpi:first-child .pr-kpi-val{font-size:40px}}
