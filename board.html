@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <script src="/admin-auth.js"></script>
+<script src="/assets/records.js"></script>
 <script src="/assets/payment-events.js"></script>
 <script src="/assets/invoice-safety.js"></script>
 <meta charset="UTF-8">
@@ -2291,14 +2292,19 @@ async function testWeeklyDigestNow(){
   }
 }
 
+let _boardLoadSeq=0;
 async function loadBoard(){
+  const generation=++_boardLoadSeq;
   try {
-    const { data, error } = await _sb
+    const { data, error } = await SWJRecords.all(()=>_sb
       .from('invoices')
-      .select('invnum,client,address,invdate,data,created_at')
+      .select('invnum,client,address,invdate,data,created_at',{count:'exact'})
       .order('created_at', { ascending: false })
-      .limit(200);
+      .order('invnum',{ascending:true}),{key:'invnum'});
+    if(generation!==_boardLoadSeq)return;
     if(error){
+      CARDS={};
+      SWJRecords.warning('board-record-warning','Projects are incomplete. Refresh to retry; no partial board is shown.');
       console.error('Board load error:', error);
       document.getElementById('swj-jobs-mobile').textContent='Could not load projects. Use Refresh to try again.';
       ['proposal','confirmed','staged','destage','done'].forEach(s => {
@@ -2307,6 +2313,7 @@ async function loadBoard(){
       });
       return;
     }
+    SWJRecords.warning('board-record-warning','');
     // Filter out drafts (DRAFT- prefix) and GS Photography invoices (GS prefix) — GS shares
     // this Supabase table but is a separate business with its own gs-invoice.html generator,
     // not part of Jasmine's board.
@@ -2780,11 +2787,11 @@ async function moveToStagePrompt(targetStage){
   // Find invoices in earlier stages (or with unknown/no stage) that could move into targetStage
   // Strategy: load ALL non-DRAFT invoices and let user pick any one that's currently in a different stage
   try {
-    const { data, error } = await _sb
+    const { data, error } = await SWJRecords.all(()=>_sb
       .from('invoices')
-      .select('invnum,client,address,invdate,data')
+      .select('invnum,client,address,invdate,data',{count:'exact'})
       .order('created_at', { ascending: false })
-      .limit(100);
+      .order('invnum',{ascending:true}),{key:'invnum'});
     if(error){ alert('Could not load invoices: ' + error.message); return; }
 
     const candidates = (data||[])

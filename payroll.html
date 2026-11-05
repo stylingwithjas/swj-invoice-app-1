@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <script src="/admin-auth.js"></script>
+<script src="/assets/records.js"></script>
 <script src="/assets/payment-events.js"></script>
 <meta charset="UTF-8">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -844,13 +845,16 @@ async function loadProjects(){
   const projSel = document.getElementById('f-project');
   const internalOpts = INTERNAL_JOBS.map(j=>`<option value="${esc(j.invnum)}">${esc(j.label)}</option>`).join('');
   try{
-    const {data} = await _sb.from('invoices').select('invnum,client,address,invdate,data')
+    const {data,error} = await SWJRecords.all(()=>_sb.from('invoices').select('invnum,client,address,invdate,data',{count:'exact'})
       .not('invnum','like','DRAFT-%').not('invnum','like','GS%').neq('invnum','PRICING_DEFAULTS').neq('invnum','TIER_PRICING').not('invnum','like','TAX_REVIEW_%').neq('invnum','FINANCE_CONFIG').neq('invnum','FINANCE_OVERRIDES')
-      .order('invdate',{ascending:false}).limit(50);
+      .order('invdate',{ascending:false}).order('invnum',{ascending:true}),{key:'invnum'});
+    if(error)throw error;
+    SWJRecords.warning('project-record-warning','');
     _projectsCache = (data||[]).filter(j => { const s=(j.data||{}).stage||'proposal'; return s!=='denied' && s!=='closed_lost'; });
     const jobOpts = _projectsCache.map(j=>`<option value="${esc(j.invnum)}">${esc(jobLabelFor(j))}</option>`).join('');
     projSel.innerHTML = '<option value="">All</option>' + internalOpts + jobOpts;
   }catch(e){
+    _projectsCache=[];SWJRecords.warning('project-record-warning','Project choices are incomplete. Reload to retry.');
     projSel.innerHTML = '<option value="">All</option>' + internalOpts;
   }
 }
@@ -902,7 +906,8 @@ async function loadEntries(){
   const status = document.getElementById('f-status').value;
   const approval = document.getElementById('f-approved').value;
 
-  let q = _sb.from('time_entries').select('*').order('clock_in',{ascending:false}).limit(500);
+  const {data,error}=await SWJRecords.all(()=>{
+  let q = _sb.from('time_entries').select('*',{count:'exact'}).order('clock_in',{ascending:false}).order('id',{ascending:true});
   if(employee) q = q.eq('employee_name', employee);
   if(project) q = q.eq('invnum', project);
   if(from) q = q.gte('clock_in', from+'T00:00:00');
@@ -912,8 +917,9 @@ async function loadEntries(){
   if(approval==='approved') q = q.eq('approved', true);
   if(approval==='pending') q = q.eq('approved', false);
 
-  const {data,error} = await q;
-  if(error){ document.getElementById('entries-empty').textContent = 'Could not load entries — make sure the `time_entries` table exists in Supabase.'; document.getElementById('entries-empty').style.display='block'; return; }
+  return q;
+  },{key:'id'});
+  if(error){ _entries=[];document.getElementById('entries-body').replaceChildren();['tot-count','tot-hours','tot-amount'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent='Unavailable';});document.getElementById('entries-empty').textContent = 'Entries are incomplete. Retry before approving or marking hours paid.'; document.getElementById('entries-empty').style.display='block'; return; }
   _entries = data||[];
   renderEntries();
 }
@@ -1317,16 +1323,11 @@ let _financeLoadError=false;
 async function loadFinanceInvoices(){
   _financeLoadError=false;
   try{
-    const rows=[];
-    for(let offset=0;;offset+=500){
-      const {data,error}=await _sb.from('invoices').select('invnum,client,address,invdate,data')
-        .not('invnum','like','DRAFT-%').not('invnum','like','GS%').neq('invnum','PRICING_DEFAULTS').neq('invnum','TIER_PRICING').not('invnum','like','TAX_REVIEW_%').neq('invnum','FINANCE_CONFIG').neq('invnum','FINANCE_OVERRIDES')
-        .order('created_at',{ascending:false}).order('invnum',{ascending:true}).range(offset,offset+499);
-      if(error || !Array.isArray(data)) throw error || new Error('Invalid invoice response');
-      rows.push(...data);
-      if(data.length<500) break;
-    }
-    _financeInvoices=rows;
+    const {data,error}=await SWJRecords.all(()=>_sb.from('invoices').select('invnum,client,address,invdate,data',{count:'exact'})
+      .not('invnum','like','DRAFT-%').not('invnum','like','GS%').neq('invnum','PRICING_DEFAULTS').neq('invnum','TIER_PRICING').not('invnum','like','TAX_REVIEW_%').neq('invnum','FINANCE_CONFIG').neq('invnum','FINANCE_OVERRIDES')
+      .order('created_at',{ascending:false}).order('invnum',{ascending:true}),{key:'invnum'});
+    if(error)throw error;
+    _financeInvoices=data;
   }catch(e){ _financeInvoices = []; _financeLoadError=true; }
 }
 
@@ -1523,8 +1524,9 @@ async function runFinanceView(){
   const internalInvnums = INTERNAL_JOBS.map(j=>j.invnum);
   let periodEntries = [];
   try{
-    const { data: entries } = await _sb.from('time_entries').select('id,work_type,amount,clock_in,invnum,job_label,employee_name,approved,paid,hours,rate')
-      .gte('clock_in', periodStart+'T00:00:00').lte('clock_in', periodEnd+'T23:59:59');
+    const { data:entries,error } = await SWJRecords.all(()=>_sb.from('time_entries').select('id,work_type,amount,clock_in,invnum,job_label,employee_name,approved,paid,hours,rate',{count:'exact'})
+      .gte('clock_in', periodStart+'T00:00:00').lte('clock_in', periodEnd+'T23:59:59').order('id',{ascending:true}),{key:'id'});
+    if(error)throw error;
     periodEntries = entries||[];
     periodEntries.forEach(e=>{
       const amt = parseFloat(e.amount)||0;
@@ -1533,7 +1535,11 @@ async function runFinanceView(){
       if(e.invnum) moverByProject[e.invnum] = (moverByProject[e.invnum]||0) + amt;
       if(internalInvnums.includes(e.invnum)) sharedLaborTotal += amt;
     });
-  }catch(e){}
+  }catch(e){
+    _lastFinanceSummary=null;document.getElementById('finance-data-status').textContent='Hours data is incomplete. Retry Run; costs and allocations are not confirmed.';
+    ['pr-kpi-row','fin-headline','fin-waterfall','fin-details-body','fin-budget','fin-committed','pr-notes-body'].forEach(id=>document.getElementById(id)?.replaceChildren());
+    return;
+  }
   const moverOnSite = moverByType['staging']||0;
   const moverGeneral = (moverByType['destage']||0) + (moverByType['warehouse']||0) + (moverByType['travel']||0);
 
@@ -2077,12 +2083,15 @@ async function plaidSyncNow(){
   }
 }
 
+let _spendingLoadSeq=0;
 async function renderSpendingTransactions(){
+  const generation=++_spendingLoadSeq;
   const body = document.getElementById('pr-spend-body');
   body.innerHTML = '<div class="empty-note">Loading transactions…</div>';
   const month = document.getElementById('pr-spend-month').value;
   const jobFilter = document.getElementById('pr-spend-job-filter').value;
-  let q = _sb.from('plaid_transactions').select('transaction_id,date,merchant_name,name,amount,pending,category,plaid_category,job_invnum').order('date',{ascending:false}).limit(500);
+  const {data,error}=await SWJRecords.all(()=>{
+  let q = _sb.from('plaid_transactions').select('transaction_id,date,merchant_name,name,amount,pending,category,plaid_category,job_invnum',{count:'exact'}).order('date',{ascending:false}).order('transaction_id',{ascending:true});
   if(month){
     // Nov 4, 2026 bug: a hardcoded "-31" end date doesn't exist in every month (Postgres
     // rejects "2026-11-31" outright) -- day 0 of the next month is always the real last day
@@ -2091,7 +2100,9 @@ async function renderSpendingTransactions(){
     q = q.gte('date', month+'-01').lte('date', monthEnd);
   }
   if(jobFilter){ q = q.eq('job_invnum', jobFilter); }
-  const { data, error } = await q;
+  return q;
+  },{key:'transaction_id'});
+  if(generation!==_spendingLoadSeq)return;
   if(error){ body.innerHTML = '<div class="empty-note">Could not load transactions: '+esc(error.message)+'</div>'; return; }
   if(!data || !data.length){
     body.innerHTML = '<div class="empty-note">Connected, but no transactions match this filter yet — click Sync now to pull Amex’s transaction history, or widen the month/job filter.</div>';
@@ -2440,7 +2451,8 @@ function prSetPerfRange(n){
 async function loadMonthlyPerformance(){
   const loading = document.getElementById('pr-perf-loading');
   const body = document.getElementById('pr-perf-body');
-  if(!loading || !_lastFinanceSummary) return;
+  if(!loading)return;
+  if(!_lastFinanceSummary){loading.style.display='';loading.textContent='Finance data is incomplete. Retry Run before viewing performance.';body.style.display='none';return;}
   loading.style.display = ''; loading.textContent = 'Loading…'; body.style.display = 'none';
 
   const now = new Date();
@@ -2457,14 +2469,16 @@ async function loadMonthlyPerformance(){
   const rangeEnd = rangeEndD.toISOString().split('T')[0];
 
   await loadFinanceInvoices();
+  if(_financeLoadError){loading.textContent='Invoice data is incomplete. Retry Run.';return;}
   // Same revenue rule as Finance & Allocation: a paid job counts regardless of signature.
   const counted = _financeInvoices;
   let entries = [];
   try{
-    const { data } = await _sb.from('time_entries').select('work_type,amount,clock_in,invnum')
-      .gte('clock_in', rangeStart+'T00:00:00').lte('clock_in', rangeEnd+'T23:59:59');
+    const { data,error } = await SWJRecords.all(()=>_sb.from('time_entries').select('id,work_type,amount,clock_in,invnum',{count:'exact'})
+      .gte('clock_in', rangeStart+'T00:00:00').lte('clock_in', rangeEnd+'T23:59:59').order('id',{ascending:true}),{key:'id'});
+    if(error)throw error;
     entries = data||[];
-  }catch(e){}
+  }catch(e){loading.textContent='Hours data is incomplete. Retry Run.';return;}
 
   const results = months.map(({y,m})=>{
     const periodStart = `${y}-${String(m+1).padStart(2,'0')}-01`;
