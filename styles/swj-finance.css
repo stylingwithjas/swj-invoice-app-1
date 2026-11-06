@@ -133,3 +133,19 @@
 @media(max-width:900px){
  #fin-view-team .pr-row2 { grid-template-columns:minmax(0,1fr); }
 }
+.swj-finance .pr-hist-row,.swj-finance .pr-overdue-alert { width:100%; font:inherit; text-align:start; }
+.swj-finance .pr-hist-row { background:none; border:0; border-bottom:1px solid var(--swj-divider); }
+.swj-finance .pr-hist-row:hover { margin-inline:0; padding-inline:0; background:var(--swj-bg); }
+.swj-finance .pr-chart-bar { width:28%; }
+.swj-finance .pr-chart-bar.net { background:var(--swj-positive); }
+.swj-finance .pr-chart-bar.loss { background:var(--swj-negative); }
+.swj-finance .fin-view { min-width:0; }
+.swj-finance .pr-hdr-left,.swj-finance .pr-hdr-right { min-width:0; }
+.swj-finance .filter-btn.primary { background:var(--swj-olive-dark); color:white; }
+.swj-finance .fin-disclosure > summary { min-height:48px; }
+@media(max-width:767px){
+ .swj-finance .fin-settings-grid,.swj-finance .headline-strip { grid-template-columns:repeat(2,minmax(0,1fr)); }
+ .swj-finance .pr-card,.swj-finance .card { padding:16px; }
+ .swj-finance .pr-kpi-row .pr-kpi-val { font-size:clamp(23px,6vw,34px); }
+ .swj-finance #pr-kpi-row .pr-kpi:first-child .pr-kpi-val { font-size:36px; }
+}

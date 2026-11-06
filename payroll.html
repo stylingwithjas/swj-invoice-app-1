@@ -396,7 +396,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
     <div class="pr-hdr-right">
       <div class="filter-field"><label for="fin-month">Month</label><select id="fin-month"></select></div>
       <div class="filter-field"><label for="fin-year">Year</label><select id="fin-year"></select></div>
-      <button class="filter-btn primary" onclick="runFinanceView()">Run</button>
+      <button class="filter-btn primary" id="fin-run" onclick="refreshFinancePeriod()">Run</button>
     </div>
   </div>
 
@@ -431,12 +431,13 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
       </div>
       <div id="pr-perf-loading" class="empty-note">Loading monthly performance…</div>
       <div id="pr-perf-body" style="display:none">
-        <div class="pr-chart-wrap" id="pr-perf-chart"></div>
+        <div class="pr-chart-wrap" id="pr-perf-chart" aria-hidden="true"></div>
         <p class="fin-note">Historical planning view · receipts include sales tax. Costs include labor and truck and warehouse estimates. Tax reserves and Stripe fees are excluded from this chart.</p>
         <div class="pr-chart-legend">
-          <span><i style="background:#2a2a28"></i>Revenue</span>
+          <span><i style="background:var(--swj-olive)"></i>Revenue</span>
           <span><i style="background:var(--gold)"></i>Total Costs</span>
-          <span><i style="background:var(--green);border-radius:50%;width:7px;height:7px"></i>Planning Net / Keep</span>
+          <span><i style="background:var(--swj-positive)"></i>Planning Net / Keep</span>
+          <span><i style="background:var(--swj-negative)"></i>Planning loss</span>
         </div>
         <div class="sub-hdr">This Month vs. Last Month</div>
         <div id="pr-perf-compare"></div>
@@ -570,7 +571,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
 
 <details class="fin-disclosure" id="fin-job-results"><summary>Cash Received · Recorded Job Results</summary>  <div class="pr-panel" id="pr-panel-ledger">
     <div class="card">
-      <div class="card-hdr"><span>Job Profit — Real</span></div>
+      <div class="card-hdr"><span>Recorded Job Costs &amp; Receipts</span></div>
       <div style="font-size:11px;color:var(--taupe-dk);margin-bottom:14px">Built from recorded customer payments, posted job-tagged Amex purchases, completed mover payments and actual Stripe fees. Logged hours remain commitments until paid. Contributions include collected sales tax and exclude shared costs; they are provisional, not net profit. Tax Report remains separate.</div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px">
         <label style="margin:0;font-size:11px">Month<input type="month" id="pr-ledger-month" style="margin-left:6px"></label>
@@ -1296,11 +1297,6 @@ async function saveFinanceConfig(){
   }catch(e){ if(msg){ msg.textContent = 'Could not save: '+e.message; msg.className='msg err'; } }
 }
 
-function toggleFinanceSettings(){
-  const el = document.getElementById('finance-settings');
-  el.style.display = el.style.display==='none' ? 'block' : 'none';
-}
-
 function initFinancePeriodPickers(){
   const mSel = document.getElementById('fin-month'), ySel = document.getElementById('fin-year');
   MONTH_NAMES.forEach((m,i)=>{ const o=document.createElement('option'); o.value=i+1; o.textContent=m; mSel.appendChild(o); });
@@ -1439,6 +1435,12 @@ async function financeToggleOneOff(){
   runFinanceView();
 }
 
+async function refreshFinancePeriod(){
+  const run = document.getElementById('fin-run');
+  run.disabled = true;
+  try{ await runFinanceView(); }
+  finally{ run.disabled = false; }
+}
 async function runFinanceView(){
   const month = parseInt(document.getElementById('fin-month').value,10);
   const year = parseInt(document.getElementById('fin-year').value,10);
@@ -1932,6 +1934,7 @@ function prShowTab(name){
     tab.tabIndex = active ? 0 : -1;
     document.getElementById('fin-view-'+key).hidden = !active;
   }
+  document.getElementById('fin-tab-'+selected).scrollIntoView({inline:'nearest',block:'nearest'});
   const [title, intro] = FINANCE_TABS[selected];
   document.getElementById('fin-title').textContent = title;
   document.getElementById('fin-intro').textContent = intro;
@@ -2060,7 +2063,7 @@ async function loadSpendingTab(){
   financeCardLabels = new Map(cards.map(card=>[card.account_id,[card.name,card.mask && '••'+card.mask].filter(Boolean).join(' ')]));
   const accountFilter = document.getElementById('fin-transaction-account');
   const previousAccount = accountFilter.value;
-  accountFilter.length = 1;
+  accountFilter.replaceChildren(new Option("All cards",""));
   for(const [id,label] of financeCardLabels) accountFilter.add(new Option(label,id));
   if(financeCardLabels.has(previousAccount)) accountFilter.value = previousAccount;
   cards = SWJAmex.uniqueCards(cards);
@@ -2352,13 +2355,13 @@ function renderPrOverdueAlert(){
   if(!overdueList.length){ wrap.innerHTML = ''; return; }
   const total = overdueList.reduce((t,e)=>t+e.balance,0);
   wrap.innerHTML = `
-    <div class="pr-overdue-alert" onclick="prScrollTo('fin-overdue')">
+    <button class="pr-overdue-alert" type="button" onclick="prScrollTo('fin-overdue')">
       <div>
         <div class="oa-amt">${finMoney(total)} Overdue</div>
         <div class="oa-note">${overdueList.length} invoice${overdueList.length===1?'':'s'} require attention — money owed, not cash on hand.</div>
       </div>
-      <div class="oa-go">View details →</div>
-    </div>`;
+      <span class="oa-go">View details →</span>
+    </button>`;
 }
 
 function renderPrKpiRow(){
@@ -2390,7 +2393,7 @@ function renderPrKpiRow(){
 }
 
 function financeMetric(label,value,note=''){
-  return `<div class="pr-kpi"><div class="pr-kpi-lbl">${esc(label)}</div><div class="pr-kpi-val">${esc(value)}</div><div class="pr-kpi-note">${esc(note)}</div></div>`;
+  return `<div class="pr-kpi"><div class="pr-kpi-lbl">${esc(label)}</div><div class="pr-kpi-val">${esc(String(value))}</div><div class="pr-kpi-note">${esc(note)}</div></div>`;
 }
 function financeDetailRow(label,value){
   return `<div class="fin-detail-row"><span>${esc(label)}</span><strong>${value}</strong></div>`;
@@ -2432,7 +2435,7 @@ async function refreshFinanceSpending(){
     const legend = rows.map(([label,cents],i)=>`<div class="fin-detail-row"><span><i class="fin-swatch" style="--swatch:${palette[i%palette.length]}"></i>${esc(label)}</span><strong>${finMoney(cents/100)}</strong></div>`).join('');
     const html = total > 0 ? `<div class="fin-spend-chart"><div class="fin-ring" aria-hidden="true" style="--ring:conic-gradient(${stops.join(',')})"></div><div><p class="fin-big-number">${finMoney(total/100)}</p>${legend}</div></div>` : '<p>No posted card purchases found for this period.</p>';
     destinations.forEach(el=>el.innerHTML=html+'<p class="fin-note">Gross posted card purchases · excludes payments, transfers, credits and pending authorizations.'+(categories.has('Uncategorized')?' Incomplete categorization.':'')+'</p>');
-    if(inventory) inventory.textContent = total ? finMoney((categories.get('Furniture/Inventory')||0)/100) : '—';
+    if(inventory) inventory.textContent = total ? finMoney((categories.get('Furniture/Inventory')||0)/100)+(categories.has('Uncategorized')?' tagged so far':'') : '—';
     const uncategorized = purchases.filter(row=>!row.category).length;
     if(action && uncategorized){
       action.innerHTML = `<button class="filter-btn" onclick="financeCategoryFilter.value='uncategorized'; prShowTab('transactions'); if(financeTransactionRows.length) paintFinanceTransactions()">Review ${uncategorized} uncategorized card purchase${uncategorized===1?'':'s'}</button>`;
@@ -2656,6 +2659,7 @@ function renderEmployeePayTab(){
 // second, differently-written formula.
 let _prPerfRange = 6;
 let _prPerfCache = null;
+let financePerformanceGeneration = 0;
 function prSetPerfRange(n){
   _prPerfRange = n;
   document.querySelectorAll('#pr-perf-range .pr-range-btn').forEach(b=>b.classList.remove('on'));
@@ -2664,6 +2668,7 @@ function prSetPerfRange(n){
   loadMonthlyPerformance();
 }
 async function loadMonthlyPerformance(){
+  const generation = ++financePerformanceGeneration;
   const loading = document.getElementById('pr-perf-loading');
   const body = document.getElementById('pr-perf-body');
   if(!loading)return;
@@ -2692,7 +2697,8 @@ async function loadMonthlyPerformance(){
       .gte('clock_in', rangeStart+'T00:00:00').lte('clock_in', rangeEnd+'T23:59:59').order('id',{ascending:true}),{key:'id'});
     if(error)throw error;
     entries = data||[];
-  }catch(e){loading.textContent='Hours data is incomplete. Retry Run.';return;}
+  }catch(e){if(generation===financePerformanceGeneration) loading.textContent='Hours data is incomplete. Retry Run.';return;}
+  if(generation!==financePerformanceGeneration) return;
 
   const results = months.map(({y,m})=>{
     const periodStart = `${y}-${String(m+1).padStart(2,'0')}-01`;
@@ -2718,12 +2724,13 @@ async function loadMonthlyPerformance(){
 
   _prPerfCache = results;
   loading.style.display = 'none'; body.style.display = '';
-  const max = Math.max(1, ...results.map(r=>Math.max(r.revenue, r.costs)));
+  const max = Math.max(1, ...results.map(r=>Math.max(r.revenue, r.costs, Math.abs(r.net))));
   document.getElementById('pr-perf-chart').innerHTML = results.map(r=>`
     <div class="pr-chart-col">
       <div class="pr-chart-bars">
         <div class="pr-chart-bar rev" style="height:${Math.max(2,Math.round(r.revenue/max*140))}px" title="Revenue ${finMoney(r.revenue)}"></div>
         <div class="pr-chart-bar cost" style="height:${Math.max(2,Math.round(r.costs/max*140))}px" title="Costs ${finMoney(r.costs)}"></div>
+        <div class="pr-chart-bar ${r.net<0?'loss':'net'}" style="height:${Math.max(2,Math.round(Math.abs(r.net)/max*140))}px" title="Planning net ${finMoney(r.net)}"></div>
       </div>
       <div class="pr-chart-lbl">${r.label}${r.special?' *':''}</div>
     </div>`).join('');
@@ -2756,13 +2763,13 @@ function renderPrHistory(){
     rows.push({ y:d.getFullYear(), m:d.getMonth() });
   }
   listEl.innerHTML = rows.map(r=>`
-    <div class="pr-hist-row" onclick="prJumpToMonth(${r.y},${r.m})">
+    <button type="button" class="pr-hist-row" onclick="prJumpToMonth(${r.y},${r.m})">
       <div>
         <div class="pr-hist-month">${MONTH_NAMES[r.m]} ${r.y}</div>
         <div class="pr-hist-meta">Recalculated from current invoices &amp; time entries</div>
       </div>
-      <div style="color:var(--taupe)">→</div>
-    </div>`).join('');
+      <span aria-hidden="true" style="color:var(--taupe)">→</span>
+    </button>`).join('');
 
   const keys = Object.keys(FINANCE_OVERRIDES||{}).sort().reverse();
   if(!keys.length){ ovEl.innerHTML = '<div class="empty-note">No manual overrides on record.</div>'; return; }
