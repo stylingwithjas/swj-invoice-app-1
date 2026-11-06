@@ -111,3 +111,16 @@
  .fin-stack-table td[data-label]::before { content:attr(data-label); text-align:start; color:var(--swj-text-secondary); font-size:11px; }
  .fin-stack-table td:empty { display:none; }
 }
+.fin-transaction-head { grid-template-columns:minmax(0,1.2fr) minmax(0,1fr); margin-bottom:16px; }
+.fin-transaction-head > .card { margin:0; }
+.fin-transaction-filters { display:flex; flex-wrap:wrap; gap:10px; align-items:end; margin-bottom:14px; }
+.fin-transaction-filters label { display:flex; flex-direction:column; min-width:0; gap:5px; font-size:12px; }
+.fin-transaction-filters label:first-child { flex:1 1 170px; }
+.fin-transaction-filters :is(input:not([type=checkbox]),select) { margin:0 !important; padding:7px; border:1px solid var(--swj-border); border-radius:8px; background:white; }
+#pr-spend-body select { min-width:0; width:100%; }
+.fin-vendor { font-weight:600; }
+@media(max-width:767px){
+ .fin-transaction-head { grid-template-columns:minmax(0,1fr); }
+ #pr-spend-body .fin-stack-table select { width:min(68%,240px); }
+ #pr-spend-body .fin-stack-table tfoot { margin-top:10px; }
+}

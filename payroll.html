@@ -596,12 +596,13 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
   </section>
   <section id="fin-view-transactions" class="fin-view" role="tabpanel" aria-labelledby="fin-tab-transactions" hidden>
   <div class="pr-panel" id="pr-panel-spending">
-    <div class="card">
+    <div class="fin-pair fin-transaction-head">
+      <section class="pr-card"><h2>Spending Summary</h2><div id="fin-transactions-summary" role="status">Loading posted card spending…</div></section>
+      <div class="card">
       <div class="card-hdr">
-        <span>Business Amex</span>
+        <span>Cards &amp; Sync</span>
         <span id="pr-spend-status" style="font-size:11px;color:var(--taupe-dk);font-weight:500;text-transform:none;letter-spacing:0">Checking connection…</span>
       </div>
-      <div style="font-size:11px;color:var(--taupe-dk);margin-bottom:12px">The two business American Express cards only, linked here via this site's own Plaid connection — never Muse's, never a personal card. Statement balance, due date, and the latest current balance reported by Amex.</div>
       <div id="pr-spend-connect-row" style="display:none;margin-bottom:14px">
         <button class="filter-btn primary" onclick="plaidConnectAmex()" id="pr-spend-connect-btn">Connect business Amex</button>
       </div>
@@ -612,7 +613,14 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
         <span id="pr-spend-sync-note" role="status" style="font-size:11px;color:var(--taupe-dk);display:block;margin-top:6px;width:100%"></span>
       </div>
       <div id="pr-spend-cards" style="display:grid;gap:10px;margin-bottom:16px"></div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
+      </div>
+    </div>
+    <div class="card">
+      <h2>Card Transactions</h2>
+      <div class="fin-transaction-filters">
+        <label>Search <input type="search" id="fin-transaction-search" placeholder="Search payees"></label>
+        <label>Category <select id="fin-transaction-category"><option value="">All categories</option><option value="uncategorized">Uncategorized</option></select></label>
+        <label>Account <select id="fin-transaction-account"><option value="">All cards</option></select></label>
         <label style="margin:0;font-size:11px">Month<input type="month" id="pr-spend-month" style="margin-left:6px" onchange="renderSpendingTransactions()"></label>
         <label style="margin:0;font-size:11px">Job<select id="pr-spend-job-filter" style="margin-left:6px" onchange="renderSpendingTransactions()"><option value="">All</option></select></label>
         <label style="margin:0;font-size:11px"><input type="checkbox" id="pr-spend-show-pending" onchange="renderSpendingTransactions()"> Show pending authorizations</label>
@@ -631,7 +639,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
       <div id="fin-reconcile-result" style="font-size:13px"></div>
     </div>
 
-<p class="fin-note">Use verified settlement amounts. Connected checking review is unavailable in Finance.</p><a href="/stripe-reconciliation.html">Stripe reconciliation report</a></details>
+<p class="fin-note">Use verified settlement amounts. Connected checking review is unavailable in Finance.</p><a href="/stripe-reconciliation.html">Stripe reconciliation report</a> · <button type="button" class="fin-text-button" onclick="prShowTab('ledger'); prScrollTo('pr-stripe-fees-sync')">Refresh actual Stripe fees</button></details>
   </section>
   <section id="fin-view-team" class="fin-view" role="tabpanel" aria-labelledby="fin-tab-team" hidden>
   <div class="pr-panel" id="pr-panel-employee">
@@ -2030,7 +2038,7 @@ async function loadSpendingTab(){
   connectedRow.style.display = 'none';
   cardsEl.innerHTML = '';
   populateSpendJobFilter();
-  if(!document.getElementById('pr-spend-month').value) document.getElementById('pr-spend-month').value = new Date().toISOString().slice(0,7);
+  if(!document.getElementById('pr-spend-month').value) document.getElementById('pr-spend-month').value = _lastFinancePeriod?.start.slice(0,7) || new Date().toISOString().slice(0,7);
 
   // Reading plaid_card_summary (never plaid_items/plaid_accounts directly — anon key has NO
   // access to those by design, sql/plaid_tables.sql). Empty/blocked means either the
@@ -2042,6 +2050,12 @@ async function loadSpendingTab(){
     if(!error && data) cards = data;
   }catch(e){ /* view may not exist yet — fall through to "not connected" */ }
 
+  financeCardLabels = new Map(cards.map(card=>[card.account_id,[card.name,card.mask && '••'+card.mask].filter(Boolean).join(' ')]));
+  const accountFilter = document.getElementById('fin-transaction-account');
+  const previousAccount = accountFilter.value;
+  accountFilter.length = 1;
+  for(const [id,label] of financeCardLabels) accountFilter.add(new Option(label,id));
+  if(financeCardLabels.has(previousAccount)) accountFilter.value = previousAccount;
   cards = SWJAmex.uniqueCards(cards);
 
   if(!cards.length){
@@ -2134,6 +2148,7 @@ async function plaidConnectAmex(){
         }
         try{
           await loadSpendingTab();
+      if(_lastFinancePeriod) refreshFinanceSpending();
         }catch(e){
           alert('The connection was saved, but refreshing the Spending tab failed: ' + e.message + '\n\nReload the page to see it.');
         }
@@ -2159,6 +2174,7 @@ async function plaidSyncNow(){
       note.textContent = `Synced — ${res.added||0} new, ${res.modified||0} updated, ${res.removed||0} removed.` + (res.errors&&res.errors.length?' Some cards had issues: '+res.errors.join('; '):'');
       note.style.color = res.errors&&res.errors.length ? 'var(--amber,#c97c2e)' : '';
       await loadSpendingTab();
+      if(_lastFinancePeriod) refreshFinanceSpending();
     }
   }catch(e){
     note.textContent = 'Sync failed: ' + e.message;
@@ -2168,14 +2184,22 @@ async function plaidSyncNow(){
 }
 
 let _spendingLoadSeq=0;
+let financeTransactionRows = [];
+let financeCardLabels = new Map();
+const financeCategoryFilter = document.getElementById('fin-transaction-category');
+for(const category of PLAID_CATEGORIES) financeCategoryFilter.add(new Option(category,category));
+for(const id of ['fin-transaction-search','fin-transaction-category','fin-transaction-account']){
+  document.getElementById(id).addEventListener(id==='fin-transaction-search'?'input':'change',paintFinanceTransactions);
+}
 async function renderSpendingTransactions(){
   const generation=++_spendingLoadSeq;
   const body = document.getElementById('pr-spend-body');
   body.innerHTML = '<div class="empty-note">Loading transactions…</div>';
+  financeTransactionRows = [];
   const month = document.getElementById('pr-spend-month').value;
   const jobFilter = document.getElementById('pr-spend-job-filter').value;
   const {data,error}=await SWJRecords.all(()=>{
-  let q = _sb.from('plaid_transactions').select('transaction_id,date,merchant_name,name,amount,pending,category,plaid_category,job_invnum',{count:'exact'}).order('date',{ascending:false}).order('transaction_id',{ascending:true});
+  let q = _sb.from('plaid_transactions').select('transaction_id,account_id,date,merchant_name,name,amount,pending,category,plaid_category,job_invnum',{count:'exact'}).order('date',{ascending:false}).order('transaction_id',{ascending:true});
   if(month){
     // Nov 4, 2026 bug: a hardcoded "-31" end date doesn't exist in every month (Postgres
     // rejects "2026-11-31" outright) -- day 0 of the next month is always the real last day
@@ -2188,9 +2212,22 @@ async function renderSpendingTransactions(){
   },{key:'transaction_id'});
   if(generation!==_spendingLoadSeq)return;
   if(error){ body.innerHTML = '<div class="empty-note">Could not load transactions: '+esc(error.message)+'</div>'; return; }
-  const showPending = document.getElementById('pr-spend-show-pending')?.checked;
-  const posted = (data||[]).filter(t=>!t.pending);
-  const visible = showPending ? (data||[]) : posted;
+  financeTransactionRows = data||[];
+  paintFinanceTransactions();
+}
+
+function paintFinanceTransactions(){
+  const body = document.getElementById('pr-spend-body');
+  const showPending = document.getElementById('pr-spend-show-pending').checked;
+  const search = document.getElementById('fin-transaction-search').value.trim().toLowerCase();
+  const category = financeCategoryFilter.value;
+  const account = document.getElementById('fin-transaction-account').value;
+  const visible = financeTransactionRows.filter(row=>
+    (showPending || !row.pending) &&
+    (!category || (row.category||'uncategorized')===category) &&
+    (!account || row.account_id===account) &&
+    (!search || [row.merchant_name,row.name].some(name=>String(name||'').toLowerCase().includes(search))));
+  const posted = visible.filter(row=>!row.pending && financeCardPurchase(row));
   if(!visible.length){
     body.innerHTML = '<div class="empty-note">No '+(showPending?'':'posted ')+'transactions match these filters.</div>';
     return;
@@ -2203,22 +2240,22 @@ async function renderSpendingTransactions(){
     const amtSign = amtNum < 0 ? '+' : '';   // Plaid: positive = spend, negative = credit/refund
     const catOpts = PLAID_CATEGORIES.map(c=>`<option value="${esc(c)}" ${t.category===c?'selected':''}>${esc(c)}</option>`).join('');
     return `<tr>
-      <td>${esc(t.date||'')}</td>
-      <td>${label}${t.pending?' <span style="font-size:9px;color:var(--amber,#c97c2e);text-transform:uppercase">pending</span>':''}</td>
-      <td style="text-align:right">${amtSign}$${amt}</td>
-      <td><select onchange="updateTransactionCategory('${esc(t.transaction_id)}', this.value)" style="font-size:12px;padding:4px 6px;border-radius:6px;border:0.5px solid var(--taupe-lt)">
+      <td data-label="Date">${esc(t.date||'')}</td>
+      <td class="fin-vendor">${label}${t.pending?' <span style="font-size:9px;color:var(--amber,#c97c2e);text-transform:uppercase">pending</span>':''}</td>
+      <td data-label="Amount" style="text-align:right">${amtSign}$${amt}</td>
+      <td data-label="Category"><select aria-label="Transaction category" onchange="updateTransactionCategory('${esc(t.transaction_id)}', this.value)" style="font-size:12px;padding:4px 6px;border-radius:6px;border:0.5px solid var(--taupe-lt)">
         <option value="">Uncategorized</option>${catOpts}
       </select></td>
-      <td><select onchange="updateTransactionJob('${esc(t.transaction_id)}', this.value)" style="font-size:12px;padding:4px 6px;border-radius:6px;border:0.5px solid var(--taupe-lt)">
+      <td data-label="Project"><select aria-label="Transaction project" onchange="updateTransactionJob('${esc(t.transaction_id)}', this.value)" style="font-size:12px;padding:4px 6px;border-radius:6px;border:0.5px solid var(--taupe-lt)">
         ${jobDropdownOptions(t.job_invnum)}
       </select></td>
-      <td style="font-size:11px;color:var(--taupe-dk)">Business Amex</td>
+      <td data-label="Account">${esc(financeCardLabels.get(t.account_id)||'Business Amex')}</td>
     </tr>`;
   }).join('');
-  body.innerHTML = `<div style="overflow-x:auto"><table>
+  body.innerHTML = `<div style="overflow-x:auto"><table class="fin-stack-table">
     <thead><tr><th>Date</th><th>Payee/vendor</th><th style="text-align:right">Amount</th><th>Category</th><th>Job</th><th>Source</th></tr></thead>
     <tbody>${rows}</tbody>
-    <tfoot><tr class="total-row"><td colspan="2">Posted total — ${posted.length} transaction(s)</td><td style="text-align:right">${total<0?'+':''}$${Math.abs(total).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</td><td colspan="3"></td></tr></tfoot>
+    <tfoot><tr class="total-row"><td colspan="2">Posted purchases — ${posted.length} transaction(s)</td><td data-label="Amount" style="text-align:right">${total<0?'+':''}$${Math.abs(total).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</td><td colspan="3"></td></tr></tfoot>
   </table></div>`;
 }
 
@@ -2230,14 +2267,20 @@ async function updateTransactionCategory(transactionId, category){
   // engine (lib/plaid_categorize.py) never overwrites.
   try{
     const { error } = await _sb.from('plaid_transactions').update({ category: category||null, category_source: category?'manual':null }).eq('transaction_id', transactionId);
-    if(error) alert('Could not save category: ' + error.message);
+    if(error) throw error;
+    const row = financeTransactionRows.find(row=>row.transaction_id===transactionId);
+    if(row) row.category = category;
+    if(financeCategoryFilter.value) paintFinanceTransactions();
+    refreshFinanceSpending();
   }catch(e){ alert('Could not save category: ' + e.message); }
 }
 
 async function updateTransactionJob(transactionId, invnum){
   try{
     const { error } = await _sb.from('plaid_transactions').update({ job_invnum: invnum||null }).eq('transaction_id', transactionId);
-    if(error) alert('Could not save job tag: ' + error.message);
+    if(error) throw error;
+    const row = financeTransactionRows.find(row=>row.transaction_id===transactionId);
+    if(row) row.job_invnum = invnum;
   }catch(e){ alert('Could not save job tag: ' + e.message); }
 }
 
@@ -2279,7 +2322,7 @@ async function syncLedgerStripeFees(button){
   try{
     const response=await fetch('/api/webhook?cash=stripe_fees',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({period})});
     const result=await response.json();if(!response.ok)throw Error(result.error||'Stripe fees could not be verified.');
-    await renderRealLedger();status.textContent='Stripe fee sync completed.';
+    await renderRealLedger();status.textContent='Stripe fee sync completed at '+new Date().toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})+'.';
   }catch(error){status.textContent=error.message||'Stripe fees could not be verified. Retry.';}
   finally{button.disabled=false;}
 }
@@ -2385,7 +2428,7 @@ async function refreshFinanceSpending(){
     if(inventory) inventory.textContent = total ? finMoney((categories.get('Furniture/Inventory')||0)/100) : '—';
     const uncategorized = purchases.filter(row=>!row.category).length;
     if(action && uncategorized){
-      action.innerHTML = `<button class="filter-btn" onclick="prShowTab('transactions')">Review ${uncategorized} uncategorized card purchase${uncategorized===1?'':'s'}</button>`;
+      action.innerHTML = `<button class="filter-btn" onclick="financeCategoryFilter.value='uncategorized'; prShowTab('transactions'); if(financeTransactionRows.length) paintFinanceTransactions()">Review ${uncategorized} uncategorized card purchase${uncategorized===1?'':'s'}</button>`;
     }
   }catch{
     if(generation!==financeSpendSummaryGeneration) return;
