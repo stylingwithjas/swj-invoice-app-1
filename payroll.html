@@ -604,6 +604,24 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
         <span id="pr-spend-last-check"></span>
       </div>
       <p id="pr-spend-error" role="alert" class="fin-transaction-error"></p>
+      <details class="fin-disclosure fin-account-details">
+        <summary>Account Details &amp; Sync</summary>
+        <div id="pr-spend-connect-row" hidden>
+          <button class="filter-btn primary" onclick="plaidConnectAmex()" id="pr-spend-connect-btn">Connect business Amex</button>
+        </div>
+        <div id="pr-spend-connected-row" hidden>
+          <button class="filter-btn primary" onclick="plaidConnectAmex()" id="pr-spend-connect-btn2">Connect another card</button>
+          <button class="filter-btn" onclick="plaidSyncNow()" id="pr-spend-sync-btn">Sync Now</button>
+        </div>
+        <p id="pr-spend-sync-note" class="fin-note" role="status"></p>
+        <div id="pr-spend-cards"></div>
+        <details class="fin-account-help">
+          <summary>Connection and payment help</summary>
+          <p>Business cards connect through Plaid using Amex’s secure sign-in. Connect only Styling With Jas business cards.</p>
+          <p>Verify posted payments and any remaining statement balance in Amex. Paying the minimum alone does not avoid interest.</p>
+          <p>If sync fails, check your connection and retry. Amex sign-in uses the configured production redirect.</p>
+        </details>
+      </details>
       <div class="fin-transaction-filters">
         <label>Search <input type="search" id="fin-transaction-search" placeholder="Search payees"></label>
         <label>Category <select id="fin-transaction-category"><option value="">All categories</option><option value="uncategorized">Uncategorized</option></select></label>
@@ -616,24 +634,6 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
         <div class="empty-note">Loading…</div>
       </div>
     </div>
-    <details class="fin-disclosure fin-account-details">
-      <summary>Account Details &amp; Sync</summary>
-      <div id="pr-spend-connect-row" hidden>
-        <button class="filter-btn primary" onclick="plaidConnectAmex()" id="pr-spend-connect-btn">Connect business Amex</button>
-      </div>
-      <div id="pr-spend-connected-row" hidden>
-        <button class="filter-btn primary" onclick="plaidConnectAmex()" id="pr-spend-connect-btn2">Connect another card</button>
-        <button class="filter-btn" onclick="plaidSyncNow()" id="pr-spend-sync-btn">Sync Now</button>
-      </div>
-      <p id="pr-spend-sync-note" class="fin-note" role="status"></p>
-      <div id="pr-spend-cards"></div>
-      <details class="fin-account-help">
-        <summary>Connection and payment help</summary>
-        <p>Business cards connect through Plaid using Amex’s secure sign-in. Connect only Styling With Jas business cards.</p>
-        <p>Verify posted payments and any remaining statement balance in Amex. Paying the minimum alone does not avoid interest.</p>
-        <p>If sync fails, check your connection and retry. Amex sign-in uses the configured production redirect.</p>
-      </details>
-    </details>
     <section class="pr-card fin-transaction-summary"><h2>Spending Summary</h2><div id="fin-transactions-summary" role="status">Loading posted card spending…</div></section>
   </div>
 
