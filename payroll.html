@@ -4,6 +4,7 @@
 <script src="/admin-auth.js"></script>
 <script src="/assets/records.js"></script>
 <script src="/assets/payment-events.js"></script>
+<script src="/assets/payment-budget.js" defer></script>
 <script src="/assets/amex-freshness.js"></script>
 <meta charset="UTF-8">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -393,8 +394,8 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
       </div>
     </div>
     <div class="pr-hdr-right">
-      <div class="filter-field"><label>Month</label><select id="fin-month"></select></div>
-      <div class="filter-field"><label>Year</label><select id="fin-year"></select></div>
+      <div class="filter-field"><label>Month</label><select id="fin-month" onchange="runFinanceView()"></select></div>
+      <div class="filter-field"><label>Year</label><select id="fin-year" onchange="runFinanceView()"></select></div>
       <button class="filter-btn primary" onclick="runFinanceView()">Run</button>
       <button class="pr-gear" onclick="toggleFinanceSettings()" title="Settings">⚙</button>
     </div>
@@ -511,7 +512,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
       <div id="fin-reconcile-result" style="font-size:13px"></div>
     </div>
 
-    <div class="disclaimer">Collected receipts use payment-received dates, including unsigned paid invoices and paid extensions, excluding test charges. They include collected sales tax. Planning exclusions do not change recorded receipts. Checking deposits and transfers are excluded from revenue. Mover pay is actual, from logged hours this month. Truck and warehouse costs use the editable assumptions above, since this app doesn't track per-job truck receipts yet — correct the defaults above if your actual costs differ. Tax set-aside reuses the Tax Report's B&amp;O + sales-tax method (not CPA-certified — see TAX_METHODOLOGY.md). "Jasmine keep (actual net)" is the existing planning allocation result, including estimated costs, not accounting profit; "Jasmine keep (target)" is a benchmark line only — the two are never blended, and the target is capped at actual profit so it can never exceed what the month really made. Inventory (shopping budget) is derived, never entered: whatever is left after costs and the keep target. A month with unreconciled revenue is flagged, not presented as final. Viewing this page never changes a stored record — only the Manual Override controls write anything.</div>
+    <div class="disclaimer">Recorded receipts use payment-received dates. Budgeted receipts use each payment’s assigned month. Both include collected sales tax, paid extensions and unsigned paid invoices, and exclude test charges. Planning exclusions do not change recorded receipts. Checking deposits and transfers are excluded from revenue. Mover pay is actual, from logged hours this month. Truck and warehouse costs use the editable assumptions above, since this app doesn't track per-job truck receipts yet — correct the defaults above if your actual costs differ. Tax set-aside reuses the Tax Report's B&amp;O + sales-tax method (not CPA-certified — see TAX_METHODOLOGY.md). "Jasmine keep (actual net)" is the existing planning allocation result, including estimated costs, not accounting profit; "Jasmine keep (target)" is a benchmark line only — the two are never blended, and the target is capped at actual profit so it can never exceed what the month really made. Inventory (shopping budget) is derived, never entered: whatever is left after costs and the keep target. A month with unreconciled revenue is flagged, not presented as final. Viewing this page never changes a stored record — only the Manual Override controls write anything.</div>
   </div>
 
   </div><!-- /pr-panel-finance -->
@@ -1282,9 +1283,15 @@ function toggleFinanceSettings(){
 function initFinancePeriodPickers(){
   const mSel = document.getElementById('fin-month'), ySel = document.getElementById('fin-year');
   MONTH_NAMES.forEach((m,i)=>{ const o=document.createElement('option'); o.value=i+1; o.textContent=m; mSel.appendChild(o); });
-  const now = new Date();
-  for(let y=now.getFullYear(); y>=now.getFullYear()-5; y--){ const o=document.createElement('option'); o.value=y; o.textContent=y; ySel.appendChild(o); }
-  mSel.value = now.getMonth()+1; ySel.value = now.getFullYear();
+  const now = new Intl.DateTimeFormat('en-US', {timeZone:'America/Los_Angeles', year:'numeric', month:'numeric'}).formatToParts(new Date());
+  const currentYear = Number(now.find(p=>p.type==='year').value);
+  const currentMonth = Number(now.find(p=>p.type==='month').value);
+  for(let y=currentYear+1; y>=currentYear-5; y--){ const o=document.createElement('option'); o.value=y; o.textContent=y; ySel.appendChild(o); }
+  const requested = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(new URLSearchParams(location.search).get('period') || '');
+  const year = requested ? Number(requested[1]) : 0;
+  const useRequest = year>=currentYear-5 && year<=currentYear+1;
+  mSel.value = useRequest ? Number(requested[2]) : currentMonth;
+  ySel.value = useRequest ? year : currentYear;
 }
 
 // Price-led tax split (Phase 5.2) — must mirror invoiceTaxSplit() in tax-report.html and
@@ -1417,25 +1424,41 @@ async function financeToggleOneOff(){
   runFinanceView();
 }
 
+let _financeViewGeneration = 0;
 async function runFinanceView(){
+  const generation = ++_financeViewGeneration;
   const month = parseInt(document.getElementById('fin-month').value,10);
   const year = parseInt(document.getElementById('fin-year').value,10);
   const periodStart = `${year}-${String(month).padStart(2,'0')}-01`;
+  const period = periodStart.slice(0,7);
   const lastDay = new Date(year,month,0).getDate();
-  const periodEnd = `${year}-${String(month).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`;
-  document.getElementById('fin-period').textContent = `${MONTH_NAMES[month-1]} ${year}`;
-  _lastFinancePeriod = { start:periodStart, end:periodEnd };
+  const periodEnd = `${period}-${String(lastDay).padStart(2,'0')}`;
+  const status = document.getElementById('finance-data-status');
+  _lastFinanceSummary = null;
+  _lastFinancePeriod = null;
+  document.getElementById('fin-period').textContent = '';
+  status.textContent = `Loading ${MONTH_NAMES[month-1]} ${year}…`;
+  ['pr-kpi-row','fin-headline','fin-waterfall','fin-details-body','fin-budget','fin-overdue','fin-committed','pr-overdue-alert-wrap','pr-legend','pr-donut-center','pr-notes-body','fin-oneoff-banner','fin-reconcile-result'].forEach(id=>document.getElementById(id)?.replaceChildren());
 
-  // Always refetch on Run — a lazy "only if empty" cache here meant the view never reacted to
-  // a new or just-changed job within the same page session.
-  await loadFinanceInvoices();
-  if(_financeLoadError){
-    _lastFinanceSummary=null;
-    document.getElementById('finance-data-status').textContent='Invoice data unavailable — collected receipts and allocations could not be verified. Retry Run. No zero-revenue conclusion has been made.';
-    ['pr-kpi-row','fin-headline','fin-waterfall','fin-details-body','fin-budget','fin-overdue','fin-committed','pr-overdue-alert-wrap','pr-legend','pr-donut-center','pr-notes-body','fin-oneoff-banner','fin-reconcile-result'].forEach(id=>{const el=document.getElementById(id);if(el)el.replaceChildren();});
+  let paymentBudget;
+  try {
+    await Promise.all([
+      loadFinanceInvoices(),
+      loadFinanceOverrides(),
+      SWJPaymentBudget.load(period).then(data=>{ paymentBudget = data; }),
+    ]);
+    if(generation!==_financeViewGeneration)return;
+    if(_financeLoadError || paymentBudget.period!==period) throw new Error('Invoice data is incomplete. Retry Run to verify the selected month.');
+  } catch(error) {
+    if(generation===_financeViewGeneration)status.textContent=error.message || 'Budget data unavailable. Retry Run.';
     return;
   }
-  await loadFinanceOverrides();
+  const invoices = _financeInvoices;
+  const byInvoice = new Map(invoices.map(inv=>[inv.invnum, inv]));
+  if(paymentBudget.events.some(event=>!byInvoice.has(event.invnum))){
+    status.textContent='Payment records changed while loading. Retry Run to verify the budget.';
+    return;
+  }
   const overrides = getOverridesFor(periodStart);
   const excludeSet = new Set(overrides.excludeInvnums||[]);
   const includeSet = new Set(overrides.includeInvnums||[]);
@@ -1444,57 +1467,40 @@ async function runFinanceView(){
   // Performance, or in the Board MTD strip (which already worked this way). excludeInvnums/
   // includeInvnums overrides still let a specific job be pulled out of or forced into a month.
   // Planning exclusions affect upcoming jobs/budgets, never recorded receipts.
-  const counted = _financeInvoices.filter(inv=>!excludeSet.has(inv.invnum));
-  _financeInvoices.forEach(inv=>{ if(includeSet.has(inv.invnum) && !counted.some(x=>x.invnum===inv.invnum)) counted.push(inv); });
+  const counted = invoices.filter(inv=>!excludeSet.has(inv.invnum));
+  invoices.forEach(inv=>{ if(includeSet.has(inv.invnum) && !counted.some(x=>x.invnum===inv.invnum)) counted.push(inv); });
 
   // Paid without a signed contract on file — still counted in Revenue (signature doesn't gate
   // revenue), but surfaced as a paperwork follow-up so a missing signature doesn't get lost.
-  const paidButUnsigned = _financeInvoices.filter(inv=>{
+  const paidButUnsigned = invoices.filter(inv=>{
     const d = inv.data||{};
     if(d.signed) return false;
     const hasPaidEvent = finPaymentEvents(d).some(e=>e.date>=periodStart && e.date<=periodEnd);
     return hasPaidEvent;
   }).map(inv=>`${inv.client||'Client'} #${inv.invnum}`);
 
-  // ---- Received: payment events this period, named ----
-  let revenue=0, salesTax=0, retailRev=0, serviceRev=0, stripeFee=0;
-  const received = [];
-  _financeInvoices.forEach(inv=>{
-    const d = inv.data||{};
-    const split = finInvoiceSplit(d);
-    const events = finPaymentEvents(d).filter(e=>e.date>=periodStart && e.date<=periodEnd);
-    events.forEach(e=>{
-      // Round to the cent right here, once — every downstream total (Revenue header, Budget
-      // total) is built from this same rounded figure, so a displayed total always equals the
-      // sum of the displayed lines (Punch list item 7 — no more 1¢ drift from float math).
-      const amt = Math.round(e.amount*100)/100;
-      revenue += amt;
-      const taxFraction = split.grand>0.009 ? split.tax/split.grand : 0;
-      const tax = amt*taxFraction;
+  // Budget funding moves by payment. Actual receipts and physical costs retain their periods.
+  const revenue = paymentBudget.budgeted_cents / 100;
+  const cashReceipts = paymentBudget.received_cents / 100;
+  let salesTax=0, retailRev=0, serviceRev=0, stripeFee=0;
+  const received = paymentBudget.events.filter(e=>e.budget_month===period);
+  received.forEach(e=>{
+    const d = byInvoice.get(e.invnum).data || {};
+    const amount = e.amount_cents / 100;
+    if(e.kind==='extension'){
+      const rate = (parseFloat(d.taxrate)||0)/100;
+      const tax = rate>0 ? amount-amount/(1+rate) : 0;
       salesTax += tax;
-      const net = amt-tax;
-      retailRev += net*split.rentalShare;
-      serviceRev += net*(1-split.rentalShare);
-      if(e.method==='Stripe (Card)') stripeFee += amt*FINANCE_CONFIG.stripe_pct/100 + FINANCE_CONFIG.stripe_flat;
-      received.push({ invnum:inv.invnum, client:inv.client||'Client', amount:amt, method:e.method, date:e.date });
-    });
-    SWJPayments.extensions(d).forEach(ext=>{
-      if(!ext.paid || !ext.paid_date || ext.is_test) return;
-      if(ext.paid_date<periodStart || ext.paid_date>periodEnd) return;
-      const amt = Math.round((parseFloat(ext.amount)||0)*100)/100; if(amt<=0.009) return;
-      const r=(parseFloat(d.taxrate)||0)/100;
-      const tax = r>0 ? amt-amt/(1+r) : 0;
-      revenue += amt; salesTax += tax; retailRev += (amt-tax);
-      if(ext.payment_id) stripeFee += amt*FINANCE_CONFIG.stripe_pct/100 + FINANCE_CONFIG.stripe_flat;
-      received.push({ invnum:inv.invnum, client:inv.client||'Client', amount:amt, method:(ext.payment_id||ext.manual_method==='stripe')?'Stripe (Card)':'Other/Manual', date:ext.paid_date, note:'extension' });
-    });
+      retailRev += amount-tax;
+    }else{
+      const split = finInvoiceSplit(d);
+      const tax = split.grand>0.009 ? amount*split.tax/split.grand : 0;
+      salesTax += tax;
+      retailRev += (amount-tax)*split.rentalShare;
+      serviceRev += (amount-tax)*(1-split.rentalShare);
+    }
+    if(e.method==='Stripe (Card)') stripeFee += amount*FINANCE_CONFIG.stripe_pct/100 + FINANCE_CONFIG.stripe_flat;
   });
-
-  const allReceipts=_financeInvoices.reduce((sum,inv)=>sum+SWJPayments.total(SWJPayments.inPeriod(inv,finComputeGrandForEvents,periodStart,periodEnd)),0);
-  const receiptDifference=Math.round((allReceipts-revenue)*100)/100;
-  const status=document.getElementById('finance-data-status');
-  status.textContent=`Cash receipts (${periodStart} through ${periodEnd}), including sales tax: ${finMoney(allReceipts)} across all SWJ source records. Signature status is not a revenue filter.`
-    +(Math.abs(receiptDifference)>0.009?` Reconciliation warning: this budget view excludes ${finMoney(receiptDifference)} through its month overrides. Budget-view receipts ${finMoney(revenue)} differ from the unfiltered Tax Report basis. Review exclusions; no records were changed.`:' Recorded receipts are not changed by planning exclusions; deposits and transfers are not revenue.');
 
   // ---- Expected (unpaid balance, staged by this period's end, overdue if staged earlier) and
   // Committed (unpaid balance, staged more than 60 days out from TODAY — a forward strip that
@@ -1538,6 +1544,7 @@ async function runFinanceView(){
     const { data:entries,error } = await SWJRecords.all(()=>_sb.from('time_entries').select('id,work_type,amount,clock_in,invnum,job_label,employee_name,approved,paid,hours,rate',{count:'exact'})
       .gte('clock_in', periodStart+'T00:00:00').lte('clock_in', periodEnd+'T23:59:59').order('id',{ascending:true}),{key:'id'});
     if(error)throw error;
+    if(generation!==_financeViewGeneration)return;
     periodEntries = entries||[];
     periodEntries.forEach(e=>{
       const amt = parseFloat(e.amount)||0;
@@ -1547,8 +1554,7 @@ async function runFinanceView(){
       if(internalInvnums.includes(e.invnum)) sharedLaborTotal += amt;
     });
   }catch(e){
-    _lastFinanceSummary=null;document.getElementById('finance-data-status').textContent='Hours data is incomplete. Retry Run; costs and allocations are not confirmed.';
-    ['pr-kpi-row','fin-headline','fin-waterfall','fin-details-body','fin-budget','fin-committed','pr-notes-body'].forEach(id=>document.getElementById(id)?.replaceChildren());
+    if(generation===_financeViewGeneration)status.textContent='Hours data is incomplete. Retry Run to verify the budget.';
     return;
   }
   const moverOnSite = moverByType['staging']||0;
@@ -1560,7 +1566,7 @@ async function runFinanceView(){
   // those same jobs, or a job paid this month but staged in a different month would inflate
   // revenue without its costs following — found live (Oct 30 build): revenue summed 2 jobs
   // while Truck/baseline were still computed for 1.
-  const receivedInvnums = new Set(received.map(r=>r.invnum));
+  const receivedInvnums = new Set(paymentBudget.events.filter(e=>e.date.slice(0,7)===period).map(e=>e.invnum));
   const jobsThisMonthList = counted.filter(inv=>{
     const d = inv.data||{};
     const stagedThisPeriod = d.startdate && d.startdate!=='TBD' && d.startdate>=periodStart && d.startdate<=periodEnd;
@@ -1581,7 +1587,10 @@ async function runFinanceView(){
   const moverCostExOneOff = moverCost - oneOffAmount;
 
   const truckCost = jobsThisMonth * truckCostPerJob();
-  const warehouseCost = FINANCE_CONFIG.warehouse_monthly;
+  // Keep the historic $1,380 assumption for earlier periods; the updated storage charge
+  // applies to budget planning from November 2026. Other configured rates still win.
+  const warehouseCost = period >= '2026-11' && Number(FINANCE_CONFIG.warehouse_monthly) === 1380
+    ? 1473 : FINANCE_CONFIG.warehouse_monthly;
 
   // ---- The keep / inventory / tithe chain (redesign §8) ----
   const netCashAfterFees = revenue - stripeFee;
@@ -1605,7 +1614,11 @@ async function runFinanceView(){
   const moverIdealTarget = revenue * FINANCE_CONFIG.mover_ideal_pct/100;
   const moverOverIdeal = moverCostExOneOff - moverIdealTarget;
 
-  _lastFinanceSummary = { revenue, salesTax, boEstimate, taxSetAside, moverCost, moverByType, moverOnSite, moverGeneral,
+  document.getElementById('fin-period').textContent = `${MONTH_NAMES[month-1]} ${year}`;
+  _lastFinancePeriod = {start:periodStart, end:periodEnd};
+  status.textContent = `Recorded receipts ${finMoney(cashReceipts)} · Budgeted receipts ${finMoney(revenue)}.`
+    + (paymentBudget.issues.length ? ' Receipt records need review before relying on these totals.' : '');
+  _lastFinanceSummary = { revenue, cashReceipts, paymentBudget, salesTax, boEstimate, taxSetAside, moverCost, moverByType, moverOnSite, moverGeneral,
     moverByProject, truckCost, warehouseCost, netCashAfterFees, operatingNet, marginPct, keepTarget, keepTargetUncapped,
     keepTargetCapped, inventoryBudget, titheAmount, personallyRetained, stripeFee, jobsThisMonth, jobsThisMonthList,
     received, expected, committed, paidButUnsigned, noStagingDate, moverCostExOneOff, moverIdealTarget, moverOverIdeal,
@@ -1641,7 +1654,7 @@ function renderFinanceSummary(){
     : '';
 
   document.getElementById('fin-headline').innerHTML = `
-    <div class="h-item"><div class="h-lbl">Received</div><div class="h-val fin-num">${finMoney(s.revenue)}</div></div>
+    <div class="h-item"><div class="h-lbl">Budgeted receipts</div><div class="h-val fin-num">${finMoney(s.revenue)}</div></div>
     <div class="h-item"><div class="h-lbl">Net</div><div class="h-val fin-num ${s.operatingNet<0?'neg':''}">${finMoney(s.operatingNet)}</div></div>
     <div class="h-item"><div class="h-lbl">Keep</div><div class="h-val fin-num">${finMoney(s.keepTarget)}</div></div>
     <div class="h-item"><div class="h-lbl">Inventory</div><div class="h-val fin-num ${s.inventoryBudget<0?'neg':''}">${finMoney(s.inventoryBudget)}</div></div>
@@ -1651,7 +1664,7 @@ function renderFinanceSummary(){
     ? `− Keep target ${finMoney(s.keepTargetUncapped)} → <strong>capped to actual net ${finMoney(s.keepTarget)}</strong>`
     : `− Keep target (${FINANCE_CONFIG.profit_target_pct}% of revenue) ${finMoney(s.keepTarget)}`;
   document.getElementById('fin-waterfall').innerHTML = `
-    Revenue ${finMoney(s.revenue)} − Stripe ${finMoney(s.stripeFee)} − Movers ${finMoney(s.moverCost)} − Truck ${finMoney(s.truckCost)} − Warehouse ${finMoney(s.warehouseCost)} − Taxes ${finMoney(s.taxSetAside)} = <strong>Net ${finMoney(s.operatingNet)}</strong><br>
+    Budgeted receipts ${finMoney(s.revenue)} − Stripe ${finMoney(s.stripeFee)} − Movers ${finMoney(s.moverCost)} − Truck ${finMoney(s.truckCost)} − Warehouse ${finMoney(s.warehouseCost)} − Tax set-aside ${finMoney(s.taxSetAside)} = <strong>Net ${finMoney(s.operatingNet)}</strong><br>
     ${keepLine} = <strong>Inventory ${finMoney(s.inventoryBudget)}</strong>${s.inventoryBudget<0?' — real operating loss':''}
     <div class="wf-sub">Tithe ${finMoney(s.titheAmount)} (10% of keep, from keep) · Personally retained ${finMoney(s.personallyRetained)}</div>
   `;
@@ -1682,16 +1695,29 @@ function renderFinanceBudget(){
   const expectedSubtotal = expectedCurrent.reduce((t,e)=>t+e.balance,0);
   const overdueSubtotal = overdueList.reduce((t,e)=>t+e.balance,0);
   const budgetTotal = s.revenue + expectedSubtotal + overdueSubtotal;
-  const receivedRows = s.received.map(r=>`<div class="budget-row"><span>${esc(r.client)} #${esc(r.invnum)} — ${fmtDate(r.date)}${r.note==='extension'?' (extension)':''}</span><span>${finMoney(r.amount)}</span></div>`).join('') || '<div class="budget-row"><span>None received this period</span><span>$0.00</span></div>';
+  const period = s.paymentBudget.period;
+  const receivedRows = s.paymentBudget.events.map(e=>{
+    const month = SWJPaymentBudget.monthLabel(e.budget_month);
+    const move = e.budget_month!==e.date.slice(0,7);
+    const assignment = e.can_assign
+      ? `<form class="budget-row" data-payment-id="${esc(e.event_id)}" onsubmit="savePaymentBudgetMonth(event)">
+          <label>Budget month <input type="month" name="budget_month" min="${e.date.slice(0,7)}" value="${e.budget_month}" required></label>
+          <button class="filter-btn" type="submit">Save</button>
+          <span role="status"></span>
+        </form>`
+      : '<div class="quiet-line">This payment has no unique recorded ID to assign.</div>';
+    return `<div class="budget-row"><span>${esc(e.client || 'Client')} #${esc(e.invnum)}${e.kind==='extension'?' (extension)':''} · Received ${SWJPaymentBudget.receivedLabel(e.date)}${move?' · Budgeted in '+month:''}${e.budget_month!==period?' (moved out)':''}</span><span>${finMoney(e.amount_cents/100)}</span></div>` + assignment;
+  }).join('') || '<div class="budget-row"><span>No received payments for this period.</span></div>';
   const expectedRows = expectedCurrent.map(e=>`<div class="budget-row"><span>${esc(e.client)} #${esc(e.invnum)} — staged ${fmtDate(e.startdate)}</span><span>${finMoney(e.balance)}</span></div>`).join('') || '<div class="budget-row"><span>None expected this period</span><span>$0.00</span></div>';
   document.getElementById('fin-budget').innerHTML = `
-    <div class="sub-hdr" style="margin-top:0">Received — ${finMoney(s.revenue)}</div>
+    <div class="sub-hdr" style="margin-top:0">Budgeted receipts — ${finMoney(s.revenue)}</div>
+    <p class="quiet-line">Received ${finMoney(s.cashReceipts)} + moved in ${finMoney(s.paymentBudget.moved_in_cents/100)} − moved out ${finMoney(s.paymentBudget.moved_out_cents/100)} = ${finMoney(s.revenue)}. Tax Report uses the received date.</p>
     ${receivedRows}
     <div class="sub-hdr">Expected — due this period, not yet overdue</div>
     ${expectedRows}
     ${overdueList.length?`<div class="budget-row"><span>Overdue, carried forward (see Overdue section below)</span><span>${finMoney(overdueSubtotal)}</span></div>`:''}
     <div class="budget-row" style="font-weight:700;border-top:1px solid var(--taupe-lt);margin-top:6px;padding-top:6px"><span>Budget total</span><span>${finMoney(budgetTotal)}</span></div>
-    <div style="font-size:10.5px;color:var(--taupe-dk);margin-top:4px">Received + Expected + Overdue, each job counted once. Overdue balances roll forward until paid — that's why an earlier month's job can still appear here.</div>
+    <div style="font-size:10.5px;color:var(--taupe-dk);margin-top:4px">Budgeted receipts + Expected + Overdue. Overdue balances roll forward until paid — that's why an earlier month's job can still appear here.</div>
   `;
 
   const overdueEl = document.getElementById('fin-overdue');
@@ -1720,6 +1746,25 @@ function renderFinanceBudget(){
   }
 }
 
+async function savePaymentBudgetMonth(event){
+  event.preventDefault();
+  const form = event.currentTarget;
+  const payment = _lastFinanceSummary?.paymentBudget.events.find(e=>e.event_id===form.dataset.paymentId);
+  if(!payment)return;
+  const button = form.querySelector('button');
+  const note = form.querySelector('[role="status"]');
+  button.disabled = true;
+  note.textContent = 'Saving…';
+  try {
+    await SWJPaymentBudget.save(payment, form.elements.budget_month.value);
+    await runFinanceView();
+  } catch(error) {
+    note.textContent = error.message;
+  } finally {
+    button.disabled = false;
+  }
+}
+
 // Per-project allocation (§1B) — same line structure as the Monthly Summary, computed per
 // project. Covers this period's Received jobs (actuals) and Expected jobs (actual costs where
 // logged, the $560 planning average otherwise), plus Committed/upcoming jobs as a pure
@@ -1728,7 +1773,7 @@ function renderFinanceBudget(){
 function prBuildProjectList(){
   const s = _lastFinanceSummary;
   if(!s) return [];
-  const warehouse = FINANCE_CONFIG.warehouse_monthly;
+  const warehouse = s.warehouseCost;
   const projectCount = s.jobsThisMonth;
 
   const projects = [];
@@ -1748,7 +1793,7 @@ function prBuildProjectList(){
   });
 
   return projects.map(p=>{
-    const stripe = p.status==='this month' ? (s.received.filter(r=>r.invnum===p.invnum && r.method==='Stripe (Card)').reduce((t,r)=>t+(r.amount*FINANCE_CONFIG.stripe_pct/100+FINANCE_CONFIG.stripe_flat),0)) : 0;
+    const stripe = p.status==='this month' ? (s.paymentBudget.events.filter(r=>r.invnum===p.invnum && r.date.slice(0,7)===s.paymentBudget.period && r.method==='Stripe (Card)').reduce((t,r)=>t+(r.amount_cents/100*FINANCE_CONFIG.stripe_pct/100+FINANCE_CONFIG.stripe_flat),0)) : 0;
     // Same per-job tax method as the monthly set-aside: sales tax from this job's own price-led
     // split, then B&O on the retailing/service split of what's left — a real per-job figure, not
     // a blended guess.
@@ -1834,11 +1879,11 @@ function renderFinanceReconciliation(){
   const el = document.getElementById('fin-reconcile-result');
   if(raw===''){ el.innerHTML = '<span style="color:var(--taupe-dk)">Not yet entered — enter actual deposits above to check this month against them.</span>'; return; }
   const actual = parseFloat(raw)||0;
-  const diff = actual - _lastFinanceSummary.revenue;
+  const diff = actual - _lastFinanceSummary.cashReceipts;
   const clean = Math.abs(diff) < 1;
   el.innerHTML = clean
-    ? `<strong style="color:var(--green)">✓ Reconciled</strong> — app revenue ${finMoney(_lastFinanceSummary.revenue)} matches actual deposits within $1.`
-    : `<strong class="note-strong">⚠ Diverges by ${finMoney(Math.abs(diff))}</strong> — app shows ${finMoney(_lastFinanceSummary.revenue)}, actual deposits ${finMoney(actual)}. Do not treat this month as final until explained.`;
+    ? `<strong style="color:var(--green)">✓ Reconciled</strong> — app revenue ${finMoney(_lastFinanceSummary.cashReceipts)} matches actual deposits within $1.`
+    : `<strong class="note-strong">⚠ Diverges by ${finMoney(Math.abs(diff))}</strong> — app shows ${finMoney(_lastFinanceSummary.cashReceipts)}, actual deposits ${finMoney(actual)}. Do not treat this month as final until explained.`;
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -2238,7 +2283,7 @@ function renderPrKpiRow(){
   const el = document.getElementById('pr-kpi-row');
   if(!s || !el) return;
   const cards = [
-    { ic:'💵', bg:'var(--green-lt)', fg:'var(--green)', lbl:'Revenue (Collected)', val:finMoney(s.revenue), note:`${s.received.length} payment${s.received.length===1?'':'s'}`, ncls:'' },
+    { ic:'💵', bg:'var(--green-lt)', fg:'var(--green)', lbl:'Budgeted receipts', val:finMoney(s.revenue), note:`${s.received.length} payment${s.received.length===1?'':'s'}`, ncls:'' },
     { ic:'📊', bg:'var(--gold-lt)', fg:'var(--gold-dk)', lbl:'Total Costs', val:finMoney(s.totalCosts), note: s.revenue>0.009 ? (s.totalCosts/s.revenue*100).toFixed(1)+'% of revenue' : '—', ncls:'' },
     { ic:'📈', bg:'var(--green-lt)', fg:'var(--green)', lbl:'Net / Keep', val:finMoney(s.operatingNet), note: s.marginPct.toFixed(1)+'% margin', ncls: s.operatingNet<0?'neg':'' },
     { ic:'🎯', bg:'var(--amber-lt)', fg:'var(--amber)', lbl:'Keep Target', val:finMoney(s.keepTarget), note: s.keepTargetCapped ? 'Capped to actual net' : FINANCE_CONFIG.profit_target_pct+'% of revenue', ncls:'' },
@@ -2592,6 +2637,7 @@ document.addEventListener('DOMContentLoaded', async ()=>{
   await runFinanceView();
   const wantTab = new URLSearchParams(window.location.search).get('tab');
   if(wantTab) prShowTab(wantTab);
+  if(location.hash==='#fin-budget')document.getElementById('fin-budget').scrollIntoView();
 });
 </script>
 <script>document.addEventListener('DOMContentLoaded',()=>{try{document.querySelector('.nav-sw .nav-btn.on')?.scrollIntoView({inline:'center',block:'nearest'});}catch(e){}});</script>

@@ -393,6 +393,10 @@ def handle(handler, method, base_url, key, plaid_request, stripe_get, *, tax_rep
         response(handler,401,{'error':'Sign in to SWJ on this site before accessing business cash.'});return
     try:
         db=Store(base_url,key)
+        if method=='GET' and action=='budget_months':
+            from .payment_budget import for_period
+            period=query.get('period',[dt.datetime.now(LA).strftime('%Y-%m')])[0]
+            response(handler,200,for_period(db,period));return
         if method=='GET' and action=='snapshot':
             period=query.get('period',[dt.datetime.now(LA).strftime('%Y-%m')])[0]
             response(handler,200,public_snapshot(db,period,tax_report=tax_report if query.get('home')==['1'] else None));return
@@ -412,6 +416,9 @@ def handle(handler, method, base_url, key, plaid_request, stripe_get, *, tax_rep
         if not 0<size<=150000: raise ValueError('Invalid request size.')
         payload=json.loads(handler.rfile.read(size))
         if not isinstance(payload,dict): raise ValueError('Invalid request body.')
+        if action=='budget_months':
+            from .payment_budget import save_assignment
+            response(handler,200,save_assignment(db,payload));return
         if action=='manual_balance':
             response(handler, 200, save_manual_checking_balance(db, payload));return
         # Check schema before exchanging/storing any new permanent Plaid credential.

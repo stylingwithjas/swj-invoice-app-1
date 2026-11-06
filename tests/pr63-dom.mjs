@@ -69,12 +69,54 @@ for(const file of ['index.html','luxury.html']){
  const w=app('payroll.html'),run=code=>w.eval(code);
  const fixture=[['2026-10-15',3978],['2026-10-01',3527.28],['2026-10-31',4111.60],['2026-08-10',6888.24]].map(([date,amount],i)=>({invnum:'TEST-'+i,client:'Synthetic client '+i,data:{paid:true,paid_date:date,amount_paid:amount,base_price:100,taxrate:10,addons:[],signed:i===0}}));
  fixture.push({invnum:'TEST-UNSIGNED',client:'Unsigned synthetic test',data:{paid:false,signed:false,base_price:100,taxrate:10,addons:[]}});
+ fixture.push({invnum:'TEST-NOV',client:'Synthetic November payment',data:{paid:true,paid_date:'2026-11-05',amount_paid:2770.58,base_price:100,taxrate:10,addons:[]}});
  w.__dbRows.invoices=fixture;
+ let moved=false;
+ w.SWJPaymentBudget={
+  monthLabel:m=>m==='2026-11'?'November 2026':'October 2026',
+  receivedLabel:d=>d==='2026-10-31'?'Oct 31, 2026':d,
+  load:async period=>{
+   const rows=fixture.filter(x=>x.data.paid).map(x=>({event_id:x.invnum+'::',invnum:x.invnum,client:x.client,date:x.data.paid_date,amount_cents:Math.round(x.data.amount_paid*100),kind:'invoice',method:'Other/Manual',can_assign:true,budget_month:moved&&x.invnum==='TEST-2'?'2026-11':x.data.paid_date.slice(0,7)}));
+   const sum=pred=>rows.filter(pred).reduce((n,e)=>n+e.amount_cents,0);
+   return {period,issues:[],received_cents:sum(e=>e.date.startsWith(period)),budgeted_cents:sum(e=>e.budget_month===period),moved_in_cents:sum(e=>e.budget_month===period&&!e.date.startsWith(period)),moved_out_cents:sum(e=>e.date.startsWith(period)&&e.budget_month!==period),events:rows.filter(e=>e.date.startsWith(period)||e.budget_month===period)};
+  },
+  save:async (payment,month)=>{assert.equal(payment.invnum,'TEST-2');assert.equal(month,'2026-11');moved=true;},
+ };
+
  run(`document.getElementById('fin-month').innerHTML='<option value="10">October</option>';document.getElementById('fin-year').innerHTML='<option value="2026">2026</option>'`);
  await run('runFinanceView()');
  assert.equal(Math.round(run('_lastFinanceSummary.revenue')*100)/100,11616.88);
  assert.match(w.document.getElementById('finance-data-status').textContent,/11,616.88/);
  assert.ok(!w.document.getElementById('fin-details-body').textContent.includes('Signed, unpaid'));
+ const form=w.document.querySelector('form[data-payment-id="TEST-2::"]');
+ form.elements.budget_month.value='2026-11';
+ await run('savePaymentBudgetMonth').call(w,{preventDefault(){},currentTarget:form});
+ assert.equal(run('_lastFinanceSummary.revenue'),7505.28);
+ assert.equal(run('_lastFinanceSummary.cashReceipts'),11616.88);
+ assert.match(w.document.getElementById('fin-budget').textContent,/Received Oct 31, 2026 · Budgeted in November 2026 \(moved out\)/);
+ run(`document.getElementById('fin-month').innerHTML='<option value="11">November</option>'`);
+ await run('runFinanceView()');
+ assert.equal(run('_lastFinanceSummary.revenue'),6882.18);
+ assert.equal(run('_lastFinanceSummary.cashReceipts'),2770.58);
+ assert.equal(run('_lastFinanceSummary.warehouseCost'),1473);
+ assert.ok(run('_lastFinanceSummary.inventoryBudget')>0);
+ assert.match(w.document.getElementById('fin-period').textContent,/November 2026/);
+ assert.match(w.document.getElementById('fin-budget').textContent,/Received Oct 31, 2026 · Budgeted in November 2026/);
+ const loadBudget=w.SWJPaymentBudget.load;
+ let releaseNovember;
+ w.SWJPaymentBudget.load=period=>period==='2026-11'
+   ? new Promise(resolve=>{releaseNovember=async()=>resolve(await loadBudget(period));})
+   : loadBudget(period);
+ const staleNovember=run('runFinanceView()');
+ assert.equal(w.document.getElementById('fin-headline').textContent,'');
+ run(`document.getElementById('fin-month').innerHTML='<option value="10">October</option>'`);
+ await run('runFinanceView()');
+ await releaseNovember();
+ await staleNovember;
+ assert.equal(w.document.getElementById('fin-period').textContent,'October 2026');
+ assert.equal(run('_lastFinanceSummary.revenue'),7505.28);
+ assert.equal(run('_lastFinanceSummary.warehouseCost'),1380);
+ w.SWJPaymentBudget.load=loadBudget;
  // Job results consume actual payments from the authenticated cash ledger, not hours.
  w.fetch=async()=>({ok:true,json:async()=>({revenue_source:'Recorded paid invoices',monthly:{shared_costs_cents:2000,issues:[]},monthly_jobs:[{invnum:'TEST-EXT',client:'Paid extension',receipts_cents:7500,recorded_cost_cents:2500,contribution_cents:5000}]})});
  run(`document.getElementById('pr-ledger-month').value='2026-11'`);
@@ -94,7 +136,7 @@ for(const file of ['index.html','luxury.html']){
   assert.equal(a,b);
  }
  w.__dbFailure=true;await run('runFinanceView()');
- assert.equal(run('_lastFinanceSummary'),null);assert.match(w.document.getElementById('finance-data-status').textContent,/unavailable/);assert.equal(w.document.getElementById('pr-kpi-row').textContent,'');
+ assert.equal(run('_lastFinanceSummary'),null);assert.match(w.document.getElementById('finance-data-status').textContent,/incomplete/);assert.equal(w.document.getElementById('pr-kpi-row').textContent,'');
  console.log('PASS Finance receipt definition matches Tax Report (October/August/September fixture); unsigned label and failed-load state');
  await w.happyDOM.close();await tax.happyDOM.close();
 }
