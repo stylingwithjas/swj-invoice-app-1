@@ -1696,6 +1696,7 @@ function renderFinanceBudget(){
   const overdueSubtotal = overdueList.reduce((t,e)=>t+e.balance,0);
   const budgetTotal = s.revenue + expectedSubtotal + overdueSubtotal;
   const period = s.paymentBudget.period;
+  const monthLabel = SWJPaymentBudget.monthLabel(period);
   const receivedRows = s.paymentBudget.events.map(e=>{
     const month = SWJPaymentBudget.monthLabel(e.budget_month);
     const move = e.budget_month!==e.date.slice(0,7);
@@ -1711,12 +1712,12 @@ function renderFinanceBudget(){
   const expectedRows = expectedCurrent.map(e=>`<div class="budget-row"><span>${esc(e.client)} #${esc(e.invnum)} — staged ${fmtDate(e.startdate)}</span><span>${finMoney(e.balance)}</span></div>`).join('') || '<div class="budget-row"><span>None expected this period</span><span>$0.00</span></div>';
   document.getElementById('fin-budget').innerHTML = `
     <div class="sub-hdr" style="margin-top:0">Budgeted receipts — ${finMoney(s.revenue)}</div>
-    <p class="quiet-line">Received ${finMoney(s.cashReceipts)} + moved in ${finMoney(s.paymentBudget.moved_in_cents/100)} − moved out ${finMoney(s.paymentBudget.moved_out_cents/100)} = ${finMoney(s.revenue)}. Tax Report uses the received date.</p>
+    <p class="quiet-line">Received ${finMoney(s.cashReceipts)} + carryover in ${finMoney(s.paymentBudget.moved_in_cents/100)} − carryover out ${finMoney(s.paymentBudget.moved_out_cents/100)} = ${finMoney(s.revenue)}. Tax Report uses the received date.</p>
     ${receivedRows}
     <div class="sub-hdr">Expected — due this period, not yet overdue</div>
     ${expectedRows}
     ${overdueList.length?`<div class="budget-row"><span>Overdue, carried forward (see Overdue section below)</span><span>${finMoney(overdueSubtotal)}</span></div>`:''}
-    <div class="budget-row" style="font-weight:700;border-top:1px solid var(--taupe-lt);margin-top:6px;padding-top:6px"><span>Budget total</span><span>${finMoney(budgetTotal)}</span></div>
+    <div class="budget-row" style="font-weight:700;border-top:1px solid var(--taupe-lt);margin-top:6px;padding-top:6px"><span>Budget total · ${esc(monthLabel)}</span><span>${finMoney(budgetTotal)}</span></div>
     <div style="font-size:10.5px;color:var(--taupe-dk);margin-top:4px">Budgeted receipts + Expected + Overdue. Overdue balances roll forward until paid — that's why an earlier month's job can still appear here.</div>
   `;
 

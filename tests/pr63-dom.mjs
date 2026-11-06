@@ -70,6 +70,7 @@ for(const file of ['index.html','luxury.html']){
  const fixture=[['2026-10-15',3978],['2026-10-01',3527.28],['2026-10-31',4111.60],['2026-08-10',6888.24]].map(([date,amount],i)=>({invnum:'TEST-'+i,client:'Synthetic client '+i,data:{paid:true,paid_date:date,amount_paid:amount,base_price:100,taxrate:10,addons:[],signed:i===0}}));
  fixture.push({invnum:'TEST-UNSIGNED',client:'Unsigned synthetic test',data:{paid:false,signed:false,base_price:100,taxrate:10,addons:[]}});
  fixture.push({invnum:'TEST-NOV',client:'Synthetic November payment',data:{paid:true,paid_date:'2026-11-05',amount_paid:2770.58,base_price:100,taxrate:10,addons:[]}});
+ fixture.push({invnum:'TEST-OVERDUE',client:'Synthetic overdue balance',data:{paid:false,signed:true,startdate:'2026-09-15',base_price:13453.93,taxrate:0,addons:[]}});
  w.__dbRows.invoices=fixture;
  let moved=false;
  w.SWJPaymentBudget={
@@ -87,6 +88,7 @@ for(const file of ['index.html','luxury.html']){
  await run('runFinanceView()');
  assert.equal(Math.round(run('_lastFinanceSummary.revenue')*100)/100,11616.88);
  assert.match(w.document.getElementById('finance-data-status').textContent,/11,616.88/);
+ assert.match(w.document.getElementById('fin-budget').textContent,/Budget total · October 2026\$25,070\.81/);
  assert.ok(!w.document.getElementById('fin-details-body').textContent.includes('Signed, unpaid'));
  const form=w.document.querySelector('form[data-payment-id="TEST-2::"]');
  form.elements.budget_month.value='2026-11';
@@ -97,6 +99,7 @@ for(const file of ['index.html','luxury.html']){
  run(`document.getElementById('fin-month').innerHTML='<option value="11">November</option>'`);
  await run('runFinanceView()');
  assert.equal(run('_lastFinanceSummary.revenue'),6882.18);
+ assert.match(w.document.getElementById('fin-budget').textContent,/Budget total · November 2026\$20,336\.11/);
  assert.equal(run('_lastFinanceSummary.cashReceipts'),2770.58);
  assert.equal(run('_lastFinanceSummary.warehouseCost'),1473);
  assert.ok(run('_lastFinanceSummary.inventoryBudget')>0);
