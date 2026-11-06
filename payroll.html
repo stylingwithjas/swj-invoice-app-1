@@ -485,21 +485,21 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
     <details class="fin-disclosure" id="fin-allocation-settings"><summary>Allocation Settings</summary>    <div id="finance-settings" class="fin-settings-body">
       <div style="font-size:11px;color:var(--taupe-dk);margin-bottom:10px">Every number below is editable — these are starting assumptions, not fixed constants. Mover rates are managed separately (Create a Day's Pay Schedule / /hours.html) and already feed in live from actual logged hours.</div>
       <div class="fin-settings-grid">
-        <div><label>Warehouse $/mo</label><input type="number" step="1" id="fc-warehouse"></div>
-        <div><label>Jasmine keep target %</label><input type="number" step="0.1" id="fc-profit-pct"></div>
-        <div><label>Tithe % of keep</label><input type="number" step="0.1" id="fc-tithe-pct"></div>
-        <div><label>Truck $/day</label><input type="number" step="1" id="fc-truck-day"></div>
-        <div><label>Truck days/rental (default)</label><input type="number" step="0.5" id="fc-truck-days"></div>
-        <div><label>Truck miles/rental (default)</label><input type="number" step="1" id="fc-truck-miles"></div>
-        <div><label>Truck $/mile</label><input type="number" step="0.01" id="fc-truck-mile-rate"></div>
-        <div><label>Fuel $/mile</label><input type="number" step="0.01" id="fc-fuel-rate"></div>
-        <div><label>LDW+LIA $/week</label><input type="number" step="1" id="fc-ldw-week"></div>
-        <div><label>Stripe fee %</label><input type="number" step="0.01" id="fc-stripe-pct"></div>
-        <div><label>Stripe fee flat ($)</label><input type="number" step="0.01" id="fc-stripe-flat"></div>
-        <div><label>Mover planning — staging $/job</label><input type="number" step="1" id="fc-mover-staging"></div>
-        <div><label>Mover planning — destage $/job</label><input type="number" step="1" id="fc-mover-destage"></div>
-        <div><label>Mover ideal %</label><input type="number" step="0.1" id="fc-mover-ideal"></div>
-        <div><label>Normal shared labor $/job (one-off threshold)</label><input type="number" step="1" id="fc-shared-normal"></div>
+        <div><label for="fc-warehouse">Warehouse $/mo</label><input type="number" step="1" id="fc-warehouse"></div>
+        <div><label for="fc-profit-pct">Jasmine keep target %</label><input type="number" step="0.1" id="fc-profit-pct"></div>
+        <div><label for="fc-tithe-pct">Tithe % of keep</label><input type="number" step="0.1" id="fc-tithe-pct"></div>
+        <div><label for="fc-truck-day">Truck $/day</label><input type="number" step="1" id="fc-truck-day"></div>
+        <div><label for="fc-truck-days">Truck days/rental (default)</label><input type="number" step="0.5" id="fc-truck-days"></div>
+        <div><label for="fc-truck-miles">Truck miles/rental (default)</label><input type="number" step="1" id="fc-truck-miles"></div>
+        <div><label for="fc-truck-mile-rate">Truck $/mile</label><input type="number" step="0.01" id="fc-truck-mile-rate"></div>
+        <div><label for="fc-fuel-rate">Fuel $/mile</label><input type="number" step="0.01" id="fc-fuel-rate"></div>
+        <div><label for="fc-ldw-week">LDW+LIA $/week</label><input type="number" step="1" id="fc-ldw-week"></div>
+        <div><label for="fc-stripe-pct">Stripe fee %</label><input type="number" step="0.01" id="fc-stripe-pct"></div>
+        <div><label for="fc-stripe-flat">Stripe fee flat ($)</label><input type="number" step="0.01" id="fc-stripe-flat"></div>
+        <div><label for="fc-mover-staging">Mover planning — staging $/job</label><input type="number" step="1" id="fc-mover-staging"></div>
+        <div><label for="fc-mover-destage">Mover planning — destage $/job</label><input type="number" step="1" id="fc-mover-destage"></div>
+        <div><label for="fc-mover-ideal">Mover ideal %</label><input type="number" step="0.1" id="fc-mover-ideal"></div>
+        <div><label for="fc-shared-normal">Normal shared labor $/job (one-off threshold)</label><input type="number" step="1" id="fc-shared-normal"></div>
       </div>
       <button class="filter-btn primary" onclick="saveFinanceConfig()">Save Settings</button>
       <span class="msg" id="fc-msg" style="display:inline-block;margin-left:8px"></span>
@@ -634,7 +634,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
 <details class="fin-disclosure" id="fin-reconciliation"><summary>Bank and Stripe reconciliation</summary>    <div id="fin-reconcile-wrap">
       <div class="sub-hdr">Reconciliation</div>
       <div class="filter-row" style="margin-bottom:8px">
-        <div class="filter-field"><label>Actual bank/Stripe deposits this month</label><input type="number" step="0.01" id="fin-actual-deposits" oninput="renderFinanceReconciliation()" placeholder="0.00"></div>
+        <div class="filter-field"><label for="fin-actual-deposits">Actual bank/Stripe deposits this month</label><input type="number" step="0.01" id="fin-actual-deposits" oninput="renderFinanceReconciliation()" placeholder="0.00"></div>
       </div>
       <div id="fin-reconcile-result" style="font-size:13px"></div>
     </div>
@@ -642,12 +642,13 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
 <p class="fin-note">Use verified settlement amounts. Connected checking review is unavailable in Finance.</p><a href="/stripe-reconciliation.html">Stripe reconciliation report</a> · <button type="button" class="fin-text-button" onclick="prShowTab('ledger'); prScrollTo('pr-stripe-fees-sync')">Refresh actual Stripe fees</button></details>
   </section>
   <section id="fin-view-team" class="fin-view" role="tabpanel" aria-labelledby="fin-tab-team" hidden>
+  <div class="pr-kpi-row" id="fin-team-metrics"></div>
   <div class="pr-panel" id="pr-panel-employee">
 
   <div class="pr-row2">
     <div class="pr-card">
       <div class="pr-card-ttl">Employee Pay — <span id="pr-emp-period"></span></div>
-      <div style="font-size:11px;color:var(--taupe-dk);margin-bottom:12px">Same hours and rates logged below, grouped per employee for the month selected on the Finance &amp; Allocation tab. These wages are the same dollars already counted in that tab's Movers allocation slice — not an additional cost on top of it.</div>
+      <div style="font-size:11px;color:var(--taupe-dk);margin-bottom:12px">Logged wages for the selected month. These wages are the same dollars already counted in that tab's Movers allocation slice — not an additional cost on top of it.</div>
       <div class="tbl-scroll">
         <table class="pr-table" id="pr-emp-table-desktop">
           <thead><tr><th>Employee</th><th>Role</th><th>Hours</th><th>Rate</th><th>Gross Pay</th><th>Status</th></tr></thead>
@@ -657,69 +658,34 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
       <div id="pr-emp-cards-mobile"></div>
     </div>
     <div class="pr-card">
-      <div class="pr-card-ttl" style="justify-content:center">Payroll Impact</div>
-      <div class="pr-gauge" id="pr-impact-gauge"><div class="pr-gauge-center" id="pr-impact-gauge-center"></div></div>
+      <h2>Labor &amp; Cost Guidance</h2>
+      <div class="pr-gauge" id="pr-impact-gauge" aria-hidden="true"><div class="pr-gauge-center" id="pr-impact-gauge-center"></div></div>
       <div class="pr-impact-rows" id="pr-impact-rows"></div>
     </div>
   </div>
 
-  <div class="card">
-    <div class="card-hdr">Team</div>
-    <div id="employees-list"></div>
-    <div class="add-emp-row">
-      <input type="text" id="new-emp-name" placeholder="Employee name">
-      <input type="password" id="new-emp-password" placeholder="Set a login password">
-      <button onclick="addEmployee()">+ Add</button>
-    </div>
-    <div style="font-size:10px;color:var(--taupe);margin-top:8px">Employees log in with their name + this password at <strong>/hours.html</strong> — share that link with the team, and give each person their password separately.</div>
-  </div>
-
-  <div class="card">
-    <div class="card-hdr">Create a Day's Pay Schedule</div>
-    <div style="font-size:11px;color:var(--taupe);margin-bottom:12px">For entering a full day's hours yourself — covers the same shift-with-switches model employees use on /hours.html (clock in, any number of activity switches, clock out). Entries created here are approved automatically, since you're entering them directly.</div>
-    <div class="modal-field">
-      <label>Employee</label>
-      <select id="ms-employee"><option value="">Select an employee…</option></select>
-    </div>
-    <div class="modal-field">
-      <label>Date</label>
-      <input type="date" id="ms-date">
-    </div>
-    <div id="ms-segments"></div>
-    <div class="manual-add-row" onclick="addScheduleSegment()">+ Add Another Activity (Switch)</div>
-    <div class="modal-field" style="border-top:1px dashed var(--taupe-lt);padding-top:12px">
-      <label>Clock Out Time (end of shift)</label>
-      <input type="time" id="ms-clockout">
-    </div>
-    <div class="modal-field">
-      <label>Note (optional)</label>
-      <input type="text" id="ms-note">
-    </div>
-    <button class="filter-btn primary" id="ms-submit-btn" onclick="submitScheduleDay()">Create Schedule</button>
-    <div class="msg" id="ms-msg"></div>
-  </div>
-
+<details class="fin-disclosure fin-team-section"><summary>Hours &amp; payment status</summary>
   <div class="card">
     <div class="card-hdr">Filter Entries</div>
     <div class="filter-row">
       <div class="filter-field">
-        <label>Employee</label>
+        <label for="f-employee">Employee</label>
         <select id="f-employee"><option value="">All</option></select>
       </div>
       <div class="filter-field">
-        <label>Project</label>
+        <label for="f-project">Project</label>
         <select id="f-project"><option value="">All</option></select>
       </div>
       <div class="filter-field">
-        <label>From</label>
+        <label for="f-from">From</label>
         <input type="date" id="f-from">
       </div>
       <div class="filter-field">
-        <label>To</label>
+        <label for="f-to">To</label>
         <input type="date" id="f-to">
       </div>
       <div class="filter-field">
-        <label>Status</label>
+        <label for="f-status">Status</label>
         <select id="f-status">
           <option value="">All</option>
           <option value="unpaid" selected>Unpaid only</option>
@@ -727,7 +693,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
         </select>
       </div>
       <div class="filter-field">
-        <label>Approval</label>
+        <label for="f-approved">Approval</label>
         <select id="f-approved">
           <option value="">All</option>
           <option value="pending">Pending only</option>
@@ -749,7 +715,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
   <div class="card">
     <div class="card-hdr">Time Entries</div>
     <div class="tbl-scroll">
-      <table>
+      <table class="fin-stack-table">
         <thead>
           <tr><th>Date</th><th>Employee</th><th>Type</th><th>Job</th><th>In</th><th>Out</th><th>Hrs</th><th>Rate</th><th>Amount</th><th>Approved</th><th>Paid</th><th>Actions</th></tr>
         </thead>
@@ -759,21 +725,62 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
     </div>
   </div>
 
+</details>
+<details class="fin-disclosure fin-team-section"><summary>Create Schedule</summary>
+  <div class="card">
+    <div class="card-hdr">Create a Day's Pay Schedule</div>
+    <div style="font-size:11px;color:var(--taupe);margin-bottom:12px">For entering a full day's hours yourself — covers the same shift-with-switches model employees use on /hours.html (clock in, any number of activity switches, clock out). Entries created here are approved automatically, since you're entering them directly.</div>
+    <div class="modal-field">
+      <label for="ms-employee">Employee</label>
+      <select id="ms-employee"><option value="">Select an employee…</option></select>
+    </div>
+    <div class="modal-field">
+      <label for="ms-date">Date</label>
+      <input type="date" id="ms-date">
+    </div>
+    <div id="ms-segments"></div>
+    <button type="button" class="manual-add-row" onclick="addScheduleSegment()">+ Add Another Activity (Switch)</button>
+    <div class="modal-field" style="border-top:1px dashed var(--taupe-lt);padding-top:12px">
+      <label for="ms-clockout">Clock Out Time (end of shift)</label>
+      <input type="time" id="ms-clockout">
+    </div>
+    <div class="modal-field">
+      <label for="ms-note">Note (optional)</label>
+      <input type="text" id="ms-note">
+    </div>
+    <button class="filter-btn primary" id="ms-submit-btn" onclick="submitScheduleDay()">Create Schedule</button>
+    <div class="msg" id="ms-msg"></div>
+  </div>
+
+</details>
+<details class="fin-disclosure fin-team-section"><summary>Manage Team &amp; Access</summary>
+  <div class="card">
+    <div class="card-hdr">Team</div>
+    <div id="employees-list"></div>
+    <div class="add-emp-row">
+      <input aria-label="Employee name" type="text" id="new-emp-name" placeholder="Employee name">
+      <input aria-label="New login password" type="password" id="new-emp-password" placeholder="Set a login password">
+      <button onclick="addEmployee()">+ Add</button>
+    </div>
+    <div style="font-size:10px;color:var(--taupe);margin-top:8px">Employees log in with their name + this password at <strong>/hours.html</strong> — share that link with the team, and give each person their password separately.</div>
+  </div>
+
+</details>
   </div><!-- /pr-panel-employee -->
 
   </section>
 </main>
 
-<div class="modal-overlay" id="edit-modal-overlay">
+<dialog id="edit-modal-overlay" aria-labelledby="edit-modal-title">
   <div class="modal-card">
-    <div class="modal-hdr">Edit Time Entry</div>
+    <h2 class="modal-hdr" id="edit-modal-title">Edit Time Entry</h2>
     <div id="edit-modal-body"></div>
     <div class="modal-actions">
       <button class="cancel-btn" onclick="closeEditModal()">Cancel</button>
       <button class="save-btn" onclick="saveEditEntry()">Save Changes</button>
     </div>
   </div>
-</div>
+</dialog>
 
 <script>
 const _sb = supabase.createClient(
@@ -961,17 +968,17 @@ function renderEntries(){
     empty.style.display = 'none';
     body.innerHTML = _entries.map(e=>`
       <tr class="${e.paid?'paid-row':''}">
-        <td>${fmtDate(e.clock_in)}</td>
-        <td>${esc(e.employee_name)}</td>
-        <td><span class="pill ${esc(e.work_type)}">${esc(LABEL_BY_KEY[e.work_type]||e.work_type)}</span></td>
-        <td>${esc(e.job_label||'—')}</td>
-        <td>${e.source==='manual'?'<em>manual entry</em>':fmtDateTime(e.clock_in)}</td>
-        <td>${e.source==='manual'?'—':(e.clock_out?fmtDateTime(e.clock_out):'<em>active</em>')}</td>
-        <td>${e.hours!=null?e.hours:'—'}</td>
-        <td>${fmtMoney(e.rate)}</td>
-        <td>${e.amount!=null?fmtMoney(e.amount):'—'}</td>
-        <td>${e.approved?'✓ Approved':(e.amount!=null?`<button class="mini-btn" onclick="approveEntry('${e.id}')">Approve</button>`:'—')}</td>
-        <td>${e.paid?'✓ Paid':(e.amount!=null?`<button class="mini-btn" onclick="markPaid('${e.id}')">Mark Paid</button>`:'—')}</td>
+        <td data-label="Date">${fmtDate(e.clock_in)}</td>
+        <td data-label="Employee">${esc(e.employee_name)}</td>
+        <td data-label="Activity"><span class="pill ${esc(e.work_type)}">${esc(LABEL_BY_KEY[e.work_type]||e.work_type)}</span></td>
+        <td data-label="Job">${esc(e.job_label||'—')}</td>
+        <td data-label="Clock in">${e.source==='manual'?'<em>manual entry</em>':fmtDateTime(e.clock_in)}</td>
+        <td data-label="Clock out">${e.source==='manual'?'—':(e.clock_out?fmtDateTime(e.clock_out):'<em>active</em>')}</td>
+        <td data-label="Hours">${e.hours!=null?e.hours:'—'}</td>
+        <td data-label="Rate">${fmtMoney(e.rate)}</td>
+        <td data-label="Amount">${e.amount!=null?fmtMoney(e.amount):'—'}</td>
+        <td data-label="Approval">${e.approved?'✓ Approved':(e.amount!=null?`<button class="mini-btn" onclick="approveEntry('${e.id}')">Approve</button>`:'—')}</td>
+        <td data-label="Payment">${e.paid?'✓ Paid':(e.amount!=null?`<button class="mini-btn" onclick="markPaid('${e.id}')">Mark Paid</button>`:'—')}</td>
         <td style="white-space:nowrap">
           <button class="mini-btn" onclick="openEditModal('${e.id}')">Edit</button>
           <button class="mini-btn" style="color:var(--red);border-color:var(--red-lt)" onclick="deleteEntry('${e.id}')">Delete</button>
@@ -1043,21 +1050,21 @@ function openEditModal(id){
   document.getElementById('edit-modal-body').innerHTML = `
     <input type="hidden" id="edit-id" value="${esc(id)}">
     <div class="modal-field"><label>Employee</label><input type="text" value="${esc(entry.employee_name)}" disabled></div>
-    <div class="modal-field"><label>Date</label><input type="date" id="edit-date" value="${clockInDate}"></div>
+    <div class="modal-field"><label for="edit-date">Date</label><input type="date" id="edit-date" value="${clockInDate}"></div>
     <div class="modal-field-row">
-      <div class="modal-field"><label>Clock In</label><input type="time" id="edit-clockin" value="${clockInTime}"></div>
-      <div class="modal-field"><label>Clock Out</label><input type="time" id="edit-clockout" value="${clockOutTime}"></div>
+      <div class="modal-field"><label for="edit-clockin">Clock In</label><input type="time" id="edit-clockin" value="${clockInTime}"></div>
+      <div class="modal-field"><label for="edit-clockout">Clock Out</label><input type="time" id="edit-clockout" value="${clockOutTime}"></div>
     </div>
-    <div class="modal-field"><label>Type of Work</label><select id="edit-type">${typeOptions}</select></div>
-    <div class="modal-field"><label>Job</label><select id="edit-job">${jobOptionsHtml(entry.invnum)}</select></div>
-    <div class="modal-field"><label>Note</label><input type="text" id="edit-note" value="${esc(entry.note||'')}"></div>
+    <div class="modal-field"><label for="edit-type">Type of Work</label><select id="edit-type">${typeOptions}</select></div>
+    <div class="modal-field"><label for="edit-job">Job</label><select id="edit-job">${jobOptionsHtml(entry.invnum)}</select></div>
+    <div class="modal-field"><label for="edit-note">Note</label><input type="text" id="edit-note" value="${esc(entry.note||'')}"></div>
     <div class="msg" id="edit-msg"></div>
   `;
-  document.getElementById('edit-modal-overlay').style.display = 'flex';
+  document.getElementById('edit-modal-overlay').showModal();
 }
 
 function closeEditModal(){
-  document.getElementById('edit-modal-overlay').style.display = 'none';
+  document.getElementById('edit-modal-overlay').close();
 }
 
 async function saveEditEntry(){
@@ -1449,7 +1456,7 @@ async function runFinanceView(){
     loadMonthlyPerformance();
     refreshFinanceSpending();
     document.getElementById('finance-data-status').textContent='Invoice data unavailable — collected receipts and allocations could not be verified. Retry Run. No zero-revenue conclusion has been made.';
-    ['pr-kpi-row','fin-project-metrics','fin-project-goal','fin-glance','fin-attention','pr-proj-tbody','pr-proj-detail','pr-emp-tbody','pr-emp-cards-mobile','fin-headline','fin-waterfall','fin-details-body','fin-budget','fin-overdue','fin-committed','pr-overdue-alert-wrap','pr-legend','pr-donut-center','pr-notes-body','fin-oneoff-banner','fin-reconcile-result'].forEach(id=>{const el=document.getElementById(id);if(el)el.replaceChildren();});
+    ['pr-kpi-row','fin-team-metrics','pr-impact-gauge-center','pr-impact-rows','fin-project-metrics','fin-project-goal','fin-glance','fin-attention','pr-proj-tbody','pr-proj-detail','pr-emp-tbody','pr-emp-cards-mobile','fin-headline','fin-waterfall','fin-details-body','fin-budget','fin-overdue','fin-committed','pr-overdue-alert-wrap','pr-legend','pr-donut-center','pr-notes-body','fin-oneoff-banner','fin-reconcile-result'].forEach(id=>{const el=document.getElementById(id);if(el)el.replaceChildren();});
     return;
   }
   await loadFinanceOverrides();
@@ -1565,7 +1572,7 @@ async function runFinanceView(){
     });
   }catch(e){
     _lastFinanceSummary=null;document.getElementById('finance-data-status').textContent='Hours data is incomplete. Retry Run; costs and allocations are not confirmed.';
-    ['pr-kpi-row','fin-project-metrics','fin-project-goal','fin-glance','fin-attention','pr-proj-tbody','pr-proj-detail','pr-emp-tbody','pr-emp-cards-mobile','fin-headline','fin-waterfall','fin-details-body','fin-budget','fin-committed','pr-notes-body'].forEach(id=>document.getElementById(id)?.replaceChildren());
+    ['pr-kpi-row','fin-team-metrics','pr-impact-gauge-center','pr-impact-rows','fin-project-metrics','fin-project-goal','fin-glance','fin-attention','pr-proj-tbody','pr-proj-detail','pr-emp-tbody','pr-emp-cards-mobile','fin-headline','fin-waterfall','fin-details-body','fin-budget','fin-committed','pr-notes-body'].forEach(id=>document.getElementById(id)?.replaceChildren());
     return;
   }
   const moverOnSite = moverByType['staging']||0;
@@ -2609,7 +2616,7 @@ function renderEmployeePayTab(){
     cardsEl.innerHTML = emps.map(e=>`
       <div class="pr-emp-card">
         <div class="pr-emp-top">
-          <div><div class="pr-emp-name">${esc(e.name)}</div><div class="pr-emp-role">${esc([...e.types].join(' / '))} · ${e.hours.toFixed(1)}h</div></div>
+          <div><div class="pr-emp-name">${esc(e.name)}</div><div class="pr-emp-role">${esc([...e.types].join(' / '))} · ${e.hours.toFixed(1)}h · ${e.rates.size===1?finMoney([...e.rates][0])+'/hr':'Mixed rates'}</div></div>
           <div style="text-align:right"><div class="pr-emp-pay">${finMoney(e.amount)}</div><span class="pr-status-pill ${e.allPaid?'paid':'unpaid'}">${e.allPaid?'Paid':'Unpaid'}</span></div>
         </div>
       </div>`).join('');
@@ -2618,21 +2625,28 @@ function renderEmployeePayTab(){
   // Payroll Impact gauge — total payroll (= the same moverCost already in the allocation
   // donut's Movers slice) as a % of revenue, against the mover-ideal benchmark.
   const totalPayroll = (s.periodEntries||[]).reduce((t,e)=>t+(parseFloat(e.amount)||0),0);
-  const pct = s.revenue>0.009 ? totalPayroll/s.revenue*100 : 0;
+  const totalHours = emps.reduce((sum,employee)=>sum+employee.hours,0);
+  const pct = s.revenue>0.009 ? totalPayroll/s.revenue*100 : null;
+  document.getElementById('fin-team-metrics').innerHTML = [
+    ['Logged payroll',finMoney(totalPayroll),'Includes unpaid wages'],
+    ['Total hours',totalHours.toFixed(1),'Selected month'],
+    ['Average rate',totalHours>0 ? finMoney(totalPayroll/totalHours)+'/hr' : '—','Weighted by logged hours'],
+    ['Labor / receipts',pct===null?'—':pct.toFixed(1)+'%','Gross receipts include sales tax']
+  ].map(row=>financeMetric(...row)).join('');
   const idealPct = FINANCE_CONFIG.mover_ideal_pct;
   const gaugeColor = pct<=idealPct ? '#4a7c50' : '#c97c2e';
   const gaugePct = Math.min(100, pct/Math.max(idealPct*1.5,1)*100);
   const gauge = document.getElementById('pr-impact-gauge');
   if(gauge){
     gauge.style.background = `conic-gradient(${gaugeColor} 0% ${gaugePct}%, #e7e1d9 ${gaugePct}% 100%)`;
-    document.getElementById('pr-impact-gauge-center').innerHTML = `<div class="gv">${pct.toFixed(1)}%</div><div class="gl">of revenue</div>`;
+    document.getElementById('pr-impact-gauge-center').innerHTML = `<div class="gv">${pct===null?'—':pct.toFixed(1)+'%'}</div><div class="gl">of receipts</div>`;
   }
   const rowsEl = document.getElementById('pr-impact-rows');
   if(rowsEl){
     rowsEl.innerHTML = `
       <div class="pr-impact-row"><span>Payroll</span><span>${finMoney(totalPayroll)}</span></div>
-      <div class="pr-impact-row"><span>Revenue</span><span>${finMoney(s.revenue)}</span></div>
-      <div class="pr-impact-row"><span>Target</span><span class="${pct<=idealPct?'ok':''}">≤${idealPct}% ${pct<=idealPct?'✓':'⚠'}</span></div>`;
+      <div class="pr-impact-row"><span>Gross receipts</span><span>${finMoney(s.revenue)}</span></div>
+      <div class="pr-impact-row"><span>Target</span><span class="${pct<=idealPct?'ok':''}">≤${idealPct}% ${pct===null?' · comparison unavailable':pct<=idealPct?' · within target':' · above target'}</span></div>`;
   }
 }
 

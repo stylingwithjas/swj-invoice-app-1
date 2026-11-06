@@ -124,3 +124,12 @@
  #pr-spend-body .fin-stack-table select { width:min(68%,240px); }
  #pr-spend-body .fin-stack-table tfoot { margin-top:10px; }
 }
+.fin-team-section { margin-block:12px; }
+.fin-team-section > .card:last-child { margin-bottom:0; }
+#fin-view-team .pr-row2 { grid-template-columns:minmax(0,2fr) minmax(0,1fr); }
+#edit-modal-overlay { width:min(460px,calc(100% - 24px)); max-height:calc(100dvh - 24px); padding:0; border:1px solid var(--swj-border); border-radius:16px; overflow:auto; }
+#edit-modal-overlay::backdrop { background:#2229; }
+#edit-modal-overlay .modal-card { width:100%; }
+@media(max-width:900px){
+ #fin-view-team .pr-row2 { grid-template-columns:minmax(0,1fr); }
+}
