@@ -6,8 +6,11 @@ const c={document:{getElementById:node},Date,Number,Math,Set,console,allInvoices
 vm.runInContext(fs.readFileSync('assets/payment-events.js','utf8'),c);
 vm.runInContext(fn('buildS6')+'\n'+fn('buildS11')+'\n'+fn('fmtPayoutDate')+'\n'+fn('fmtExact')+'\n'+fn('buildPayoutSnapshot'),c);
 c.buildS6();assert(node('s6-body').textContent.includes('Verifying recorded receipts and costs'));
-c.SWJCashSnapshot={monthly:{collected_cents:277058,costs_cents:253700,sales_tax_cents:12058,revenue_ex_tax_cents:265000,result_cents:11300,margin_percent:4.26}};
-c.buildS6();assert.match(node('s6-body').innerHTML,/\$2,770\.58 − recorded costs \$2,537\.00 − sales tax collected \$120\.58 = \$113\.00/);
+c.SWJCashSnapshot={monthly:{collected_cents:277058,costs_cents:253658,card_spend_cents:237794,mover_spend_cents:0,stripe_fees_cents:8164,bank_fees_cents:7700,sales_tax_cents:12058,revenue_ex_tax_cents:265000,result_cents:11342,margin_percent:4.26}};
+c.buildS6();assert.match(node('s6-body').innerHTML,/\$2,770\.58 − recorded costs \$2,536\.58 − sales tax collected \$120\.58 = \$113\.42/);
+assert.match(node('s6-body').innerHTML,/Provisional surplus<\/div><div class="snap-val">\$113\.42/);
+assert.match(node('s6-body').innerHTML,/Card purchases: \$2,377\.94/);
+assert.match(node('s6-body').innerHTML,/tax set-aside that includes B&amp;O/);
 assert(node('s6-body').innerHTML.includes('4.3% of receipts after sales tax'));
 Object.assign(c.SWJCashSnapshot.monthly,{costs_cents:300000,result_cents:-35000,margin_percent:-13.21});
 c.buildS6();assert(node('s6-body').innerHTML.includes('snap-cell loss'));assert(node('s6-body').innerHTML.includes('width:0%'));

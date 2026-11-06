@@ -155,6 +155,18 @@ for(const file of ['index.html','luxury.html']){
  assert.equal(run('_lastFinanceSummary.revenue'),7505.28);
  assert.equal(run('_lastFinanceSummary.warehouseCost'),1473);
  w.SWJPaymentBudget.load=loadBudget;
+ // A loss stays visible as net while the new allowance is zero across views.
+ moved=false;
+ run(`document.getElementById('fin-month').innerHTML='<option value="11">November</option>'`);
+ await run('runFinanceView()');
+ assert.ok(run('_lastFinanceSummary.operatingNet')<0);
+ assert.equal(run('_lastFinanceSummary.inventoryBudget'),0);
+ assert.match(w.document.getElementById('fin-waterfall').textContent,/New inventory allowance \$0\.00/);
+ const lossCarryover=w.document.getElementById('fin-inventory-carryover').textContent;
+ assert.match(lossCarryover,/New allowance after costs and keep\$0\.00/);
+ const priorAllowance=(await run("_financeMonthCache.get('2026-10')")).inventoryBudget-400;
+ assert.ok(priorAllowance>475.62);
+ assert.ok(lossCarryover.includes('Inventory remaining'+run('finMoney('+String(priorAllowance-475.62)+')')));
  // Job results consume actual payments from the authenticated cash ledger, not hours.
  w.fetch=async()=>({ok:true,json:async()=>({revenue_source:'Recorded paid invoices',monthly:{shared_costs_cents:2000,issues:[]},monthly_jobs:[{invnum:'TEST-EXT',client:'Paid extension',receipts_cents:7500,recorded_cost_cents:2500,contribution_cents:5000}]})});
  run(`document.getElementById('pr-ledger-month').value='2026-11'`);

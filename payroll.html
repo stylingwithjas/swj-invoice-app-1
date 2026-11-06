@@ -1514,17 +1514,18 @@ async function renderInventoryCarryover(summary,invoices,cache,generation){
       const prior = await loadFinanceMonth(month,invoices,cache);
       if(generation!==_financeViewGeneration)return;
       hasReviewIssues ||= prior.paymentBudget.issues.length>0;
-      opening = Math.max(0, opening + Math.max(0,planCents(prior.inventoryBudget)) - prior.shoppingCents);
+      opening = Math.max(0, opening + planCents(prior.inventoryBudget) - prior.shoppingCents);
     }
     if(generation!==_financeViewGeneration)return;
-    const current = Math.max(0,planCents(summary.inventoryBudget));
+    const current = planCents(summary.inventoryBudget);
     const balance = opening + current - summary.shoppingCents;
     el.innerHTML = `<strong>Inventory shopping allowance</strong>
       <div class="budget-row"><span>Unused allowance carried in</span><span>${finMoney(opening/100)}</span></div>
       <div class="budget-row"><span>New allowance after costs and keep</span><span>${finMoney(current/100)}</span></div>
       <div class="budget-row"><span>Categorized shopping this month</span><span>${finMoney(summary.shoppingCents/100)}</span></div>
       <div class="budget-row"><strong>${balance<0?'Over allowance':'Inventory remaining'}</strong><strong>${finMoney(Math.abs(balance)/100)}</strong></div>
-      <div class="fin-note">Carryover starts in October 2026. Categorized card shopping draws down this planning allowance. Review uncategorized purchases before relying on it.</div>
+      <div class="fin-note">Carryover starts in October 2026. Categorized card shopping draws down this planning allowance. Uncategorized purchases are excluded until reviewed. A planning loss adds no new allowance.</div>
+      <a href="/payroll.html?tab=spending">Review shopping and uncategorized charges →</a>
       ${hasReviewIssues ? '<div class="fin-note">Receipt records also need review.</div>' : ''}`;
   }catch{
     if(generation===_financeViewGeneration)el.textContent='Inventory carryover could not be verified. Retry Run.';
@@ -1681,7 +1682,7 @@ function calculateFinanceMonth(period,periodStart,periodEnd,invoices,paymentBudg
   const keepTargetUncapped = revenue * FINANCE_CONFIG.profit_target_pct/100;
   const keepTarget = Math.min(planCents(keepTargetUncapped)/100, Math.max(0, operatingNet));
   const keepTargetCapped = keepTarget < keepTargetUncapped - 0.009;
-  const inventoryBudget = planCents(operatingNet - keepTarget)/100; // derived, never entered — a negative here is a real loss, shown plainly
+  const inventoryBudget = Math.max(0,planCents(operatingNet - keepTarget))/100;
   const titheAmount = planCents(keepTarget*FINANCE_CONFIG.tithe_pct/100)/100; // tithe comes out of what Jasmine personally keeps, not the business leftover
   const personallyRetained = planCents(keepTarget-titheAmount)/100;
 
@@ -1718,7 +1719,7 @@ function renderFinanceSummary(){
     <div class="h-item"><div class="h-lbl">Budgeted receipts</div><div class="h-val fin-num">${finMoney(s.revenue)}</div></div>
     <div class="h-item"><div class="h-lbl">Net</div><div class="h-val fin-num ${s.operatingNet<0?'neg':''}">${finMoney(s.operatingNet)}</div></div>
     <div class="h-item"><div class="h-lbl">Keep</div><div class="h-val fin-num">${finMoney(s.keepTarget)}</div></div>
-    <div class="h-item"><div class="h-lbl">Inventory</div><div class="h-val fin-num ${s.inventoryBudget<0?'neg':''}">${finMoney(s.inventoryBudget)}</div></div>
+    <div class="h-item"><div class="h-lbl">Inventory</div><div class="h-val fin-num">${finMoney(s.inventoryBudget)}</div></div>
   `;
 
   const keepLine = s.keepTargetCapped
@@ -1726,7 +1727,7 @@ function renderFinanceSummary(){
     : `− Keep target (${FINANCE_CONFIG.profit_target_pct}% of revenue) ${finMoney(s.keepTarget)}`;
   document.getElementById('fin-waterfall').innerHTML = `
     Budgeted receipts ${finMoney(s.revenue)} − Stripe ${finMoney(s.stripeFee)} − Movers ${finMoney(s.moverCost+s.moverReserve)} − Truck ${finMoney(s.truckCost)} − Warehouse ${finMoney(s.warehouseCost)} − Tax set-aside ${finMoney(s.taxSetAside)} = <strong>Net ${finMoney(s.operatingNet)}</strong><br>
-    ${keepLine} = <strong>Inventory ${finMoney(s.inventoryBudget)}</strong>${s.inventoryBudget<0?' — real operating loss':''}
+    ${keepLine}<br><strong>New inventory allowance ${finMoney(s.inventoryBudget)}</strong>${s.operatingNet<0?' · A planning loss adds no new allowance. Prior allowance is still available for shopping.':''}
     <div class="wf-sub">Tithe ${finMoney(s.titheAmount)} (10% of keep, from keep) · Personally retained ${finMoney(s.personallyRetained)}</div>
   `;
 
@@ -2381,7 +2382,7 @@ function renderPrKpiRow(){
     { ic:'📊', bg:'var(--gold-lt)', fg:'var(--gold-dk)', lbl:'Planning costs', val:finMoney(s.totalCosts), note: s.revenue>0.009 ? (s.totalCosts/s.revenue*100).toFixed(1)+'% of revenue' : '—', ncls:'' },
     { ic:'📈', bg:'var(--green-lt)', fg:'var(--green)', lbl:'Planning net', val:finMoney(s.operatingNet), note: s.marginPct.toFixed(1)+'% margin', ncls: s.operatingNet<0?'neg':'' },
     { ic:'🎯', bg:'var(--amber-lt)', fg:'var(--amber)', lbl:'Keep Target', val:finMoney(s.keepTarget), note: s.keepTargetCapped ? 'Capped to planning net' : FINANCE_CONFIG.profit_target_pct+'% of revenue', ncls:'' },
-    { ic:'📦', bg:'var(--cream)', fg:'var(--taupe-dk)', lbl:'New inventory allowance', val:finMoney(s.inventoryBudget), note: s.revenue>0.009 ? (s.inventoryBudget/s.revenue*100).toFixed(1)+'% of revenue' : '0% of revenue', ncls: s.inventoryBudget<0?'neg':'' },
+    { ic:'📦', bg:'var(--cream)', fg:'var(--taupe-dk)', lbl:'New inventory allowance', val:finMoney(s.inventoryBudget), note: s.revenue>0.009 ? (s.inventoryBudget/s.revenue*100).toFixed(1)+'% of revenue' : '0% of revenue' },
   ];
   el.innerHTML = cards.map(c=>`
     <div class="pr-kpi">

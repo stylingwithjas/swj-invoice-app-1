@@ -1213,12 +1213,6 @@ function buildS5(){
 }
 
 // ── S6: BUSINESS SNAPSHOT (Revenue/Expenses/Profit) ────
-// Revenue: same paid-this-month total Home has always shown. Expenses: every Amex transaction
-// dated this month (job-tagged or not — the federal-lens "actual spending" ledger, same source
-// payroll.html's Job Profit — Real tab reads via _monthlyPlaidTx). Profit = Revenue - Expenses.
-// This is a snapshot only, like every other card on Home — payroll.html's Finance & Allocation
-// and Job Profit — Real tabs remain the detailed, actionable numbers. Pending/pipeline figures
-// that used to live here are still fully visible via Needs Attention and Follow-ups below.
 function buildS6(){
   if(window.SWJCashUnavailable){document.getElementById('s6-body').innerHTML='<p>Financial sources could not be verified. <a href="/payroll.html">Review Finance →</a></p>';return;}
   const verified=window.SWJCashSnapshot?.monthly;
@@ -1233,9 +1227,9 @@ function buildS6(){
   document.getElementById('s6-meta').textContent=now.toLocaleDateString('en-US',{month:'long'})+' so far';
   document.getElementById('s6-body').innerHTML=`
     <div class="snap-grid">
-      <div class="snap-cell"><div class="snap-lbl">Collected receipts</div><div class="snap-val">${fmt(mtd)}</div></div>
-      <div class="snap-cell"><div class="snap-lbl">Recorded spending</div><div class="snap-val">${fmt(expenses)}</div></div>
-      <div class="snap-cell ${profit<0?'loss':'profit'}"><div class="snap-lbl">Provisional surplus</div><div class="snap-val">${profit==null?'Pending':profit<0?'−'+fmt(Math.abs(profit)):fmt(profit)}</div></div>
+      <div class="snap-cell"><div class="snap-lbl">Collected receipts</div><div class="snap-val">${fmtExact(mtd)}</div></div>
+      <div class="snap-cell"><div class="snap-lbl">Recorded spending</div><div class="snap-val">${fmtExact(expenses)}</div></div>
+      <div class="snap-cell ${profit<0?'loss':'profit'}"><div class="snap-lbl">Provisional surplus</div><div class="snap-val">${profit==null?'Pending':fmtExact(profit)}</div></div>
     </div>
     ${verified?.sales_tax_cents!=null ? `<p class="fin-note">Collected ${fmtExact(mtd)} − recorded costs ${fmtExact(expenses)} − sales tax collected ${fmtExact(verified.sales_tax_cents/100)} = ${profit==null?'pending':fmtExact(profit)} provisional surplus. <a href="/payroll.html">View the monthly budget plan →</a></p>` : ''}
     <div class="profit-goal"><b>Your net profit goal: 25%</b>
@@ -1243,7 +1237,16 @@ function buildS6(){
       <span class="luxury-goal-context">${margin==null?'Margin pending until revenue is collected.':`Recorded surplus is ${margin.toFixed(1)}% of receipts after sales tax · ${gap>0?fmt(gap)+' below the 25% benchmark':'at or above the 25% benchmark'}.`}</span>
 
     </div>
-    <details class="home-detail"><summary>What these numbers include</summary>Early-month bills can arrive before customer payments. This view measures activity within the month. Recorded customer payments by received date drive receipts, regardless of signature; bank deposits are settlement only. Uses synced positive card transactions. Review Finance for recorded costs and actual Stripe fees. Sales tax, refunds, transfers, payment timing, missing costs and transaction coverage need reconciliation before measuring true net profit. Card payments must not be counted again as purchases. <a href="/payroll.html?tab=spending">Review spending and data coverage →</a></details>`;
+    <details class="home-detail"><summary>Recorded spending breakdown</summary>
+      <ul>
+        <li>Card purchases: ${fmtExact(verified.card_spend_cents/100)}</li>
+        <li>Mover payments: ${fmtExact(verified.mover_spend_cents/100)}</li>
+        <li>Stripe fees: ${fmtExact(verified.stripe_fees_cents/100)}</li>
+        <li>Bank fees: ${fmtExact(verified.bank_fees_cents/100)}</li>
+      </ul>
+      <a href="/payroll.html?tab=spending">Review spending and data coverage →</a>
+    </details>
+    <p class="fin-note">Home uses recorded activity and deducts sales tax collected. Finance’s planning net uses budgeted receipts, planned or tagged job costs, and a tax set-aside that includes B&amp;O.</p>`;
 }
 
 // ── S6B: MONEY LANDING SOON ─────────────────────────────
@@ -1262,7 +1265,7 @@ function fmtPayoutDate(iso){
   return d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
 }
 function fmtExact(n){
-  return '$'+Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  return (n<0?'−':'')+'$'+Math.abs(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
 }
 async function buildPayoutSnapshot(){
   const el=document.getElementById('s6b-body');
