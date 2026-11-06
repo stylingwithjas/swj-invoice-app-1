@@ -552,21 +552,23 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
 
   </section>
   <section id="fin-view-projects" class="fin-view" role="tabpanel" aria-labelledby="fin-tab-projects" hidden>
+  <div class="pr-kpi-row" id="fin-project-metrics"></div>
   <div class="pr-panel" id="pr-panel-projects">
+    <section class="pr-card fin-project-goal"><h2>Progress to Goal</h2><div id="fin-project-goal"></div></section>
     <div class="card">
-      <div class="card-hdr">Project Budgets — <span id="pr-proj-period"></span></div>
-      <div style="font-size:11px;color:var(--taupe-dk);margin-bottom:12px">Same per-project allocation the Finance tab's Manual Override controls affect — built from each job's own staging date for cost-splitting, not its payment date. A job paid this month but staged outside it won't appear here automatically; add it from Finance &amp; Allocation → Manual Override.</div>
+      <div class="card-hdr">Staging Activity — <span id="pr-proj-period"></span></div>
+      <p class="fin-note">Selected-month and upcoming project budgets. Revenue and costs are the project planning amounts. <button class="fin-text-button" onclick="prShowTab('ledger'); prScrollTo('pr-ledger-month')">View cash received by project</button></p>
       <div class="tbl-scroll">
-        <table class="pr-table" id="pr-proj-table">
+        <table class="pr-table fin-stack-table" id="pr-proj-table">
           <thead><tr><th>Project</th><th>Staged</th><th>Revenue</th><th>Costs</th><th>Net / Keep</th><th>Margin</th><th>Status</th></tr></thead>
           <tbody id="pr-proj-tbody"></tbody>
         </table>
       </div>
-      <div id="pr-proj-detail"></div>
+      <div id="pr-proj-detail" tabindex="-1"></div>
     </div>
   </div>
 
-<details class="fin-disclosure" id="fin-job-results"><summary>Recorded Job Results</summary>  <div class="pr-panel" id="pr-panel-ledger">
+<details class="fin-disclosure" id="fin-job-results"><summary>Cash Received · Recorded Job Results</summary>  <div class="pr-panel" id="pr-panel-ledger">
     <div class="card">
       <div class="card-hdr"><span>Job Profit — Real</span></div>
       <div style="font-size:11px;color:var(--taupe-dk);margin-bottom:14px">Built from recorded customer payments, posted job-tagged Amex purchases, completed mover payments and actual Stripe fees. Logged hours remain commitments until paid. Contributions include collected sales tax and exclude shared costs; they are provisional, not net profit. Tax Report remains separate.</div>
@@ -1439,7 +1441,7 @@ async function runFinanceView(){
     loadMonthlyPerformance();
     refreshFinanceSpending();
     document.getElementById('finance-data-status').textContent='Invoice data unavailable — collected receipts and allocations could not be verified. Retry Run. No zero-revenue conclusion has been made.';
-    ['pr-kpi-row','fin-glance','fin-attention','pr-proj-tbody','pr-proj-detail','pr-emp-tbody','pr-emp-cards-mobile','fin-headline','fin-waterfall','fin-details-body','fin-budget','fin-overdue','fin-committed','pr-overdue-alert-wrap','pr-legend','pr-donut-center','pr-notes-body','fin-oneoff-banner','fin-reconcile-result'].forEach(id=>{const el=document.getElementById(id);if(el)el.replaceChildren();});
+    ['pr-kpi-row','fin-project-metrics','fin-project-goal','fin-glance','fin-attention','pr-proj-tbody','pr-proj-detail','pr-emp-tbody','pr-emp-cards-mobile','fin-headline','fin-waterfall','fin-details-body','fin-budget','fin-overdue','fin-committed','pr-overdue-alert-wrap','pr-legend','pr-donut-center','pr-notes-body','fin-oneoff-banner','fin-reconcile-result'].forEach(id=>{const el=document.getElementById(id);if(el)el.replaceChildren();});
     return;
   }
   await loadFinanceOverrides();
@@ -1555,7 +1557,7 @@ async function runFinanceView(){
     });
   }catch(e){
     _lastFinanceSummary=null;document.getElementById('finance-data-status').textContent='Hours data is incomplete. Retry Run; costs and allocations are not confirmed.';
-    ['pr-kpi-row','fin-glance','fin-attention','pr-proj-tbody','pr-proj-detail','pr-emp-tbody','pr-emp-cards-mobile','fin-headline','fin-waterfall','fin-details-body','fin-budget','fin-committed','pr-notes-body'].forEach(id=>document.getElementById(id)?.replaceChildren());
+    ['pr-kpi-row','fin-project-metrics','fin-project-goal','fin-glance','fin-attention','pr-proj-tbody','pr-proj-detail','pr-emp-tbody','pr-emp-cards-mobile','fin-headline','fin-waterfall','fin-details-body','fin-budget','fin-committed','pr-notes-body'].forEach(id=>document.getElementById(id)?.replaceChildren());
     return;
   }
   const moverOnSite = moverByType['staging']||0;
@@ -1795,24 +1797,45 @@ function renderProjectBudgetsTable(){
   if(!tbody) return;
   if(periodEl) periodEl.textContent = document.getElementById('fin-period')?.textContent || '';
   const projects = prBuildProjectList();
+  renderFinanceProjectMetrics();
   document.getElementById('pr-proj-detail').innerHTML = '';
   if(!projects.length){
-    tbody.innerHTML = '<tr><td colspan="7" class="empty-note">No jobs have a staging date in this month, and nothing is committed in the next 60 days — this list is built from the staging date, not the payment date, so a job paid this month but staged outside it won\'t appear automatically. Add it by hand in Finance &amp; Allocation → Manual Override.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" class="empty-note">No jobs have a staging date in this month, and nothing is committed in the next 60 days — this list is built from the staging date, not the payment date, so a job paid this month but staged outside it won\'t appear automatically. Use Allocation → Advanced to review overrides.</td></tr>';
     return;
   }
   let totRev=0, totCost=0, totNet=0;
   tbody.innerHTML = projects.map(p=>{
     totRev+=p.revenue; totCost+=p.totalCosts; totNet+=p.net;
-    return `<tr style="cursor:pointer" onclick="prShowProjectDetail('${esc(p.invnum)}')">
-      <td><div class="pr-proj-cell"><div class="pr-proj-thumb">${esc(clientInitials ? clientInitials(p.client) : (p.client||'?').slice(0,2).toUpperCase())}</div><div><div style="font-weight:600">${esc(p.client)}</div><div style="font-size:10.5px;color:var(--taupe-dk)">#${esc(p.invnum)} · ${esc(p.status)}</div></div></div></td>
-      <td>${p.startdate && p.startdate!=='TBD' ? fmtDate(p.startdate) : '—'}</td>
-      <td>${finMoney(p.revenue)}</td>
-      <td>${finMoney(p.totalCosts)}</td>
-      <td class="${p.net<0?'note-strong':''}">${finMoney(p.net)}</td>
-      <td>${p.margin.toFixed(1)}%</td>
-      <td><span class="pr-status-pill ${p.paid?'paid':'unpaid'}">${p.paid?'Paid':'Unpaid'}</span></td>
+    return `<tr>
+      <td><div class="pr-proj-cell"><div class="pr-proj-thumb">${esc(clientInitials ? clientInitials(p.client) : (p.client||'?').slice(0,2).toUpperCase())}</div><div><button type="button" class="fin-text-button" onclick="prShowProjectDetail('${esc(p.invnum)}')">${esc(p.client)}</button><div style="font-size:10.5px;color:var(--taupe-dk)">#${esc(p.invnum)} · ${esc(p.status)}</div></div></div></td>
+      <td data-label="Staged">${p.startdate && p.startdate!=='TBD' ? fmtDate(p.startdate) : '—'}</td>
+      <td data-label="Planned revenue">${finMoney(p.revenue)}</td>
+      <td data-label="Allocated costs">${finMoney(p.totalCosts)}</td>
+      <td data-label="Planning net" class="${p.net<0?'note-strong':''}">${finMoney(p.net)}</td>
+      <td data-label="Planning margin">${p.margin.toFixed(1)}%</td>
+      <td data-label="Invoice"><span class="pr-status-pill ${p.paid?'paid':'unpaid'}">${p.paid?'Paid':'Unpaid'}</span></td>
     </tr>`;
-  }).join('') + `<tr class="total-row"><td>Total — ${projects.length} project(s)</td><td></td><td>${finMoney(totRev)}</td><td>${finMoney(totCost)}</td><td>${finMoney(totNet)}</td><td>${totRev>0.009?(totNet/totRev*100).toFixed(1):'0.0'}%</td><td></td></tr>`;
+  }).join('') + `<tr class="total-row"><td>Total — ${projects.length} project(s)</td><td></td><td data-label="Planned revenue">${finMoney(totRev)}</td><td data-label="Allocated costs">${finMoney(totCost)}</td><td data-label="Planning net">${finMoney(totNet)}</td><td data-label="Planning margin">${totRev>0.009?(totNet/totRev*100).toFixed(1):'0.0'}%</td><td></td></tr>`;
+}
+
+function renderFinanceProjectMetrics(){
+  const s = _lastFinanceSummary;
+  if(!s) return;
+  const goal = FINANCE_CONFIG.profit_target_pct;
+  const hasReceipts = s.revenue>0.009;
+  const margin = hasReceipts ? s.marginPct.toFixed(1)+'%' : '—';
+  document.getElementById('fin-project-metrics').innerHTML = [
+    ['Staging projects',s.jobsThisMonthList.length,'Selected-month planning list'],
+    ['Collected receipts',finMoney(s.revenue),'By payment date · includes sales tax'],
+    ['Planning Net / Keep',finMoney(s.operatingNet),'After '+finMoney(s.totalCosts)+' in planned costs'],
+    ['Planning margin',margin,'Uses gross receipts']
+  ].map(row=>financeMetric(...row)).join('');
+  const variance = s.operatingNet-s.keepTargetUncapped;
+  document.getElementById('fin-project-goal').innerHTML = financeDetailRow('Planning margin / goal',margin+' / '+goal+'%')
+    + (hasReceipts && goal>0 ? `<progress aria-label="Planning margin as a share of goal" max="100" value="${Math.max(0,Math.min(100,s.marginPct/goal*100))}"></progress>` : '')
+    + `<p>${hasReceipts ? finMoney(Math.abs(variance))+(variance<0?' below the planning goal.':' at or above the planning goal.') : 'A margin comparison needs collected receipts.'}</p>`
+    + financeDetailRow('Planned inventory allowance',finMoney(s.inventoryBudget))
+    + '<p class="fin-note">For recorded expenses and provisional contribution, open Recorded Job Results. Retained profit depends on complete payment and expense evidence.</p>';
 }
 
 function prShowProjectDetail(invnum){
@@ -1834,6 +1857,7 @@ function prShowProjectDetail(invnum){
       <div class="alloc-row sub"><span>Tithe (10% of keep)</span><span>${finMoney(p.tithe)}</span></div>
       <button class="remove-btn" style="margin-top:6px" onclick="financeExcludeProject('${esc(p.invnum)}')">Remove from budget</button>
     </div>`;
+  el.focus({preventScroll:true});
   el.scrollIntoView({behavior:'smooth', block:'nearest'});
 }
 

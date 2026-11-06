@@ -98,3 +98,16 @@
  .swj-finance .pr-legend { width:100%; }
  .swj-finance .pr-legend-row { gap:5px; }
 }
+.fin-project-goal { margin-bottom:16px; }
+.fin-project-goal progress { width:100%; height:12px; accent-color:var(--swj-positive); }
+.fin-stack-table .fin-text-button { font-weight:600; text-align:start; }
+@media(max-width:767px){
+ .swj-finance .fin-stack-table { display:block; min-width:0; width:100%; }
+ .fin-stack-table thead { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
+ .fin-stack-table :is(tbody,tfoot) { display:grid; gap:10px; }
+ .swj-finance .fin-stack-table tr { display:grid; padding:9px 12px; border:1px solid var(--swj-border); border-radius:12px; background:var(--swj-surface); }
+ .swj-finance .fin-stack-table td { display:block; border:0; padding:5px 0; min-width:0; white-space:normal; overflow-wrap:anywhere; }
+ .swj-finance .fin-stack-table td[data-label] { display:flex; justify-content:space-between; align-items:center; gap:10px; }
+ .fin-stack-table td[data-label]::before { content:attr(data-label); text-align:start; color:var(--swj-text-secondary); font-size:11px; }
+ .fin-stack-table td:empty { display:none; }
+}
