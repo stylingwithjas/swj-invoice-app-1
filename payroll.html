@@ -414,14 +414,10 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
   <section id="fin-view-overview" class="fin-view" role="tabpanel" aria-labelledby="fin-tab-overview">
     <div class="pr-kpi-row" id="pr-kpi-row"></div>
 
-  <div class="fin-pair" id="fin-overview-pair">  <section class="pr-card" style="margin-bottom:14px" aria-labelledby="fin-wa-tax-title">
-    <div class="pr-card-ttl" id="fin-wa-tax-title">WA tax estimate</div>
-    <div class="pr-row2" id="fin-wa-tax-periods" role="status" style="margin-bottom:8px">Loading estimates…</div>
-    <div class="pr-hdr-sub">Sales tax plus B&amp;O, before credits and payments.</div>
-  </section>
-  <script src="/assets/finance-wa-tax.js" defer></script>
-
-</div>
+  <div class="fin-pair">
+    <section class="pr-card fin-glance"><h2>This Month at a Glance</h2><div id="fin-glance"></div></section>
+    <section class="pr-card"><h2>Spending Breakdown</h2><div id="fin-overview-spending" role="status">Loading posted card spending…</div><button class="filter-btn" onclick="prShowTab('transactions')">View transactions</button></section>
+  </div>
   <div class="pr-panel" id="pr-panel-performance">
     <div class="card">
       <div class="card-hdr">
@@ -433,28 +429,36 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
           <button class="pr-range-btn" onclick="prSetPerfRange('ytd')">YTD</button>
         </div>
       </div>
-      <div id="pr-perf-loading" class="empty-note">Run Finance &amp; Allocation once, then open this tab to load history.</div>
+      <div id="pr-perf-loading" class="empty-note">Loading monthly performance…</div>
       <div id="pr-perf-body" style="display:none">
         <div class="pr-chart-wrap" id="pr-perf-chart"></div>
+        <p class="fin-note">Historical planning view · receipts include sales tax. Costs include labor and truck and warehouse estimates. Tax reserves and Stripe fees are excluded from this chart.</p>
         <div class="pr-chart-legend">
           <span><i style="background:#2a2a28"></i>Revenue</span>
           <span><i style="background:var(--gold)"></i>Total Costs</span>
-          <span><i style="background:var(--green);border-radius:50%;width:7px;height:7px"></i>Net / Keep (line)</span>
+          <span><i style="background:var(--green);border-radius:50%;width:7px;height:7px"></i>Planning Net / Keep</span>
         </div>
         <div class="sub-hdr">This Month vs. Last Month</div>
         <div id="pr-perf-compare"></div>
-        <div class="sub-hdr">Monthly Breakdown</div>
+        <details class="fin-disclosure"><summary>Monthly Breakdown</summary>
         <div class="tbl-scroll">
           <table class="pr-table">
             <thead><tr><th>Month</th><th>Revenue</th><th>Costs</th><th>Net / Keep</th><th>Margin</th></tr></thead>
             <tbody id="pr-perf-tbody"></tbody>
           </table>
-        </div>
+        </div></details>
       </div>
     </div>
   </div>
 
-<section class="pr-card"><h2>Needs Attention</h2><div id="pr-overdue-alert-wrap"></div><div id="fin-attention"></div></section>
+<section class="pr-card"><h2>Needs Attention</h2><div id="pr-overdue-alert-wrap"></div><div id="fin-attention"></div><div id="fin-spend-attention"></div></section>
+<details class="fin-disclosure"><summary>WA filing estimates</summary>  <section class="pr-card" style="margin-bottom:14px" aria-labelledby="fin-wa-tax-title">
+    <div class="pr-card-ttl" id="fin-wa-tax-title">WA tax estimate</div>
+    <div class="pr-row2" id="fin-wa-tax-periods" role="status" style="margin-bottom:8px">Loading estimates…</div>
+    <div class="pr-hdr-sub">Sales tax plus B&amp;O, before credits and payments.</div>
+  </section>
+</details>
+<script src="/assets/finance-wa-tax.js" defer></script>
   </section>
   <section id="fin-view-allocation" class="fin-view" role="tabpanel" aria-labelledby="fin-tab-allocation" hidden>
   <div class="card" id="finance-card">
@@ -1424,8 +1428,10 @@ async function runFinanceView(){
   await loadFinanceInvoices();
   if(_financeLoadError){
     _lastFinanceSummary=null;
+    loadMonthlyPerformance();
+    refreshFinanceSpending();
     document.getElementById('finance-data-status').textContent='Invoice data unavailable — collected receipts and allocations could not be verified. Retry Run. No zero-revenue conclusion has been made.';
-    ['pr-kpi-row','fin-headline','fin-waterfall','fin-details-body','fin-budget','fin-overdue','fin-committed','pr-overdue-alert-wrap','pr-legend','pr-donut-center','pr-notes-body','fin-oneoff-banner','fin-reconcile-result'].forEach(id=>{const el=document.getElementById(id);if(el)el.replaceChildren();});
+    ['pr-kpi-row','fin-glance','fin-attention','pr-proj-tbody','pr-proj-detail','pr-emp-tbody','pr-emp-cards-mobile','fin-headline','fin-waterfall','fin-details-body','fin-budget','fin-overdue','fin-committed','pr-overdue-alert-wrap','pr-legend','pr-donut-center','pr-notes-body','fin-oneoff-banner','fin-reconcile-result'].forEach(id=>{const el=document.getElementById(id);if(el)el.replaceChildren();});
     return;
   }
   await loadFinanceOverrides();
@@ -1541,7 +1547,7 @@ async function runFinanceView(){
     });
   }catch(e){
     _lastFinanceSummary=null;document.getElementById('finance-data-status').textContent='Hours data is incomplete. Retry Run; costs and allocations are not confirmed.';
-    ['pr-kpi-row','fin-headline','fin-waterfall','fin-details-body','fin-budget','fin-committed','pr-notes-body'].forEach(id=>document.getElementById(id)?.replaceChildren());
+    ['pr-kpi-row','fin-glance','fin-attention','pr-proj-tbody','pr-proj-detail','pr-emp-tbody','pr-emp-cards-mobile','fin-headline','fin-waterfall','fin-details-body','fin-budget','fin-committed','pr-notes-body'].forEach(id=>document.getElementById(id)?.replaceChildren());
     return;
   }
   const moverOnSite = moverByType['staging']||0;
@@ -1616,6 +1622,15 @@ async function runFinanceView(){
   renderPrNotes();
   renderEmployeePayTab();
   renderPrHistory();
+  loadMonthlyPerformance();
+  refreshFinanceSpending();
+  const ledgerMonth = document.getElementById('pr-ledger-month');
+  ledgerMonth.value = periodStart.slice(0,7);
+  if(ledgerMonth.onchange) renderRealLedger();
+  if(financeSpendingLoaded){
+    document.getElementById('pr-spend-month').value = periodStart.slice(0,7);
+    renderSpendingTransactions();
+  }
 }
 let _lastFinanceSummary = null;
 let _lastFinancePeriod = null;
@@ -2268,19 +2283,88 @@ function renderPrKpiRow(){
   const s = _lastFinanceSummary;
   const el = document.getElementById('pr-kpi-row');
   if(!s || !el) return;
+  const goal = FINANCE_CONFIG.profit_target_pct;
+  const variance = s.operatingNet - s.keepTargetUncapped;
   const cards = [
-    { ic:'💵', bg:'var(--green-lt)', fg:'var(--green)', lbl:'Revenue (Collected)', val:finMoney(s.revenue), note:`${s.received.length} payment${s.received.length===1?'':'s'}`, ncls:'' },
-    { ic:'📊', bg:'var(--gold-lt)', fg:'var(--gold-dk)', lbl:'Total Costs', val:finMoney(s.totalCosts), note: s.revenue>0.009 ? (s.totalCosts/s.revenue*100).toFixed(1)+'% of revenue' : '—', ncls:'' },
-    { ic:'📈', bg:'var(--green-lt)', fg:'var(--green)', lbl:'Net / Keep', val:finMoney(s.operatingNet), note: s.marginPct.toFixed(1)+'% margin', ncls: s.operatingNet<0?'neg':'' },
-    { ic:'🎯', bg:'var(--amber-lt)', fg:'var(--amber)', lbl:'Keep Target', val:finMoney(s.keepTarget), note: s.keepTargetCapped ? 'Capped to actual net' : FINANCE_CONFIG.profit_target_pct+'% of revenue', ncls:'' },
-    { ic:'📦', bg:'var(--cream)', fg:'var(--taupe-dk)', lbl:'Inventory', val:finMoney(s.inventoryBudget), note: s.revenue>0.009 ? (s.inventoryBudget/s.revenue*100).toFixed(1)+'% of revenue' : '0% of revenue', ncls: s.inventoryBudget<0?'neg':'' },
+    ['Revenue Collected',finMoney(s.revenue),'Recorded receipts · includes sales tax'],
+    ['Total Costs',finMoney(s.totalCosts),'Planning costs · includes estimates and reserves'],
+    ['Net / Keep',finMoney(s.operatingNet),s.revenue>0.009 ? s.marginPct.toFixed(1)+'% planning margin' : 'Planning net'],
+    ['Profit Goal',goal+'%',s.revenue>0.009 ? finMoney(Math.abs(variance))+(variance<0?' below goal':' at or above goal') : 'No receipts to compare']
   ];
-  el.innerHTML = cards.map(c=>`
-    <div class="pr-kpi">
-      <div class="pr-kpi-top"><div class="pr-kpi-ic" style="background:${c.bg};color:${c.fg}">${c.ic}</div><div class="pr-kpi-lbl">${c.lbl}</div></div>
-      <div class="pr-kpi-val ${c.ncls}">${c.val}</div>
-      <div class="pr-kpi-note">${c.note}</div>
-    </div>`).join('');
+  el.innerHTML = cards.map(([label,value,note])=>financeMetric(label,value,note)).join('');
+  const outstanding = s.expected.reduce((sum, invoice)=>sum+invoice.balance,0);
+  document.getElementById('fin-glance').innerHTML = [
+    ['Projects with receipts',new Set(s.received.map(receipt=>receipt.invnum)).size],
+    ['Outstanding invoices in budget',finMoney(outstanding)],
+    ['WA tax reserve estimate',finMoney(s.taxSetAside)],
+    ['Posted card inventory','<span id="fin-inventory-actual">Loading…</span>'],
+    ['Planned keep',finMoney(s.keepTarget)]
+  ].map(([label,value])=>financeDetailRow(label,value)).join('');
+  document.getElementById('fin-attention').innerHTML = s.paidButUnsigned.length
+    ? '<p>Paid invoices need signatures: '+esc(s.paidButUnsigned.join(', '))+'</p>' : '';
+  if(!s.expected.some(e=>e.overdue) && !s.paidButUnsigned.length){
+    document.getElementById('fin-attention').textContent = 'No overdue invoices or missing signatures flagged in this budget.';
+  }
+}
+
+function financeMetric(label,value,note=''){
+  return `<div class="pr-kpi"><div class="pr-kpi-lbl">${esc(label)}</div><div class="pr-kpi-val">${esc(value)}</div><div class="pr-kpi-note">${esc(note)}</div></div>`;
+}
+function financeDetailRow(label,value){
+  return `<div class="fin-detail-row"><span>${esc(label)}</span><strong>${value}</strong></div>`;
+}
+
+let financeSpendSummaryGeneration = 0;
+async function refreshFinanceSpending(){
+  const generation = ++financeSpendSummaryGeneration;
+  const {start,end} = _lastFinancePeriod;
+  const destinations = ['fin-overview-spending','fin-transactions-summary'].map(id=>document.getElementById(id)).filter(Boolean);
+  const inventory = document.getElementById('fin-inventory-actual');
+  const action = document.getElementById('fin-spend-attention');
+  if(action) action.replaceChildren();
+  destinations.forEach(el=>el.textContent='Loading posted card spending…');
+  try{
+    const {data,error} = await SWJRecords.all(()=>_sb.from('plaid_transactions')
+      .select('transaction_id,amount,category,plaid_category,name,merchant_name',{count:'exact'}).eq('pending',false)
+      .gte('date',start).lte('date',end).order('transaction_id'),{key:'transaction_id'});
+    if(error) throw error;
+    if(generation!==financeSpendSummaryGeneration) return;
+    // Use posted purchase debits. Credits, refunds, card payments and transfers
+    // stay in the transaction list but outside this gross spending view.
+    const purchases = (data||[]).filter(financeCardPurchase);
+    const categories = new Map();
+    for(const row of purchases){
+      const name = row.category || 'Uncategorized';
+      categories.set(name,(categories.get(name)||0)+Math.round(Number(row.amount)*100));
+    }
+    const total = [...categories.values()].reduce((sum,cents)=>sum+cents,0);
+    const palette = ['#536f50','#c2a05c','#8b9877','#b98764','#6d735c','#a19a8a'];
+    let offset = 0;
+    const rows = [...categories].sort((a,b)=>b[1]-a[1]);
+    const stops = rows.map(([,cents],i)=>{
+      const next = offset + cents / total * 100;
+      const stop = `${palette[i%palette.length]} ${offset}% ${next}%`;
+      offset = next;
+      return stop;
+    });
+    const legend = rows.map(([label,cents],i)=>`<div class="fin-detail-row"><span><i class="fin-swatch" style="--swatch:${palette[i%palette.length]}"></i>${esc(label)}</span><strong>${finMoney(cents/100)}</strong></div>`).join('');
+    const html = total > 0 ? `<div class="fin-spend-chart"><div class="fin-ring" aria-hidden="true" style="--ring:conic-gradient(${stops.join(',')})"></div><div><p class="fin-big-number">${finMoney(total/100)}</p>${legend}</div></div>` : '<p>No posted card purchases found for this period.</p>';
+    destinations.forEach(el=>el.innerHTML=html+'<p class="fin-note">Gross posted card purchases · excludes payments, transfers, credits and pending authorizations.'+(categories.has('Uncategorized')?' Incomplete categorization.':'')+'</p>');
+    if(inventory) inventory.textContent = total ? finMoney((categories.get('Furniture/Inventory')||0)/100) : '—';
+    const uncategorized = purchases.filter(row=>!row.category).length;
+    if(action && uncategorized){
+      action.innerHTML = `<button class="filter-btn" onclick="prShowTab('transactions')">Review ${uncategorized} uncategorized card purchase${uncategorized===1?'':'s'}</button>`;
+    }
+  }catch{
+    if(generation!==financeSpendSummaryGeneration) return;
+    destinations.forEach(el=>el.textContent='Posted card spending is unavailable. Retry Run.');
+    if(inventory) inventory.textContent='Unavailable';
+  }
+}
+function financeCardPurchase(row){
+  const classification = Array.isArray(row.plaid_category) ? row.plaid_category.join(' ') : JSON.stringify(row.plaid_category||'');
+  const description = [row.name,row.merchant_name,classification].join(' ');
+  return Number(row.amount)>0 && !/transfer|payment received|payment thank you|autopay|loan.payments?|card payment/i.test(description);
 }
 
 // Revenue Allocation donut (§ Finance & Allocation) — PER PROJECT, not month-wide. Gabe,
@@ -2495,7 +2579,7 @@ async function loadMonthlyPerformance(){
   if(!_lastFinanceSummary){loading.style.display='';loading.textContent='Finance data is incomplete. Retry Run before viewing performance.';body.style.display='none';return;}
   loading.style.display = ''; loading.textContent = 'Loading…'; body.style.display = 'none';
 
-  const now = new Date();
+  const now = new Date(_lastFinancePeriod.start+'T12:00:00');
   let months;
   if(_prPerfRange==='ytd'){
     months = []; for(let m=0; m<=now.getMonth(); m++) months.push(m);
@@ -2508,7 +2592,6 @@ async function loadMonthlyPerformance(){
   const rangeEndD = new Date(months[months.length-1].y, months[months.length-1].m+1, 0);
   const rangeEnd = rangeEndD.toISOString().split('T')[0];
 
-  await loadFinanceInvoices();
   if(_financeLoadError){loading.textContent='Invoice data is incomplete. Retry Run.';return;}
   // Same revenue rule as Finance & Allocation: a paid job counts regardless of signature.
   const counted = _financeInvoices;
