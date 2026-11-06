@@ -1514,17 +1514,19 @@ async function renderInventoryCarryover(summary,invoices,cache,generation){
       const prior = await loadFinanceMonth(month,invoices,cache);
       if(generation!==_financeViewGeneration)return;
       hasReviewIssues ||= prior.paymentBudget.issues.length>0;
-      opening = Math.max(0, opening + planCents(prior.inventoryBudget) - prior.shoppingCents);
+      opening = Math.max(0, opening + planCents(prior.inventoryBudget + Math.min(0, prior.operatingNet)) - prior.shoppingCents);
     }
     if(generation!==_financeViewGeneration)return;
     const current = planCents(summary.inventoryBudget);
-    const balance = opening + current - summary.shoppingCents;
+    const loss = Math.max(0, -planCents(summary.operatingNet));
+    const balance = opening + current - loss - summary.shoppingCents;
     el.innerHTML = `<strong>Inventory shopping allowance</strong>
       <div class="budget-row"><span>Unused allowance carried in</span><span>${finMoney(opening/100)}</span></div>
       <div class="budget-row"><span>New allowance after costs and keep</span><span>${finMoney(current/100)}</span></div>
+      <div class="budget-row"><span>Less planning loss</span><span>${finMoney(loss/100)}</span></div>
       <div class="budget-row"><span>Categorized shopping this month</span><span>${finMoney(summary.shoppingCents/100)}</span></div>
       <div class="budget-row"><strong>${balance<0?'Over allowance':'Inventory remaining'}</strong><strong>${finMoney(Math.abs(balance)/100)}</strong></div>
-      <div class="fin-note">Carryover starts in October 2026. Categorized card shopping draws down this planning allowance. Uncategorized purchases are excluded until reviewed. A planning loss adds no new allowance.</div>
+      <div class="fin-note">Carryover starts in October 2026. Categorized card shopping draws down this planning allowance. Uncategorized purchases are excluded until reviewed. A planning loss reduces available allowance. When allowance is exhausted, nothing carries into the next month.</div>
       <a href="/payroll.html?tab=spending">Review shopping and uncategorized charges →</a>
       ${hasReviewIssues ? '<div class="fin-note">Receipt records also need review.</div>' : ''}`;
   }catch{
@@ -1727,7 +1729,7 @@ function renderFinanceSummary(){
     : `− Keep target (${FINANCE_CONFIG.profit_target_pct}% of revenue) ${finMoney(s.keepTarget)}`;
   document.getElementById('fin-waterfall').innerHTML = `
     Budgeted receipts ${finMoney(s.revenue)} − Stripe ${finMoney(s.stripeFee)} − Movers ${finMoney(s.moverCost+s.moverReserve)} − Truck ${finMoney(s.truckCost)} − Warehouse ${finMoney(s.warehouseCost)} − Tax set-aside ${finMoney(s.taxSetAside)} = <strong>Net ${finMoney(s.operatingNet)}</strong><br>
-    ${keepLine}<br><strong>New inventory allowance ${finMoney(s.inventoryBudget)}</strong>${s.operatingNet<0?' · A planning loss adds no new allowance. Prior allowance is still available for shopping.':''}
+    ${keepLine}<br><strong>New inventory allowance ${finMoney(s.inventoryBudget)}</strong>${s.operatingNet<0?' · The planning loss reduces carried allowance.':''}
     <div class="wf-sub">Tithe ${finMoney(s.titheAmount)} (10% of keep, from keep) · Personally retained ${finMoney(s.personallyRetained)}</div>
   `;
 

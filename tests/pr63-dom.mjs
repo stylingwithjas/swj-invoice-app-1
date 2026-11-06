@@ -166,7 +166,16 @@ for(const file of ['index.html','luxury.html']){
  assert.match(lossCarryover,/New allowance after costs and keep\$0\.00/);
  const priorAllowance=(await run("_financeMonthCache.get('2026-10')")).inventoryBudget-400;
  assert.ok(priorAllowance>475.62);
- assert.ok(lossCarryover.includes('Inventory remaining'+run('finMoney('+String(priorAllowance-475.62)+')')));
+ const planningLoss=-run('_lastFinanceSummary.operatingNet');
+ assert.ok(lossCarryover.includes('Less planning loss'+run('finMoney('+planningLoss+')')));
+ const remaining=priorAllowance-planningLoss-475.62;
+ assert.ok(remaining>0);
+ assert.ok(lossCarryover.includes('Inventory remaining'+run('finMoney('+remaining+')')));
+ run(`document.getElementById('fin-month').innerHTML='<option value="12">December</option>'`);
+ await run('runFinanceView()');
+ assert.ok(w.document.getElementById('fin-inventory-carryover').textContent.includes(
+   'Unused allowance carried in'+run('finMoney('+remaining+')')));
+
  // Job results consume actual payments from the authenticated cash ledger, not hours.
  w.fetch=async()=>({ok:true,json:async()=>({revenue_source:'Recorded paid invoices',monthly:{shared_costs_cents:2000,issues:[]},monthly_jobs:[{invnum:'TEST-EXT',client:'Paid extension',receipts_cents:7500,recorded_cost_cents:2500,contribution_cents:5000}]})});
  run(`document.getElementById('pr-ledger-month').value='2026-11'`);
