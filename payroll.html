@@ -510,7 +510,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
       <div id="fin-reconcile-result" style="font-size:13px"></div>
     </div>
 
-    <div class="disclaimer">Recorded receipts use payment-received dates. Budgeted receipts use each payment’s assigned month. Both include collected sales tax, paid extensions and unsigned paid invoices, and exclude test charges. Planning exclusions do not change recorded receipts. Checking deposits and transfers are excluded from revenue. The monthly mover total uses all logged hours. Project budgets use logged hours for each job where available and a planning estimate otherwise. Truck uses posted job-tagged Truck &amp; Gas charges, with the planning fallback when none are tagged. Warehouse is a monthly planning allowance. Tax set-aside reuses the Tax Report's B&amp;O + sales-tax method (not CPA-certified — see TAX_METHODOLOGY.md). "Jasmine keep (actual net)" is the existing planning allocation result, including estimated costs, not accounting profit; "Jasmine keep (target)" is a benchmark line only — the two are never blended, and the target is capped at actual profit so it can never exceed what the month really made. Inventory (shopping budget) is derived, never entered: whatever is left after costs and the keep target. A month with unreconciled revenue is flagged, not presented as final. Viewing this page never changes a stored record — only the Manual Override controls write anything.</div>
+    <div class="disclaimer">Recorded receipts use payment-received dates. Budgeted receipts use each payment’s assigned month. Both include collected sales tax, paid extensions and unsigned paid invoices, and exclude test charges. Planning exclusions do not change recorded receipts. Checking deposits and transfers are excluded from revenue. The monthly mover total uses all logged hours. Project budgets use logged hours for each job where available and a planning estimate otherwise. Truck uses posted job-tagged Truck &amp; Gas charges, with the planning fallback when none are tagged. Warehouse is a monthly planning allowance. Tax set-aside reuses the Tax Report's B&amp;O + sales-tax method (not CPA-certified — see TAX_METHODOLOGY.md). "Jasmine keep (actual net)" is the existing planning allocation result, including estimated costs, not accounting profit; "Project keep estimate before shared work (target)" is a benchmark line only — the two are never blended, and the target is capped at actual profit so it can never exceed what the month really made. Inventory (shopping budget) is derived, never entered: whatever is left after costs and the keep target. A month with unreconciled revenue is flagged, not presented as final. Viewing this page never changes a stored record — only the Manual Override controls write anything.</div>
   </div>
 
   </div><!-- /pr-panel-finance -->
@@ -651,14 +651,13 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
         <div class="pr-chart-legend">
           <span><i style="background:#2a2a28"></i>Revenue</span>
           <span><i style="background:var(--gold)"></i>Total Costs</span>
-          <span><i style="background:var(--green);border-radius:50%;width:7px;height:7px"></i>Net / Keep (line)</span>
         </div>
         <div class="sub-hdr">This Month vs. Last Month</div>
         <div id="pr-perf-compare"></div>
         <div class="sub-hdr">Monthly Breakdown</div>
         <div class="tbl-scroll">
           <table class="pr-table">
-            <thead><tr><th>Month</th><th>Revenue</th><th>Costs</th><th>Net / Keep</th><th>Margin</th></tr></thead>
+            <thead><tr><th>Month</th><th>Revenue</th><th>Costs</th><th>Planning net</th><th>Margin</th></tr></thead>
             <tbody id="pr-perf-tbody"></tbody>
           </table>
         </div>
@@ -672,7 +671,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
       <div style="font-size:11px;color:var(--taupe-dk);margin-bottom:12px">Same per-project allocation the Finance tab's Manual Override controls affect — built from each job's own staging date for cost-splitting, not its payment date. A job paid this month but staged outside it won't appear here automatically; add it from Finance &amp; Allocation → Manual Override.</div>
       <div class="tbl-scroll">
         <table class="pr-table" id="pr-proj-table">
-          <thead><tr><th>Project</th><th>Staged</th><th>Revenue</th><th>Costs</th><th>Net / Keep</th><th>Margin</th><th>Status</th></tr></thead>
+          <thead><tr><th>Project</th><th>Staged</th><th>Revenue</th><th>Costs</th><th>Project margin ($)</th><th>Margin</th><th>Status</th></tr></thead>
           <tbody id="pr-proj-tbody"></tbody>
         </table>
       </div>
@@ -1210,7 +1209,7 @@ const FINANCE_DEFAULTS = {
   warehouse_monthly: 1473,
   truck_per_job: 510,
   profit_target_pct: 25,       // Jasmine keep TARGET, as % of gross revenue (30% for 2027 jobs per pricing decision)
-  tithe_pct: 10,                // of Jasmine keep (target), not of revenue or operating net
+  tithe_pct: 10,                // of Project keep estimate before shared work (target), not of revenue or operating net
   stripe_pct: 2.9,
   stripe_flat: 0.30,
   mover_plan_staging: 400,     // planning-average estimate per job, used before actual hours are logged
@@ -1906,9 +1905,19 @@ function renderProjectBudgetsTable(){
   const payroll = planCents(_lastFinanceSummary.moverCost);
   const outside = payroll - booked;
   const estimates = planCents(_lastFinanceSummary.moverReserve);
+  const invoiceNames = new Map(_financeInvoices.map(invoice => [invoice.invnum, invoice.client]));
+  const outsideJobs = new Map();
+  for(const entry of _lastFinanceSummary.periodEntries){
+    if(monthJobIds.has(entry.invnum)) continue;
+    const label = entry.invnum
+      ? [invoiceNames.get(entry.invnum), '#'+entry.invnum].filter(Boolean).join(' ')
+      : 'Shared work without a project';
+    outsideJobs.set(label, (outsideJobs.get(label)||0) + planCents(entry.amount));
+  }
   const moverBreakdown = `
     <div><strong>Logged mover payroll</strong> · ${finMoney(booked/100)} on this month’s listed projects
       + ${finMoney(outside/100)} on other jobs or shared work = <strong>${finMoney(payroll/100)}</strong></div>
+    ${outsideJobs.size ? `<details><summary>Other mover work by project</summary>${Array.from(outsideJobs, ([label,cents])=>`<div>${esc(label)} · ${finMoney(cents/100)}</div>`).join('')}</details>` : ''}
     ${estimates ? `<div>Listed projects also include ${finMoney(estimates/100)} in mover estimates where no hours were logged.</div>` : ''}
     <div>Monthly planning net: <strong>${finMoney(_lastFinanceSummary.operatingNet)}</strong></div>
     <div>Monthly mover allocation: <strong>${finMoney(_lastFinanceSummary.moverCost+_lastFinanceSummary.moverReserve)}</strong>
@@ -1933,7 +1942,7 @@ function renderProjectBudgetsTable(){
       <td>${p.margin.toFixed(1)}%</td>
       <td><span class="pr-status-pill ${p.paid?'paid':'unpaid'}">${p.paid?'Paid':'Unpaid'}</span></td>
     </tr>`;
-  }).join('') + `<tr class="total-row"><td>Project plans and projections — ${projects.length}</td><td></td><td>${finMoney(totRev)}</td><td>${finMoney(totCost)}</td><td>${finMoney(totNet)}</td><td>${totRev>0.009?(totNet/totRev*100).toFixed(1):'0.0'}%</td><td></td></tr>`;
+  }).join('') + `<tr class="total-row"><td>Before shared work · all listed project plans and projections — ${projects.length}</td><td></td><td>${finMoney(totRev)}</td><td>${finMoney(totCost)}</td><td>${finMoney(totNet)}</td><td>${totRev>0.009?(totNet/totRev*100).toFixed(1):'0.0'}%</td><td></td></tr>`;
 }
 
 function prShowProjectDetail(invnum){
@@ -1950,7 +1959,7 @@ function prShowProjectDetail(invnum){
       <div class="alloc-row sub"><span>Warehouse (split ÷${p.projectCount})</span><span>-${finMoney(p.warehouseShare)}</span></div>
       <div class="alloc-row sub"><span>Taxes set aside (estimate)</span><span>-${finMoney(p.taxEst)}</span></div>
       <div class="alloc-row total"><span>Net</span><span>${finMoney(p.net)}</span></div>
-      <div class="alloc-row sub"><span>Jasmine keep (target ${FINANCE_CONFIG.profit_target_pct}%${p.keepTarget<p.keepTargetUncapped-0.009?', capped to this project\'s profit':''})</span><span>${finMoney(p.keepTarget)}</span></div>
+      <div class="alloc-row sub"><span>Project keep estimate before shared work (target ${FINANCE_CONFIG.profit_target_pct}%${p.keepTarget<p.keepTargetUncapped-0.009?', capped to this project\'s profit':''})</span><span>${finMoney(p.keepTarget)}</span></div>
       <div class="alloc-row total"><span>Inventory (this project's share)</span><span class="${p.inventory<0?'note-strong':''}">${finMoney(p.inventory)}</span></div>
       <div class="alloc-row sub"><span>Tagged shopping</span><span>${finMoney(p.shopping)}</span></div>
       <div class="alloc-row sub"><span>Inventory remaining after shopping</span><span>${finMoney(p.inventoryRemaining)}</span></div>
@@ -2330,6 +2339,27 @@ async function renderRealLedger(){
     const data=await response.json();
     if(window._cashLedgerGeneration!==generation)return;
     overheadEl.innerHTML='<div class="fin-lbl">Recorded shared costs this month</div><div class="fin-val">'+finMoney((data.monthly.shared_costs_cents||0)/100)+'</div><div class="fin-note">Recorded shared costs and actual Stripe fees. Transfers are excluded.</div>';
+    const recorded=data.monthly;
+    const plan=_lastFinanceSummary?.paymentBudget.period===month ? _lastFinanceSummary : null;
+    if(plan && ['result_cents','collected_cents','sales_tax_cents','card_spend_cents','mover_spend_cents','stripe_fees_cents','bank_fees_cents'].every(key=>Number.isFinite(recorded[key]))){
+      const row=(label,cents)=>`<div class="alloc-row"><span>${label}</span><span>${finMoney(cents/100)}</span></div>`;
+      overheadEl.innerHTML+=`<details><summary>Reconcile recorded activity to planning net</summary>
+        ${row('Recorded surplus after sales tax',recorded.result_cents)}
+        ${row('Replace received receipts with budgeted receipts',planCents(plan.revenue)-recorded.collected_cents)}
+        ${row('Add back recorded card purchases (includes shopping)',recorded.card_spend_cents)}
+        ${row('Add back recorded mover payments',recorded.mover_spend_cents)}
+        ${row('Add back recorded Stripe fees',recorded.stripe_fees_cents)}
+        ${row('Add back recorded bank fees',recorded.bank_fees_cents)}
+        ${row('Add back recorded sales tax',recorded.sales_tax_cents)}
+        ${row('Deduct planning truck and warehouse costs',-planCents(plan.truckCost+plan.warehouseCost))}
+        ${row('Deduct planning mover costs',-planCents(plan.moverCost+plan.moverReserve))}
+        ${row('Deduct planning Stripe fees',-planCents(plan.stripeFee))}
+        ${row('Deduct planning tax set-aside',-planCents(plan.taxSetAside))}
+        ${row('Planning net',planCents(plan.operatingNet))}
+        <p class="fin-note">Categorized shopping draws from Inventory allowance.</p></details>`;
+    }else if(!plan){
+      overheadEl.innerHTML+='<p class="fin-note">Run Finance for this month to compare recorded activity with the plan.</p>';
+    }
     const rows=data.monthly_jobs||[];
     bodyEl.innerHTML='<p class="fin-note">'+esc(data.revenue_source)+'</p>'+(rows.length?rows.map(j=>'<div class="alloc-card" style="margin-bottom:12px"><div class="alloc-ttl">'+esc(j.client)+' #'+esc(j.invnum)+'</div><div class="alloc-row"><span>Recorded customer receipts</span><span>'+finMoney(j.receipts_cents/100)+'</span></div><div class="alloc-row"><span>Tagged Amex, completed mover payments and actual Stripe fees</span><span>'+finMoney(j.recorded_cost_cents/100)+'</span></div><div class="alloc-row total"><span>Provisional contribution</span><span>'+finMoney(j.contribution_cents/100)+'</span></div><div class="fin-note">Includes collected sales tax; excludes shared costs. This month only; not net profit.</div></div>').join(''):'<div class="empty-note">No recorded receipts or tagged costs this month.</div>')+'<p class="fin-note">'+esc(data.monthly.issues.join(' '))+'</p>';
   }catch(error){if(window._cashLedgerGeneration===generation)bodyEl.textContent='Payment and cost sources could not be verified. Retry from Finance. No zero-profit conclusion has been made.';}
@@ -2383,7 +2413,7 @@ function renderPrKpiRow(){
     { ic:'💵', bg:'var(--green-lt)', fg:'var(--green)', lbl:'Budgeted receipts', val:finMoney(s.revenue), note:`${s.received.length} payment${s.received.length===1?'':'s'}`, ncls:'' },
     { ic:'📊', bg:'var(--gold-lt)', fg:'var(--gold-dk)', lbl:'Planning costs', val:finMoney(s.totalCosts), note: s.revenue>0.009 ? (s.totalCosts/s.revenue*100).toFixed(1)+'% of revenue' : '—', ncls:'' },
     { ic:'📈', bg:'var(--green-lt)', fg:'var(--green)', lbl:'Planning net', val:finMoney(s.operatingNet), note: s.marginPct.toFixed(1)+'% margin', ncls: s.operatingNet<0?'neg':'' },
-    { ic:'🎯', bg:'var(--amber-lt)', fg:'var(--amber)', lbl:'Keep Target', val:finMoney(s.keepTarget), note: s.keepTargetCapped ? 'Capped to planning net' : FINANCE_CONFIG.profit_target_pct+'% of revenue', ncls:'' },
+    { ic:'🎯', bg:'var(--amber-lt)', fg:'var(--amber)', lbl:'Available to keep', val:finMoney(s.keepTarget), note: s.keepTargetCapped ? 'Capped to planning net' : FINANCE_CONFIG.profit_target_pct+'% of revenue', ncls:'' },
     { ic:'📦', bg:'var(--cream)', fg:'var(--taupe-dk)', lbl:'New inventory allowance', val:finMoney(s.inventoryBudget), note: s.revenue>0.009 ? (s.inventoryBudget/s.revenue*100).toFixed(1)+'% of revenue' : '0% of revenue' },
   ];
   el.innerHTML = cards.map(c=>`
@@ -2448,7 +2478,7 @@ function renderPrDonut(){
     { key:'taxes', label:'Taxes (estimate)', amt:p.taxEst },
   ];
   if(p.stripe>0.009) slices.push({ key:'stripe', label:'Stripe Fee', amt:p.stripe });
-  slices.push({ key:'keep', label:'Planned keep (this job)', amt:p.keepTarget });
+  slices.push({ key:'keep', label:'Project keep estimate before shared work', amt:p.keepTarget });
   slices.push({ key:'inventory', label:"Inventory allowance (this job)", amt:p.inventory });
 
   if(rev<=0.009){

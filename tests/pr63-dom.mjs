@@ -138,6 +138,7 @@ for(const file of ['index.html','luxury.html']){
  const performance=run('_prPerfCache.at(-1)');
  assert.deepEqual([performance.revenue,performance.costs,performance.net],[plan.revenue,plan.totalCosts,plan.operatingNet]);
  assert.equal(performance.m,10);
+ assert.match(w.document.getElementById('pr-perf-tbody').textContent,/Nov 26/);
  assert.equal(w.document.getElementById('f-from').value,'2026-11-01');
  assert.equal(w.document.getElementById('f-to').value,'2026-11-30');
  const loadBudget=w.SWJPaymentBudget.load;
@@ -162,6 +163,7 @@ for(const file of ['index.html','luxury.html']){
  assert.ok(run('_lastFinanceSummary.operatingNet')<0);
  assert.equal(run('_lastFinanceSummary.inventoryBudget'),0);
  assert.match(w.document.getElementById('fin-waterfall').textContent,/New inventory allowance \$0\.00/);
+ assert.match(w.document.getElementById('fin-allocation-movers').textContent,/#TEST-PROPOSAL · \$358\.55/);
  const lossCarryover=w.document.getElementById('fin-inventory-carryover').textContent;
  assert.match(lossCarryover,/New allowance after costs and keep\$0\.00/);
  const priorAllowance=(await run("_financeMonthCache.get('2026-10')")).inventoryBudget-400;
