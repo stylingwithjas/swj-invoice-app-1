@@ -1,12 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<script src="/admin-auth.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#ffffff">
 <title>SWJ — Room &amp; Area Pricing</title>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="/assets/swj-owner-data.js"></script>
 <style>
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
   :root{--ink:#21252b;--ink-soft:#4a515b;--muted:#7f8893;--line:#e7eaef;--bg:#eef1f4;--card:#fff;--gold:#bfa15c;--gold-dk:#97793c;--gold-lt:#f6f1e4;}
@@ -105,7 +107,7 @@
 
   // Keep multipliers in sync with the tool's saved settings.
   try {
-    var _sb = supabase.createClient('https://cwvdfgrjlrpsdfwduwvn.supabase.co','eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN3dmRmZ3JqbHJwc2Rmd2R1d3ZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwMDcyODUsImV4cCI6MjA5MzU4MzI4NX0.zam9AnIwW91TI6eCKUcg05LhvFcRa7op4QsjRpdcrCY');
+    var _sb = supabase.createClient('https://cwvdfgrjlrpsdfwduwvn.supabase.co','owner-bridge');
     _sb.from('invoices').select('data').eq('invnum','TIER_PRICING').single().then(function(res){
       var d=res&&res.data?res.data.data:null;
       if(d&&d.roomMult){ if(d.roomMult.Premium)MULT.Premium=d.roomMult.Premium; if(d.roomMult.Luxury)MULT.Luxury=d.roomMult.Luxury; render(); }

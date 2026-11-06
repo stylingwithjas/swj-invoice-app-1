@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<meta name="referrer" content="no-referrer">
 <meta charset="UTF-8">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -15,7 +16,7 @@
 <title>SWJ — Staging Proposal</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Cormorant+Garamond:wght@300;400;500;600&display=swap">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
 :root{
@@ -183,10 +184,7 @@ body.luxe .pay-btn{ background:linear-gradient(135deg,#c9a44e,#a9842f); color:#1
 </div>
 
 <script>
-const _sb = supabase.createClient(
-  'https://cwvdfgrjlrpsdfwduwvn.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN3dmRmZ3JqbHJwc2Rmd2R1d3ZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwMDcyODUsImV4cCI6MjA5MzU4MzI4NX0.zam9AnIwW91TI6eCKUcg05LhvFcRa7op4QsjRpdcrCY'
-);
+
 
 function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function fmt(n){return '$'+(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
@@ -263,7 +261,14 @@ async function loadProposal(){
   }
   document.getElementById('hdr-invnum').textContent = '#'+invnum;
   try {
-    const {data,error} = await _sb.from('invoices').select('*').eq('invnum',invnum).limit(1);
+    const response = await fetch('/api/webhook?public=invoice', {
+      method:'POST', credentials:'same-origin', cache:'no-store', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({invnum,role:urlRole||'client',token:params.get('token')})
+    });
+    const result = await response.json();
+    const data = result.invoice ? [result.invoice] : [];
+    const error = !response.ok;
+    if(error){ showError(result.error || 'Please ask Jasmine for a new private approval link.'); return; }
     if(error||!data||!data[0]){
       showError('Proposal not found. Please contact Jasmine at 206-422-5618.');
       return;
@@ -529,6 +534,7 @@ async function submitSignature(){
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({
         invnum: _inv.invnum,
+        token: new URLSearchParams(location.search).get('token'),
         role: _pendingRole,
         signed_by: name,
         signed_date: date,

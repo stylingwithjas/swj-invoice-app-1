@@ -18,6 +18,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>SWJ — Project Board</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="/assets/swj-owner-data.js"></script>
+<script src="/assets/swj-private-links.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
@@ -1205,7 +1207,7 @@ function textMover(type){
     ? document.getElementById('m-mover2').value || ''
     : document.getElementById('m-dmover').value || '';
   const tel = type==='staging'
-    ? document.getElementById('m-mover-tel').value || '+12065025216'
+    ? document.getElementById('m-mover-tel').value || ''
     : type==='staging2'
     ? document.getElementById('m-mover2-tel').value || ''
     : document.getElementById('m-dmover-tel').value || '';
@@ -1216,7 +1218,8 @@ function textMover(type){
 
   const fmtDate = date ? new Date(date+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'}) : '[date TBD]';
   const action = (type==='staging'||type==='staging2') ? 'staging' : 'destage/pickup';
-  const link = `${location.origin}/confirm.html?inv=${encodeURIComponent(currentCardId||'')}&role=${MOVER_ROLE_KEY[type]}`;
+  const link = swjCrewLink(currentCardId, MOVER_ROLE_KEY[type]);
+  if (!link) return;
   const msg = `Hi ${name}, we have a new ${action} coming up at ${addr} on ${fmtDate}. Please confirm here: ${link}`;
 
   const clean = tel.replace(/\D/g,'');
@@ -1235,7 +1238,8 @@ function textPhotographer(){
   const addr = document.getElementById('m-addr').textContent;
   const date = document.getElementById('m-photo').value;
   const fmtDate = date ? new Date(date+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'}) : '[date TBD]';
-  const link = `${location.origin}/confirm.html?inv=${encodeURIComponent(currentCardId||'')}&role=photographer`;
+  const link = swjCrewLink(currentCardId, 'photographer');
+  if (!link) return;
   const msg = `Hi ${name}, photos are scheduled for ${addr} on ${fmtDate}. Please confirm here: ${link}`;
   const clean = tel.replace(/\D/g,'');
   window.open(`sms:${clean}&body=${encodeURIComponent(msg)}`);
@@ -1572,7 +1576,9 @@ async function resendSignatureInvite(role){
     }catch(e){ /* still send the email even if the save hiccups — don't block on it */ }
   }
 
-  const link = location.origin+'/proposal.html?inv='+encodeURIComponent(currentCardId)+'&role='+role;
+  let link;
+  try { link = await swjPrivateLink(currentCardId,role); }
+  catch(error) { if(statusEl) statusEl.textContent=error.message; return; }
   const subject = 'Please Review & Sign — '+(inv.address||d.address||'');
   let intro;
   if(role==='client'){
@@ -1582,7 +1588,7 @@ async function resendSignatureInvite(role){
   } else {
     intro = client+' has set up a staging proposal for '+(inv.address||d.address||'')+', and you\'re needed as '+(roleLabel.toLowerCase()==='co-signer'?'a co-signer':roleLabel)+' to countersign it.';
   }
-  const message = 'Hi '+firstName+',\n\n'+intro+'\n\nTo review and sign, please visit:\n'+link+'\n\nQuestions? Call or text Jasmine at 206-422-5618.\n\nWarmly,\nJasmine Santana\nOwner & Creative Director — Styling With Jas\n📱 206-422-5618\n📧 info@stylingwithjas.com';
+  const message = 'Hi '+firstName+',\n\n'+intro+'\n\nTo review and sign, please visit:\n'+link+'\n\nQuestions? Reply to this message to reach Jasmine.\n\nWarmly,\nJasmine Santana\nOwner & Creative Director — Styling With Jas\n📧 info@stylingwithjas.com';
 
   if(statusEl) statusEl.textContent='';
   showSendPreview({
@@ -1621,12 +1627,12 @@ async function emailClientDestageReminder(kind){
   let subject, message;
   if(kind==='pickup'){
     subject = 'Your Styling With Jas Rental — Ending Soon';
-    message = 'Hi '+firstName+',\n\nJust a friendly reminder that your staging rental period at '+address+' wraps up on '+destageFmt+'.\n\nIf you\'d like to extend, just let us know — otherwise we\'ll proceed with destage as scheduled.\n\nThank you!\nJasmine Santana\nStyling With Jas\n206-422-5618';
+    message = 'Hi '+firstName+',\n\nJust a friendly reminder that your staging rental period at '+address+' wraps up on '+destageFmt+'.\n\nIf you\'d like to extend, just let us know — otherwise we\'ll proceed with destage as scheduled.\n\nThank you!\nJasmine Santana\nStyling With Jas';
   } else {
     const grand = computeGrand(d);
     const extrate = (d.extrate!=null && d.extrate!=='' && Number.isFinite(Number(d.extrate))) ? Number(d.extrate) : Math.round(boardInvoiceSplit(d).subtotal/3*100)/100;
     subject = 'Extend Your Styling With Jas Rental?';
-    message = 'Hi '+firstName+',\n\nYour staging rental at '+address+' is scheduled to wrap up on '+destageFmt+'.\n\nIf you\'d like more time, we\'re happy to extend — additional 30-day periods are $'+extrate.toLocaleString(undefined,{minimumFractionDigits:2})+' (prorated by day if needed).\n\nJust reply and let us know, or give us a call!\n\nThank you!\nJasmine Santana\nStyling With Jas\n206-422-5618';
+    message = 'Hi '+firstName+',\n\nYour staging rental at '+address+' is scheduled to wrap up on '+destageFmt+'.\n\nIf you\'d like more time, we\'re happy to extend — additional 30-day periods are $'+extrate.toLocaleString(undefined,{minimumFractionDigits:2})+' (prorated by day if needed).\n\nJust reply and let us know, or give us a call!\n\nThank you!\nJasmine Santana\nStyling With Jas';
   }
 
   if(statusEl) statusEl.textContent='';
@@ -1670,10 +1676,10 @@ async function emailClientPaymentNudge(kind){
   let subject, message;
   if(kind==='signpay'){
     subject = 'Sign & Pay — Your Staging at '+address;
-    message = 'Hi '+firstName+',\n\nJust a friendly check-in — your staging at '+address+' is coming up on '+stagingFmt+'. Full payment of '+amountStr+' is due '+dueFmt+' (48 hours before staging), and we\'ll need your signed contract on file before then too.'+payLine+'\n\nLet us know if you have any questions!\n\nWarmly,\nJasmine Santana\nStyling With Jas\n206-422-5618';
+    message = 'Hi '+firstName+',\n\nJust a friendly check-in — your staging at '+address+' is coming up on '+stagingFmt+'. Full payment of '+amountStr+' is due '+dueFmt+' (48 hours before staging), and we\'ll need your signed contract on file before then too.'+payLine+'\n\nLet us know if you have any questions!\n\nWarmly,\nJasmine Santana\nStyling With Jas';
   } else {
     subject = 'Final Reminder — Payment Due '+dueFmt;
-    message = 'Hi '+firstName+',\n\nThis is a final reminder that payment of '+amountStr+' for your staging at '+address+' is due '+dueFmt+' — 48 hours before your staging date of '+stagingFmt+'. Staging cannot be scheduled until payment is received.'+payLine+'\n\nPlease let us know right away if you have any questions.\n\nWarmly,\nJasmine Santana\nStyling With Jas\n206-422-5618';
+    message = 'Hi '+firstName+',\n\nThis is a final reminder that payment of '+amountStr+' for your staging at '+address+' is due '+dueFmt+' — 48 hours before your staging date of '+stagingFmt+'. Staging cannot be scheduled until payment is received.'+payLine+'\n\nPlease let us know right away if you have any questions.\n\nWarmly,\nJasmine Santana\nStyling With Jas';
   }
 
   if(statusEl) statusEl.textContent='';
@@ -1894,7 +1900,7 @@ function sendJobShoppingList(){
 
   if(totalCost > 0) msg += `Est. total: ~$${totalCost.toLocaleString()}`;
 
-  window.open(`sms:+12064225618&body=${encodeURIComponent(msg)}`);
+  window.open(`sms:?body=${encodeURIComponent(msg)}`);
 }
 
 function sendShoppingList(){
@@ -1933,8 +1939,8 @@ function sendShoppingList(){
 
   if(totalCost > 0) msg += `Est. total: ~$${totalCost.toLocaleString()}`;
 
-  // Text to Jasmine's phone
-  window.open(`sms:+12064225618&body=${encodeURIComponent(msg)}`);
+  // Open the text composer so the owner can choose a recipient.
+  window.open(`sms:?body=${encodeURIComponent(msg)}`);
 }
 
 // Hook into openCard to load prep items
@@ -1942,8 +1948,8 @@ function sendShoppingList(){
 // SUPABASE — Board data layer
 // ─────────────────────────────────────────────────────────────
 const _sb = supabase.createClient(
-  'https://cwvdfgrjlrpsdfwduwvn.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN3dmRmZ3JqbHJwc2Rmd2R1d3ZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwMDcyODUsImV4cCI6MjA5MzU4MzI4NX0.zam9AnIwW91TI6eCKUcg05LhvFcRa7op4QsjRpdcrCY'
+  location.origin,
+  'owner-bridge'
 );
 
 // In-memory registry of all loaded invoices, keyed by invnum
@@ -2280,7 +2286,7 @@ async function testWeeklyDigestNow(){
   const btn = document.getElementById('test-digest-btn');
   if(btn){ btn.disabled = true; btn.textContent = '📧 Sending…'; }
   try{
-    const r = await fetch('/api/webhook?job=weekly_digest', { method: 'POST' });
+    const r = await fetch('/api/webhook?job=weekly_digest', { method:'POST', headers:{'Content-Type':'application/json'}, body:'{}' });
     const j = await r.json();
     alert(j.ok
       ? (j.digest_sent ? '✓ Weekly digest sent — check info@stylingwithjas.com.' : 'Digest ran but the email failed to send — check that EMAIL_PASSWORD is configured.')
@@ -2947,6 +2953,7 @@ async function downloadSignedContract(invnum, btn){
 
 function realOpenCard(invnum){
   currentCardId = invnum;
+  swjPrepareCrewLinks(invnum);
   const inv = CARDS[invnum];
   if(!inv){
     console.warn('Card not found:', invnum);
@@ -3029,7 +3036,7 @@ function realOpenCard(invnum){
   // Photography
   setVal('m-photo', d.photo_date || '');
   setVal('m-photographer', d.photographer_name || 'Gabriel');
-  setVal('m-photographer-tel', d.photographer_phone || '+12064225618');
+  setVal('m-photographer-tel', d.photographer_phone || '');
   setVal('m-photo-del', d.photo_delivery || '');
 
   // Payment
@@ -3310,7 +3317,7 @@ async function emailBoardContribLink(){
   statusEl.textContent=''; statusEl.style.color='#888';
   const amt='$'+parseFloat(p.amount).toLocaleString(undefined,{minimumFractionDigits:2});
   const subject='Payment Request — '+(p.label||'Payment');
-  const message='Hi,\n\nJasmine Santana with Styling With Jas is requesting '+amt+' for: '+(p.label||'this payment')+'.\n\nYou can pay securely here:\n'+p.url+'\n\nThank you!\n\nJasmine Santana\nOwner & Creative Director — Styling With Jas\n206-422-5618\ninfo@stylingwithjas.com';
+  const message='Hi,\n\nJasmine Santana with Styling With Jas is requesting '+amt+' for: '+(p.label||'this payment')+'.\n\nYou can pay securely here:\n'+p.url+'\n\nThank you!\n\nJasmine Santana\nOwner & Creative Director — Styling With Jas\ninfo@stylingwithjas.com';
   showSendPreview({
     to: addrs.join(', '), subject, message,
     meta: 'Payment request · '+amt+' · '+(p.label||'Payment'),
@@ -3559,7 +3566,7 @@ function sendExtensionConfirmation({ invnum, extNum, client, clientEmail, addres
     + 'New end date: '+newEndFmt+' ('+days+' additional day(s))\n'
     + 'Extension fee: $'+pretax.toLocaleString(undefined,{minimumFractionDigits:2})+' + $'+tax.toLocaleString(undefined,{minimumFractionDigits:2})+' tax = $'+amount.toLocaleString(undefined,{minimumFractionDigits:2})+' total\n'
     + 'Payment link: '+paymentUrl+'\n\n'
-    + 'Please pay before the extension period begins to keep everything on schedule. Replying to confirm or completing payment both acknowledge this extension.\n\nThank you!\nJasmine Santana\nStyling With Jas\n206-422-5618';
+    + 'Please pay before the extension period begins to keep everything on schedule. Replying to confirm or completing payment both acknowledge this extension.\n\nThank you!\nJasmine Santana\nStyling With Jas';
   showSendPreview({
     to: clientEmail, subject, message,
     meta: 'Extension confirmation · '+address+' · '+days+' days · $'+amount.toLocaleString(undefined,{minimumFractionDigits:2}),
@@ -3796,8 +3803,8 @@ document.addEventListener('DOMContentLoaded', ()=>{
 
 
 const MOVERS = {
-  anthony: {name:'Anthony', tel:'+12065025216'},
-  gabriel: {name:'Gabriel', tel:'+12064225618'},
+  anthony: {name:'Anthony', tel:''},
+  gabriel: {name:'Gabriel', tel:''},
 };
 
 function setMover(val, type){

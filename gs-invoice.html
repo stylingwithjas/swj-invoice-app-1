@@ -13,6 +13,7 @@
 <title>GS — Invoice Generator</title>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="/assets/swj-owner-data.js"></script>
 <style>
 *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
 
@@ -266,7 +267,7 @@ textarea:focus { border-color:var(--accent); background:var(--warm); }
 <script>
 const _sb = supabase.createClient(
   'https://cwvdfgrjlrpsdfwduwvn.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN3dmRmZ3JqbHJwc2Rmd2R1d3ZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwMDcyODUsImV4cCI6MjA5MzU4MzI4NX0.zam9AnIwW91TI6eCKUcg05LhvFcRa7op4QsjRpdcrCY'
+  'owner-bridge'
 );
 
 // GS invoices share the same Supabase "invoices" table as Styling With Jas, isolated purely

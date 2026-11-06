@@ -1,4 +1,5 @@
 from lib.invoice_numbers import require_number
+from lib.owner_guard import require_owner
 import json
 import os
 import tempfile
@@ -1572,6 +1573,8 @@ class handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_POST(self):
+        if not require_owner(self, write=True):
+            return
         try:
             length = int(self.headers.get('Content-Length', 0))
             body = self.rfile.read(length)

@@ -22,6 +22,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Cormorant+Garamond:wght@300;400;500;600&display=swap">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="/assets/swj-owner-data.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
 :root{
@@ -352,13 +353,6 @@ body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var
 .swj-more-link{ display:flex; align-items:center; gap:12px; padding:13px 16px; font-size:14px; color:#1a1814; text-decoration:none; border-radius:10px; }
 .swj-more-link:active{ background:#f5f2ed; }
 
-.home-planning{margin-top:12px;border-top:1px solid var(--line-soft);padding-top:3px}
-.home-planning-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;color:inherit;text-decoration:none;font-size:13px}
-.home-planning-row span{display:block;margin-top:3px;font-size:11px;color:var(--ink-soft)}
-#home-tax-report{border-top:1px solid var(--line-soft)}
-#home-checking-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:8px;align-items:end;padding-top:8px}
-#home-checking-form input,#home-checking-form button{width:100%;min-height:44px}
-#home-checking-form button{border:0;border-radius:8px;background:var(--olive-dark);color:white;padding:8px 12px;cursor:pointer}
 </style>
 <style>
 /* Jasmine's daily briefing: one reading order on every screen. */
@@ -611,26 +605,6 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
       <div class="sec-meta" id="s6-meta">this month</div>
     </div>
     <div id="s6-body"><div class="skel" style="height:100px"></div></div>
-    <div id="home-planning" class="home-planning" hidden>
-      <div class="home-planning-row">
-        <div><strong>Checking balance</strong><span id="home-checking-caption">Includes cash carried forward</span></div>
-        <strong id="home-checking-value">Not entered</strong>
-      </div>
-      <details class="home-detail">
-        <summary>Update checking balance</summary>
-        <form id="home-checking-form">
-          <label>Bank balance ($)<input id="home-checking-amount" type="number" step="0.01" inputmode="decimal" required></label>
-          <label>As of<input id="home-checking-date" type="date" required></label>
-          <button type="submit">Save balance</button>
-        </form>
-        <p class="fin-note">Enter the balance shown in checking. It already includes deposited invoice payments. Set-asides for bills and taxes are separate.</p>
-        <p id="home-checking-status" class="fin-note" role="status"></p>
-      </details>
-      <a id="home-tax-report" class="home-planning-row" href="/tax-report.html">
-        <div><strong id="home-tax-label">WA tax estimate</strong><span id="home-tax-caption">Before credits and payments</span></div>
-        <strong id="home-tax-value">—</strong>
-      </a>
-    </div>
   </div>
 
   <div class="section" id="sec-amex">
@@ -829,7 +803,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
 <script>
 const _sb = supabase.createClient(
   'https://cwvdfgrjlrpsdfwduwvn.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN3dmRmZ3JqbHJwc2Rmd2R1d3ZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwMDcyODUsImV4cCI6MjA5MzU4MzI4NX0.zam9AnIwW91TI6eCKUcg05LhvFcRa7op4QsjRpdcrCY'
+  'owner-bridge'
 );
 
 // ── STATE ──────────────────────────────────────────────

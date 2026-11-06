@@ -15,6 +15,8 @@
 
 (function() {
   document.documentElement.style.visibility = 'hidden';
+  let resolveOwner;
+  window.swjOwnerReady = new Promise(resolve => { resolveOwner = resolve; });
 
   const STYLE = `
     #swj-auth-gate {
@@ -70,7 +72,9 @@
 
   function showLoginGate(configured) {
     document.documentElement.style.visibility = 'visible';
-    document.body.innerHTML = '';
+    for (const child of document.body.children) {
+      if (child.tagName !== 'SCRIPT') { child.inert = true; child.setAttribute('aria-hidden', 'true'); }
+    }
 
     const gate = document.createElement('div');
     gate.id = 'swj-auth-gate';
@@ -141,13 +145,16 @@
       const res = await fetch('/api/webhook?admin=session', { credentials: 'same-origin', cache: 'no-store' });
       const data = await res.json();
       if (data.authenticated) {
+        resolveOwner(true);
         showContent();
       } else {
+        resolveOwner(false);
         showLoginGate(!!data.configured);
       }
     } catch (e) {
       // No connection to verify against -- never silently show admin content without a
       // confirmed session, even if a stale local flag from the old auth.js is still around.
+      resolveOwner(false);
       showLoginGate(true);
     }
   }

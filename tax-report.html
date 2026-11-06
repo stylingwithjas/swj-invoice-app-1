@@ -14,6 +14,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>SWJ — Tax Report</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="/assets/swj-owner-data.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
@@ -328,7 +329,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
 <script>
 const _sb = supabase.createClient(
   'https://cwvdfgrjlrpsdfwduwvn.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN3dmRmZ3JqbHJwc2Rmd2R1d3ZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwMDcyODUsImV4cCI6MjA5MzU4MzI4NX0.zam9AnIwW91TI6eCKUcg05LhvFcRa7op4QsjRpdcrCY'
+  'owner-bridge'
 );
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -1082,7 +1083,7 @@ async function sendTestEmail(){
   const orig = btn.textContent;
   btn.disabled = true; btn.textContent = 'Sending…';
   try{
-    const r = await fetch('/api/webhook?job=monthly_tax_report', {method:'POST'});
+    const r = await fetch('/api/webhook?job=monthly_tax_report', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
     const j = await r.json();
     if(!r.ok) throw new Error(j.error || `Server error ${r.status}`);
     alert(j.emailed ? `Sent! Check info@stylingwithjas.com for the ${j.period} report.` : `The report ran but the email failed to send — check that EMAIL_PASSWORD is configured.`);
@@ -1098,7 +1099,7 @@ async function sendTestAuditPacket(){
   const orig = btn.textContent;
   btn.disabled = true; btn.textContent = 'Sending…';
   try{
-    const r = await fetch('/api/webhook?job=monthly_audit_packet', {method:'POST'});
+    const r = await fetch('/api/webhook?job=monthly_audit_packet', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
     const j = await r.json();
     if(!r.ok) throw new Error(j.error || `Server error ${r.status}`);
     const emailMsg = j.emailed ? `Sent! Check info@stylingwithjas.com for the ${j.period} audit packet.` : `The packet ran but the email failed to send — check that EMAIL_PASSWORD is configured.`;
@@ -1116,7 +1117,7 @@ async function sendTestBackupExport(){
   const orig = btn.textContent;
   btn.disabled = true; btn.textContent = 'Sending…';
   try{
-    const r = await fetch('/api/webhook?job=monthly_backup_export', {method:'POST'});
+    const r = await fetch('/api/webhook?job=monthly_backup_export', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
     const j = await r.json();
     if(!r.ok) throw new Error(j.error || `Server error ${r.status}`);
     const emailMsg = j.emailed ? `Sent! Check info@stylingwithjas.com for the full website backup export.` : `The export ran but the email failed to send — check that EMAIL_PASSWORD is configured.`;

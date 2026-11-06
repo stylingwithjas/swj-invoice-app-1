@@ -76,21 +76,21 @@ class TaxEvidenceTests(unittest.TestCase):
 
     def test_no_or_bad_evidence_rejected_before_pdf_save_or_stripe_calls(self):
         generate=module('generate');h=handler(generate,{'invnum':'TEST','generator_request':True})
-        with patch.object(generate,'require_number',return_value=True),patch.object(generate,'stored_invoice',return_value=None),patch.object(generate,'generate_invoice_pdf') as pdf:
+        with patch.object(generate,'require_owner',return_value=True),patch.object(generate,'require_number',return_value=True),patch.object(generate,'stored_invoice',return_value=None),patch.object(generate,'generate_invoice_pdf') as pdf:
             generate.handler.do_POST(h);pdf.assert_not_called()
         self.assertEqual(h.result[0],422)
         save=module('invoices');h=handler(save,{'invnum':'TEST','tax_guard_version':1})
-        with patch.object(save,'require_number',return_value=True),patch.object(save,'stored_invoice',return_value=None),patch.object(save,'supabase_request') as db:
+        with patch.object(save,'require_owner',return_value=True),patch.object(save,'require_number',return_value=True),patch.object(save,'stored_invoice',return_value=None),patch.object(save,'supabase_request') as db:
             save.handler.do_POST(h);db.assert_not_called()
         self.assertEqual(h.result[0],422)
         stripe=module('stripe');h=handler(stripe,{'source':'invoice_generator','tax_context':{}})
-        with patch.object(stripe,'require_number',return_value=True),patch('urllib.request.urlopen') as call:
+        with patch.object(stripe,'require_owner',return_value=True),patch.object(stripe,'require_number',return_value=True),patch('urllib.request.urlopen') as call:
             stripe.handler.do_POST(h);call.assert_not_called()
         self.assertEqual(h.result[0],422)
 
     def test_paid_stored_invoice_uses_existing_data_without_current_rate_lookup(self):
         mod=module('generate');stored={'paid':True,'client':'Historical','taxrate':9.6,'invnum':'TEST','generator_request':True};h=handler(mod,{'invnum':'TEST'})
-        with patch.object(mod,'stored_invoice',return_value=stored),patch.object(mod,'require_verified') as evidence,patch.object(mod,'generate_invoice_pdf',side_effect=RuntimeError('sentinel')) as pdf:
+        with patch.object(mod,'require_owner',return_value=True),patch.object(mod,'stored_invoice',return_value=stored),patch.object(mod,'require_verified') as evidence,patch.object(mod,'generate_invoice_pdf',side_effect=RuntimeError('sentinel')) as pdf:
             mod.handler.do_POST(h);evidence.assert_not_called();self.assertEqual(pdf.call_args.args[0],stored)
 
     def test_unicode_pdf_name_produces_latin1_safe_http_header(self):
@@ -101,7 +101,7 @@ class TaxEvidenceTests(unittest.TestCase):
         mod=module('generate');h=handler(mod,{'invnum':'TEST','client':'José — 家族','gs_invoice':True})
         h.wfile=io.BytesIO();h.out_headers={};h.send_response=lambda code:setattr(h,'status',code);h.send_header=lambda k,v:h.out_headers.update({k:v});h.end_headers=lambda:None
         with tempfile.NamedTemporaryFile(delete=False) as f:f.write(b'%PDF fixture');filename=f.name
-        with patch.object(mod,'stored_invoice',return_value=None),patch.object(mod,'generate_invoice_pdf',return_value=filename):mod.handler.do_POST(h)
+        with patch.object(mod,'require_owner',return_value=True),patch.object(mod,'stored_invoice',return_value=None),patch.object(mod,'generate_invoice_pdf',return_value=filename):mod.handler.do_POST(h)
         self.assertEqual(h.status,200);h.out_headers['Content-Disposition'].encode('latin1')
 
     def test_legacy_address_parser_does_not_read_street_or_unit_number_as_zip(self):

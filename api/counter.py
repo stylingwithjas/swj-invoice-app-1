@@ -1,3 +1,4 @@
+from lib.owner_guard import require_owner
 import json
 import urllib.error
 from http.server import BaseHTTPRequestHandler

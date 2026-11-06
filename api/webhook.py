@@ -1729,13 +1729,15 @@ def _tax_business_invoices(invoices):
     return out
 
 
-def build_monthly_tax_report(year, month, *, invoices=None):
+def build_monthly_tax_report(year, month, *, invoices=None, through=None):
     """Returns (summary_csv_bytes, detail_csv_bytes, stats_dict) for the given year/month,
     same cash-basis / every-staging-payment-regardless-of-signature / SWJ-only rules as
     tax-report.html — signature status is a flag per line, never a filter (fix spec, Nov 2026)."""
     period_start = f'{year:04d}-{month:02d}-01'
     last_day = calendar.monthrange(year, month)[1]
     period_end = f'{year:04d}-{month:02d}-{last_day:02d}'
+    if through is not None:
+        period_end = min(period_end, through.isoformat())
     period_label = f'{MONTH_NAMES[month-1]} {year}'
 
     invoices = _tax_list_invoices() if invoices is None else _tax_business_invoices(invoices)
@@ -2546,6 +2548,19 @@ def run_monthly_close():
 # ════════════════════════════════════════════════════════════════
 
 class handler(BaseHTTPRequestHandler):
+    def _owner_data_method(self, method):
+        from lib.owner_data_http import handle
+        handle(self, method)
+
+    def do_PATCH(self):
+        self._owner_data_method('PATCH')
+
+    def do_DELETE(self):
+        self._owner_data_method('DELETE')
+
+    def do_HEAD(self):
+        self._owner_data_method('HEAD')
+
     def do_OPTIONS(self):
         query_params = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query, keep_blank_values=True)
         if 'admin' in query_params:
@@ -2565,6 +2580,14 @@ class handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
+        if 'public' in urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query, keep_blank_values=True):
+            from lib.public_invoice_http import handle
+            handle(self, 'GET')
+            return
+        if 'data' in urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query, keep_blank_values=True):
+            from lib.owner_data_http import handle
+            handle(self, 'GET')
+            return
         # The single admin session, and Section 7 / the Stripe reconciliation report (both
         # authenticated through that same session) are isolated, read-only surfaces. Dispatch
         # all three before cron or Stripe-webhook processing; none of them can trigger sends,
@@ -2658,6 +2681,14 @@ class handler(BaseHTTPRequestHandler):
             self._respond(500, {'error': str(e)})
 
     def do_POST(self):
+        if 'public' in urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query, keep_blank_values=True):
+            from lib.public_invoice_http import handle
+            handle(self, 'POST')
+            return
+        if 'data' in urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query, keep_blank_values=True):
+            from lib.owner_data_http import handle
+            handle(self, 'POST')
+            return
         if 'cash' in urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query):
             from lib.cash_http import handle
             handle(self, 'POST', SUPABASE_URL, os.environ.get('SUPABASE_KEY', ''), _plaid_request, _stripe_payout_get)
@@ -2695,12 +2726,14 @@ class handler(BaseHTTPRequestHandler):
         # Plaid actions (Amex spending snapshot) — same ?job= dispatch convention do_GET
         # already uses for cron jobs, kept entirely separate from the Stripe-event handling
         # below since a Plaid request is never Stripe-shaped and never carries a
-        # Stripe-Signature header. Reachable by anyone who knows the URL, same as every other
-        # admin-only surface in this app (a client-side password gate on the page, not a
-        # server-side token) — not a new gap, just this app's existing model extended here.
+        # Stripe-Signature header. Owner-session verification is required before
+        # any Plaid account or synchronization action can run.
         query = urllib.parse.urlparse(self.path).query
         job = urllib.parse.parse_qs(query).get('job', [''])[0]
         if job.startswith('plaid_'):
+            from lib.owner_guard import require_owner
+            if not require_owner(self):
+                return
             try:
                 payload = json.loads(raw_body) if raw_body else {}
             except Exception:
@@ -2715,19 +2748,24 @@ class handler(BaseHTTPRequestHandler):
                 self._respond(404, {'error': f'Unknown job: {job}'})
             return
 
-        # "Money landing soon" (Home page) -- same reachable-by-anyone-who-knows-the-URL model
-        # as the Plaid jobs just above; read-only, no charge/payout/refund is ever created here.
+        # "Money landing soon" is read-only but contains private business data,
+        # so it uses the owner session too.
         if job == 'stripe_payout_snapshot':
+            from lib.owner_guard import require_owner
+            if not require_owner(self):
+                return
             self._respond(200, stripe_payout_snapshot())
             return
 
         sig_header = self.headers.get('Stripe-Signature', '')
         webhook_secret = os.environ.get('STRIPE_WEBHOOK_SECRET', '')
 
-        if webhook_secret and sig_header:
-            if not verify_signature(raw_body, sig_header, webhook_secret):
-                self._respond(400, {'error': 'Invalid signature'})
-                return
+        if not webhook_secret:
+            self._respond(503, {'error': 'Webhook verification is not configured.'})
+            return
+        if not sig_header or not verify_signature(raw_body, sig_header, webhook_secret):
+            self._respond(400, {'error': 'Invalid signature'})
+            return
 
         try:
             event = json.loads(raw_body)
