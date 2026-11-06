@@ -111,8 +111,6 @@
  .fin-stack-table td[data-label]::before { content:attr(data-label); text-align:start; color:var(--swj-text-secondary); font-size:11px; }
  .fin-stack-table td:empty { display:none; }
 }
-.fin-transaction-head { grid-template-columns:minmax(0,1.2fr) minmax(0,1fr); margin-bottom:16px; }
-.fin-transaction-head > .card { margin:0; }
 .fin-transaction-filters { display:flex; flex-wrap:wrap; gap:10px; align-items:end; margin-bottom:14px; }
 .fin-transaction-filters label { display:flex; flex-direction:column; min-width:0; gap:5px; font-size:12px; }
 .fin-transaction-filters label:first-child { flex:1 1 170px; }
@@ -120,7 +118,6 @@
 #pr-spend-body select { min-width:0; width:100%; }
 .fin-vendor { font-weight:600; }
 @media(max-width:767px){
- .fin-transaction-head { grid-template-columns:minmax(0,1fr); }
  #pr-spend-body .fin-stack-table select { width:min(68%,240px); }
  #pr-spend-body .fin-stack-table tfoot { margin-top:10px; }
 }
@@ -149,3 +146,29 @@
  .swj-finance .pr-kpi-row .pr-kpi-val { font-size:clamp(23px,6vw,34px); }
  .swj-finance #pr-kpi-row .pr-kpi:first-child .pr-kpi-val { font-size:36px; }
 }
+.fin-tax h2 { margin-bottom:4px; }
+.fin-tax > .fin-note { margin:0 0 10px; }
+.fin-tax-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+.fin-tax-kpi {
+ display:grid; gap:4px; padding:clamp(12px,2vw,20px);
+ border:1px solid var(--swj-border); border-top:2px solid var(--swj-gold);
+ border-radius:var(--swj-radius-small); background:var(--swj-surface);
+ box-shadow:var(--swj-shadow); color:var(--swj-olive-dark); text-decoration:none;
+}
+.fin-tax-kpi:hover { border-color:var(--swj-gold); }
+.fin-tax-label { font-size:13px; font-weight:600; }
+.fin-tax-month { color:var(--swj-text-secondary); font-size:12px; }
+.fin-tax-amount { font:600 clamp(24px,6vw,36px)/1.1 var(--swj-font-display); font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+.fin-transaction-meta { display:flex; flex-wrap:wrap; gap:5px 16px; margin-bottom:14px; font-size:13px; color:var(--swj-text-secondary); }
+.fin-transaction-error { color:var(--swj-negative); }
+.fin-transaction-error:empty,#pr-spend-sync-note:empty { display:none; }
+.fin-account-details,.fin-transaction-summary { margin-bottom:16px; }
+#pr-spend-connected-row:not([hidden]) { display:flex; flex-wrap:wrap; gap:8px; }
+#pr-spend-cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr)); gap:10px; margin-top:12px; }
+#pr-spend-cards h3 { margin:0; font:600 22px var(--swj-font-display); }
+.fin-account-values { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+.fin-account-values dt { color:var(--swj-text-secondary); font-size:12px; }
+.fin-account-values dd { margin:3px 0 0; font-weight:600; overflow-wrap:anywhere; }
+.fin-account-help { margin-top:12px; font-size:13px; }
+.fin-account-help summary { cursor:pointer; padding-block:12px; }
+@media(max-width:350px){ .fin-tax-grid { grid-template-columns:minmax(0,1fr); } }

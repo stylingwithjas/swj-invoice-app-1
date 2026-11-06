@@ -414,6 +414,11 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
   <section id="fin-view-overview" class="fin-view" role="tabpanel" aria-labelledby="fin-tab-overview">
     <div class="pr-kpi-row" id="pr-kpi-row"></div>
 
+  <section class="fin-tax" aria-labelledby="fin-wa-tax-title">
+    <h2 id="fin-wa-tax-title">Washington filing estimates</h2>
+    <p class="fin-note">Sales tax + B&amp;O · Before credits and payments.</p>
+    <div id="fin-wa-tax-periods" class="fin-tax-grid" aria-live="polite">Loading estimates…</div>
+  </section>
   <div class="fin-pair">
     <section class="pr-card fin-glance"><h2>This Month at a Glance</h2><div id="fin-glance"></div></section>
     <section class="pr-card"><h2>Spending Breakdown</h2><div id="fin-overview-spending" role="status">Loading posted card spending…</div><button class="filter-btn" onclick="prShowTab('transactions')">View transactions</button></section>
@@ -453,12 +458,6 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
   </div>
 
 <section class="pr-card"><h2>Needs Attention</h2><div id="pr-overdue-alert-wrap"></div><div id="fin-attention"></div><div id="fin-spend-attention"></div></section>
-<details class="fin-disclosure"><summary>WA filing estimates</summary>  <section class="pr-card" style="margin-bottom:14px" aria-labelledby="fin-wa-tax-title">
-    <div class="pr-card-ttl" id="fin-wa-tax-title">WA tax estimate</div>
-    <div class="pr-row2" id="fin-wa-tax-periods" role="status" style="margin-bottom:8px">Loading estimates…</div>
-    <div class="pr-hdr-sub">Sales tax plus B&amp;O, before credits and payments.</div>
-  </section>
-</details>
 <script src="/assets/finance-wa-tax.js" defer></script>
   </section>
   <section id="fin-view-allocation" class="fin-view" role="tabpanel" aria-labelledby="fin-tab-allocation" hidden>
@@ -598,27 +597,13 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
   </section>
   <section id="fin-view-transactions" class="fin-view" role="tabpanel" aria-labelledby="fin-tab-transactions" hidden>
   <div class="pr-panel" id="pr-panel-spending">
-    <div class="fin-pair fin-transaction-head">
-      <section class="pr-card"><h2>Spending Summary</h2><div id="fin-transactions-summary" role="status">Loading posted card spending…</div></section>
-      <div class="card">
-      <div class="card-hdr">
-        <span>Cards &amp; Sync</span>
-        <span id="pr-spend-status" style="font-size:11px;color:var(--taupe-dk);font-weight:500;text-transform:none;letter-spacing:0">Checking connection…</span>
-      </div>
-      <div id="pr-spend-connect-row" style="display:none;margin-bottom:14px">
-        <button class="filter-btn primary" onclick="plaidConnectAmex()" id="pr-spend-connect-btn">Connect business Amex</button>
-      </div>
-      <div id="pr-spend-connected-row" style="display:none;margin-bottom:14px;gap:8px;flex-wrap:wrap;align-items:center">
-        <button class="filter-btn primary" onclick="plaidConnectAmex()" id="pr-spend-connect-btn2">Connect another card</button>
-        <button class="filter-btn" onclick="plaidSyncNow()" id="pr-spend-sync-btn">Sync now</button>
-        <span id="pr-spend-last-check" class="fin-note"></span>
-        <span id="pr-spend-sync-note" role="status" style="font-size:11px;color:var(--taupe-dk);display:block;margin-top:6px;width:100%"></span>
-      </div>
-      <div id="pr-spend-cards" style="display:grid;gap:10px;margin-bottom:16px"></div>
-      </div>
-    </div>
     <div class="card">
-      <h2>Card Transactions</h2>
+      <h2>Business Transactions</h2>
+      <div class="fin-transaction-meta">
+        <span id="pr-spend-status" role="status">Checking Amex connection…</span>
+        <span id="pr-spend-last-check"></span>
+      </div>
+      <p id="pr-spend-error" role="alert" class="fin-transaction-error"></p>
       <div class="fin-transaction-filters">
         <label>Search <input type="search" id="fin-transaction-search" placeholder="Search payees"></label>
         <label>Category <select id="fin-transaction-category"><option value="">All categories</option><option value="uncategorized">Uncategorized</option></select></label>
@@ -631,6 +616,25 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
         <div class="empty-note">Loading…</div>
       </div>
     </div>
+    <details class="fin-disclosure fin-account-details">
+      <summary>Account Details &amp; Sync</summary>
+      <div id="pr-spend-connect-row" hidden>
+        <button class="filter-btn primary" onclick="plaidConnectAmex()" id="pr-spend-connect-btn">Connect business Amex</button>
+      </div>
+      <div id="pr-spend-connected-row" hidden>
+        <button class="filter-btn primary" onclick="plaidConnectAmex()" id="pr-spend-connect-btn2">Connect another card</button>
+        <button class="filter-btn" onclick="plaidSyncNow()" id="pr-spend-sync-btn">Sync Now</button>
+      </div>
+      <p id="pr-spend-sync-note" class="fin-note" role="status"></p>
+      <div id="pr-spend-cards"></div>
+      <details class="fin-account-help">
+        <summary>Connection and payment help</summary>
+        <p>Business cards connect through Plaid using Amex’s secure sign-in. Connect only Styling With Jas business cards.</p>
+        <p>Verify posted payments and any remaining statement balance in Amex. Paying the minimum alone does not avoid interest.</p>
+        <p>If sync fails, check your connection and retry. Amex sign-in uses the configured production redirect.</p>
+      </details>
+    </details>
+    <section class="pr-card fin-transaction-summary"><h2>Spending Summary</h2><div id="fin-transactions-summary" role="status">Loading posted card spending…</div></section>
   </div>
 
 <details class="fin-disclosure" id="fin-reconciliation"><summary>Bank and Stripe reconciliation</summary>    <div id="fin-reconcile-wrap">
@@ -1984,7 +1988,6 @@ function prScrollTo(id){
 // Keep in sync with lib/plaid_categorize.py's CATEGORIES — two copies (server auto-rules,
 // client dropdown) because one's Python and one's JS, not because they're meant to diverge.
 const PLAID_CATEGORIES = ['Supplies','Furniture/Inventory','Truck & Gas','Storage','Insurance','Software/Subscriptions','Marketing','Meals','Office','Other'];
-const DUE_SOON_DAYS = 7; // owner-confirmable threshold (spec Section 4)
 
 async function plaidApi(job, body){
   // Never throws, and never waits forever -- a thrown/rejected error inside an un-awaited
@@ -2045,21 +2048,24 @@ async function loadSpendingTab(){
   const cardsEl = document.getElementById('pr-spend-cards');
   const body = document.getElementById('pr-spend-body');
   statusEl.textContent = 'Checking connection…';
-  connectRow.style.display = 'none';
-  connectedRow.style.display = 'none';
+  connectRow.hidden = true;
+  connectedRow.hidden = true;
   cardsEl.innerHTML = '';
   populateSpendJobFilter();
   if(!document.getElementById('pr-spend-month').value) document.getElementById('pr-spend-month').value = _lastFinancePeriod?.start.slice(0,7) || new Date().toISOString().slice(0,7);
 
-  // Reading plaid_card_summary (never plaid_items/plaid_accounts directly — anon key has NO
-  // access to those by design, sql/plaid_tables.sql). Empty/blocked means either the
-  // migration hasn't run yet or nothing's connected — both show the same "not connected" state
-  // rather than a hard error, since the UI can't tell those apart and shouldn't guess.
-  let cards = [];
+  const lastCheck = document.getElementById('pr-spend-last-check');
+  lastCheck.textContent = '';
+  let cards;
   try{
     const { data, error } = await _sb.from('plaid_card_summary').select('*');
-    if(!error && data) cards = data;
-  }catch(e){ /* view may not exist yet — fall through to "not connected" */ }
+    if(error) throw error;
+    cards = data || [];
+  }catch{
+    statusEl.textContent = 'Amex connection status unavailable';
+    body.textContent = 'Could not load Amex account details. Reload to retry.';
+    return;
+  }
 
   financeCardLabels = new Map(cards.map(card=>[card.account_id,[card.name,card.mask && '••'+card.mask].filter(Boolean).join(' ')]));
   const accountFilter = document.getElementById('fin-transaction-account');
@@ -2070,64 +2076,73 @@ async function loadSpendingTab(){
   cards = SWJAmex.uniqueCards(cards);
 
   if(!cards.length){
-    statusEl.textContent = 'Not connected';
-    connectRow.style.display = 'block';
-    body.innerHTML = '<div class="empty-note">No business Amex card connected yet. Click Connect business Amex to start — this opens Plaid’s secure login (Amex\'s own sign-in), never asks for Amex credentials directly in this app. Personal cards are never linked here.</div>';
+    statusEl.textContent = '0 connected Amex accounts';
+    connectRow.hidden = false;
+    body.textContent = 'Connect a business Amex card under Account Details & Sync to load transactions.';
     return;
   }
-  statusEl.textContent = `✓ ${cards.length} card${cards.length===1?'':'s'} connected`;
-  connectedRow.style.display = 'flex';
+  statusEl.textContent = `${cards.length} connected Amex account${cards.length===1?'':'s'}`;
+  connectedRow.hidden = false;
   renderSpendCards(cards);
-  document.getElementById('pr-spend-last-check').textContent = SWJAmex.transactionLabel(cards);
+  const times = cards.map(card=>Date.parse(card.transactions_synced_at));
+  const successful = times.filter(Number.isFinite);
+  if(successful.length){
+    const latest = new Date(Math.max(...successful));
+    lastCheck.textContent = 'Last successful transaction sync · '+latest.toLocaleString('en-US',{
+      month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit',timeZone:'America/Los_Angeles'
+    })+' PT';
+    if(times.some(time=>!Number.isFinite(time) || Date.now()-time>36*60*60*1000)){
+      lastCheck.textContent += ' · Some accounts may be out of date';
+    }
+  }else{
+    lastCheck.textContent = 'No successful transaction sync recorded';
+  }
   await renderSpendingTransactions();
 }
 
 function renderSpendCards(cards){
   const el = document.getElementById('pr-spend-cards');
-  // Nov 3, 2026 bug (Gabe's note): a payment due on the calendar day being checked showed
-  // "Overdue by 1 day" here late at night, while Home's own card list -- same card, same due
-  // date, same moment -- correctly showed "today, not overdue". Cause: this used the raw
-  // current Date/time, so a due date's midnight minus the actual clock time (e.g. 11pm) rounds
-  // down to -1 day well before the due day is actually over. Home already zeroes to midnight
-  // first; matching that here instead of the other way around, since a same-day due date isn't
-  // overdue until the day has actually passed.
-  const now = new Date(); now.setHours(0,0,0,0);
-  el.innerHTML = cards.map(c=>{
-    const label = `${esc(c.name||c.institution_name||'Business Amex')}${c.mask?' …'+esc(c.mask):''}`;
-    if(c.statement_balance==null || c.next_payment_due_date==null){
-      return `<div class="fin-card"><div class="fin-lbl">${label}</div><div class="fin-val" style="font-size:16px">Balance not synced yet</div><div class="fin-note">Click Sync now to pull the latest statement</div></div>`;
-    }
-    const due = new Date(c.next_payment_due_date+'T00:00:00');
-    const daysUntil = Math.round((due-now)/86400000);
-    let status, statusClass;
-    if(daysUntil < 0){ status = `Due date passed · Verify payment in Amex`; statusClass = 'a'; }
-    else if(daysUntil <= DUE_SOON_DAYS){ status = `Due in ${daysUntil} day${daysUntil===1?'':'s'}`; statusClass = 'a'; }
-    else { status = `Due in ${daysUntil} days`; statusClass = 'g'; }
-    const dueStr = due.toLocaleDateString('en-US',{month:'short',day:'numeric'});
-    const synced = SWJAmex.checkedLabel(c.balance_synced_at, 'Balance');
-    return `<div class="fin-card full">
-      <div class="fin-lbl">${label}</div>
-      <div class="fin-val ${statusClass}" style="font-size:22px">Statement balance ${fmtUSD(c.statement_balance)} · Due ${dueStr}</div>
-      <div class="fin-note">${status} · Minimum due ${fmtUSD(c.minimum_payment)} (paying only the minimum does NOT avoid interest) · Current balance ${fmtUSD(c.current_balance)}</div>
-      <div class="fin-note">${esc(synced)}. Confirm payments and the remaining amount in Amex.</div>
-    </div>`;
+  el.innerHTML = cards.map(card=>{
+    const name = card.name || card.institution_name || 'Business Amex';
+    const label = esc(card.mask ? name+' …'+card.mask.slice(-4) : name);
+    const dueDate = card.next_payment_due_date
+      ? new Date(card.next_payment_due_date+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})
+      : 'Unavailable';
+    return `<section class="fin-card">
+      <h3>${label}</h3>
+      <dl class="fin-account-values">
+        <div><dt>Statement balance</dt><dd>${fmtUSD(card.statement_balance)}</dd></div>
+        <div><dt>Current balance</dt><dd>${fmtUSD(card.current_balance)}</dd></div>
+        <div><dt>Minimum payment</dt><dd>${fmtUSD(card.minimum_payment)}</dd></div>
+        <div><dt>Statement due date</dt><dd>${dueDate}</dd></div>
+      </dl>
+      <p class="fin-note">${esc(SWJAmex.checkedLabel(card.balance_synced_at, 'Balance'))} · Verify payments in Amex.</p>
+    </section>`;
   }).join('');
 }
 
 function fmtUSD(n){ return (n==null) ? 'unavailable' : '$'+Number(n).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}); }
 
 async function plaidConnectAmex(){
+  const issue = document.getElementById('pr-spend-error');
+  const note = document.getElementById('pr-spend-sync-note');
+  issue.textContent = '';
+  note.textContent = '';
+  const connectionError = (message, detail) => {
+    issue.textContent = message;
+    note.textContent = detail;
+  };
   const btns = [document.getElementById('pr-spend-connect-btn'), document.getElementById('pr-spend-connect-btn2')].filter(Boolean);
   btns.forEach(b=>{ b.disabled = true; b.dataset.origText = b.textContent; b.textContent = 'Connecting…'; });
   const reset = ()=>btns.forEach(b=>{ b.disabled = false; b.textContent = b.dataset.origText; });
   try{
     const res = await plaidApi('plaid_link_token', {});
     if(res.error || !res.link_token){
-      alert('Could not start Plaid connection: ' + (res.error || 'no link token returned') + '\n\nThis usually means Plaid isn’t configured yet (PLAID_CLIENT_ID/PLAID_SECRET env vars), sql/plaid_tables.sql hasn’t been run in Supabase yet, or PLAID_REDIRECT_URI isn’t set to this site’s stable production URL (required for Amex\'s OAuth sign-in — a preview URL will not work).');
+      connectionError('Could not start the Amex connection. Open Account Details & Sync for details.', res.error || 'Plaid did not return a link token. Check the Plaid configuration and production redirect.');
       return;
     }
     if(typeof Plaid === 'undefined'){
-      alert('Plaid’s connect widget didn’t load — check your connection and try again.');
+      connectionError('Amex sign-in could not load. Check your connection and retry.', 'The Plaid sign-in widget did not load.');
       return;
     }
     const handler = Plaid.create({
@@ -2144,7 +2159,7 @@ async function plaidConnectAmex(){
           exch = { error: e.message };
         }
         if(exch.error){
-          alert('Connected to Amex, but saving the connection failed: ' + exch.error + '\n\nNothing was saved — you can try connecting again.');
+          connectionError('Could not save the Amex connection. Open Account Details & Sync to retry.', exch.error);
           reset();
           return;
         }
@@ -2159,36 +2174,41 @@ async function plaidConnectAmex(){
         }
         try{
           await loadSpendingTab();
-      if(_lastFinancePeriod) refreshFinanceSpending();
+          if(_lastFinancePeriod) refreshFinanceSpending();
         }catch(e){
-          alert('The connection was saved, but refreshing the Spending tab failed: ' + e.message + '\n\nReload the page to see it.');
+          connectionError('Amex connected, but the account details could not refresh. Reload to retry.', e.message);
         }
       },
       onExit: () => reset(),
     });
     handler.open();
   }catch(e){
-    alert('Could not start Plaid connection: ' + e.message);
+    connectionError('Could not start the Amex connection. Open Account Details & Sync for details.', e.message);
   }finally{
     reset();
   }
 }
 
+
 async function plaidSyncNow(){
   const btn = document.getElementById('pr-spend-sync-btn');
   const note = document.getElementById('pr-spend-sync-note');
+  const issue = document.getElementById('pr-spend-error');
+  issue.textContent = '';
+  note.textContent = '';
   btn.disabled = true; btn.textContent = 'Syncing…';
   try{
     const res = await plaidApi('plaid_sync', {});
-    if(res.error){ note.textContent = 'Sync failed: ' + res.error; note.style.color = 'var(--red,#b53535)'; }
+    if(res.error){ issue.textContent = 'Amex sync failed. Open Account Details & Sync to retry.'; note.textContent = res.error; }
     else {
       note.textContent = `Synced — ${res.added||0} new, ${res.modified||0} updated, ${res.removed||0} removed.` + (res.errors&&res.errors.length?' Some cards had issues: '+res.errors.join('; '):'');
-      note.style.color = res.errors&&res.errors.length ? 'var(--amber,#c97c2e)' : '';
+      if(res.errors?.length) issue.textContent = 'Some Amex accounts failed to sync. Open Account Details & Sync to review.';
       await loadSpendingTab();
       if(_lastFinancePeriod) refreshFinanceSpending();
     }
   }catch(e){
-    note.textContent = 'Sync failed: ' + e.message;
+    issue.textContent = 'Amex sync failed. Open Account Details & Sync to retry.';
+    note.textContent = e.message;
   }finally{
     btn.disabled = false; btn.textContent = 'Sync now';
   }
