@@ -416,6 +416,13 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
   <div id="finance-data-status" role="status" style="font-size:13px;line-height:1.6;margin-bottom:12px"></div>
   <div id="pr-overdue-alert-wrap"></div>
 
+  <section class="pr-card" style="margin-bottom:14px" aria-labelledby="fin-wa-tax-title">
+    <div class="pr-card-ttl" id="fin-wa-tax-title">WA tax estimate</div>
+    <div class="pr-row2" id="fin-wa-tax-periods" role="status" style="margin-bottom:8px">Loading estimates…</div>
+    <div class="pr-hdr-sub">Sales tax plus B&amp;O, before credits and payments.</div>
+  </section>
+  <script src="/assets/finance-wa-tax.js" defer></script>
+
   <div class="card" id="finance-card">
 
     <div id="finance-settings" style="display:none;background:var(--cream);border-radius:10px;padding:14px;margin-bottom:16px">

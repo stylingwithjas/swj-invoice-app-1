@@ -335,8 +335,13 @@ def assign_bank_movers(db, payload):
 
 def home_tax_estimate(period, invoices, tax_report):
     previous_month = dt.date.fromisoformat(period + '-01') - dt.timedelta(days=1)
-    _, _, tax = tax_report(previous_month.year, previous_month.month, invoices=invoices)
-    period_key = previous_month.strftime('%Y-%m')
+    return monthly_tax_estimate(previous_month, invoices, tax_report)
+
+
+def monthly_tax_estimate(month, invoices, tax_report, *, through=None):
+    options = {} if through is None else {'through': through}
+    _, _, tax = tax_report(month.year, month.month, invoices=invoices, **options)
+    period_key = month.strftime('%Y-%m')
     review = next((row.get('data') or {} for row in invoices
                    if row.get('invnum') == f'TAX_REVIEW_{period_key}'), {})
     return {
@@ -391,6 +396,16 @@ def handle(handler, method, base_url, key, plaid_request, stripe_get, *, tax_rep
         if method=='GET' and action=='snapshot':
             period=query.get('period',[dt.datetime.now(LA).strftime('%Y-%m')])[0]
             response(handler,200,public_snapshot(db,period,tax_report=tax_report if query.get('home')==['1'] else None));return
+        if method=='GET' and action=='tax_estimates' and tax_report is not None:
+            today = dt.datetime.now(LA).date()
+            current = today.replace(day=1)
+            previous = current - dt.timedelta(days=1)
+            invoices, _ = scan_invoices(db.url, db.key)
+            response(handler, 200, {
+                'previous': monthly_tax_estimate(previous, invoices, tax_report),
+                'current': monthly_tax_estimate(current, invoices, tax_report, through=today),
+            })
+            return
         if method!='POST': response(handler,405,{'error':'Use a supported same-origin action.'});return
         if handler.headers.get('Content-Type','').split(';')[0]!='application/json': raise ValueError('JSON is required.')
         size=int(handler.headers.get('Content-Length','0'))

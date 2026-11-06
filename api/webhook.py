@@ -1729,13 +1729,15 @@ def _tax_business_invoices(invoices):
     return out
 
 
-def build_monthly_tax_report(year, month, *, invoices=None):
+def build_monthly_tax_report(year, month, *, invoices=None, through=None):
     """Returns (summary_csv_bytes, detail_csv_bytes, stats_dict) for the given year/month,
     same cash-basis / every-staging-payment-regardless-of-signature / SWJ-only rules as
     tax-report.html — signature status is a flag per line, never a filter (fix spec, Nov 2026)."""
     period_start = f'{year:04d}-{month:02d}-01'
     last_day = calendar.monthrange(year, month)[1]
     period_end = f'{year:04d}-{month:02d}-{last_day:02d}'
+    if through is not None:
+        period_end = min(period_end, through.isoformat())
     period_label = f'{MONTH_NAMES[month-1]} {year}'
 
     invoices = _tax_list_invoices() if invoices is None else _tax_business_invoices(invoices)
