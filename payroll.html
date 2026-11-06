@@ -323,6 +323,7 @@ tr.paid-row { opacity:0.55; }
 <link rel="stylesheet" href="/styles/swj-luxury-theme.css">
 <link rel="stylesheet" href="/styles/swj-workspace.css">
 <script src="/assets/swj-workspace.js" defer></script>
+<link rel="stylesheet" href="/styles/swj-finance.css">
 </head>
 <body data-swj-workspace="payroll">
 
@@ -384,50 +385,106 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
   </div>
 </div>
 
-<div class="wrap">
+<main class="wrap swj-finance">
 
   <div class="pr-hdr">
     <div class="pr-hdr-left">
-      <div class="pr-hdr-ic">💼</div>
       <div>
-        <div class="pr-hdr-ttl">Finance</div>
-        <div class="pr-hdr-sub">Employee payroll, business finances, and money allocation.</div>
+        <p class="fin-brand">SWJ <span>Finance</span></p>
+        <h1 class="pr-hdr-ttl" id="fin-title">Finance</h1>
+        <div class="pr-hdr-sub" id="fin-intro">Your revenue, costs, profit, and key priorities for the month.</div>
       </div>
     </div>
     <div class="pr-hdr-right">
-      <div class="filter-field"><label>Month</label><select id="fin-month" onchange="runFinanceView()"></select></div>
-      <div class="filter-field"><label>Year</label><select id="fin-year" onchange="runFinanceView()"></select></div>
-      <button class="filter-btn primary" onclick="runFinanceView()">Run</button>
-      <button class="pr-gear" onclick="toggleFinanceSettings()" title="Settings">⚙</button>
+      <div class="filter-field"><label for="fin-month">Month</label><select id="fin-month"></select></div>
+      <div class="filter-field"><label for="fin-year">Year</label><select id="fin-year"></select></div>
+      <button class="filter-btn primary" id="fin-run" onclick="refreshFinancePeriod()">Run</button>
     </div>
   </div>
 
-  <p data-revenue-basis style="font-size:12px;color:#68685e">Revenue: paid invoice payments and extensions, by received month, regardless of signature. Stripe deposits verify settlement only.</p>
-  <div class="pr-tabs" id="pr-tabs">
-    <button class="pr-tab on" onclick="prShowTab('finance')">Finance &amp; Allocation</button>
-    <button class="pr-tab" onclick="prShowTab('employee')">Employee Pay</button>
-    <button class="pr-tab" onclick="prShowTab('performance')">Monthly Performance</button>
-    <button class="pr-tab" onclick="prShowTab('projects')">Project Budgets</button>
-    <button class="pr-tab" onclick="prShowTab('history')">History</button>
-    <button class="pr-tab" onclick="prShowTab('spending')">Spending</button>
-    <button class="pr-tab" onclick="prShowTab('ledger')">Job Results</button>
+  <div class="pr-tabs" id="pr-tabs" role="tablist" aria-label="Finance sections">
+    <button class="pr-tab" type="button" role="tab" id="fin-tab-overview" aria-controls="fin-view-overview" aria-selected="true" tabindex="0" onclick="prShowTab('overview')"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10l9-7 9 7v10H3z M9 20v-7h6v7"/></svg>Overview</button>
+    <button class="pr-tab" type="button" role="tab" id="fin-tab-allocation" aria-controls="fin-view-allocation" aria-selected="false" tabindex="-1" onclick="prShowTab('allocation')"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8l9-5 9 5-9 5z M3 12l9 5 9-5 M3 16l9 5 9-5"/></svg>Allocation</button>
+    <button class="pr-tab" type="button" role="tab" id="fin-tab-projects" aria-controls="fin-view-projects" aria-selected="false" tabindex="-1" onclick="prShowTab('projects')"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h7l2 3h9v11H3z"/></svg>Projects</button>
+    <button class="pr-tab" type="button" role="tab" id="fin-tab-transactions" aria-controls="fin-view-transactions" aria-selected="false" tabindex="-1" onclick="prShowTab('transactions')"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h18v14H3z M3 10h18 M6 15h4"/></svg>Transactions</button>
+    <button class="pr-tab" type="button" role="tab" id="fin-tab-team" aria-controls="fin-view-team" aria-selected="false" tabindex="-1" onclick="prShowTab('team')"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 8a3 3 0 1 1-6 0 3 3 0 0 1 6 0z M5 20v-2a7 7 0 0 1 14 0v2"/></svg>Team</button>
+  </div>
+  <div id="finance-data-status" role="status"></div>
+
+
+
+  <section id="fin-view-overview" class="fin-view" role="tabpanel" aria-labelledby="fin-tab-overview">
+    <div class="pr-kpi-row" id="pr-kpi-row"></div>
+
+  <section class="fin-tax" aria-labelledby="fin-wa-tax-title">
+    <h2 id="fin-wa-tax-title">Washington filing estimates</h2>
+    <p class="fin-note">Sales tax + B&amp;O · Before credits and payments.</p>
+    <div id="fin-wa-tax-periods" class="fin-tax-grid" aria-live="polite">Loading estimates…</div>
+  </section>
+  <div class="fin-pair">
+    <section class="pr-card fin-glance"><h2>This Month at a Glance</h2><div id="fin-glance"></div></section>
+    <section class="pr-card"><h2>Spending Breakdown</h2><div id="fin-overview-spending" role="status">Loading posted card spending…</div><button class="filter-btn" onclick="prShowTab('transactions')">View transactions</button></section>
+  </div>
+  <div class="pr-panel" id="pr-panel-performance">
+    <div class="card">
+      <div class="card-hdr">
+        <span>Monthly Performance</span>
+        <div class="pr-range-pick" id="pr-perf-range">
+          <button class="pr-range-btn" onclick="prSetPerfRange(3)">3mo</button>
+          <button class="pr-range-btn on" onclick="prSetPerfRange(6)">6mo</button>
+          <button class="pr-range-btn" onclick="prSetPerfRange(12)">12mo</button>
+          <button class="pr-range-btn" onclick="prSetPerfRange('ytd')">YTD</button>
+        </div>
+      </div>
+      <div id="pr-perf-loading" class="empty-note">Loading monthly performance…</div>
+      <div id="pr-perf-body" style="display:none">
+        <div class="pr-chart-wrap" id="pr-perf-chart" aria-hidden="true"></div>
+        <p class="fin-note">Historical planning view · receipts include sales tax. Costs include labor and truck and warehouse estimates. Tax reserves and Stripe fees are excluded from this chart.</p>
+        <div class="pr-chart-legend">
+          <span><i style="background:var(--swj-olive)"></i>Revenue</span>
+          <span><i style="background:var(--gold)"></i>Total Costs</span>
+          <span><i style="background:var(--swj-positive)"></i>Planning Net / Keep</span>
+          <span><i style="background:var(--swj-negative)"></i>Planning loss</span>
+        </div>
+        <div class="sub-hdr">This Month vs. Last Month</div>
+        <div id="pr-perf-compare"></div>
+        <details class="fin-disclosure"><summary>Monthly Breakdown</summary>
+        <div class="tbl-scroll">
+          <table class="pr-table">
+            <thead><tr><th>Month</th><th>Revenue</th><th>Costs</th><th>Net / Keep</th><th>Margin</th></tr></thead>
+            <tbody id="pr-perf-tbody"></tbody>
+          </table>
+        </div></details>
+      </div>
+    </div>
   </div>
 
-  <div class="pr-panel on" id="pr-panel-finance">
-
-  <div id="finance-data-status" role="status" style="font-size:13px;line-height:1.6;margin-bottom:12px"></div>
-  <div id="pr-overdue-alert-wrap"></div>
-
-  <section class="pr-card" style="margin-bottom:14px" aria-labelledby="fin-wa-tax-title">
-    <div class="pr-card-ttl" id="fin-wa-tax-title">WA tax estimate</div>
-    <div class="pr-row2" id="fin-wa-tax-periods" role="status" style="margin-bottom:8px">Loading estimates…</div>
-    <div class="pr-hdr-sub">Sales tax plus B&amp;O, before credits and payments.</div>
+<section class="pr-card"><h2>Needs Attention</h2><div id="pr-overdue-alert-wrap"></div><div id="fin-attention"></div><div id="fin-spend-attention"></div></section>
+<script src="/assets/finance-wa-tax.js" defer></script>
   </section>
-  <script src="/assets/finance-wa-tax.js" defer></script>
-
+  <section id="fin-view-allocation" class="fin-view" role="tabpanel" aria-labelledby="fin-tab-allocation" hidden>
   <div class="card" id="finance-card">
 
-    <div id="finance-settings" style="display:none;background:var(--cream);border-radius:10px;padding:14px;margin-bottom:16px">
+    <span id="fin-period" hidden></span>
+    <div class="fin-project-picker">
+      <label for="pr-donut-job-picker">Project</label>
+      <button type="button" class="filter-btn" id="fin-prev-project" aria-label="Previous project" onclick="financeStepProject(-1)">‹</button>
+      <select id="pr-donut-job-picker" onchange="renderPrDonut()"></select>
+      <button type="button" class="filter-btn" id="fin-next-project" aria-label="Next project" onclick="financeStepProject(1)">›</button>
+      <span id="fin-allocation-status" role="status"></span>
+    </div>
+    <div class="fin-pair fin-allocation-pair">
+      <section class="pr-card">
+        <h2>Revenue Allocation</h2>
+        <div class="pr-donut-wrap">
+          <div class="pr-donut" id="pr-donut" aria-hidden="true"><div class="pr-donut-center" id="pr-donut-center"></div></div>
+          <div class="pr-legend" id="pr-legend"></div>
+        </div>
+      </section>
+      <section class="pr-card"><h2>Keep Breakdown</h2><div id="fin-keep-breakdown"></div><button type="button" class="filter-btn" onclick="prScrollTo('fin-override-add')">Adjust Allocation</button></section>
+    </div>
+    <section class="pr-card fin-guidance"><h2>Allocation Guidance</h2><div id="fin-allocation-guidance"></div><p class="fin-note">Compare planning amounts with posted costs in <button type="button" class="fin-text-button" onclick="prShowTab('ledger')">Recorded Job Results</button>. Recorded results may be incomplete.</p></section>
+    <details class="fin-disclosure" id="fin-allocation-settings"><summary>Allocation Settings</summary>    <div id="finance-settings" class="fin-settings-body">
       <div style="font-size:11px;color:var(--taupe-dk);margin-bottom:10px">Every number below is editable — these are starting assumptions, not fixed constants. Mover rates are managed separately (Create a Day's Pay Schedule / /hours.html) and already feed in live from actual logged hours.</div>
       <div class="fin-settings-grid">
         <div><label>Warehouse $/mo</label><input type="number" step="1" id="fc-warehouse"></div>
@@ -445,23 +502,9 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
       <span class="msg" id="fc-msg" style="display:inline-block;margin-left:8px"></span>
     </div>
 
-    <div class="sub-hdr" style="margin-top:0">Finance &amp; Allocation — <span id="fin-period"></span></div>
-    <div id="fin-oneoff-banner"></div>
-
-    <div class="pr-kpi-row" id="pr-kpi-row"></div>
-
-    <div class="pr-row2">
-      <div class="pr-card">
-        <div class="pr-card-ttl" style="justify-content:space-between">
-          <span>◐ Revenue Allocation <span class="info-ic" title="Per project — where this one job's money should go. Pick a different job below; the KPI cards above stay for the whole month.">ⓘ</span></span>
-          <select id="pr-donut-job-picker" onchange="renderPrDonut()" style="font-size:11px;padding:5px 8px;border-radius:7px;border:0.5px solid var(--taupe-lt);font-family:inherit;max-width:180px"></select>
-        </div>
-        <div class="pr-donut-wrap">
-          <div class="pr-donut" id="pr-donut"><div class="pr-donut-center" id="pr-donut-center"></div></div>
-          <div class="pr-legend" id="pr-legend"></div>
-        </div>
-        <div id="fin-job-shopping" class="quiet-line"></div>
-      </div>
+</details>
+    <details class="fin-disclosure" id="fin-advanced"><summary>Advanced · budgets, notes and overrides</summary>
+      <div id="fin-oneoff-banner"></div>
       <div class="pr-card">
         <div class="pr-card-ttl" style="justify-content:space-between">
           <span>This Month's Notes</span>
@@ -475,8 +518,8 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
           <button class="pr-qa-btn" onclick="prAddNote()"><span class="ic">📝</span>Add Note</button>
         </div>
       </div>
-    </div>
 
+    <div id="fin-job-shopping" class="quiet-line"></div>
     <div id="fin-allocation-movers" class="quiet-line"></div>
     <div id="fin-inventory-carryover" class="fin-card full" aria-live="polite"></div>
     <details class="fin-details" id="fin-details">
@@ -503,25 +546,116 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
     </div>
     <div style="font-size:10.5px;color:var(--taupe-dk);margin-top:4px">Add a job the automatic rules missed, remove one with its "Remove from budget" button, or flip a wrong one-off flag. This never deletes anything — it only changes what shows for this month.</div>
 
-    <div id="fin-reconcile-wrap">
+    </details>
+    <div class="disclaimer">Collected receipts use payment-received dates, including unsigned paid invoices and paid extensions, excluding test charges. They include collected sales tax. Planning exclusions do not change recorded receipts. Checking deposits and transfers are excluded from revenue. Mover pay is actual, from logged hours this month. Truck and warehouse costs use the editable assumptions above, since this app doesn't track per-job truck receipts yet — correct the defaults above if your actual costs differ. Tax set-aside reuses the Tax Report's B&amp;O + sales-tax method (not CPA-certified — see TAX_METHODOLOGY.md). "Jasmine keep (actual net)" is the existing planning allocation result, including estimated costs, not accounting profit; "Jasmine keep (target)" is a benchmark line only — the two are never blended, and the target is capped at actual profit so it can never exceed what the month really made. Inventory (shopping budget) is derived, never entered: whatever is left after costs and the keep target. A month with unreconciled revenue is flagged, not presented as final. Viewing this page never changes a stored record — only the Manual Override controls write anything.</div>
+  </div>
+
+  </section>
+  <section id="fin-view-projects" class="fin-view" role="tabpanel" aria-labelledby="fin-tab-projects" hidden>
+  <div class="pr-kpi-row" id="fin-project-metrics"></div>
+  <div id="pr-proj-mover-reconciliation" class="quiet-line"></div>
+  <div class="pr-panel" id="pr-panel-projects">
+    <section class="pr-card fin-project-goal"><h2>Progress to Goal</h2><div id="fin-project-goal"></div></section>
+    <div class="card">
+      <div class="card-hdr">Staging Activity — <span id="pr-proj-period"></span></div>
+      <p class="fin-note">Selected-month and upcoming project budgets. Revenue and costs are the project planning amounts. <button class="fin-text-button" onclick="prShowTab('ledger'); prScrollTo('pr-ledger-month')">View cash received by project</button></p>
+      <div class="tbl-scroll">
+        <table class="pr-table fin-stack-table" id="pr-proj-table">
+          <thead><tr><th>Project</th><th>Staged</th><th>Revenue</th><th>Costs</th><th>Net / Keep</th><th>Margin</th><th>Status</th></tr></thead>
+          <tbody id="pr-proj-tbody"></tbody>
+        </table>
+      </div>
+      <div id="pr-proj-detail" tabindex="-1"></div>
+    </div>
+  </div>
+
+<details class="fin-disclosure" id="fin-job-results"><summary>Cash Received · Recorded Job Results</summary>  <div class="pr-panel" id="pr-panel-ledger">
+    <div class="card">
+      <div class="card-hdr"><span>Recorded Job Costs &amp; Receipts</span></div>
+      <div style="font-size:11px;color:var(--taupe-dk);margin-bottom:14px">Built from recorded customer payments, posted job-tagged Amex purchases, completed mover payments and actual Stripe fees. Logged hours remain commitments until paid. Contributions include collected sales tax and exclude shared costs; they are provisional, not net profit. Tax Report remains separate.</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px">
+        <label style="margin:0;font-size:11px">Month<input type="month" id="pr-ledger-month" style="margin-left:6px"></label>
+        <button type="button" class="filter-btn" id="pr-stripe-fees-sync" onclick="syncLedgerStripeFees(this)">Sync actual Stripe fees</button>
+        <span id="pr-stripe-fees-last" class="fin-note"></span>
+        <span id="pr-stripe-fees-status" role="status" style="font-size:12px"></span>
+      </div>
+      <div id="pr-ledger-overhead" class="fin-card full" style="margin-bottom:14px"></div>
+      <div id="pr-ledger-body"><div class="empty-note">Loading…</div></div>
+    </div>
+  </div>
+</details>
+<details class="fin-disclosure" id="fin-history"><summary>Historical Review</summary>  <div class="pr-panel" id="pr-panel-history">
+    <div class="card">
+      <div class="card-hdr">History</div>
+      <div style="font-size:11px;color:var(--taupe-dk);margin-bottom:12px">These months are recalculated live from current records, not stored snapshots — the underlying invoices and time entries can still change. Click a month to open it on the Finance &amp; Allocation tab.</div>
+      <div id="pr-hist-list"></div>
+      <div class="sub-hdr">Manual Overrides on Record</div>
+      <div id="pr-hist-overrides"></div>
+    </div>
+  </div>
+
+</details>
+  </section>
+  <section id="fin-view-transactions" class="fin-view" role="tabpanel" aria-labelledby="fin-tab-transactions" hidden>
+  <div class="pr-panel" id="pr-panel-spending">
+    <div class="card">
+      <h2>Business Transactions</h2>
+      <div class="fin-transaction-meta">
+        <span id="pr-spend-status" role="status">Checking Amex connection…</span>
+        <span id="pr-spend-last-check"></span>
+      </div>
+      <p id="pr-spend-error" role="alert" class="fin-transaction-error"></p>
+      <details class="fin-disclosure fin-account-details">
+        <summary>Account Details &amp; Sync</summary>
+        <div id="pr-spend-connect-row" hidden>
+          <button class="filter-btn primary" onclick="plaidConnectAmex()" id="pr-spend-connect-btn">Connect business Amex</button>
+        </div>
+        <div id="pr-spend-connected-row" hidden>
+          <button class="filter-btn primary" onclick="plaidConnectAmex()" id="pr-spend-connect-btn2">Connect another card</button>
+          <button class="filter-btn" onclick="plaidSyncNow()" id="pr-spend-sync-btn">Sync Now</button>
+        </div>
+        <p id="pr-spend-sync-note" class="fin-note" role="status"></p>
+        <div id="pr-spend-cards"></div>
+        <details class="fin-account-help">
+          <summary>Connection and payment help</summary>
+          <p>Business cards connect through Plaid using Amex’s secure sign-in. Connect only Styling With Jas business cards.</p>
+          <p>Verify posted payments and any remaining statement balance in Amex. Paying the minimum alone does not avoid interest.</p>
+          <p>If sync fails, check your connection and retry. Amex sign-in uses the configured production redirect.</p>
+        </details>
+      </details>
+      <div class="fin-transaction-filters">
+        <label>Search <input type="search" id="fin-transaction-search" placeholder="Search payees"></label>
+        <label>Category <select id="fin-transaction-category"><option value="">All categories</option><option value="uncategorized">Uncategorized</option></select></label>
+        <label>Account <select id="fin-transaction-account"><option value="">All cards</option></select></label>
+        <label style="margin:0;font-size:11px">Month<input type="month" id="pr-spend-month" style="margin-left:6px" onchange="renderSpendingTransactions()"></label>
+        <label style="margin:0;font-size:11px">Job<select id="pr-spend-job-filter" style="margin-left:6px" onchange="renderSpendingTransactions()"><option value="">All</option></select></label>
+        <label style="margin:0;font-size:11px"><input type="checkbox" id="pr-spend-show-pending" onchange="renderSpendingTransactions()"> Show pending authorizations</label>
+      </div>
+      <div id="pr-spend-body">
+        <div class="empty-note">Loading…</div>
+      </div>
+    </div>
+    <section class="pr-card fin-transaction-summary"><h2>Spending Summary</h2><div id="fin-transactions-summary" role="status">Loading posted card spending…</div></section>
+  </div>
+
+<details class="fin-disclosure" id="fin-reconciliation"><summary>Bank and Stripe reconciliation</summary>    <div id="fin-reconcile-wrap">
       <div class="sub-hdr">Reconciliation</div>
       <div class="filter-row" style="margin-bottom:8px">
-        <div class="filter-field"><label>Actual bank/Stripe deposits this month</label><input type="number" step="0.01" id="fin-actual-deposits" oninput="renderFinanceReconciliation()" placeholder="0.00"></div>
+        <div class="filter-field"><label for="fin-actual-deposits">Actual bank/Stripe deposits this month</label><input type="number" step="0.01" id="fin-actual-deposits" oninput="renderFinanceReconciliation()" placeholder="0.00"></div>
       </div>
       <div id="fin-reconcile-result" style="font-size:13px"></div>
     </div>
 
-    <div class="disclaimer">Recorded receipts use payment-received dates. Budgeted receipts use each payment’s assigned month. Both include collected sales tax, paid extensions and unsigned paid invoices, and exclude test charges. Planning exclusions do not change recorded receipts. Checking deposits and transfers are excluded from revenue. The monthly mover total uses all logged hours. Project budgets use logged hours for each job where available and a planning estimate otherwise. Truck uses posted job-tagged Truck &amp; Gas charges, with the planning fallback when none are tagged. Warehouse is a monthly planning allowance. Tax set-aside reuses the Tax Report's B&amp;O + sales-tax method (not CPA-certified — see TAX_METHODOLOGY.md). "Jasmine keep (actual net)" is the existing planning allocation result, including estimated costs, not accounting profit; "Project keep estimate before shared work (target)" is a benchmark line only — the two are never blended, and the target is capped at actual profit so it can never exceed what the month really made. Inventory (shopping budget) is derived, never entered: whatever is left after costs and the keep target. A month with unreconciled revenue is flagged, not presented as final. Viewing this page never changes a stored record — only the Manual Override controls write anything.</div>
-  </div>
-
-  </div><!-- /pr-panel-finance -->
-
+<p class="fin-note">Use verified settlement amounts. Connected checking review is unavailable in Finance.</p><a href="/stripe-reconciliation.html">Stripe reconciliation report</a> · <button type="button" class="fin-text-button" onclick="prShowTab('ledger'); prScrollTo('pr-stripe-fees-sync')">Refresh actual Stripe fees</button></details>
+  </section>
+  <section id="fin-view-team" class="fin-view" role="tabpanel" aria-labelledby="fin-tab-team" hidden>
+  <div class="pr-kpi-row" id="fin-team-metrics"></div>
   <div class="pr-panel" id="pr-panel-employee">
 
   <div class="pr-row2">
     <div class="pr-card">
       <div class="pr-card-ttl">Employee Pay — <span id="pr-emp-period"></span></div>
-      <div style="font-size:11px;color:var(--taupe-dk);margin-bottom:12px">Same hours and rates logged below, grouped per employee for the month selected on the Finance &amp; Allocation tab. These wages are the same dollars already counted in that tab's Movers allocation slice — not an additional cost on top of it.</div>
+      <div style="font-size:11px;color:var(--taupe-dk);margin-bottom:12px">Logged wages for the selected month. These wages are the same dollars already counted in that tab's Movers allocation slice — not an additional cost on top of it.</div>
       <div class="tbl-scroll">
         <table class="pr-table" id="pr-emp-table-desktop">
           <thead><tr><th>Employee</th><th>Role</th><th>Hours</th><th>Rate</th><th>Gross Pay</th><th>Status</th></tr></thead>
@@ -531,69 +665,34 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
       <div id="pr-emp-cards-mobile"></div>
     </div>
     <div class="pr-card">
-      <div class="pr-card-ttl" style="justify-content:center">Payroll Impact</div>
-      <div class="pr-gauge" id="pr-impact-gauge"><div class="pr-gauge-center" id="pr-impact-gauge-center"></div></div>
+      <h2>Labor &amp; Cost Guidance</h2>
+      <div class="pr-gauge" id="pr-impact-gauge" aria-hidden="true"><div class="pr-gauge-center" id="pr-impact-gauge-center"></div></div>
       <div class="pr-impact-rows" id="pr-impact-rows"></div>
     </div>
   </div>
 
-  <div class="card">
-    <div class="card-hdr">Team</div>
-    <div id="employees-list"></div>
-    <div class="add-emp-row">
-      <input type="text" id="new-emp-name" placeholder="Employee name">
-      <input type="password" id="new-emp-password" placeholder="Set a login password">
-      <button onclick="addEmployee()">+ Add</button>
-    </div>
-    <div style="font-size:10px;color:var(--taupe);margin-top:8px">Employees log in with their name + this password at <strong>/hours.html</strong> — share that link with the team, and give each person their password separately.</div>
-  </div>
-
-  <div class="card">
-    <div class="card-hdr">Create a Day's Pay Schedule</div>
-    <div style="font-size:11px;color:var(--taupe);margin-bottom:12px">For entering a full day's hours yourself — covers the same shift-with-switches model employees use on /hours.html (clock in, any number of activity switches, clock out). Entries created here are approved automatically, since you're entering them directly.</div>
-    <div class="modal-field">
-      <label>Employee</label>
-      <select id="ms-employee"><option value="">Select an employee…</option></select>
-    </div>
-    <div class="modal-field">
-      <label>Date</label>
-      <input type="date" id="ms-date">
-    </div>
-    <div id="ms-segments"></div>
-    <div class="manual-add-row" onclick="addScheduleSegment()">+ Add Another Activity (Switch)</div>
-    <div class="modal-field" style="border-top:1px dashed var(--taupe-lt);padding-top:12px">
-      <label>Clock Out Time (end of shift)</label>
-      <input type="time" id="ms-clockout">
-    </div>
-    <div class="modal-field">
-      <label>Note (optional)</label>
-      <input type="text" id="ms-note">
-    </div>
-    <button class="filter-btn primary" id="ms-submit-btn" onclick="submitScheduleDay()">Create Schedule</button>
-    <div class="msg" id="ms-msg"></div>
-  </div>
-
+<details class="fin-disclosure fin-team-section"><summary>Hours &amp; payment status</summary>
   <div class="card">
     <div class="card-hdr">Filter Entries</div>
     <div class="filter-row">
       <div class="filter-field">
-        <label>Employee</label>
+        <label for="f-employee">Employee</label>
         <select id="f-employee"><option value="">All</option></select>
       </div>
       <div class="filter-field">
-        <label>Project</label>
+        <label for="f-project">Project</label>
         <select id="f-project"><option value="">All</option></select>
       </div>
       <div class="filter-field">
-        <label>From</label>
+        <label for="f-from">From</label>
         <input type="date" id="f-from">
       </div>
       <div class="filter-field">
-        <label>To</label>
+        <label for="f-to">To</label>
         <input type="date" id="f-to">
       </div>
       <div class="filter-field">
-        <label>Status</label>
+        <label for="f-status">Status</label>
         <select id="f-status">
           <option value="">All</option>
           <option value="unpaid">Unpaid only</option>
@@ -601,7 +700,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
         </select>
       </div>
       <div class="filter-field">
-        <label>Approval</label>
+        <label for="f-approved">Approval</label>
         <select id="f-approved">
           <option value="">All</option>
           <option value="pending">Pending only</option>
@@ -623,7 +722,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
   <div class="card">
     <div class="card-hdr">Time Entries</div>
     <div class="tbl-scroll">
-      <table>
+      <table class="fin-stack-table">
         <thead>
           <tr><th>Date</th><th>Employee</th><th>Type</th><th>Job</th><th>In</th><th>Out</th><th>Hrs</th><th>Rate</th><th>Amount</th><th>Approved</th><th>Paid</th><th>Actions</th></tr>
         </thead>
@@ -633,132 +732,62 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
     </div>
   </div>
 
+</details>
+<details class="fin-disclosure fin-team-section"><summary>Create Schedule</summary>
+  <div class="card">
+    <div class="card-hdr">Create a Day's Pay Schedule</div>
+    <div style="font-size:11px;color:var(--taupe);margin-bottom:12px">For entering a full day's hours yourself — covers the same shift-with-switches model employees use on /hours.html (clock in, any number of activity switches, clock out). Entries created here are approved automatically, since you're entering them directly.</div>
+    <div class="modal-field">
+      <label for="ms-employee">Employee</label>
+      <select id="ms-employee"><option value="">Select an employee…</option></select>
+    </div>
+    <div class="modal-field">
+      <label for="ms-date">Date</label>
+      <input type="date" id="ms-date">
+    </div>
+    <div id="ms-segments"></div>
+    <button type="button" class="manual-add-row" onclick="addScheduleSegment()">+ Add Another Activity (Switch)</button>
+    <div class="modal-field" style="border-top:1px dashed var(--taupe-lt);padding-top:12px">
+      <label for="ms-clockout">Clock Out Time (end of shift)</label>
+      <input type="time" id="ms-clockout">
+    </div>
+    <div class="modal-field">
+      <label for="ms-note">Note (optional)</label>
+      <input type="text" id="ms-note">
+    </div>
+    <button class="filter-btn primary" id="ms-submit-btn" onclick="submitScheduleDay()">Create Schedule</button>
+    <div class="msg" id="ms-msg"></div>
+  </div>
+
+</details>
+<details class="fin-disclosure fin-team-section"><summary>Manage Team &amp; Access</summary>
+  <div class="card">
+    <div class="card-hdr">Team</div>
+    <div id="employees-list"></div>
+    <div class="add-emp-row">
+      <input aria-label="Employee name" type="text" id="new-emp-name" placeholder="Employee name">
+      <input aria-label="New login password" type="password" id="new-emp-password" placeholder="Set a login password">
+      <button onclick="addEmployee()">+ Add</button>
+    </div>
+    <div style="font-size:10px;color:var(--taupe);margin-top:8px">Employees log in with their name + this password at <strong>/hours.html</strong> — share that link with the team, and give each person their password separately.</div>
+  </div>
+
+</details>
   </div><!-- /pr-panel-employee -->
 
-  <div class="pr-panel" id="pr-panel-performance">
-    <div class="card">
-      <div class="card-hdr">
-        <span>Monthly Performance</span>
-        <div class="pr-range-pick" id="pr-perf-range">
-          <button class="pr-range-btn" onclick="prSetPerfRange(3)">3mo</button>
-          <button class="pr-range-btn on" onclick="prSetPerfRange(6)">6mo</button>
-          <button class="pr-range-btn" onclick="prSetPerfRange(12)">12mo</button>
-          <button class="pr-range-btn" onclick="prSetPerfRange('ytd')">YTD</button>
-        </div>
-      </div>
-      <div id="pr-perf-loading" class="empty-note">Run Finance &amp; Allocation once, then open this tab to load history.</div>
-      <div id="pr-perf-body" style="display:none">
-        <div class="pr-chart-wrap" id="pr-perf-chart"></div>
-        <div class="pr-chart-legend">
-          <span><i style="background:#2a2a28"></i>Revenue</span>
-          <span><i style="background:var(--gold)"></i>Total Costs</span>
-        </div>
-        <div class="sub-hdr">This Month vs. Last Month</div>
-        <div id="pr-perf-compare"></div>
-        <div class="sub-hdr">Monthly Breakdown</div>
-        <div class="tbl-scroll">
-          <table class="pr-table">
-            <thead><tr><th>Month</th><th>Revenue</th><th>Costs</th><th>Planning net</th><th>Margin</th></tr></thead>
-            <tbody id="pr-perf-tbody"></tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  </div>
+  </section>
+</main>
 
-  <div class="pr-panel" id="pr-panel-projects">
-    <div class="card">
-      <div class="card-hdr">Project Budgets — <span id="pr-proj-period"></span></div>
-      <div style="font-size:11px;color:var(--taupe-dk);margin-bottom:12px">Same per-project allocation the Finance tab's Manual Override controls affect — built from each job's own staging date for cost-splitting, not its payment date. A job paid this month but staged outside it won't appear here automatically; add it from Finance &amp; Allocation → Manual Override.</div>
-      <div class="tbl-scroll">
-        <table class="pr-table" id="pr-proj-table">
-          <thead><tr><th>Project</th><th>Staged</th><th>Revenue</th><th>Costs</th><th>Project margin ($)</th><th>Margin</th><th>Status</th></tr></thead>
-          <tbody id="pr-proj-tbody"></tbody>
-        </table>
-      </div>
-      <div id="pr-proj-mover-reconciliation" class="quiet-line" style="margin-top:10px"></div>
-      <div id="pr-proj-detail"></div>
-    </div>
-  </div>
-
-  <div class="pr-panel" id="pr-panel-history">
-    <div class="card">
-      <div class="card-hdr">History</div>
-      <div style="font-size:11px;color:var(--taupe-dk);margin-bottom:12px">These months are recalculated live from current records, not stored snapshots — the underlying invoices and time entries can still change. Click a month to open it on the Finance &amp; Allocation tab.</div>
-      <div id="pr-hist-list"></div>
-      <div class="sub-hdr">Manual Overrides on Record</div>
-      <div id="pr-hist-overrides"></div>
-    </div>
-  </div>
-
-  <!-- SPENDING (Amex via Plaid, Phase 1 Nov 2026) — business cards only (the two Lux
-       Ventures / Styling With Jas Amex cards; Gabe's personal cards are never linked here).
-       Real data only flows once Plaid credentials exist server-side AND a business card is
-       linked on the site itself — until then this shows a clear "not connected" state, never
-       fabricated rows. Per-card balance/due-date strip first (glanceable), transaction detail
-       and categorization behind it. -->
-  <div class="pr-panel" id="pr-panel-spending">
-    <div class="card">
-      <div class="card-hdr">
-        <span>Business Amex</span>
-        <span id="pr-spend-status" style="font-size:11px;color:var(--taupe-dk);font-weight:500;text-transform:none;letter-spacing:0">Checking connection…</span>
-      </div>
-      <div style="font-size:11px;color:var(--taupe-dk);margin-bottom:12px">The two business American Express cards only, linked here via this site's own Plaid connection — never Muse's, never a personal card. Statement balance, due date, and the latest current balance reported by Amex.</div>
-      <div id="pr-spend-connect-row" style="display:none;margin-bottom:14px">
-        <button class="filter-btn primary" onclick="plaidConnectAmex()" id="pr-spend-connect-btn">Connect business Amex</button>
-      </div>
-      <div id="pr-spend-connected-row" style="display:none;margin-bottom:14px;gap:8px;flex-wrap:wrap;align-items:center">
-        <button class="filter-btn primary" onclick="plaidConnectAmex()" id="pr-spend-connect-btn2">Connect another card</button>
-        <button class="filter-btn" onclick="plaidSyncNow()" id="pr-spend-sync-btn">Sync now</button>
-        <span id="pr-spend-last-check" class="fin-note"></span>
-        <span id="pr-spend-sync-note" role="status" style="font-size:11px;color:var(--taupe-dk);display:block;margin-top:6px;width:100%"></span>
-      </div>
-      <div id="pr-spend-cards" style="display:grid;gap:10px;margin-bottom:16px"></div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
-        <label style="margin:0;font-size:11px">Month<input type="month" id="pr-spend-month" style="margin-left:6px" onchange="renderSpendingTransactions()"></label>
-        <label style="margin:0;font-size:11px">Job<select id="pr-spend-job-filter" style="margin-left:6px" onchange="renderSpendingTransactions()"><option value="">All</option></select></label>
-        <label style="margin:0;font-size:11px"><input type="checkbox" id="pr-spend-show-pending" onchange="renderSpendingTransactions()"> Show pending authorizations</label>
-      </div>
-      <div id="pr-spend-body">
-        <div class="empty-note">Loading…</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- JOB PROFIT — REAL (Phase 1, Nov 2026) — separate, additive lens built on the SAME
-       categorized/job-tagged Plaid transactions above, plus the existing actual mover-hour
-       costs. Deliberately NOT merged into the Finance & Allocation tab's estimate-based keep/
-       inventory/tithe chain above (truck/warehouse there stay the configured assumptions
-       Jasmine already uses for cash planning) — this is the federal/Schedule-C lens: real
-       recorded costs, never a formula, and never touching the DOR/revenue tax split in
-       tax-report.html. Partial where a job's costs aren't fully tagged — never a complete
-       figure Jasmine hasn't actually earned the confidence in yet. -->
-  <div class="pr-panel" id="pr-panel-ledger">
-    <div class="card">
-      <div class="card-hdr"><span>Job Profit — Real</span></div>
-      <div style="font-size:11px;color:var(--taupe-dk);margin-bottom:14px">Built from recorded customer payments, posted job-tagged Amex purchases, completed mover payments and actual Stripe fees. Logged hours remain commitments until paid. Contributions include collected sales tax and exclude shared costs; they are provisional, not net profit. Tax Report remains separate.</div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px">
-        <label style="margin:0;font-size:11px">Month<input type="month" id="pr-ledger-month" style="margin-left:6px"></label>
-        <button type="button" class="filter-btn" id="pr-stripe-fees-sync" onclick="syncLedgerStripeFees(this)">Sync actual Stripe fees</button>
-        <span id="pr-stripe-fees-status" role="status" style="font-size:12px"></span>
-      </div>
-      <div id="pr-ledger-overhead" class="fin-card full" style="margin-bottom:14px"></div>
-      <div id="pr-ledger-body"><div class="empty-note">Loading…</div></div>
-    </div>
-  </div>
-
-</div>
-
-<div class="modal-overlay" id="edit-modal-overlay">
+<dialog id="edit-modal-overlay" aria-labelledby="edit-modal-title">
   <div class="modal-card">
-    <div class="modal-hdr">Edit Time Entry</div>
+    <h2 class="modal-hdr" id="edit-modal-title">Edit Time Entry</h2>
     <div id="edit-modal-body"></div>
     <div class="modal-actions">
       <button class="cancel-btn" onclick="closeEditModal()">Cancel</button>
       <button class="save-btn" onclick="saveEditEntry()">Save Changes</button>
     </div>
   </div>
-</div>
+</dialog>
 
 <script>
 const _sb = supabase.createClient(
@@ -946,17 +975,17 @@ function renderEntries(){
     empty.style.display = 'none';
     body.innerHTML = _entries.map(e=>`
       <tr class="${e.paid?'paid-row':''}">
-        <td>${fmtDate(e.clock_in)}</td>
-        <td>${esc(e.employee_name)}</td>
-        <td><span class="pill ${esc(e.work_type)}">${esc(LABEL_BY_KEY[e.work_type]||e.work_type)}</span></td>
-        <td>${esc(e.job_label||'—')}</td>
-        <td>${e.source==='manual'?'<em>manual entry</em>':fmtDateTime(e.clock_in)}</td>
-        <td>${e.source==='manual'?'—':(e.clock_out?fmtDateTime(e.clock_out):'<em>active</em>')}</td>
-        <td>${e.hours!=null?e.hours:'—'}</td>
-        <td>${fmtMoney(e.rate)}</td>
-        <td>${e.amount!=null?fmtMoney(e.amount):'—'}</td>
-        <td>${e.approved?'✓ Approved':(e.amount!=null?`<button class="mini-btn" onclick="approveEntry('${e.id}')">Approve</button>`:'—')}</td>
-        <td>${e.paid?'✓ Paid':(e.amount!=null?`<button class="mini-btn" onclick="markPaid('${e.id}')">Mark Paid</button>`:'—')}</td>
+        <td data-label="Date">${fmtDate(e.clock_in)}</td>
+        <td data-label="Employee">${esc(e.employee_name)}</td>
+        <td data-label="Activity"><span class="pill ${esc(e.work_type)}">${esc(LABEL_BY_KEY[e.work_type]||e.work_type)}</span></td>
+        <td data-label="Job">${esc(e.job_label||'—')}</td>
+        <td data-label="Clock in">${e.source==='manual'?'<em>manual entry</em>':fmtDateTime(e.clock_in)}</td>
+        <td data-label="Clock out">${e.source==='manual'?'—':(e.clock_out?fmtDateTime(e.clock_out):'<em>active</em>')}</td>
+        <td data-label="Hours">${e.hours!=null?e.hours:'—'}</td>
+        <td data-label="Rate">${fmtMoney(e.rate)}</td>
+        <td data-label="Amount">${e.amount!=null?fmtMoney(e.amount):'—'}</td>
+        <td data-label="Approval">${e.approved?'✓ Approved':(e.amount!=null?`<button class="mini-btn" onclick="approveEntry('${e.id}')">Approve</button>`:'—')}</td>
+        <td data-label="Payment">${e.paid?'✓ Paid':(e.amount!=null?`<button class="mini-btn" onclick="markPaid('${e.id}')">Mark Paid</button>`:'—')}</td>
         <td style="white-space:nowrap">
           <button class="mini-btn" onclick="openEditModal('${e.id}')">Edit</button>
           <button class="mini-btn" style="color:var(--red);border-color:var(--red-lt)" onclick="deleteEntry('${e.id}')">Delete</button>
@@ -1028,21 +1057,21 @@ function openEditModal(id){
   document.getElementById('edit-modal-body').innerHTML = `
     <input type="hidden" id="edit-id" value="${esc(id)}">
     <div class="modal-field"><label>Employee</label><input type="text" value="${esc(entry.employee_name)}" disabled></div>
-    <div class="modal-field"><label>Date</label><input type="date" id="edit-date" value="${clockInDate}"></div>
+    <div class="modal-field"><label for="edit-date">Date</label><input type="date" id="edit-date" value="${clockInDate}"></div>
     <div class="modal-field-row">
-      <div class="modal-field"><label>Clock In</label><input type="time" id="edit-clockin" value="${clockInTime}"></div>
-      <div class="modal-field"><label>Clock Out</label><input type="time" id="edit-clockout" value="${clockOutTime}"></div>
+      <div class="modal-field"><label for="edit-clockin">Clock In</label><input type="time" id="edit-clockin" value="${clockInTime}"></div>
+      <div class="modal-field"><label for="edit-clockout">Clock Out</label><input type="time" id="edit-clockout" value="${clockOutTime}"></div>
     </div>
-    <div class="modal-field"><label>Type of Work</label><select id="edit-type">${typeOptions}</select></div>
-    <div class="modal-field"><label>Job</label><select id="edit-job">${jobOptionsHtml(entry.invnum)}</select></div>
-    <div class="modal-field"><label>Note</label><input type="text" id="edit-note" value="${esc(entry.note||'')}"></div>
+    <div class="modal-field"><label for="edit-type">Type of Work</label><select id="edit-type">${typeOptions}</select></div>
+    <div class="modal-field"><label for="edit-job">Job</label><select id="edit-job">${jobOptionsHtml(entry.invnum)}</select></div>
+    <div class="modal-field"><label for="edit-note">Note</label><input type="text" id="edit-note" value="${esc(entry.note||'')}"></div>
     <div class="msg" id="edit-msg"></div>
   `;
-  document.getElementById('edit-modal-overlay').style.display = 'flex';
+  document.getElementById('edit-modal-overlay').showModal();
 }
 
 function closeEditModal(){
-  document.getElementById('edit-modal-overlay').style.display = 'none';
+  document.getElementById('edit-modal-overlay').close();
 }
 
 async function saveEditEntry(){
@@ -1251,11 +1280,6 @@ async function saveFinanceConfig(){
   }catch(e){ if(msg){ msg.textContent = 'Could not save: '+e.message; msg.className='msg err'; } }
 }
 
-function toggleFinanceSettings(){
-  const el = document.getElementById('finance-settings');
-  el.style.display = el.style.display==='none' ? 'block' : 'none';
-}
-
 function initFinancePeriodPickers(){
   const mSel = document.getElementById('fin-month'), ySel = document.getElementById('fin-year');
   MONTH_NAMES.forEach((m,i)=>{ const o=document.createElement('option'); o.value=i+1; o.textContent=m; mSel.appendChild(o); });
@@ -1355,6 +1379,12 @@ async function financeToggleOneOff(){
 }
 
 let _financeViewGeneration = 0;
+async function refreshFinancePeriod(){
+  const run = document.getElementById('fin-run');
+  run.disabled = true;
+  try{ await runFinanceView(); }
+  finally{ run.disabled = false; }
+}
 async function runFinanceView(){
   const generation = ++_financeViewGeneration;
   const month = parseInt(document.getElementById('fin-month').value,10);
@@ -1413,12 +1443,13 @@ async function runFinanceView(){
   renderPrNotes();
   renderEmployeePayTab();
   renderPrHistory();
-  if(document.getElementById('pr-panel-performance')?.classList.contains('on')) loadMonthlyPerformance();
+  loadMonthlyPerformance();
+  refreshFinanceSpending();
   await renderInventoryCarryover(summary, invoices, _financeMonthCache, generation);
   if(generation!==_financeViewGeneration)return;
-  if(document.getElementById('pr-panel-employee')?.classList.contains('on')) loadEntries();
-  if(document.getElementById('pr-panel-spending')?.classList.contains('on')) renderSpendingTransactions();
-  if(document.getElementById('pr-panel-ledger')?.classList.contains('on')) renderRealLedger();
+  if(financeActiveTab==='team') loadEntries();
+  if(financeActiveTab==='transactions') renderSpendingTransactions();
+  if(financeActiveTab==='projects') renderRealLedger();
 }
 let _financeMonthCache = new Map();
 function loadFinanceMonth(period, invoices, cache, loadedBudget){
@@ -1679,6 +1710,7 @@ function renderProjectBudgetsTable(){
   if(!tbody || !_lastFinanceSummary) return;
   if(periodEl) periodEl.textContent = document.getElementById('fin-period')?.textContent || '';
   const projects = prBuildProjectList();
+  renderFinanceProjectMetrics();
   const monthJobs = projects.filter(project => project.status === 'this month');
   const monthJobIds = new Set(monthJobs.map(project => project.invnum));
   const booked = _lastFinanceSummary.periodEntries.reduce((sum, entry) =>
@@ -1714,16 +1746,36 @@ function renderProjectBudgetsTable(){
   let totRev=0, totCost=0, totNet=0;
   tbody.innerHTML = projects.map(p=>{
     totRev+=p.revenue; totCost+=p.totalCosts; totNet+=p.net;
-    return `<tr style="cursor:pointer" onclick="prShowProjectDetail('${esc(p.invnum)}')">
-      <td><div class="pr-proj-cell"><div class="pr-proj-thumb">${esc(clientInitials ? clientInitials(p.client) : (p.client||'?').slice(0,2).toUpperCase())}</div><div><div style="font-weight:600">${esc(p.client)}</div><div style="font-size:10.5px;color:var(--taupe-dk)">#${esc(p.invnum)} · ${esc(p.status)}</div></div></div></td>
-      <td>${p.startdate && p.startdate!=='TBD' ? fmtDate(p.startdate) : '—'}</td>
-      <td>${finMoney(p.revenue)}</td>
-      <td>${finMoney(p.totalCosts)}</td>
-      <td class="${p.net<0?'note-strong':''}">${finMoney(p.net)}</td>
-      <td>${p.margin.toFixed(1)}%</td>
-      <td><span class="pr-status-pill ${p.paid?'paid':'unpaid'}">${p.paid?'Paid':'Unpaid'}</span></td>
+    return `<tr>
+      <td><div class="pr-proj-cell"><div class="pr-proj-thumb">${esc(clientInitials ? clientInitials(p.client) : (p.client||'?').slice(0,2).toUpperCase())}</div><div><button type="button" class="fin-text-button" onclick="prShowProjectDetail('${esc(p.invnum)}')">${esc(p.client)}</button><div style="font-size:10.5px;color:var(--taupe-dk)">#${esc(p.invnum)} · ${esc(p.status)}</div></div></div></td>
+      <td data-label="Staged">${p.startdate && p.startdate!=='TBD' ? fmtDate(p.startdate) : '—'}</td>
+      <td data-label="Planned revenue">${finMoney(p.revenue)}</td>
+      <td data-label="Allocated costs">${finMoney(p.totalCosts)}</td>
+      <td data-label="Planning net" class="${p.net<0?'note-strong':''}">${finMoney(p.net)}</td>
+      <td data-label="Planning margin">${p.margin.toFixed(1)}%</td>
+      <td data-label="Invoice"><span class="pr-status-pill ${p.paid?'paid':'unpaid'}">${p.paid?'Paid':'Unpaid'}</span></td>
     </tr>`;
-  }).join('') + `<tr class="total-row"><td>Before shared work · all listed project plans and projections — ${projects.length}</td><td></td><td>${finMoney(totRev)}</td><td>${finMoney(totCost)}</td><td>${finMoney(totNet)}</td><td>${totRev>0.009?(totNet/totRev*100).toFixed(1):'0.0'}%</td><td></td></tr>`;
+  }).join('') + `<tr class="total-row"><td>Total — ${projects.length} project(s)</td><td></td><td data-label="Planned revenue">${finMoney(totRev)}</td><td data-label="Allocated costs">${finMoney(totCost)}</td><td data-label="Planning net">${finMoney(totNet)}</td><td data-label="Planning margin">${totRev>0.009?(totNet/totRev*100).toFixed(1):'0.0'}%</td><td></td></tr>`;
+}
+
+function renderFinanceProjectMetrics(){
+  const s = _lastFinanceSummary;
+  if(!s) return;
+  const goal = FINANCE_CONFIG.profit_target_pct;
+  const hasReceipts = s.revenue>0.009;
+  const margin = hasReceipts ? s.marginPct.toFixed(1)+'%' : '—';
+  document.getElementById('fin-project-metrics').innerHTML = [
+    ['Staging projects',s.jobsThisMonthList.length,'Selected-month planning list'],
+    ['Budgeted receipts',finMoney(s.revenue),'By assigned budget month'],
+    ['Planning net',finMoney(s.operatingNet),'After '+finMoney(s.totalCosts)+' in planned costs'],
+    ['Planning margin',margin,'Uses gross receipts']
+  ].map(row=>financeMetric(...row)).join('');
+  const variance = s.operatingNet-s.keepTargetUncapped;
+  document.getElementById('fin-project-goal').innerHTML = financeDetailRow('Planning margin / goal',margin+' / '+goal+'%')
+    + (hasReceipts && goal>0 ? `<progress aria-label="Planning margin as a share of goal" max="100" value="${Math.max(0,Math.min(100,s.marginPct/goal*100))}"></progress>` : '')
+    + `<p>${hasReceipts ? finMoney(Math.abs(variance))+(variance<0?' below the planning goal.':' at or above the planning goal.') : 'A margin comparison needs collected receipts.'}</p>`
+    + financeDetailRow('Planned inventory allowance',finMoney(s.inventoryBudget))
+    + '<p class="fin-note">For recorded expenses and provisional contribution, open Recorded Job Results. Retained profit depends on complete payment and expense evidence.</p>';
 }
 
 function prShowProjectDetail(invnum){
@@ -1747,6 +1799,7 @@ function prShowProjectDetail(invnum){
       <div class="alloc-row sub"><span>Tithe (10% of keep)</span><span>${finMoney(p.tithe)}</span></div>
       <button class="remove-btn" style="margin-top:6px" onclick="financeExcludeProject('${esc(p.invnum)}')">Remove from budget</button>
     </div>`;
+  el.focus({preventScroll:true});
   el.scrollIntoView({behavior:'smooth', block:'nearest'});
 }
 
@@ -1784,23 +1837,61 @@ function clientInitials(name){
   return (words[0][0] + words[words.length-1][0]).toUpperCase();
 }
 
+const FINANCE_TABS = {
+  overview:['Finance','Your revenue, costs, profit, and key priorities for the month.'],
+  allocation:['Project Allocation','Plan how to divide each project’s payment.'],
+  projects:['Projects','Review monthly budgets and recorded job results.'],
+  transactions:['Transactions','Review spending, categories, and reconciliation.'],
+  team:['Team','Review labor costs, hours, and employee pay.']
+};
+const FINANCE_LEGACY_TABS = {finance:'allocation',performance:'overview',history:'projects',spending:'transactions',ledger:'projects',employee:'team'};
+let financeActiveTab = 'overview';
+let financeSpendingLoaded = false;
+
 function prShowTab(name){
-  document.querySelectorAll('.pr-tab').forEach(b=>b.classList.remove('on'));
-  document.querySelectorAll('.pr-panel').forEach(p=>p.classList.remove('on'));
-  const idx = {finance:0, employee:1, performance:2, projects:3, history:4, spending:5, ledger:6}[name];
-  document.querySelectorAll('.pr-tab')[idx]?.classList.add('on');
-  document.getElementById('pr-panel-'+name)?.classList.add('on');
-  if(name==='performance') loadMonthlyPerformance();
-  if(name==='employee') loadEntries();
-  if(name==='projects') renderProjectBudgetsTable();
-  if(name==='history') renderPrHistory();
-  if(name==='spending') loadSpendingTab();
-  if(name==='ledger') loadRealLedgerTab();
+  const selected = FINANCE_LEGACY_TABS[name] || name;
+  if(!Object.hasOwn(FINANCE_TABS, selected)) return;
+  financeActiveTab = selected;
+  for(const key of Object.keys(FINANCE_TABS)){
+    const active = key === selected;
+    const tab = document.getElementById('fin-tab-'+key);
+    tab.setAttribute('aria-selected', active);
+    tab.tabIndex = active ? 0 : -1;
+    document.getElementById('fin-view-'+key).hidden = !active;
+  }
+  document.getElementById('fin-tab-'+selected).scrollIntoView({inline:'nearest',block:'nearest'});
+  const [title, intro] = FINANCE_TABS[selected];
+  document.getElementById('fin-title').textContent = title;
+  document.getElementById('fin-intro').textContent = intro;
+  if(name==='history') document.getElementById('fin-history').open = true;
+  if(name==='ledger') document.getElementById('fin-job-results').open = true;
+  if(selected==='transactions' && !financeSpendingLoaded){
+    financeSpendingLoaded = true;
+    loadSpendingTab();
+  }
 }
+
+document.getElementById('pr-tabs').addEventListener('keydown', event=>{
+  const tabs = Object.keys(FINANCE_TABS);
+  const index = tabs.indexOf(financeActiveTab);
+  const target = {ArrowLeft:tabs[(index+tabs.length-1)%tabs.length],ArrowRight:tabs[(index+1)%tabs.length],Home:tabs[0],End:tabs.at(-1)}[event.key];
+  if(!target) return;
+  event.preventDefault();
+  prShowTab(target);
+  document.getElementById('fin-tab-'+target).focus();
+});
+document.getElementById('fin-job-results').addEventListener('toggle', event=>{
+  if(event.target.open && !document.getElementById('pr-ledger-month').onchange) loadRealLedgerTab();
+});
 
 function prScrollTo(id){
   const el = document.getElementById(id);
   if(!el) return;
+  const view = el.closest('.fin-view');
+  if(view?.hidden) prShowTab(view.id.slice('fin-view-'.length));
+  for(let parent = el.parentElement; parent; parent = parent.parentElement){
+    if(parent.tagName==='DETAILS') parent.open = true;
+  }
   el.scrollIntoView({behavior:'smooth', block:'center'});
   el.style.transition = 'box-shadow 0.3s';
   el.style.boxShadow = '0 0 0 3px var(--gold)';
@@ -1817,7 +1908,6 @@ function prScrollTo(id){
 // Keep in sync with lib/plaid_categorize.py's CATEGORIES — two copies (server auto-rules,
 // client dropdown) because one's Python and one's JS, not because they're meant to diverge.
 const PLAID_CATEGORIES = ['Supplies','Furniture/Inventory','Truck & Gas','Storage','Insurance','Software/Subscriptions','Marketing','Meals','Office','Other'];
-const DUE_SOON_DAYS = 7; // owner-confirmable threshold (spec Section 4)
 
 async function plaidApi(job, body){
   // Never throws, and never waits forever -- a thrown/rejected error inside an un-awaited
@@ -1878,83 +1968,101 @@ async function loadSpendingTab(){
   const cardsEl = document.getElementById('pr-spend-cards');
   const body = document.getElementById('pr-spend-body');
   statusEl.textContent = 'Checking connection…';
-  connectRow.style.display = 'none';
-  connectedRow.style.display = 'none';
+  connectRow.hidden = true;
+  connectedRow.hidden = true;
   cardsEl.innerHTML = '';
   populateSpendJobFilter();
-  if(!document.getElementById('pr-spend-month').value) document.getElementById('pr-spend-month').value = new Date().toISOString().slice(0,7);
+  if(!document.getElementById('pr-spend-month').value) document.getElementById('pr-spend-month').value = _lastFinancePeriod?.start.slice(0,7) || new Date().toISOString().slice(0,7);
 
-  // Reading plaid_card_summary (never plaid_items/plaid_accounts directly — anon key has NO
-  // access to those by design, sql/plaid_tables.sql). Empty/blocked means either the
-  // migration hasn't run yet or nothing's connected — both show the same "not connected" state
-  // rather than a hard error, since the UI can't tell those apart and shouldn't guess.
-  let cards = [];
+  const lastCheck = document.getElementById('pr-spend-last-check');
+  lastCheck.textContent = '';
+  let cards;
   try{
     const { data, error } = await _sb.from('plaid_card_summary').select('*');
-    if(!error && data) cards = data;
-  }catch(e){ /* view may not exist yet — fall through to "not connected" */ }
+    if(error) throw error;
+    cards = data || [];
+  }catch{
+    statusEl.textContent = 'Amex connection status unavailable';
+    body.textContent = 'Could not load Amex account details. Reload to retry.';
+    return;
+  }
 
+  financeCardLabels = new Map(cards.map(card=>[card.account_id,[card.name,card.mask && '••'+card.mask].filter(Boolean).join(' ')]));
+  const accountFilter = document.getElementById('fin-transaction-account');
+  const previousAccount = accountFilter.value;
+  accountFilter.replaceChildren(new Option("All cards",""));
+  for(const [id,label] of financeCardLabels) accountFilter.add(new Option(label,id));
+  if(financeCardLabels.has(previousAccount)) accountFilter.value = previousAccount;
   cards = SWJAmex.uniqueCards(cards);
 
   if(!cards.length){
-    statusEl.textContent = 'Not connected';
-    connectRow.style.display = 'block';
-    body.innerHTML = '<div class="empty-note">No business Amex card connected yet. Click Connect business Amex to start — this opens Plaid’s secure login (Amex\'s own sign-in), never asks for Amex credentials directly in this app. Personal cards are never linked here.</div>';
+    statusEl.textContent = '0 connected Amex accounts';
+    connectRow.hidden = false;
+    body.textContent = 'Connect a business Amex card under Account Details & Sync to load transactions.';
     return;
   }
-  statusEl.textContent = `✓ ${cards.length} card${cards.length===1?'':'s'} connected`;
-  connectedRow.style.display = 'flex';
+  statusEl.textContent = `${cards.length} connected Amex account${cards.length===1?'':'s'}`;
+  connectedRow.hidden = false;
   renderSpendCards(cards);
-  document.getElementById('pr-spend-last-check').textContent = SWJAmex.transactionLabel(cards);
+  const times = cards.map(card=>Date.parse(card.transactions_synced_at));
+  const successful = times.filter(Number.isFinite);
+  if(successful.length){
+    const latest = new Date(Math.max(...successful));
+    lastCheck.textContent = 'Last successful transaction sync · '+latest.toLocaleString('en-US',{
+      month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit',timeZone:'America/Los_Angeles'
+    })+' PT';
+    if(times.some(time=>!Number.isFinite(time) || Date.now()-time>36*60*60*1000)){
+      lastCheck.textContent += ' · Some accounts may be out of date';
+    }
+  }else{
+    lastCheck.textContent = 'No successful transaction sync recorded';
+  }
   await renderSpendingTransactions();
 }
 
 function renderSpendCards(cards){
   const el = document.getElementById('pr-spend-cards');
-  // Nov 3, 2026 bug (Gabe's note): a payment due on the calendar day being checked showed
-  // "Overdue by 1 day" here late at night, while Home's own card list -- same card, same due
-  // date, same moment -- correctly showed "today, not overdue". Cause: this used the raw
-  // current Date/time, so a due date's midnight minus the actual clock time (e.g. 11pm) rounds
-  // down to -1 day well before the due day is actually over. Home already zeroes to midnight
-  // first; matching that here instead of the other way around, since a same-day due date isn't
-  // overdue until the day has actually passed.
-  const now = new Date(); now.setHours(0,0,0,0);
-  el.innerHTML = cards.map(c=>{
-    const label = `${esc(c.name||c.institution_name||'Business Amex')}${c.mask?' …'+esc(c.mask):''}`;
-    if(c.statement_balance==null || c.next_payment_due_date==null){
-      return `<div class="fin-card"><div class="fin-lbl">${label}</div><div class="fin-val" style="font-size:16px">Balance not synced yet</div><div class="fin-note">Click Sync now to pull the latest statement</div></div>`;
-    }
-    const due = new Date(c.next_payment_due_date+'T00:00:00');
-    const daysUntil = Math.round((due-now)/86400000);
-    let status, statusClass;
-    if(daysUntil < 0){ status = `Due date passed · Verify payment in Amex`; statusClass = 'a'; }
-    else if(daysUntil <= DUE_SOON_DAYS){ status = `Due in ${daysUntil} day${daysUntil===1?'':'s'}`; statusClass = 'a'; }
-    else { status = `Due in ${daysUntil} days`; statusClass = 'g'; }
-    const dueStr = due.toLocaleDateString('en-US',{month:'short',day:'numeric'});
-    const synced = SWJAmex.checkedLabel(c.balance_synced_at, 'Balance');
-    return `<div class="fin-card full">
-      <div class="fin-lbl">${label}</div>
-      <div class="fin-val ${statusClass}" style="font-size:22px">Statement balance ${fmtUSD(c.statement_balance)} · Due ${dueStr}</div>
-      <div class="fin-note">${status} · Minimum due ${fmtUSD(c.minimum_payment)} (paying only the minimum does NOT avoid interest) · Current balance ${fmtUSD(c.current_balance)}</div>
-      <div class="fin-note">${esc(synced)}. Confirm payments and the remaining amount in Amex.</div>
-    </div>`;
+  el.innerHTML = cards.map(card=>{
+    const name = card.name || card.institution_name || 'Business Amex';
+    const label = esc(card.mask ? name+' …'+card.mask.slice(-4) : name);
+    const dueDate = card.next_payment_due_date
+      ? new Date(card.next_payment_due_date+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})
+      : 'Unavailable';
+    return `<section class="fin-card">
+      <h3>${label}</h3>
+      <dl class="fin-account-values">
+        <div><dt>Statement balance</dt><dd>${fmtUSD(card.statement_balance)}</dd></div>
+        <div><dt>Current balance</dt><dd>${fmtUSD(card.current_balance)}</dd></div>
+        <div><dt>Minimum payment</dt><dd>${fmtUSD(card.minimum_payment)}</dd></div>
+        <div><dt>Statement due date</dt><dd>${dueDate}</dd></div>
+      </dl>
+      <p class="fin-note">${esc(SWJAmex.checkedLabel(card.balance_synced_at, 'Balance'))} · Verify payments in Amex.</p>
+    </section>`;
   }).join('');
 }
 
 function fmtUSD(n){ return (n==null) ? 'unavailable' : '$'+Number(n).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}); }
 
 async function plaidConnectAmex(){
+  const issue = document.getElementById('pr-spend-error');
+  const note = document.getElementById('pr-spend-sync-note');
+  issue.textContent = '';
+  note.textContent = '';
+  const connectionError = (message, detail) => {
+    issue.textContent = message;
+    note.textContent = detail;
+  };
   const btns = [document.getElementById('pr-spend-connect-btn'), document.getElementById('pr-spend-connect-btn2')].filter(Boolean);
   btns.forEach(b=>{ b.disabled = true; b.dataset.origText = b.textContent; b.textContent = 'Connecting…'; });
   const reset = ()=>btns.forEach(b=>{ b.disabled = false; b.textContent = b.dataset.origText; });
   try{
     const res = await plaidApi('plaid_link_token', {});
     if(res.error || !res.link_token){
-      alert('Could not start Plaid connection: ' + (res.error || 'no link token returned') + '\n\nThis usually means Plaid isn’t configured yet (PLAID_CLIENT_ID/PLAID_SECRET env vars), sql/plaid_tables.sql hasn’t been run in Supabase yet, or PLAID_REDIRECT_URI isn’t set to this site’s stable production URL (required for Amex\'s OAuth sign-in — a preview URL will not work).');
+      connectionError('Could not start the Amex connection. Open Account Details & Sync for details.', res.error || 'Plaid did not return a link token. Check the Plaid configuration and production redirect.');
       return;
     }
     if(typeof Plaid === 'undefined'){
-      alert('Plaid’s connect widget didn’t load — check your connection and try again.');
+      connectionError('Amex sign-in could not load. Check your connection and retry.', 'The Plaid sign-in widget did not load.');
       return;
     }
     const handler = Plaid.create({
@@ -1971,7 +2079,7 @@ async function plaidConnectAmex(){
           exch = { error: e.message };
         }
         if(exch.error){
-          alert('Connected to Amex, but saving the connection failed: ' + exch.error + '\n\nNothing was saved — you can try connecting again.');
+          connectionError('Could not save the Amex connection. Open Account Details & Sync to retry.', exch.error);
           reset();
           return;
         }
@@ -1986,48 +2094,63 @@ async function plaidConnectAmex(){
         }
         try{
           await loadSpendingTab();
+          if(_lastFinancePeriod) refreshFinanceSpending();
         }catch(e){
-          alert('The connection was saved, but refreshing the Spending tab failed: ' + e.message + '\n\nReload the page to see it.');
+          connectionError('Amex connected, but the account details could not refresh. Reload to retry.', e.message);
         }
       },
       onExit: () => reset(),
     });
     handler.open();
   }catch(e){
-    alert('Could not start Plaid connection: ' + e.message);
+    connectionError('Could not start the Amex connection. Open Account Details & Sync for details.', e.message);
   }finally{
     reset();
   }
 }
 
+
 async function plaidSyncNow(){
   const btn = document.getElementById('pr-spend-sync-btn');
   const note = document.getElementById('pr-spend-sync-note');
+  const issue = document.getElementById('pr-spend-error');
+  issue.textContent = '';
+  note.textContent = '';
   btn.disabled = true; btn.textContent = 'Syncing…';
   try{
     const res = await plaidApi('plaid_sync', {});
-    if(res.error){ note.textContent = 'Sync failed: ' + res.error; note.style.color = 'var(--red,#b53535)'; }
+    if(res.error){ issue.textContent = 'Amex sync failed. Open Account Details & Sync to retry.'; note.textContent = res.error; }
     else {
       note.textContent = `Synced — ${res.added||0} new, ${res.modified||0} updated, ${res.removed||0} removed.` + (res.errors&&res.errors.length?' Some cards had issues: '+res.errors.join('; '):'');
-      note.style.color = res.errors&&res.errors.length ? 'var(--amber,#c97c2e)' : '';
+      if(res.errors?.length) issue.textContent = 'Some Amex accounts failed to sync. Open Account Details & Sync to review.';
       await loadSpendingTab();
+      if(_lastFinancePeriod) refreshFinanceSpending();
     }
   }catch(e){
-    note.textContent = 'Sync failed: ' + e.message;
+    issue.textContent = 'Amex sync failed. Open Account Details & Sync to retry.';
+    note.textContent = e.message;
   }finally{
     btn.disabled = false; btn.textContent = 'Sync now';
   }
 }
 
 let _spendingLoadSeq=0;
+let financeTransactionRows = [];
+let financeCardLabels = new Map();
+const financeCategoryFilter = document.getElementById('fin-transaction-category');
+for(const category of PLAID_CATEGORIES) financeCategoryFilter.add(new Option(category,category));
+for(const id of ['fin-transaction-search','fin-transaction-category','fin-transaction-account']){
+  document.getElementById(id).addEventListener(id==='fin-transaction-search'?'input':'change',paintFinanceTransactions);
+}
 async function renderSpendingTransactions(){
   const generation=++_spendingLoadSeq;
   const body = document.getElementById('pr-spend-body');
   body.innerHTML = '<div class="empty-note">Loading transactions…</div>';
+  financeTransactionRows = [];
   const month = document.getElementById('pr-spend-month').value;
   const jobFilter = document.getElementById('pr-spend-job-filter').value;
   const {data,error}=await SWJRecords.all(()=>{
-  let q = _sb.from('plaid_transactions').select('transaction_id,date,merchant_name,name,amount,pending,category,plaid_category,job_invnum',{count:'exact'}).order('date',{ascending:false}).order('transaction_id',{ascending:true});
+  let q = _sb.from('plaid_transactions').select('transaction_id,account_id,date,merchant_name,name,amount,pending,category,plaid_category,job_invnum',{count:'exact'}).order('date',{ascending:false}).order('transaction_id',{ascending:true});
   if(month){
     // Nov 4, 2026 bug: a hardcoded "-31" end date doesn't exist in every month (Postgres
     // rejects "2026-11-31" outright) -- day 0 of the next month is always the real last day
@@ -2040,9 +2163,22 @@ async function renderSpendingTransactions(){
   },{key:'transaction_id'});
   if(generation!==_spendingLoadSeq)return;
   if(error){ body.innerHTML = '<div class="empty-note">Could not load transactions: '+esc(error.message)+'</div>'; return; }
-  const showPending = document.getElementById('pr-spend-show-pending')?.checked;
-  const posted = (data||[]).filter(t=>!t.pending);
-  const visible = showPending ? (data||[]) : posted;
+  financeTransactionRows = data||[];
+  paintFinanceTransactions();
+}
+
+function paintFinanceTransactions(){
+  const body = document.getElementById('pr-spend-body');
+  const showPending = document.getElementById('pr-spend-show-pending').checked;
+  const search = document.getElementById('fin-transaction-search').value.trim().toLowerCase();
+  const category = financeCategoryFilter.value;
+  const account = document.getElementById('fin-transaction-account').value;
+  const visible = financeTransactionRows.filter(row=>
+    (showPending || !row.pending) &&
+    (!category || (row.category||'uncategorized')===category) &&
+    (!account || row.account_id===account) &&
+    (!search || [row.merchant_name,row.name].some(name=>String(name||'').toLowerCase().includes(search))));
+  const posted = visible.filter(row=>!row.pending && financeCardPurchase(row));
   if(!visible.length){
     body.innerHTML = '<div class="empty-note">No '+(showPending?'':'posted ')+'transactions match these filters.</div>';
     return;
@@ -2055,22 +2191,22 @@ async function renderSpendingTransactions(){
     const amtSign = amtNum < 0 ? '+' : '';   // Plaid: positive = spend, negative = credit/refund
     const catOpts = PLAID_CATEGORIES.map(c=>`<option value="${esc(c)}" ${t.category===c?'selected':''}>${esc(c)}</option>`).join('');
     return `<tr>
-      <td>${esc(t.date||'')}</td>
-      <td>${label}${t.pending?' <span style="font-size:9px;color:var(--amber,#c97c2e);text-transform:uppercase">pending</span>':''}</td>
-      <td style="text-align:right">${amtSign}$${amt}</td>
-      <td><select onchange="updateTransactionCategory('${esc(t.transaction_id)}', this.value)" style="font-size:12px;padding:4px 6px;border-radius:6px;border:0.5px solid var(--taupe-lt)">
+      <td data-label="Date">${esc(t.date||'')}</td>
+      <td class="fin-vendor">${label}${t.pending?' <span style="font-size:9px;color:var(--amber,#c97c2e);text-transform:uppercase">pending</span>':''}</td>
+      <td data-label="Amount" style="text-align:right">${amtSign}$${amt}</td>
+      <td data-label="Category"><select aria-label="Transaction category" onchange="updateTransactionCategory('${esc(t.transaction_id)}', this.value)" style="font-size:12px;padding:4px 6px;border-radius:6px;border:0.5px solid var(--taupe-lt)">
         <option value="">Uncategorized</option>${catOpts}
       </select></td>
-      <td><select onchange="updateTransactionJob('${esc(t.transaction_id)}', this.value)" style="font-size:12px;padding:4px 6px;border-radius:6px;border:0.5px solid var(--taupe-lt)">
+      <td data-label="Project"><select aria-label="Transaction project" onchange="updateTransactionJob('${esc(t.transaction_id)}', this.value)" style="font-size:12px;padding:4px 6px;border-radius:6px;border:0.5px solid var(--taupe-lt)">
         ${jobDropdownOptions(t.job_invnum)}
       </select></td>
-      <td style="font-size:11px;color:var(--taupe-dk)">Business Amex</td>
+      <td data-label="Account">${esc(financeCardLabels.get(t.account_id)||'Business Amex')}</td>
     </tr>`;
   }).join('');
-  body.innerHTML = `<div style="overflow-x:auto"><table>
+  body.innerHTML = `<div style="overflow-x:auto"><table class="fin-stack-table">
     <thead><tr><th>Date</th><th>Payee/vendor</th><th style="text-align:right">Amount</th><th>Category</th><th>Job</th><th>Source</th></tr></thead>
     <tbody>${rows}</tbody>
-    <tfoot><tr class="total-row"><td colspan="2">Posted total — ${posted.length} transaction(s)</td><td style="text-align:right">${total<0?'+':''}$${Math.abs(total).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</td><td colspan="3"></td></tr></tfoot>
+    <tfoot><tr class="total-row"><td colspan="2">Posted purchases — ${posted.length} transaction(s)</td><td data-label="Amount" style="text-align:right">${total<0?'+':''}$${Math.abs(total).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</td><td colspan="3"></td></tr></tfoot>
   </table></div>`;
 }
 
@@ -2082,16 +2218,21 @@ async function updateTransactionCategory(transactionId, category){
   // engine (lib/plaid_categorize.py) never overwrites.
   try{
     const { error } = await _sb.from('plaid_transactions').update({ category: category||null, category_source: category?'manual':null }).eq('transaction_id', transactionId);
-    if(error) alert('Could not save category: ' + error.message);
-    else await runFinanceView();
+    if(error) throw error;
+    const row = financeTransactionRows.find(row=>row.transaction_id===transactionId);
+    if(row) row.category = category;
+    if(financeCategoryFilter.value) paintFinanceTransactions();
+    await runFinanceView();
   }catch(e){ alert('Could not save category: ' + e.message); }
 }
 
 async function updateTransactionJob(transactionId, invnum){
   try{
     const { error } = await _sb.from('plaid_transactions').update({ job_invnum: invnum||null }).eq('transaction_id', transactionId);
-    if(error) alert('Could not save job tag: ' + error.message);
-    else await runFinanceView();
+    if(error) throw error;
+    const row = financeTransactionRows.find(row=>row.transaction_id===transactionId);
+    if(row) row.job_invnum = invnum;
+    await runFinanceView();
   }catch(e){ alert('Could not save job tag: ' + e.message); }
 }
 
@@ -2113,6 +2254,8 @@ async function renderRealLedger(){
   const month=document.getElementById('pr-ledger-month').value;
   if(!month)return;
   const generation=(window._cashLedgerGeneration||0)+1;window._cashLedgerGeneration=generation;
+  const lastSync = document.getElementById('pr-stripe-fees-last');
+  lastSync.textContent = '';
   bodyEl.textContent='Loading verified payment and cost sources…';overheadEl.replaceChildren();
   try{
     const response=await fetch('/api/webhook?cash=snapshot&period='+encodeURIComponent(month),{credentials:'same-origin'});
@@ -2141,6 +2284,10 @@ async function renderRealLedger(){
     }else if(!plan){
       overheadEl.innerHTML+='<p class="fin-note">Run Finance for this month to compare recorded activity with the plan.</p>';
     }
+    const stamp = data.stripe_synced_at && new Date(data.stripe_synced_at);
+    lastSync.textContent = stamp && Number.isFinite(stamp.getTime())
+      ? 'Last verified fee sync · '+stamp.toLocaleString('en-US',{timeZone:'America/Los_Angeles',dateStyle:'medium',timeStyle:'short'})+' PT'
+      : 'No completed fee sync recorded for this month.';
     const rows=data.monthly_jobs||[];
     bodyEl.innerHTML='<p class="fin-note">'+esc(data.revenue_source)+'</p>'+(rows.length?rows.map(j=>'<div class="alloc-card" style="margin-bottom:12px"><div class="alloc-ttl">'+esc(j.client)+' #'+esc(j.invnum)+'</div><div class="alloc-row"><span>Recorded customer receipts</span><span>'+finMoney(j.receipts_cents/100)+'</span></div><div class="alloc-row"><span>Tagged Amex, completed mover payments and actual Stripe fees</span><span>'+finMoney(j.recorded_cost_cents/100)+'</span></div><div class="alloc-row total"><span>Provisional contribution</span><span>'+finMoney(j.contribution_cents/100)+'</span></div><div class="fin-note">Includes collected sales tax; excludes shared costs. This month only; not net profit.</div></div>').join(''):'<div class="empty-note">No recorded receipts or tagged costs this month.</div>')+'<p class="fin-note">'+esc(data.monthly.issues.join(' '))+'</p>';
   }catch(error){if(window._cashLedgerGeneration===generation)bodyEl.textContent='Payment and cost sources could not be verified. Retry from Finance. No zero-profit conclusion has been made.';}
@@ -2177,32 +2324,102 @@ function renderPrOverdueAlert(){
   if(!overdueList.length){ wrap.innerHTML = ''; return; }
   const total = overdueList.reduce((t,e)=>t+e.balance,0);
   wrap.innerHTML = `
-    <div class="pr-overdue-alert" onclick="prScrollTo('fin-overdue')">
+    <button class="pr-overdue-alert" type="button" onclick="prScrollTo('fin-overdue')">
       <div>
         <div class="oa-amt">${finMoney(total)} Overdue</div>
         <div class="oa-note">${overdueList.length} invoice${overdueList.length===1?'':'s'} require attention — money owed, not cash on hand.</div>
       </div>
-      <div class="oa-go">View details →</div>
-    </div>`;
+      <span class="oa-go">View details →</span>
+    </button>`;
 }
 
 function renderPrKpiRow(){
   const s = _lastFinanceSummary;
   const el = document.getElementById('pr-kpi-row');
   if(!s || !el) return;
+  const goal = FINANCE_CONFIG.profit_target_pct;
+  const variance = s.operatingNet - s.keepTargetUncapped;
   const cards = [
-    { ic:'💵', bg:'var(--green-lt)', fg:'var(--green)', lbl:'Budgeted receipts', val:finMoney(s.revenue), note:`${s.received.length} payment${s.received.length===1?'':'s'}`, ncls:'' },
-    { ic:'📊', bg:'var(--gold-lt)', fg:'var(--gold-dk)', lbl:'Planning costs', val:finMoney(s.totalCosts), note: s.revenue>0.009 ? (s.totalCosts/s.revenue*100).toFixed(1)+'% of revenue' : '—', ncls:'' },
-    { ic:'📈', bg:'var(--green-lt)', fg:'var(--green)', lbl:'Planning net', val:finMoney(s.operatingNet), note: s.marginPct.toFixed(1)+'% margin', ncls: s.operatingNet<0?'neg':'' },
-    { ic:'🎯', bg:'var(--amber-lt)', fg:'var(--amber)', lbl:'Available to keep', val:finMoney(s.keepTarget), note: s.keepTargetCapped ? 'Capped to planning net' : FINANCE_CONFIG.profit_target_pct+'% of revenue', ncls:'' },
-    { ic:'📦', bg:'var(--cream)', fg:'var(--taupe-dk)', lbl:'New inventory allowance', val:finMoney(s.inventoryBudget), note: s.revenue>0.009 ? (s.inventoryBudget/s.revenue*100).toFixed(1)+'% of revenue' : '0% of revenue' },
+    ['Recorded receipts',finMoney(s.cashReceipts),'By payment received date'],
+    ['Budgeted receipts',finMoney(s.revenue),'By assigned budget month'],
+    ['Total Costs',finMoney(s.totalCosts),'Planning costs · includes estimates and reserves'],
+    ['Planning net',finMoney(s.operatingNet),s.revenue>0.009 ? s.marginPct.toFixed(1)+'% planning margin' : 'Planning net'],
+    ['Profit Goal',goal+'%',s.revenue>0.009 ? finMoney(Math.abs(variance))+(variance<0?' below goal':' at or above goal') : 'No receipts to compare']
   ];
-  el.innerHTML = cards.map(c=>`
-    <div class="pr-kpi">
-      <div class="pr-kpi-top"><div class="pr-kpi-ic" style="background:${c.bg};color:${c.fg}">${c.ic}</div><div class="pr-kpi-lbl">${c.lbl}</div></div>
-      <div class="pr-kpi-val ${c.ncls}">${c.val}</div>
-      <div class="pr-kpi-note">${c.note}</div>
-    </div>`).join('');
+  el.innerHTML = cards.map(([label,value,note])=>financeMetric(label,value,note)).join('');
+  const outstanding = s.expected.reduce((sum, invoice)=>sum+invoice.balance,0);
+  document.getElementById('fin-glance').innerHTML = [
+    ['Projects with receipts',new Set(s.received.map(receipt=>receipt.invnum)).size],
+    ['Outstanding invoices in budget',finMoney(outstanding)],
+    ['WA tax reserve estimate',finMoney(s.taxSetAside)],
+    ['Posted card inventory','<span id="fin-inventory-actual">Loading…</span>'],
+    ['Planned keep',finMoney(s.keepTarget)]
+  ].map(([label,value])=>financeDetailRow(label,value)).join('');
+  document.getElementById('fin-attention').innerHTML = s.paidButUnsigned.length
+    ? '<p>Paid invoices need signatures: '+esc(s.paidButUnsigned.join(', '))+'</p>' : '';
+  if(!s.expected.some(e=>e.overdue) && !s.paidButUnsigned.length){
+    document.getElementById('fin-attention').textContent = 'No overdue invoices or missing signatures flagged in this budget.';
+  }
+}
+
+function financeMetric(label,value,note=''){
+  return `<div class="pr-kpi"><div class="pr-kpi-lbl">${esc(label)}</div><div class="pr-kpi-val">${esc(String(value))}</div><div class="pr-kpi-note">${esc(note)}</div></div>`;
+}
+function financeDetailRow(label,value){
+  return `<div class="fin-detail-row"><span>${esc(label)}</span><strong>${value}</strong></div>`;
+}
+
+let financeSpendSummaryGeneration = 0;
+async function refreshFinanceSpending(){
+  const generation = ++financeSpendSummaryGeneration;
+  const {start,end} = _lastFinancePeriod;
+  const destinations = ['fin-overview-spending','fin-transactions-summary'].map(id=>document.getElementById(id)).filter(Boolean);
+  const inventory = document.getElementById('fin-inventory-actual');
+  const action = document.getElementById('fin-spend-attention');
+  if(action) action.replaceChildren();
+  destinations.forEach(el=>el.textContent='Loading posted card spending…');
+  try{
+    const {data,error} = await SWJRecords.all(()=>_sb.from('plaid_transactions')
+      .select('transaction_id,amount,category,plaid_category,name,merchant_name',{count:'exact'}).eq('pending',false)
+      .gte('date',start).lte('date',end).order('transaction_id'),{key:'transaction_id'});
+    if(error) throw error;
+    if(generation!==financeSpendSummaryGeneration) return;
+    // Use posted purchase debits. Credits, refunds, card payments and transfers
+    // stay in the transaction list but outside this gross spending view.
+    const purchases = (data||[]).filter(financeCardPurchase);
+    const categories = new Map();
+    for(const row of purchases){
+      const name = row.category || 'Uncategorized';
+      categories.set(name,(categories.get(name)||0)+Math.round(Number(row.amount)*100));
+    }
+    const total = [...categories.values()].reduce((sum,cents)=>sum+cents,0);
+    const palette = ['#536f50','#c2a05c','#8b9877','#b98764','#6d735c','#a19a8a'];
+    let offset = 0;
+    const rows = [...categories].sort((a,b)=>b[1]-a[1]);
+    const stops = rows.map(([,cents],i)=>{
+      const next = offset + cents / total * 100;
+      const stop = `${palette[i%palette.length]} ${offset}% ${next}%`;
+      offset = next;
+      return stop;
+    });
+    const legend = rows.map(([label,cents],i)=>`<div class="fin-detail-row"><span><i class="fin-swatch" style="--swatch:${palette[i%palette.length]}"></i>${esc(label)}</span><strong>${finMoney(cents/100)}</strong></div>`).join('');
+    const html = total > 0 ? `<div class="fin-spend-chart"><div class="fin-ring" aria-hidden="true" style="--ring:conic-gradient(${stops.join(',')})"></div><div><p class="fin-big-number">${finMoney(total/100)}</p>${legend}</div></div>` : '<p>No posted card purchases found for this period.</p>';
+    destinations.forEach(el=>el.innerHTML=html+'<p class="fin-note">Gross posted card purchases · excludes payments, transfers, credits and pending authorizations.'+(categories.has('Uncategorized')?' Incomplete categorization.':'')+'</p>');
+    if(inventory) inventory.textContent = total ? finMoney((categories.get('Furniture/Inventory')||0)/100)+(categories.has('Uncategorized')?' tagged so far':'') : '—';
+    const uncategorized = purchases.filter(row=>!row.category).length;
+    if(action && uncategorized){
+      action.innerHTML = `<button class="filter-btn" onclick="financeCategoryFilter.value='uncategorized'; prShowTab('transactions'); if(financeTransactionRows.length) paintFinanceTransactions()">Review ${uncategorized} uncategorized card purchase${uncategorized===1?'':'s'}</button>`;
+    }
+  }catch{
+    if(generation!==financeSpendSummaryGeneration) return;
+    destinations.forEach(el=>el.textContent='Posted card spending is unavailable. Retry Run.');
+    if(inventory) inventory.textContent='Unavailable';
+  }
+}
+function financeCardPurchase(row){
+  const classification = Array.isArray(row.plaid_category) ? row.plaid_category.join(' ') : JSON.stringify(row.plaid_category||'');
+  const description = [row.name,row.merchant_name,classification].join(' ');
+  return Number(row.amount)>0 && !/transfer|payment received|payment thank you|autopay|loan.payments?|card payment/i.test(description);
 }
 
 // Revenue Allocation donut (§ Finance & Allocation) — PER PROJECT, not month-wide. Gabe,
@@ -2242,7 +2459,17 @@ function renderPrDonut(){
     if(projects.some(p=>p.invnum===prevValue)) picker.value = prevValue;
   }
 
+  const index = picker.selectedIndex;
+  document.getElementById('fin-prev-project').disabled = index <= 0;
+  document.getElementById('fin-next-project').disabled = index < 0 || index >= projects.length-1;
+  const keep = document.getElementById('fin-keep-breakdown');
+  const guidance = document.getElementById('fin-allocation-guidance');
+  const status = document.getElementById('fin-allocation-status');
+  keep.replaceChildren();
+  guidance.replaceChildren();
+  status.replaceChildren();
   if(!projects.length){
+    keep.textContent = 'Choose a project to see its planned keep.';
     donut.style.background = '#e7e1d9';
     center.innerHTML = `<div class="dv">${finMoney(0)}</div><div class="dl">Revenue</div>`;
     legend.innerHTML = '<div class="empty-note">No jobs to allocate this period — staged or paid jobs for the selected month will appear here.</div>';
@@ -2252,6 +2479,18 @@ function renderPrDonut(){
   const p = projects.find(x=>x.invnum===picker?.value) || projects[0];
   if(p.status==='this month') shopping.textContent = `Tagged shopping ${finMoney(p.shopping)} · Project allowance remaining ${finMoney(p.inventoryRemaining)}`;
   const rev = p.revenue;
+  const collected = _lastFinanceSummary.received.filter(receipt=>receipt.invnum===p.invnum).reduce((sum,receipt)=>sum+receipt.amount,0);
+  status.textContent = finMoney(collected)+' received this month · '+(p.paid?'Paid':'Invoice open');
+  keep.innerHTML = [
+    ['Planned keep',p.keepTarget],
+    ['Giving ('+FINANCE_CONFIG.tithe_pct+'%)',p.tithe],
+    ['Personally retained (plan)',p.keepTarget-p.tithe],
+    ['Inventory allowance',p.inventory]
+  ].map(([label,amount])=>financeDetailRow(label,finMoney(amount))).join('');
+  guidance.textContent = rev<=0.009 ? 'This project has no revenue in the allocation basis.'
+    : p.net<0 ? 'Planned costs exceed this project’s revenue.'
+    : p.keepTarget<p.keepTargetUncapped-0.009 ? 'Planned keep is below goal. This allocation leaves no additional allowance for inventory.'
+    : 'The planned keep reaches the configured goal. Inventory spending above the allowance would reduce keep.';
   const slices = [
     { key:'movers', label:`Movers${p.moverIsActual?' (actual)':' (planning avg)'}`, amt:p.mover },
     { key:'truck', label:p.truckActual?'Truck (posted)':'Truck (estimate)', amt:p.truck },
@@ -2276,38 +2515,18 @@ function renderPrDonut(){
   });
   donut.style.background = `conic-gradient(${stops.join(',')})`;
   center.innerHTML = `<div class="dv">${finMoney(rev)}</div><div class="dl">${esc(p.client)}</div>`;
-  legend.innerHTML = slices.map(sl=>{
-    const row = `
+  legend.innerHTML = slices.map(sl=>`
     <div class="pr-legend-row">
       <span class="pr-legend-dot" style="background:${PR_DONUT_COLORS[sl.key]}"></span>
       <span class="pr-legend-name">${esc(sl.label)}</span>
       <span class="pr-legend-amt">${finMoney(sl.amt)}</span>
       <span class="pr-legend-pct">${(Math.max(0,sl.amt)/rev*100).toFixed(1)}%</span>
-    </div>`;
-    // Tithe is a cut OF the Keep slice, not a separate dollar amount on top of it — shown as a
-    // sub-line under Keep, never its own pie slice (that would double-count the same revenue).
-    // Never a flat/hardcoded number: tithe = this job's capped keep * 10%, and keepTarget is
-    // already capped at this job's own net (and floored at $0), so a job that lost money
-    // produces $0 tithe automatically, not a guess.
-    if(sl.key==='keep'){
-      const inGreen = p.keepTarget > 0.009;
-      const retained = planCents(p.keepTarget-p.tithe)/100;
-      return row + `
-    <div class="pr-legend-row pr-legend-sub">
-      <span class="pr-legend-dot"></span>
-      <span class="pr-legend-name">↳ Tithe — 10% of keep${inGreen?'':' (no keep on this job — $0)'}</span>
-      <span class="pr-legend-amt">${finMoney(p.tithe)}</span>
-      <span class="pr-legend-pct"></span>
-    </div>
-    <div class="pr-legend-row pr-legend-sub">
-      <span class="pr-legend-dot"></span>
-      <span class="pr-legend-name">↳ Project retention estimate before shared work</span>
-      <span class="pr-legend-amt">${finMoney(retained)}</span>
-      <span class="pr-legend-pct"></span>
-    </div>`;
-    }
-    return row;
-  }).join('');
+    </div>`).join('');
+}
+function financeStepProject(step){
+  const picker = document.getElementById('pr-donut-job-picker');
+  picker.selectedIndex += step;
+  renderPrDonut();
 }
 
 function renderPrNotes(){
@@ -2373,7 +2592,7 @@ function renderEmployeePayTab(){
     cardsEl.innerHTML = emps.map(e=>`
       <div class="pr-emp-card">
         <div class="pr-emp-top">
-          <div><div class="pr-emp-name">${esc(e.name)}</div><div class="pr-emp-role">${esc([...e.types].join(' / '))} · ${e.hours.toFixed(1)}h</div></div>
+          <div><div class="pr-emp-name">${esc(e.name)}</div><div class="pr-emp-role">${esc([...e.types].join(' / '))} · ${e.hours.toFixed(1)}h · ${e.rates.size===1?finMoney([...e.rates][0])+'/hr':'Mixed rates'}</div></div>
           <div style="text-align:right"><div class="pr-emp-pay">${finMoney(e.amount)}</div><span class="pr-status-pill ${e.allPaid?'paid':'unpaid'}">${e.allPaid?'Paid':'Unpaid'}</span></div>
         </div>
       </div>`).join('');
@@ -2382,21 +2601,28 @@ function renderEmployeePayTab(){
   // Payroll Impact gauge — total payroll (= the same moverCost already in the allocation
   // donut's Movers slice) as a % of revenue, against the mover-ideal benchmark.
   const totalPayroll = (s.periodEntries||[]).reduce((t,e)=>t+(parseFloat(e.amount)||0),0);
-  const pct = s.revenue>0.009 ? totalPayroll/s.revenue*100 : 0;
+  const totalHours = emps.reduce((sum,employee)=>sum+employee.hours,0);
+  const pct = s.revenue>0.009 ? totalPayroll/s.revenue*100 : null;
+  document.getElementById('fin-team-metrics').innerHTML = [
+    ['Logged payroll',finMoney(totalPayroll),'Includes unpaid wages'],
+    ['Total hours',totalHours.toFixed(1),'Selected month'],
+    ['Average rate',totalHours>0 ? finMoney(totalPayroll/totalHours)+'/hr' : '—','Weighted by logged hours'],
+    ['Labor / receipts',pct===null?'—':pct.toFixed(1)+'%','Gross receipts include sales tax']
+  ].map(row=>financeMetric(...row)).join('');
   const idealPct = FINANCE_CONFIG.mover_ideal_pct;
   const gaugeColor = pct<=idealPct ? '#4a7c50' : '#c97c2e';
   const gaugePct = Math.min(100, pct/Math.max(idealPct*1.5,1)*100);
   const gauge = document.getElementById('pr-impact-gauge');
   if(gauge){
     gauge.style.background = `conic-gradient(${gaugeColor} 0% ${gaugePct}%, #e7e1d9 ${gaugePct}% 100%)`;
-    document.getElementById('pr-impact-gauge-center').innerHTML = `<div class="gv">${pct.toFixed(1)}%</div><div class="gl">of revenue</div>`;
+    document.getElementById('pr-impact-gauge-center').innerHTML = `<div class="gv">${pct===null?'—':pct.toFixed(1)+'%'}</div><div class="gl">of receipts</div>`;
   }
   const rowsEl = document.getElementById('pr-impact-rows');
   if(rowsEl){
     rowsEl.innerHTML = `
       <div class="pr-impact-row"><span>Payroll</span><span>${finMoney(totalPayroll)}</span></div>
-      <div class="pr-impact-row"><span>Revenue</span><span>${finMoney(s.revenue)}</span></div>
-      <div class="pr-impact-row"><span>Target</span><span class="${pct<=idealPct?'ok':''}">≤${idealPct}% ${pct<=idealPct?'✓':'⚠'}</span></div>`;
+      <div class="pr-impact-row"><span>Gross receipts</span><span>${finMoney(s.revenue)}</span></div>
+      <div class="pr-impact-row"><span>Target</span><span class="${pct<=idealPct?'ok':''}">≤${idealPct}% ${pct===null?' · comparison unavailable':pct<=idealPct?' · within target':' · above target'}</span></div>`;
   }
 }
 
@@ -2446,12 +2672,13 @@ async function loadMonthlyPerformance(){
 
   _prPerfCache = results;
   loading.style.display = 'none'; body.style.display = '';
-  const max = Math.max(1, ...results.map(r=>Math.max(r.revenue, r.costs)));
+  const max = Math.max(1, ...results.map(r=>Math.max(r.revenue, r.costs, Math.abs(r.net))));
   document.getElementById('pr-perf-chart').innerHTML = results.map(r=>`
     <div class="pr-chart-col">
       <div class="pr-chart-bars">
         <div class="pr-chart-bar rev" style="height:${Math.max(2,Math.round(r.revenue/max*140))}px" title="Revenue ${finMoney(r.revenue)}"></div>
         <div class="pr-chart-bar cost" style="height:${Math.max(2,Math.round(r.costs/max*140))}px" title="Costs ${finMoney(r.costs)}"></div>
+        <div class="pr-chart-bar ${r.net<0?'loss':'net'}" style="height:${Math.max(2,Math.round(Math.abs(r.net)/max*140))}px" title="Planning net ${finMoney(r.net)}"></div>
       </div>
       <div class="pr-chart-lbl">${r.label}${r.special?' *':''}</div>
     </div>`).join('');
@@ -2484,13 +2711,13 @@ function renderPrHistory(){
     rows.push({ y:d.getFullYear(), m:d.getMonth() });
   }
   listEl.innerHTML = rows.map(r=>`
-    <div class="pr-hist-row" onclick="prJumpToMonth(${r.y},${r.m})">
+    <button type="button" class="pr-hist-row" onclick="prJumpToMonth(${r.y},${r.m})">
       <div>
         <div class="pr-hist-month">${MONTH_NAMES[r.m]} ${r.y}</div>
         <div class="pr-hist-meta">Recalculated from current invoices &amp; time entries</div>
       </div>
-      <div style="color:var(--taupe)">→</div>
-    </div>`).join('');
+      <span aria-hidden="true" style="color:var(--taupe)">→</span>
+    </button>`).join('');
 
   const keys = Object.keys(FINANCE_OVERRIDES||{}).sort().reverse();
   if(!keys.length){ ovEl.innerHTML = '<div class="empty-note">No manual overrides on record.</div>'; return; }
@@ -2509,7 +2736,7 @@ function renderPrHistory(){
 function prJumpToMonth(y,m){
   document.getElementById('fin-year').value = y;
   document.getElementById('fin-month').value = m+1;
-  prShowTab('finance');
+  prShowTab('overview');
   runFinanceView();
   window.scrollTo({top:0, behavior:'smooth'});
 }
@@ -2524,7 +2751,7 @@ document.addEventListener('DOMContentLoaded', async ()=>{
   await loadFinanceConfig();
   await runFinanceView();
   const wantTab = new URLSearchParams(window.location.search).get('tab');
-  if(wantTab) prShowTab(wantTab);
+  prShowTab(wantTab || 'overview');
   if(location.hash==='#fin-budget')document.getElementById('fin-budget').scrollIntoView();
 });
 </script>

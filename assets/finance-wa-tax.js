@@ -9,21 +9,21 @@
     const { previous, current } = await response.json();
     const money = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 
-    const rows = [[previous, 'Last month'], [current, 'This month so far']].map(([estimate, label]) => {
-      const row = document.createElement('div');
+    const rows = [[previous, 'Previous Month'], [current, 'Current Month']].map(([estimate, label]) => {
       const link = document.createElement('a');
+      link.className = 'fin-tax-kpi';
       link.href = '/tax-report.html?period=' + encodeURIComponent(estimate.period);
-      link.textContent = label + ' · ' + estimate.label;
-      const amount = document.createElement('div');
-      amount.textContent = money.format(estimate.estimated_cents / 100);
-      row.append(link, amount);
-      if (estimate.filing_recorded) {
-        const note = document.createElement('div');
-        note.className = 'pr-hdr-sub';
-        note.textContent = 'Filing recorded · check My DOR for the actual amount';
-        row.append(note);
+      for (const [className, text] of [
+        ['fin-tax-label', label],
+        ['fin-tax-month', estimate.label],
+        ['fin-tax-amount', money.format(estimate.estimated_cents / 100)]
+      ]) {
+        const line = document.createElement('span');
+        line.className = className;
+        line.textContent = text;
+        link.append(line);
       }
-      return row;
+      return link;
     });
     periods.replaceChildren(...rows);
   } catch {

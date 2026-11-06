@@ -12,6 +12,7 @@ function app(file){
  const context=vm.createContext(window);window.eval=code=>vm.runInContext(code,context);
  window.eval(mock);window.alerts=[];window.alert=message=>window.alerts.push(message);window.confirm=()=>true;window.scrollTo=()=>{};
  window.fetch=()=>{throw Error('Unexpected network call')};
+ window.Option=function(text,value){const option=window.document.createElement("option");option.textContent=text;option.value=value;return option;};
  window.eval(fs.readFileSync(path.join(root,'assets/invoice-safety.js'),'utf8'));
  // These pricing fixtures assume tax verification; dedicated tax DOM tests exercise the real guard.
  window.SWJTaxGuard={allowed:()=>true,artifactAllowed:()=>true,reset(){},attach:data=>data};
