@@ -576,6 +576,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px">
         <label style="margin:0;font-size:11px">Month<input type="month" id="pr-ledger-month" style="margin-left:6px"></label>
         <button type="button" class="filter-btn" id="pr-stripe-fees-sync" onclick="syncLedgerStripeFees(this)">Sync actual Stripe fees</button>
+        <span id="pr-stripe-fees-last" class="fin-note"></span>
         <span id="pr-stripe-fees-status" role="status" style="font-size:12px"></span>
       </div>
       <div id="pr-ledger-overhead" class="fin-card full" style="margin-bottom:14px"></div>
@@ -2312,6 +2313,8 @@ async function renderRealLedger(){
   const month=document.getElementById('pr-ledger-month').value;
   if(!month)return;
   const generation=(window._cashLedgerGeneration||0)+1;window._cashLedgerGeneration=generation;
+  const lastSync = document.getElementById('pr-stripe-fees-last');
+  lastSync.textContent = '';
   bodyEl.textContent='Loading verified payment and cost sources…';overheadEl.replaceChildren();
   try{
     const response=await fetch('/api/webhook?cash=snapshot&period='+encodeURIComponent(month),{credentials:'same-origin'});
@@ -2319,6 +2322,10 @@ async function renderRealLedger(){
     const data=await response.json();
     if(window._cashLedgerGeneration!==generation)return;
     overheadEl.innerHTML='<div class="fin-lbl">Recorded shared costs this month</div><div class="fin-val">'+finMoney((data.monthly.shared_costs_cents||0)/100)+'</div><div class="fin-note">Recorded shared costs and actual Stripe fees. Transfers are excluded.</div>';
+    const stamp = data.stripe_synced_at && new Date(data.stripe_synced_at);
+    lastSync.textContent = stamp && Number.isFinite(stamp.getTime())
+      ? 'Last verified fee sync · '+stamp.toLocaleString('en-US',{timeZone:'America/Los_Angeles',dateStyle:'medium',timeStyle:'short'})+' PT'
+      : 'No completed fee sync recorded for this month.';
     const rows=data.monthly_jobs||[];
     bodyEl.innerHTML='<p class="fin-note">'+esc(data.revenue_source)+'</p>'+(rows.length?rows.map(j=>'<div class="alloc-card" style="margin-bottom:12px"><div class="alloc-ttl">'+esc(j.client)+' #'+esc(j.invnum)+'</div><div class="alloc-row"><span>Recorded customer receipts</span><span>'+finMoney(j.receipts_cents/100)+'</span></div><div class="alloc-row"><span>Tagged Amex, completed mover payments and actual Stripe fees</span><span>'+finMoney(j.recorded_cost_cents/100)+'</span></div><div class="alloc-row total"><span>Provisional contribution</span><span>'+finMoney(j.contribution_cents/100)+'</span></div><div class="fin-note">Includes collected sales tax; excludes shared costs. This month only; not net profit.</div></div>').join(''):'<div class="empty-note">No recorded receipts or tagged costs this month.</div>')+'<p class="fin-note">'+esc(data.monthly.issues.join(' '))+'</p>';
   }catch(error){if(window._cashLedgerGeneration===generation)bodyEl.textContent='Payment and cost sources could not be verified. Retry from Finance. No zero-profit conclusion has been made.';}
@@ -2332,7 +2339,7 @@ async function syncLedgerStripeFees(button){
   try{
     const response=await fetch('/api/webhook?cash=stripe_fees',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({period})});
     const result=await response.json();if(!response.ok)throw Error(result.error||'Stripe fees could not be verified.');
-    await renderRealLedger();status.textContent='Stripe fee sync completed at '+new Date().toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})+'.';
+    await renderRealLedger();status.textContent='Stripe fee sync completed.';
   }catch(error){status.textContent=error.message||'Stripe fees could not be verified. Retry.';}
   finally{button.disabled=false;}
 }
