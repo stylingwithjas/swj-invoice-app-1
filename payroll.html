@@ -321,6 +321,7 @@ tr.paid-row { opacity:0.55; }
 <link rel="stylesheet" href="/styles/swj-luxury-theme.css">
 <link rel="stylesheet" href="/styles/swj-workspace.css">
 <script src="/assets/swj-workspace.js" defer></script>
+<link rel="stylesheet" href="/styles/swj-finance.css">
 </head>
 <body data-swj-workspace="payroll">
 
@@ -382,47 +383,80 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
   </div>
 </div>
 
-<div class="wrap">
+<main class="wrap swj-finance">
 
   <div class="pr-hdr">
     <div class="pr-hdr-left">
-      <div class="pr-hdr-ic">💼</div>
       <div>
-        <div class="pr-hdr-ttl">Finance</div>
-        <div class="pr-hdr-sub">Employee payroll, business finances, and money allocation.</div>
+        <p class="fin-brand">SWJ <span>Finance</span></p>
+        <h1 class="pr-hdr-ttl" id="fin-title">Finance</h1>
+        <div class="pr-hdr-sub" id="fin-intro">Your revenue, costs, profit, and key priorities for the month.</div>
       </div>
     </div>
     <div class="pr-hdr-right">
-      <div class="filter-field"><label>Month</label><select id="fin-month"></select></div>
-      <div class="filter-field"><label>Year</label><select id="fin-year"></select></div>
+      <div class="filter-field"><label for="fin-month">Month</label><select id="fin-month"></select></div>
+      <div class="filter-field"><label for="fin-year">Year</label><select id="fin-year"></select></div>
       <button class="filter-btn primary" onclick="runFinanceView()">Run</button>
-      <button class="pr-gear" onclick="toggleFinanceSettings()" title="Settings">⚙</button>
     </div>
   </div>
 
-  <p data-revenue-basis style="font-size:12px;color:#68685e">Revenue: paid invoice payments and extensions, by received month, regardless of signature. Stripe deposits verify settlement only.</p>
-  <div class="pr-tabs" id="pr-tabs">
-    <button class="pr-tab on" onclick="prShowTab('finance')">Finance &amp; Allocation</button>
-    <button class="pr-tab" onclick="prShowTab('employee')">Employee Pay</button>
-    <button class="pr-tab" onclick="prShowTab('performance')">Monthly Performance</button>
-    <button class="pr-tab" onclick="prShowTab('projects')">Project Budgets</button>
-    <button class="pr-tab" onclick="prShowTab('history')">History</button>
-    <button class="pr-tab" onclick="prShowTab('spending')">Spending</button>
-    <button class="pr-tab" onclick="prShowTab('ledger')">Job Results</button>
+  <div class="pr-tabs" id="pr-tabs" role="tablist" aria-label="Finance sections">
+    <button class="pr-tab" type="button" role="tab" id="fin-tab-overview" aria-controls="fin-view-overview" aria-selected="true" tabindex="0" onclick="prShowTab('overview')"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10l9-7 9 7v10H3z M9 20v-7h6v7"/></svg>Overview</button>
+    <button class="pr-tab" type="button" role="tab" id="fin-tab-allocation" aria-controls="fin-view-allocation" aria-selected="false" tabindex="-1" onclick="prShowTab('allocation')"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8l9-5 9 5-9 5z M3 12l9 5 9-5 M3 16l9 5 9-5"/></svg>Allocation</button>
+    <button class="pr-tab" type="button" role="tab" id="fin-tab-projects" aria-controls="fin-view-projects" aria-selected="false" tabindex="-1" onclick="prShowTab('projects')"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h7l2 3h9v11H3z"/></svg>Projects</button>
+    <button class="pr-tab" type="button" role="tab" id="fin-tab-transactions" aria-controls="fin-view-transactions" aria-selected="false" tabindex="-1" onclick="prShowTab('transactions')"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h18v14H3z M3 10h18 M6 15h4"/></svg>Transactions</button>
+    <button class="pr-tab" type="button" role="tab" id="fin-tab-team" aria-controls="fin-view-team" aria-selected="false" tabindex="-1" onclick="prShowTab('team')"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 8a3 3 0 1 1-6 0 3 3 0 0 1 6 0z M5 20v-2a7 7 0 0 1 14 0v2"/></svg>Team</button>
   </div>
+  <div id="finance-data-status" role="status"></div>
 
-  <div class="pr-panel on" id="pr-panel-finance">
 
-  <div id="finance-data-status" role="status" style="font-size:13px;line-height:1.6;margin-bottom:12px"></div>
-  <div id="pr-overdue-alert-wrap"></div>
 
-  <section class="pr-card" style="margin-bottom:14px" aria-labelledby="fin-wa-tax-title">
+  <section id="fin-view-overview" class="fin-view" role="tabpanel" aria-labelledby="fin-tab-overview">
+    <div class="pr-kpi-row" id="pr-kpi-row"></div>
+
+  <div class="fin-pair" id="fin-overview-pair">  <section class="pr-card" style="margin-bottom:14px" aria-labelledby="fin-wa-tax-title">
     <div class="pr-card-ttl" id="fin-wa-tax-title">WA tax estimate</div>
     <div class="pr-row2" id="fin-wa-tax-periods" role="status" style="margin-bottom:8px">Loading estimates…</div>
     <div class="pr-hdr-sub">Sales tax plus B&amp;O, before credits and payments.</div>
   </section>
   <script src="/assets/finance-wa-tax.js" defer></script>
 
+</div>
+  <div class="pr-panel" id="pr-panel-performance">
+    <div class="card">
+      <div class="card-hdr">
+        <span>Monthly Performance</span>
+        <div class="pr-range-pick" id="pr-perf-range">
+          <button class="pr-range-btn" onclick="prSetPerfRange(3)">3mo</button>
+          <button class="pr-range-btn on" onclick="prSetPerfRange(6)">6mo</button>
+          <button class="pr-range-btn" onclick="prSetPerfRange(12)">12mo</button>
+          <button class="pr-range-btn" onclick="prSetPerfRange('ytd')">YTD</button>
+        </div>
+      </div>
+      <div id="pr-perf-loading" class="empty-note">Run Finance &amp; Allocation once, then open this tab to load history.</div>
+      <div id="pr-perf-body" style="display:none">
+        <div class="pr-chart-wrap" id="pr-perf-chart"></div>
+        <div class="pr-chart-legend">
+          <span><i style="background:#2a2a28"></i>Revenue</span>
+          <span><i style="background:var(--gold)"></i>Total Costs</span>
+          <span><i style="background:var(--green);border-radius:50%;width:7px;height:7px"></i>Net / Keep (line)</span>
+        </div>
+        <div class="sub-hdr">This Month vs. Last Month</div>
+        <div id="pr-perf-compare"></div>
+        <div class="sub-hdr">Monthly Breakdown</div>
+        <div class="tbl-scroll">
+          <table class="pr-table">
+            <thead><tr><th>Month</th><th>Revenue</th><th>Costs</th><th>Net / Keep</th><th>Margin</th></tr></thead>
+            <tbody id="pr-perf-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<section class="pr-card"><h2>Needs Attention</h2><div id="pr-overdue-alert-wrap"></div><div id="fin-attention"></div></section>
+  </section>
+  <section id="fin-view-allocation" class="fin-view" role="tabpanel" aria-labelledby="fin-tab-allocation" hidden>
   <div class="card" id="finance-card">
 
     <div id="finance-settings" style="display:none;background:var(--cream);border-radius:10px;padding:14px;margin-bottom:16px">
@@ -450,8 +484,6 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
 
     <div class="sub-hdr" style="margin-top:0">Finance &amp; Allocation — <span id="fin-period"></span></div>
     <div id="fin-oneoff-banner"></div>
-
-    <div class="pr-kpi-row" id="pr-kpi-row"></div>
 
     <div class="pr-row2">
       <div class="pr-card">
@@ -503,7 +535,81 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
     </div>
     <div style="font-size:10.5px;color:var(--taupe-dk);margin-top:4px">Add a job the automatic rules missed, remove one with its "Remove from budget" button, or flip a wrong one-off flag. This never deletes anything — it only changes what shows for this month.</div>
 
-    <div id="fin-reconcile-wrap">
+    <div class="disclaimer">Collected receipts use payment-received dates, including unsigned paid invoices and paid extensions, excluding test charges. They include collected sales tax. Planning exclusions do not change recorded receipts. Checking deposits and transfers are excluded from revenue. Mover pay is actual, from logged hours this month. Truck and warehouse costs use the editable assumptions above, since this app doesn't track per-job truck receipts yet — correct the defaults above if your actual costs differ. Tax set-aside reuses the Tax Report's B&amp;O + sales-tax method (not CPA-certified — see TAX_METHODOLOGY.md). "Jasmine keep (actual net)" is the existing planning allocation result, including estimated costs, not accounting profit; "Jasmine keep (target)" is a benchmark line only — the two are never blended, and the target is capped at actual profit so it can never exceed what the month really made. Inventory (shopping budget) is derived, never entered: whatever is left after costs and the keep target. A month with unreconciled revenue is flagged, not presented as final. Viewing this page never changes a stored record — only the Manual Override controls write anything.</div>
+  </div>
+
+  </section>
+  <section id="fin-view-projects" class="fin-view" role="tabpanel" aria-labelledby="fin-tab-projects" hidden>
+  <div class="pr-panel" id="pr-panel-projects">
+    <div class="card">
+      <div class="card-hdr">Project Budgets — <span id="pr-proj-period"></span></div>
+      <div style="font-size:11px;color:var(--taupe-dk);margin-bottom:12px">Same per-project allocation the Finance tab's Manual Override controls affect — built from each job's own staging date for cost-splitting, not its payment date. A job paid this month but staged outside it won't appear here automatically; add it from Finance &amp; Allocation → Manual Override.</div>
+      <div class="tbl-scroll">
+        <table class="pr-table" id="pr-proj-table">
+          <thead><tr><th>Project</th><th>Staged</th><th>Revenue</th><th>Costs</th><th>Net / Keep</th><th>Margin</th><th>Status</th></tr></thead>
+          <tbody id="pr-proj-tbody"></tbody>
+        </table>
+      </div>
+      <div id="pr-proj-detail"></div>
+    </div>
+  </div>
+
+<details class="fin-disclosure" id="fin-job-results"><summary>Recorded Job Results</summary>  <div class="pr-panel" id="pr-panel-ledger">
+    <div class="card">
+      <div class="card-hdr"><span>Job Profit — Real</span></div>
+      <div style="font-size:11px;color:var(--taupe-dk);margin-bottom:14px">Built from recorded customer payments, posted job-tagged Amex purchases, completed mover payments and actual Stripe fees. Logged hours remain commitments until paid. Contributions include collected sales tax and exclude shared costs; they are provisional, not net profit. Tax Report remains separate.</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px">
+        <label style="margin:0;font-size:11px">Month<input type="month" id="pr-ledger-month" style="margin-left:6px"></label>
+        <button type="button" class="filter-btn" id="pr-stripe-fees-sync" onclick="syncLedgerStripeFees(this)">Sync actual Stripe fees</button>
+        <span id="pr-stripe-fees-status" role="status" style="font-size:12px"></span>
+      </div>
+      <div id="pr-ledger-overhead" class="fin-card full" style="margin-bottom:14px"></div>
+      <div id="pr-ledger-body"><div class="empty-note">Loading…</div></div>
+    </div>
+  </div>
+</details>
+<details class="fin-disclosure" id="fin-history"><summary>Historical Review</summary>  <div class="pr-panel" id="pr-panel-history">
+    <div class="card">
+      <div class="card-hdr">History</div>
+      <div style="font-size:11px;color:var(--taupe-dk);margin-bottom:12px">These months are recalculated live from current records, not stored snapshots — the underlying invoices and time entries can still change. Click a month to open it on the Finance &amp; Allocation tab.</div>
+      <div id="pr-hist-list"></div>
+      <div class="sub-hdr">Manual Overrides on Record</div>
+      <div id="pr-hist-overrides"></div>
+    </div>
+  </div>
+
+</details>
+  </section>
+  <section id="fin-view-transactions" class="fin-view" role="tabpanel" aria-labelledby="fin-tab-transactions" hidden>
+  <div class="pr-panel" id="pr-panel-spending">
+    <div class="card">
+      <div class="card-hdr">
+        <span>Business Amex</span>
+        <span id="pr-spend-status" style="font-size:11px;color:var(--taupe-dk);font-weight:500;text-transform:none;letter-spacing:0">Checking connection…</span>
+      </div>
+      <div style="font-size:11px;color:var(--taupe-dk);margin-bottom:12px">The two business American Express cards only, linked here via this site's own Plaid connection — never Muse's, never a personal card. Statement balance, due date, and the latest current balance reported by Amex.</div>
+      <div id="pr-spend-connect-row" style="display:none;margin-bottom:14px">
+        <button class="filter-btn primary" onclick="plaidConnectAmex()" id="pr-spend-connect-btn">Connect business Amex</button>
+      </div>
+      <div id="pr-spend-connected-row" style="display:none;margin-bottom:14px;gap:8px;flex-wrap:wrap;align-items:center">
+        <button class="filter-btn primary" onclick="plaidConnectAmex()" id="pr-spend-connect-btn2">Connect another card</button>
+        <button class="filter-btn" onclick="plaidSyncNow()" id="pr-spend-sync-btn">Sync now</button>
+        <span id="pr-spend-last-check" class="fin-note"></span>
+        <span id="pr-spend-sync-note" role="status" style="font-size:11px;color:var(--taupe-dk);display:block;margin-top:6px;width:100%"></span>
+      </div>
+      <div id="pr-spend-cards" style="display:grid;gap:10px;margin-bottom:16px"></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
+        <label style="margin:0;font-size:11px">Month<input type="month" id="pr-spend-month" style="margin-left:6px" onchange="renderSpendingTransactions()"></label>
+        <label style="margin:0;font-size:11px">Job<select id="pr-spend-job-filter" style="margin-left:6px" onchange="renderSpendingTransactions()"><option value="">All</option></select></label>
+        <label style="margin:0;font-size:11px"><input type="checkbox" id="pr-spend-show-pending" onchange="renderSpendingTransactions()"> Show pending authorizations</label>
+      </div>
+      <div id="pr-spend-body">
+        <div class="empty-note">Loading…</div>
+      </div>
+    </div>
+  </div>
+
+<details class="fin-disclosure" id="fin-reconciliation"><summary>Bank and Stripe reconciliation</summary>    <div id="fin-reconcile-wrap">
       <div class="sub-hdr">Reconciliation</div>
       <div class="filter-row" style="margin-bottom:8px">
         <div class="filter-field"><label>Actual bank/Stripe deposits this month</label><input type="number" step="0.01" id="fin-actual-deposits" oninput="renderFinanceReconciliation()" placeholder="0.00"></div>
@@ -511,11 +617,9 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
       <div id="fin-reconcile-result" style="font-size:13px"></div>
     </div>
 
-    <div class="disclaimer">Collected receipts use payment-received dates, including unsigned paid invoices and paid extensions, excluding test charges. They include collected sales tax. Planning exclusions do not change recorded receipts. Checking deposits and transfers are excluded from revenue. Mover pay is actual, from logged hours this month. Truck and warehouse costs use the editable assumptions above, since this app doesn't track per-job truck receipts yet — correct the defaults above if your actual costs differ. Tax set-aside reuses the Tax Report's B&amp;O + sales-tax method (not CPA-certified — see TAX_METHODOLOGY.md). "Jasmine keep (actual net)" is the existing planning allocation result, including estimated costs, not accounting profit; "Jasmine keep (target)" is a benchmark line only — the two are never blended, and the target is capped at actual profit so it can never exceed what the month really made. Inventory (shopping budget) is derived, never entered: whatever is left after costs and the keep target. A month with unreconciled revenue is flagged, not presented as final. Viewing this page never changes a stored record — only the Manual Override controls write anything.</div>
-  </div>
-
-  </div><!-- /pr-panel-finance -->
-
+<p class="fin-note">Use verified settlement amounts. Connected checking review is unavailable in Finance.</p><a href="/stripe-reconciliation.html">Stripe reconciliation report</a></details>
+  </section>
+  <section id="fin-view-team" class="fin-view" role="tabpanel" aria-labelledby="fin-tab-team" hidden>
   <div class="pr-panel" id="pr-panel-employee">
 
   <div class="pr-row2">
@@ -635,119 +739,8 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
 
   </div><!-- /pr-panel-employee -->
 
-  <div class="pr-panel" id="pr-panel-performance">
-    <div class="card">
-      <div class="card-hdr">
-        <span>Monthly Performance</span>
-        <div class="pr-range-pick" id="pr-perf-range">
-          <button class="pr-range-btn" onclick="prSetPerfRange(3)">3mo</button>
-          <button class="pr-range-btn on" onclick="prSetPerfRange(6)">6mo</button>
-          <button class="pr-range-btn" onclick="prSetPerfRange(12)">12mo</button>
-          <button class="pr-range-btn" onclick="prSetPerfRange('ytd')">YTD</button>
-        </div>
-      </div>
-      <div id="pr-perf-loading" class="empty-note">Run Finance &amp; Allocation once, then open this tab to load history.</div>
-      <div id="pr-perf-body" style="display:none">
-        <div class="pr-chart-wrap" id="pr-perf-chart"></div>
-        <div class="pr-chart-legend">
-          <span><i style="background:#2a2a28"></i>Revenue</span>
-          <span><i style="background:var(--gold)"></i>Total Costs</span>
-          <span><i style="background:var(--green);border-radius:50%;width:7px;height:7px"></i>Net / Keep (line)</span>
-        </div>
-        <div class="sub-hdr">This Month vs. Last Month</div>
-        <div id="pr-perf-compare"></div>
-        <div class="sub-hdr">Monthly Breakdown</div>
-        <div class="tbl-scroll">
-          <table class="pr-table">
-            <thead><tr><th>Month</th><th>Revenue</th><th>Costs</th><th>Net / Keep</th><th>Margin</th></tr></thead>
-            <tbody id="pr-perf-tbody"></tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="pr-panel" id="pr-panel-projects">
-    <div class="card">
-      <div class="card-hdr">Project Budgets — <span id="pr-proj-period"></span></div>
-      <div style="font-size:11px;color:var(--taupe-dk);margin-bottom:12px">Same per-project allocation the Finance tab's Manual Override controls affect — built from each job's own staging date for cost-splitting, not its payment date. A job paid this month but staged outside it won't appear here automatically; add it from Finance &amp; Allocation → Manual Override.</div>
-      <div class="tbl-scroll">
-        <table class="pr-table" id="pr-proj-table">
-          <thead><tr><th>Project</th><th>Staged</th><th>Revenue</th><th>Costs</th><th>Net / Keep</th><th>Margin</th><th>Status</th></tr></thead>
-          <tbody id="pr-proj-tbody"></tbody>
-        </table>
-      </div>
-      <div id="pr-proj-detail"></div>
-    </div>
-  </div>
-
-  <div class="pr-panel" id="pr-panel-history">
-    <div class="card">
-      <div class="card-hdr">History</div>
-      <div style="font-size:11px;color:var(--taupe-dk);margin-bottom:12px">These months are recalculated live from current records, not stored snapshots — the underlying invoices and time entries can still change. Click a month to open it on the Finance &amp; Allocation tab.</div>
-      <div id="pr-hist-list"></div>
-      <div class="sub-hdr">Manual Overrides on Record</div>
-      <div id="pr-hist-overrides"></div>
-    </div>
-  </div>
-
-  <!-- SPENDING (Amex via Plaid, Phase 1 Nov 2026) — business cards only (the two Lux
-       Ventures / Styling With Jas Amex cards; Gabe's personal cards are never linked here).
-       Real data only flows once Plaid credentials exist server-side AND a business card is
-       linked on the site itself — until then this shows a clear "not connected" state, never
-       fabricated rows. Per-card balance/due-date strip first (glanceable), transaction detail
-       and categorization behind it. -->
-  <div class="pr-panel" id="pr-panel-spending">
-    <div class="card">
-      <div class="card-hdr">
-        <span>Business Amex</span>
-        <span id="pr-spend-status" style="font-size:11px;color:var(--taupe-dk);font-weight:500;text-transform:none;letter-spacing:0">Checking connection…</span>
-      </div>
-      <div style="font-size:11px;color:var(--taupe-dk);margin-bottom:12px">The two business American Express cards only, linked here via this site's own Plaid connection — never Muse's, never a personal card. Statement balance, due date, and the latest current balance reported by Amex.</div>
-      <div id="pr-spend-connect-row" style="display:none;margin-bottom:14px">
-        <button class="filter-btn primary" onclick="plaidConnectAmex()" id="pr-spend-connect-btn">Connect business Amex</button>
-      </div>
-      <div id="pr-spend-connected-row" style="display:none;margin-bottom:14px;gap:8px;flex-wrap:wrap;align-items:center">
-        <button class="filter-btn primary" onclick="plaidConnectAmex()" id="pr-spend-connect-btn2">Connect another card</button>
-        <button class="filter-btn" onclick="plaidSyncNow()" id="pr-spend-sync-btn">Sync now</button>
-        <span id="pr-spend-last-check" class="fin-note"></span>
-        <span id="pr-spend-sync-note" role="status" style="font-size:11px;color:var(--taupe-dk);display:block;margin-top:6px;width:100%"></span>
-      </div>
-      <div id="pr-spend-cards" style="display:grid;gap:10px;margin-bottom:16px"></div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
-        <label style="margin:0;font-size:11px">Month<input type="month" id="pr-spend-month" style="margin-left:6px" onchange="renderSpendingTransactions()"></label>
-        <label style="margin:0;font-size:11px">Job<select id="pr-spend-job-filter" style="margin-left:6px" onchange="renderSpendingTransactions()"><option value="">All</option></select></label>
-        <label style="margin:0;font-size:11px"><input type="checkbox" id="pr-spend-show-pending" onchange="renderSpendingTransactions()"> Show pending authorizations</label>
-      </div>
-      <div id="pr-spend-body">
-        <div class="empty-note">Loading…</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- JOB PROFIT — REAL (Phase 1, Nov 2026) — separate, additive lens built on the SAME
-       categorized/job-tagged Plaid transactions above, plus the existing actual mover-hour
-       costs. Deliberately NOT merged into the Finance & Allocation tab's estimate-based keep/
-       inventory/tithe chain above (truck/warehouse there stay the configured assumptions
-       Jasmine already uses for cash planning) — this is the federal/Schedule-C lens: real
-       recorded costs, never a formula, and never touching the DOR/revenue tax split in
-       tax-report.html. Partial where a job's costs aren't fully tagged — never a complete
-       figure Jasmine hasn't actually earned the confidence in yet. -->
-  <div class="pr-panel" id="pr-panel-ledger">
-    <div class="card">
-      <div class="card-hdr"><span>Job Profit — Real</span></div>
-      <div style="font-size:11px;color:var(--taupe-dk);margin-bottom:14px">Built from recorded customer payments, posted job-tagged Amex purchases, completed mover payments and actual Stripe fees. Logged hours remain commitments until paid. Contributions include collected sales tax and exclude shared costs; they are provisional, not net profit. Tax Report remains separate.</div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px">
-        <label style="margin:0;font-size:11px">Month<input type="month" id="pr-ledger-month" style="margin-left:6px"></label>
-        <button type="button" class="filter-btn" id="pr-stripe-fees-sync" onclick="syncLedgerStripeFees(this)">Sync actual Stripe fees</button>
-        <span id="pr-stripe-fees-status" role="status" style="font-size:12px"></span>
-      </div>
-      <div id="pr-ledger-overhead" class="fin-card full" style="margin-bottom:14px"></div>
-      <div id="pr-ledger-body"><div class="empty-note">Loading…</div></div>
-    </div>
-  </div>
-
-</div>
+  </section>
+</main>
 
 <div class="modal-overlay" id="edit-modal-overlay">
   <div class="modal-card">
@@ -1855,22 +1848,60 @@ function clientInitials(name){
   return (words[0][0] + words[words.length-1][0]).toUpperCase();
 }
 
+const FINANCE_TABS = {
+  overview:['Finance','Your revenue, costs, profit, and key priorities for the month.'],
+  allocation:['Project Allocation','Plan how to divide each project’s payment.'],
+  projects:['Projects','Review monthly budgets and recorded job results.'],
+  transactions:['Transactions','Review spending, categories, and reconciliation.'],
+  team:['Team','Review labor costs, hours, and employee pay.']
+};
+const FINANCE_LEGACY_TABS = {finance:'allocation',performance:'overview',history:'projects',spending:'transactions',ledger:'projects',employee:'team'};
+let financeActiveTab = 'overview';
+let financeSpendingLoaded = false;
+
 function prShowTab(name){
-  document.querySelectorAll('.pr-tab').forEach(b=>b.classList.remove('on'));
-  document.querySelectorAll('.pr-panel').forEach(p=>p.classList.remove('on'));
-  const idx = {finance:0, employee:1, performance:2, projects:3, history:4, spending:5, ledger:6}[name];
-  document.querySelectorAll('.pr-tab')[idx]?.classList.add('on');
-  document.getElementById('pr-panel-'+name)?.classList.add('on');
-  if(name==='performance') loadMonthlyPerformance();
-  if(name==='projects') renderProjectBudgetsTable();
-  if(name==='history') renderPrHistory();
-  if(name==='spending') loadSpendingTab();
-  if(name==='ledger') loadRealLedgerTab();
+  const selected = FINANCE_LEGACY_TABS[name] || name;
+  if(!Object.hasOwn(FINANCE_TABS, selected)) return;
+  financeActiveTab = selected;
+  for(const key of Object.keys(FINANCE_TABS)){
+    const active = key === selected;
+    const tab = document.getElementById('fin-tab-'+key);
+    tab.setAttribute('aria-selected', active);
+    tab.tabIndex = active ? 0 : -1;
+    document.getElementById('fin-view-'+key).hidden = !active;
+  }
+  const [title, intro] = FINANCE_TABS[selected];
+  document.getElementById('fin-title').textContent = title;
+  document.getElementById('fin-intro').textContent = intro;
+  if(name==='history') document.getElementById('fin-history').open = true;
+  if(name==='ledger') document.getElementById('fin-job-results').open = true;
+  if(selected==='transactions' && !financeSpendingLoaded){
+    financeSpendingLoaded = true;
+    loadSpendingTab();
+  }
 }
+
+document.getElementById('pr-tabs').addEventListener('keydown', event=>{
+  const tabs = Object.keys(FINANCE_TABS);
+  const index = tabs.indexOf(financeActiveTab);
+  const target = {ArrowLeft:tabs[(index+tabs.length-1)%tabs.length],ArrowRight:tabs[(index+1)%tabs.length],Home:tabs[0],End:tabs.at(-1)}[event.key];
+  if(!target) return;
+  event.preventDefault();
+  prShowTab(target);
+  document.getElementById('fin-tab-'+target).focus();
+});
+document.getElementById('fin-job-results').addEventListener('toggle', event=>{
+  if(event.target.open && !document.getElementById('pr-ledger-month').onchange) loadRealLedgerTab();
+});
 
 function prScrollTo(id){
   const el = document.getElementById(id);
   if(!el) return;
+  const view = el.closest('.fin-view');
+  if(view?.hidden) prShowTab(view.id.slice('fin-view-'.length));
+  for(let parent = el.parentElement; parent; parent = parent.parentElement){
+    if(parent.tagName==='DETAILS') parent.open = true;
+  }
   el.scrollIntoView({behavior:'smooth', block:'center'});
   el.style.transition = 'box-shadow 0.3s';
   el.style.boxShadow = '0 0 0 3px var(--gold)';
@@ -2576,7 +2607,7 @@ function renderPrHistory(){
 function prJumpToMonth(y,m){
   document.getElementById('fin-year').value = y;
   document.getElementById('fin-month').value = m+1;
-  prShowTab('finance');
+  prShowTab('overview');
   runFinanceView();
   window.scrollTo({top:0, behavior:'smooth'});
 }
@@ -2591,7 +2622,7 @@ document.addEventListener('DOMContentLoaded', async ()=>{
   await loadFinanceConfig();
   await runFinanceView();
   const wantTab = new URLSearchParams(window.location.search).get('tab');
-  if(wantTab) prShowTab(wantTab);
+  prShowTab(wantTab || 'overview');
 });
 </script>
 <script>document.addEventListener('DOMContentLoaded',()=>{try{document.querySelector('.nav-sw .nav-btn.on')?.scrollIntoView({inline:'center',block:'nearest'});}catch(e){}});</script>
