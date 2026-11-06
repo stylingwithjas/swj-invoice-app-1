@@ -19,6 +19,7 @@ function app(file){
  window.SWJInvoiceNumber.ensure=async()=>true;window.SWJInvoiceNumber.attach=data=>data;
  window.eval(fs.readFileSync(path.join(root,'assets/records.js'),'utf8'));
  window.eval(fs.readFileSync(path.join(root,'assets/payment-events.js'),'utf8'));
+ window.eval(fs.readFileSync(path.join(root,'assets/finance-plan.js'),'utf8'));
  for(const m of fs.readFileSync(path.join(root,file),'utf8').matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi))if(m[1].trim())window.eval(m[1]);
  return window;
 }

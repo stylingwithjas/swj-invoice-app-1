@@ -439,6 +439,7 @@ body{background:var(--bg)}.hdr{background:#fbfcfb}.content{gap:12px!important;pa
 <link rel="stylesheet" href="/styles/christmas-window.css">
 <script src="/assets/christmas-window.js" defer></script>
 <script src="/assets/payment-budget.js" defer></script>
+<script src="/assets/finance-plan.js"></script>
 <link rel="stylesheet" href="/styles/swj-workspace.css">
 <script src="/assets/swj-workspace.js" defer></script>
 </head>
@@ -960,7 +961,7 @@ async function loadAll(){
   allInvoices=(invRes.data||[]).filter(inv=>{const s=(inv.data&&inv.data.stage)||'proposal';return s!=='denied'&&s!=='closed_lost';});
   activeInvoices=allInvoices;
 
-  const monthlyComplete=await loadMonthlyFinanceData(generation);
+  const monthlyComplete=await loadMonthlyFinanceData(generation,invRes.data||[]);
   if(generation!==_homeLoadSeq)return;
 
   const urgentCount=buildS1();
@@ -1035,15 +1036,33 @@ function monthRangeISO(){
   const now=new Date();
   return [toISODate(new Date(now.getFullYear(),now.getMonth(),1)), toISODate(new Date(now.getFullYear(),now.getMonth()+1,0))];
 }
-async function loadMonthlyFinanceData(generation){
+async function loadMonthlyFinanceData(generation,invoices){
+  if(invoices) window.SWJHomePlan=null;
   const [mStart,mEnd]=monthRangeISO();
   const [cards,hours]=await Promise.all([
     SWJRecords.all(()=>_sb.from('plaid_transactions').select('transaction_id,date,merchant_name,name,amount,pending,category,job_invnum',{count:'exact'}).gte('date',mStart).lte('date',mEnd).order('transaction_id',{ascending:true}),{key:'transaction_id'}),
-    SWJRecords.all(()=>_sb.from('time_entries').select('id,invnum,amount',{count:'exact'}).gte('clock_in',mStart+'T00:00:00').lte('clock_in',mEnd+'T23:59:59').order('id',{ascending:true}),{key:'id'})
+    SWJRecords.all(()=>_sb.from('time_entries').select('id,invnum,amount,work_type',{count:'exact'}).gte('clock_in',mStart+'T00:00:00').lte('clock_in',mEnd+'T23:59:59.999999').order('id',{ascending:true}),{key:'id'})
   ]);
   if(generation!==undefined && generation!==_homeLoadSeq)return false;
   _monthlyPlaidTx=cards.error?[]:cards.data.filter(t=>!t.pending&&(parseFloat(t.amount)||0)>0);
   _monthlyTimeEntries=hours.error?[]:hours.data;
+  if(invoices && !cards.error && !hours.error){
+    try{
+      const period=mStart.slice(0,7);
+      const [budget,settings,overrides]=await Promise.all([
+        SWJPaymentBudget.load(period),
+        _sb.from('invoices').select('data').eq('invnum','FINANCE_CONFIG').maybeSingle(),
+        _sb.from('invoices').select('data').eq('invnum','FINANCE_OVERRIDES').maybeSingle()
+      ]);
+      if(settings.error||overrides.error||budget.period!==period) throw Error('Planning inputs unavailable');
+      if(generation!==_homeLoadSeq)return false;
+      const config=SWJFinancePlan.config(settings.data?.data);
+      window.SWJHomePlan=SWJFinancePlan.calculate(period,mStart,mEnd,invoices,budget,hours.data,cards.data,
+        config,overrides.data?.data?.[period]||{});
+    }catch{
+      if(generation!==_homeLoadSeq)return false;
+    }
+  }
   return !cards.error&&!hours.error;
 }
 
@@ -1221,22 +1240,32 @@ function buildS6(){
   const mtd=verified.collected_cents/100;
   const expenses=verified.costs_cents/100;
   const profit=verified.result_cents==null?null:verified.result_cents/100;
-  const margin=verified.margin_percent;
-  const gap=Math.max(0,verified.revenue_ex_tax_cents/100*.25-profit);
-  const progress=margin==null?0:Math.max(0,Math.min(100,margin/25*100));
+  const plan=window.SWJHomePlan;
+  const adjustments=plan && profit!=null ? [
+    ['Budgeted receipts less recorded receipts',plan.revenue-mtd],
+    ['Add back recorded card purchases',verified.card_spend_cents/100],
+    ['Add back recorded mover payments',verified.mover_spend_cents/100],
+    ['Add back recorded fees',(verified.stripe_fees_cents+verified.bank_fees_cents)/100],
+    ['Add back collected sales tax',verified.sales_tax_cents/100],
+    ['Deduct planned truck and warehouse',-plan.truckCost-plan.warehouseCost],
+    ['Deduct planned movers',-plan.moverCost-plan.moverReserve],
+    ['Deduct planned Stripe fees',-plan.stripeFee],
+    ['Deduct planned tax set-aside including B&O',-plan.taxSetAside],
+  ] : null;
   document.getElementById('s6-meta').textContent=now.toLocaleDateString('en-US',{month:'long'})+' so far';
   document.getElementById('s6-body').innerHTML=`
     <div class="snap-grid">
+      <div class="snap-cell ${plan?.operatingNet<0?'loss':'profit'}"><div class="snap-lbl">Planning net</div><div class="snap-val">${plan?fmtExact(plan.operatingNet):'Unavailable'}</div></div>
       <div class="snap-cell"><div class="snap-lbl">Collected receipts</div><div class="snap-val">${fmtExact(mtd)}</div></div>
       <div class="snap-cell"><div class="snap-lbl">Recorded spending</div><div class="snap-val">${fmtExact(expenses)}</div></div>
-      <div class="snap-cell ${profit<0?'loss':'profit'}"><div class="snap-lbl">Provisional surplus</div><div class="snap-val">${profit==null?'Pending':fmtExact(profit)}</div></div>
+      <div class="snap-cell ${profit<0?'loss':'profit'}"><div class="snap-lbl">Recorded surplus</div><div class="snap-val">${profit==null?'Pending':fmtExact(profit)}</div></div>
     </div>
-    ${verified?.sales_tax_cents!=null ? `<p class="fin-note">Collected ${fmtExact(mtd)} − recorded costs ${fmtExact(expenses)} − sales tax collected ${fmtExact(verified.sales_tax_cents/100)} = ${profit==null?'pending':fmtExact(profit)} provisional surplus. <a href="/payroll.html">View the monthly budget plan →</a></p>` : ''}
-    <div class="profit-goal"><b>Your net profit goal: 25%</b>
-      <div class="profit-track"><span style="width:${progress}%"></span></div>
-      <span class="luxury-goal-context">${margin==null?'Margin pending until revenue is collected.':`Recorded surplus is ${margin.toFixed(1)}% of receipts after sales tax · ${gap>0?fmt(gap)+' below the 25% benchmark':'at or above the 25% benchmark'}.`}</span>
-
-    </div>
+    ${verified?.sales_tax_cents!=null ? `<p class="fin-note">Collected ${fmtExact(mtd)} − recorded costs ${fmtExact(expenses)} − sales tax collected ${fmtExact(verified.sales_tax_cents/100)} = ${profit==null?'pending':fmtExact(profit)} recorded surplus. <a href="/payroll.html">View the monthly budget plan →</a></p>` : ''}
+    ${adjustments?.every(([,amount])=>Number.isFinite(amount)) ? `<details class="home-detail">
+      <summary>Recorded surplus to planning net · ${fmtExact(plan.operatingNet-profit)} difference</summary>
+      <ul>${adjustments.map(([label,amount])=>`<li>${label} · ${fmtExact(amount)}</li>`).join('')}</ul>
+      <p>${fmtExact(profit)} recorded surplus → ${fmtExact(plan.operatingNet)} planning net</p>
+    </details>` : ''}
     <details class="home-detail"><summary>Recorded spending breakdown</summary>
       <ul>
         <li>Card purchases: ${fmtExact(verified.card_spend_cents/100)}</li>
