@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<script src="/admin-auth.js"></script>
 <meta charset="UTF-8">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -14,6 +15,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Cormorant+Garamond:wght@300;400;500;600&display=swap">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="/assets/swj-owner-data.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
 :root{
@@ -81,17 +83,12 @@ select:focus,input:focus{border-color:var(--gold);}
 <div class="content" id="main-content">
   <div class="card">
     <div class="field">
-      <div class="field-lbl">Your Name</div>
+      <div class="field-lbl">Team Member</div>
       <select id="employee-select" onchange="onEmployeeSelected()">
-        <option value="">Select your name…</option>
+        <option value="">Select a team member…</option>
       </select>
     </div>
-    <div class="field" id="password-field-wrap" style="display:none">
-      <div class="field-lbl">Password</div>
-      <input type="password" id="employee-password" placeholder="Enter your password" onkeydown="if(event.key==='Enter')attemptLogin()">
-      <button class="btn btn-in" onclick="attemptLogin()">Log In</button>
-      <div class="msg" id="login-msg"></div>
-    </div>
+
   </div>
   <div id="work-area"></div>
 </div>
@@ -99,7 +96,7 @@ select:focus,input:focus{border-color:var(--gold);}
 <script>
 const _sb = supabase.createClient(
   'https://cwvdfgrjlrpsdfwduwvn.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN3dmRmZ3JqbHJwc2Rmd2R1d3ZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwMDcyODUsImV4cCI6MjA5MzU4MzI4NX0.zam9AnIwW91TI6eCKUcg05LhvFcRa7op4QsjRpdcrCY'
+  'owner-bridge'
 );
 
 // Rate table Jasmine gave us: on-site staging pays a premium; every other work type
@@ -140,19 +137,12 @@ function findJobLabel(invnum){
   return job ? jobLabel(job) : null;
 }
 
-// Employee passwords are stored as a SHA-256 hash (never the raw password) — set/reset by
-// Jasmine on payroll.html, checked here at login the same way.
-async function sha256Hex(str){
-  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
-  return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('');
-}
-
 let _employeesCache = [];
 
 async function loadEmployees(){
   const sel = document.getElementById('employee-select');
   try{
-    const {data,error} = await _sb.from('employees').select('name,password_hash').eq('active',true).order('name');
+    const {data,error} = await _sb.from('employees').select('name').eq('active',true).order('name');
     if(error) throw error;
     _employeesCache = data||[];
     _employeesCache.forEach(e=>{
@@ -170,46 +160,18 @@ async function loadEmployees(){
   }
 }
 
-// Picking a name only reveals the password box — it does NOT log in automatically, even
-// if this name was remembered from last time, so a shared/left-open device can't be used
-// to clock in as someone else without their password.
+// Jasmine is the only internal user. Her owner session authorizes this page;
+// selecting a team member chooses whose hours she is managing.
 function onEmployeeSelected(){
-  const pwWrap = document.getElementById('password-field-wrap');
-  const pwInput = document.getElementById('employee-password');
-  const msg = document.getElementById('login-msg');
   document.getElementById('work-area').innerHTML = '';
-  msg.textContent = ''; msg.classList.remove('err');
-  pwInput.value = '';
-  const name = document.getElementById('employee-select').value;
-  if(!name){ pwWrap.style.display = 'none'; return; }
-  pwWrap.style.display = 'block';
-  pwInput.focus();
+  attemptLogin();
 }
 
 async function attemptLogin(){
+  if (!(await window.swjOwnerReady)) return;
   const name = document.getElementById('employee-select').value;
-  const pwInput = document.getElementById('employee-password');
-  const msg = document.getElementById('login-msg');
-  msg.classList.remove('err');
-  if(!name) return;
-  const emp = _employeesCache.find(e=>e.name===name);
-  if(!emp || !emp.password_hash){
-    msg.textContent = 'No password set for this account yet — ask Jasmine to set one in Payroll.';
-    msg.classList.add('err');
-    return;
-  }
-  msg.textContent = 'Checking…';
-  const hash = await sha256Hex(pwInput.value);
-  if(hash !== emp.password_hash){
-    msg.textContent = 'Incorrect password.';
-    msg.classList.add('err');
-    pwInput.value = '';
-    pwInput.focus();
-    return;
-  }
-  msg.textContent = '';
+  if (!name) return;
   localStorage.setItem('swj_hours_employee', name);
-  document.getElementById('password-field-wrap').style.display = 'none';
   onEmployeeChange();
 }
 
@@ -668,8 +630,7 @@ async function showShiftEndSummary(name){
 
 // Fire-and-forget notification so Jasmine can approve straight from her inbox — a second
 // route into the same approval, alongside the Approve button on payroll.html. The link
-// points at approve-hours.html (no login needed, same low-friction pattern as the
-// signature/confirm links) with every entry id from today's shift.
+// points at approve-hours.html (Jasmine’s owner login is required) with every entry id from today's shift.
 function notifyJasmineShiftEnded(name, entries, hours, amount){
   if(!entries.length) return;
   const dateStr = new Date(entries[0].clock_in).toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});

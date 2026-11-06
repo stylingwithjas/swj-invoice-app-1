@@ -1,6 +1,7 @@
 from lib.invoice_numbers import require_number, existing_payment_parent
 from lib.invoice_protection import stored_invoice
 from lib.tax_verification import require_verified
+from lib.owner_guard import require_owner
 import json
 import os
 import urllib.parse
@@ -15,6 +16,8 @@ class handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_POST(self):
+        if not require_owner(self, write=True):
+            return
         try:
             length = int(self.headers.get('Content-Length', 0))
             body = json.loads(self.rfile.read(length))

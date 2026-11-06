@@ -20,6 +20,7 @@ Design matches the SWJ proposal — Cormorant Garamond aesthetic, ink + gold,
 generous whitespace. Single page, designed for luxury clients.
 """
 
+from lib.owner_guard import require_owner
 import json
 import io
 import os
@@ -256,6 +257,8 @@ class handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_POST(self):
+        if not require_owner(self):
+            return
         try:
             length = int(self.headers.get('Content-Length', 0))
             body = json.loads(self.rfile.read(length))

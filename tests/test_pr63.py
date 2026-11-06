@@ -39,6 +39,8 @@ class BackendTests(unittest.TestCase):
             guard.start();self.addCleanup(guard.stop)
             numbering=patch.object(mod,'require_number',return_value=True)
             numbering.start();self.addCleanup(numbering.stop)
+            owner=patch.object(mod,'require_owner',return_value=True)
+            owner.start();self.addCleanup(owner.stop)
 
     def fake_handler(self, cls, body):
         h=cls.__new__(cls);raw=json.dumps(body).encode();h.headers={'Content-Length':str(len(raw))};h.rfile=io.BytesIO(raw)

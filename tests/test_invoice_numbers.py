@@ -53,11 +53,11 @@ class NumberTests(unittest.TestCase):
 
     def test_number_denial_precedes_pdf_save_and_stripe(self):
         api=module('generate');h=api.handler.__new__(api.handler);raw=json.dumps({'generator_request':True,'invnum':'2020132'}).encode();h.headers={'Content-Length':str(len(raw))};h.rfile=io.BytesIO(raw);h._error=lambda code,data:setattr(h,'result',(code,data))
-        with patch.object(api,'stored_invoice',return_value=None),patch.object(api,'require_verified') as tax,patch.object(api,'generate_invoice_pdf') as pdf:
+        with patch.object(api,'require_owner',return_value=True),patch.object(api,'stored_invoice',return_value=None),patch.object(api,'require_verified') as tax,patch.object(api,'generate_invoice_pdf') as pdf:
             h.do_POST();tax.assert_not_called();pdf.assert_not_called()
         self.assertEqual(h.result[0],422)
         api=module('stripe');h=api.handler.__new__(api.handler);raw=json.dumps({'source':'invoice_generator','invnum':'2020132'}).encode();h.headers={'Content-Length':str(len(raw))};h.rfile=io.BytesIO(raw);h._respond=lambda code,data:setattr(h,'result',(code,data))
-        with patch('urllib.request.urlopen') as call:h.do_POST();call.assert_not_called()
+        with patch.object(api,'require_owner',return_value=True),patch('urllib.request.urlopen') as call:h.do_POST();call.assert_not_called()
         self.assertEqual(h.result[0],422)
 
     def test_rpc_uses_fixed_server_endpoint_and_returns_only_proof(self):
@@ -73,7 +73,7 @@ class NumberTests(unittest.TestCase):
 
     def test_old_editor_cannot_create_unreserved_new_payment(self):
         api=module('stripe');h=api.handler.__new__(api.handler);raw=json.dumps({'invnum':'2020999','grand':100}).encode();h.headers={'Content-Length':str(len(raw))};h.rfile=io.BytesIO(raw);h._respond=lambda code,data:setattr(h,'result',(code,data))
-        with patch.dict(os.environ,{'STRIPE_SECRET_KEY':'fixture-only'}),patch.object(api,'existing_payment_parent',return_value=None),patch('urllib.request.urlopen') as stripe:
+        with patch.object(api,'require_owner',return_value=True),patch.dict(os.environ,{'STRIPE_SECRET_KEY':'fixture-only'}),patch.object(api,'existing_payment_parent',return_value=None),patch('urllib.request.urlopen') as stripe:
             h.do_POST();stripe.assert_not_called()
         self.assertEqual(h.result[0],422)
 
