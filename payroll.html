@@ -463,7 +463,26 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
   <section id="fin-view-allocation" class="fin-view" role="tabpanel" aria-labelledby="fin-tab-allocation" hidden>
   <div class="card" id="finance-card">
 
-    <div id="finance-settings" style="display:none;background:var(--cream);border-radius:10px;padding:14px;margin-bottom:16px">
+    <span id="fin-period" hidden></span>
+    <div class="fin-project-picker">
+      <label for="pr-donut-job-picker">Project</label>
+      <button type="button" class="filter-btn" id="fin-prev-project" aria-label="Previous project" onclick="financeStepProject(-1)">‹</button>
+      <select id="pr-donut-job-picker" onchange="renderPrDonut()"></select>
+      <button type="button" class="filter-btn" id="fin-next-project" aria-label="Next project" onclick="financeStepProject(1)">›</button>
+      <span id="fin-allocation-status" role="status"></span>
+    </div>
+    <div class="fin-pair fin-allocation-pair">
+      <section class="pr-card">
+        <h2>Revenue Allocation</h2>
+        <div class="pr-donut-wrap">
+          <div class="pr-donut" id="pr-donut" aria-hidden="true"><div class="pr-donut-center" id="pr-donut-center"></div></div>
+          <div class="pr-legend" id="pr-legend"></div>
+        </div>
+      </section>
+      <section class="pr-card"><h2>Keep Breakdown</h2><div id="fin-keep-breakdown"></div><button type="button" class="filter-btn" onclick="prScrollTo('fin-override-add')">Adjust Allocation</button></section>
+    </div>
+    <section class="pr-card fin-guidance"><h2>Allocation Guidance</h2><div id="fin-allocation-guidance"></div><p class="fin-note">Compare planning amounts with posted costs in <button type="button" class="fin-text-button" onclick="prShowTab('ledger')">Recorded Job Results</button>. Recorded results may be incomplete.</p></section>
+    <details class="fin-disclosure" id="fin-allocation-settings"><summary>Allocation Settings</summary>    <div id="finance-settings" class="fin-settings-body">
       <div style="font-size:11px;color:var(--taupe-dk);margin-bottom:10px">Every number below is editable — these are starting assumptions, not fixed constants. Mover rates are managed separately (Create a Day's Pay Schedule / /hours.html) and already feed in live from actual logged hours.</div>
       <div class="fin-settings-grid">
         <div><label>Warehouse $/mo</label><input type="number" step="1" id="fc-warehouse"></div>
@@ -486,20 +505,9 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
       <span class="msg" id="fc-msg" style="display:inline-block;margin-left:8px"></span>
     </div>
 
-    <div class="sub-hdr" style="margin-top:0">Finance &amp; Allocation — <span id="fin-period"></span></div>
-    <div id="fin-oneoff-banner"></div>
-
-    <div class="pr-row2">
-      <div class="pr-card">
-        <div class="pr-card-ttl" style="justify-content:space-between">
-          <span>◐ Revenue Allocation <span class="info-ic" title="Per project — where this one job's money should go. Pick a different job below; the KPI cards above stay for the whole month.">ⓘ</span></span>
-          <select id="pr-donut-job-picker" onchange="renderPrDonut()" style="font-size:11px;padding:5px 8px;border-radius:7px;border:0.5px solid var(--taupe-lt);font-family:inherit;max-width:180px"></select>
-        </div>
-        <div class="pr-donut-wrap">
-          <div class="pr-donut" id="pr-donut"><div class="pr-donut-center" id="pr-donut-center"></div></div>
-          <div class="pr-legend" id="pr-legend"></div>
-        </div>
-      </div>
+</details>
+    <details class="fin-disclosure" id="fin-advanced"><summary>Advanced · budgets, notes and overrides</summary>
+      <div id="fin-oneoff-banner"></div>
       <div class="pr-card">
         <div class="pr-card-ttl" style="justify-content:space-between">
           <span>This Month's Notes</span>
@@ -513,7 +521,6 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
           <button class="pr-qa-btn" onclick="prAddNote()"><span class="ic">📝</span>Add Note</button>
         </div>
       </div>
-    </div>
 
     <details class="fin-details" id="fin-details">
       <summary>See how this was calculated</summary>
@@ -539,6 +546,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
     </div>
     <div style="font-size:10.5px;color:var(--taupe-dk);margin-top:4px">Add a job the automatic rules missed, remove one with its "Remove from budget" button, or flip a wrong one-off flag. This never deletes anything — it only changes what shows for this month.</div>
 
+    </details>
     <div class="disclaimer">Collected receipts use payment-received dates, including unsigned paid invoices and paid extensions, excluding test charges. They include collected sales tax. Planning exclusions do not change recorded receipts. Checking deposits and transfers are excluded from revenue. Mover pay is actual, from logged hours this month. Truck and warehouse costs use the editable assumptions above, since this app doesn't track per-job truck receipts yet — correct the defaults above if your actual costs differ. Tax set-aside reuses the Tax Report's B&amp;O + sales-tax method (not CPA-certified — see TAX_METHODOLOGY.md). "Jasmine keep (actual net)" is the existing planning allocation result, including estimated costs, not accounting profit; "Jasmine keep (target)" is a benchmark line only — the two are never blended, and the target is capped at actual profit so it can never exceed what the month really made. Inventory (shopping budget) is derived, never entered: whatever is left after costs and the keep target. A month with unreconciled revenue is flagged, not presented as final. Viewing this page never changes a stored record — only the Manual Override controls write anything.</div>
   </div>
 
@@ -2402,7 +2410,17 @@ function renderPrDonut(){
     if(projects.some(p=>p.invnum===prevValue)) picker.value = prevValue;
   }
 
+  const index = picker.selectedIndex;
+  document.getElementById('fin-prev-project').disabled = index <= 0;
+  document.getElementById('fin-next-project').disabled = index < 0 || index >= projects.length-1;
+  const keep = document.getElementById('fin-keep-breakdown');
+  const guidance = document.getElementById('fin-allocation-guidance');
+  const status = document.getElementById('fin-allocation-status');
+  keep.replaceChildren();
+  guidance.replaceChildren();
+  status.replaceChildren();
   if(!projects.length){
+    keep.textContent = 'Choose a project to see its planned keep.';
     donut.style.background = '#e7e1d9';
     center.innerHTML = `<div class="dv">${finMoney(0)}</div><div class="dl">Revenue</div>`;
     legend.innerHTML = '<div class="empty-note">No jobs to allocate this period — staged or paid jobs for the selected month will appear here.</div>';
@@ -2411,6 +2429,18 @@ function renderPrDonut(){
 
   const p = projects.find(x=>x.invnum===picker?.value) || projects[0];
   const rev = p.revenue;
+  const collected = _lastFinanceSummary.received.filter(receipt=>receipt.invnum===p.invnum).reduce((sum,receipt)=>sum+receipt.amount,0);
+  status.textContent = finMoney(collected)+' received this month · '+(p.paid?'Paid':'Invoice open');
+  keep.innerHTML = [
+    ['Planned keep',p.keepTarget],
+    ['Giving ('+FINANCE_CONFIG.tithe_pct+'%)',p.tithe],
+    ['Personally retained (plan)',p.keepTarget-p.tithe],
+    ['Inventory allowance',p.inventory]
+  ].map(([label,amount])=>financeDetailRow(label,finMoney(amount))).join('');
+  guidance.textContent = rev<=0.009 ? 'This project has no revenue in the allocation basis.'
+    : p.net<0 ? 'Planned costs exceed this project’s revenue.'
+    : p.keepTarget<p.keepTargetUncapped-0.009 ? 'Planned keep is below goal. This allocation leaves no additional allowance for inventory.'
+    : 'The planned keep reaches the configured goal. Inventory spending above the allowance would reduce keep.';
   const slices = [
     { key:'movers', label:`Movers${p.moverIsActual?' (actual)':' (planning avg)'}`, amt:p.mover },
     { key:'truck', label:'Truck (estimate)', amt:p.truck },
@@ -2419,7 +2449,7 @@ function renderPrDonut(){
   ];
   if(p.stripe>0.009) slices.push({ key:'stripe', label:'Stripe Fee', amt:p.stripe });
   slices.push({ key:'keep', label:'Net / Keep (This Job)', amt:p.keepTarget });
-  slices.push({ key:'inventory', label:"This Job's Share", amt:p.inventory });
+  slices.push({ key:'inventory', label:"Inventory allowance", amt:p.inventory });
 
   if(rev<=0.009){
     donut.style.background = '#e7e1d9';
@@ -2435,38 +2465,18 @@ function renderPrDonut(){
   });
   donut.style.background = `conic-gradient(${stops.join(',')})`;
   center.innerHTML = `<div class="dv">${finMoney(rev)}</div><div class="dl">${esc(p.client)}</div>`;
-  legend.innerHTML = slices.map(sl=>{
-    const row = `
+  legend.innerHTML = slices.map(sl=>`
     <div class="pr-legend-row">
       <span class="pr-legend-dot" style="background:${PR_DONUT_COLORS[sl.key]}"></span>
       <span class="pr-legend-name">${esc(sl.label)}</span>
       <span class="pr-legend-amt">${finMoney(sl.amt)}</span>
       <span class="pr-legend-pct">${(Math.max(0,sl.amt)/rev*100).toFixed(1)}%</span>
-    </div>`;
-    // Tithe is a cut OF the Keep slice, not a separate dollar amount on top of it — shown as a
-    // sub-line under Keep, never its own pie slice (that would double-count the same revenue).
-    // Never a flat/hardcoded number: tithe = this job's capped keep * 10%, and keepTarget is
-    // already capped at this job's own net (and floored at $0), so a job that lost money
-    // produces $0 tithe automatically, not a guess.
-    if(sl.key==='keep'){
-      const inGreen = p.keepTarget > 0.009;
-      const retained = p.keepTarget - p.tithe;
-      return row + `
-    <div class="pr-legend-row pr-legend-sub">
-      <span class="pr-legend-dot"></span>
-      <span class="pr-legend-name">↳ Tithe — 10% of keep${inGreen?'':' (no keep on this job — $0)'}</span>
-      <span class="pr-legend-amt">${finMoney(p.tithe)}</span>
-      <span class="pr-legend-pct"></span>
-    </div>
-    <div class="pr-legend-row pr-legend-sub">
-      <span class="pr-legend-dot"></span>
-      <span class="pr-legend-name">↳ Personally retained</span>
-      <span class="pr-legend-amt">${finMoney(retained)}</span>
-      <span class="pr-legend-pct"></span>
-    </div>`;
-    }
-    return row;
-  }).join('');
+    </div>`).join('');
+}
+function financeStepProject(step){
+  const picker = document.getElementById('pr-donut-job-picker');
+  picker.selectedIndex += step;
+  renderPrDonut();
 }
 
 function renderPrNotes(){
