@@ -512,7 +512,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
       <div id="fin-reconcile-result" style="font-size:13px"></div>
     </div>
 
-    <div class="disclaimer">Recorded receipts use payment-received dates. Budgeted receipts use each payment’s assigned month. Both include collected sales tax, paid extensions and unsigned paid invoices, and exclude test charges. Planning exclusions do not change recorded receipts. Checking deposits and transfers are excluded from revenue. Mover pay is actual, from logged hours this month. Truck and warehouse costs use the editable assumptions above, since this app doesn't track per-job truck receipts yet — correct the defaults above if your actual costs differ. Tax set-aside reuses the Tax Report's B&amp;O + sales-tax method (not CPA-certified — see TAX_METHODOLOGY.md). "Jasmine keep (actual net)" is the existing planning allocation result, including estimated costs, not accounting profit; "Jasmine keep (target)" is a benchmark line only — the two are never blended, and the target is capped at actual profit so it can never exceed what the month really made. Inventory (shopping budget) is derived, never entered: whatever is left after costs and the keep target. A month with unreconciled revenue is flagged, not presented as final. Viewing this page never changes a stored record — only the Manual Override controls write anything.</div>
+    <div class="disclaimer">Recorded receipts use payment-received dates. Budgeted receipts use each payment’s assigned month. Both include collected sales tax, paid extensions and unsigned paid invoices, and exclude test charges. Planning exclusions do not change recorded receipts. Checking deposits and transfers are excluded from revenue. The monthly mover total uses all logged hours. Project budgets use logged hours for each job where available and a planning estimate otherwise. Truck and warehouse costs use the editable assumptions above, since this app doesn't track per-job truck receipts yet — correct the defaults above if your actual costs differ. Tax set-aside reuses the Tax Report's B&amp;O + sales-tax method (not CPA-certified — see TAX_METHODOLOGY.md). "Jasmine keep (actual net)" is the existing planning allocation result, including estimated costs, not accounting profit; "Jasmine keep (target)" is a benchmark line only — the two are never blended, and the target is capped at actual profit so it can never exceed what the month really made. Inventory (shopping budget) is derived, never entered: whatever is left after costs and the keep target. A month with unreconciled revenue is flagged, not presented as final. Viewing this page never changes a stored record — only the Manual Override controls write anything.</div>
   </div>
 
   </div><!-- /pr-panel-finance -->
@@ -678,6 +678,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
           <tbody id="pr-proj-tbody"></tbody>
         </table>
       </div>
+      <div id="pr-proj-mover-reconciliation" class="quiet-line" style="margin-top:10px"></div>
       <div id="pr-proj-detail"></div>
     </div>
   </div>
@@ -1438,7 +1439,7 @@ async function runFinanceView(){
   _lastFinancePeriod = null;
   document.getElementById('fin-period').textContent = '';
   status.textContent = `Loading ${MONTH_NAMES[month-1]} ${year}…`;
-  ['pr-kpi-row','fin-headline','fin-waterfall','fin-details-body','fin-budget','fin-overdue','fin-committed','pr-overdue-alert-wrap','pr-legend','pr-donut-center','pr-notes-body','fin-oneoff-banner','fin-reconcile-result'].forEach(id=>document.getElementById(id)?.replaceChildren());
+  ['pr-kpi-row','pr-proj-mover-reconciliation','fin-headline','fin-waterfall','fin-details-body','fin-budget','fin-overdue','fin-committed','pr-overdue-alert-wrap','pr-legend','pr-donut-center','pr-notes-body','fin-oneoff-banner','fin-reconcile-result'].forEach(id=>document.getElementById(id)?.replaceChildren());
 
   let paymentBudget;
   try {
@@ -1825,6 +1826,20 @@ function renderProjectBudgetsTable(){
   if(!tbody) return;
   if(periodEl) periodEl.textContent = document.getElementById('fin-period')?.textContent || '';
   const projects = prBuildProjectList();
+  const monthJobs = projects.filter(project => project.status === 'this month');
+  const monthJobIds = new Set(monthJobs.map(project => project.invnum));
+  const booked = _lastFinanceSummary.periodEntries.reduce((sum, entry) =>
+    sum + (monthJobIds.has(entry.invnum) ? Math.round((Number(entry.amount) || 0) * 100) : 0), 0);
+  const payroll = _lastFinanceSummary.periodEntries.reduce((sum, entry) =>
+    sum + Math.round((Number(entry.amount) || 0) * 100), 0);
+  const outside = payroll - booked;
+  const estimates = monthJobs.filter(project => !project.moverIsActual)
+    .reduce((sum, project) => sum + Math.round(project.mover * 100), 0);
+  document.getElementById('pr-proj-mover-reconciliation').innerHTML = `
+    <div><strong>Logged mover payroll</strong> · ${finMoney(booked/100)} on this month’s listed projects
+      + ${finMoney(outside/100)} on other jobs or shared work = <strong>${finMoney(payroll/100)}</strong></div>
+    ${estimates ? `<div>Listed projects also include ${finMoney(estimates/100)} in mover estimates where no hours were logged.</div>` : ''}
+    <div>Project totals show project-level plans. Other logged mover work is included in the monthly allocation.</div>`;
   document.getElementById('pr-proj-detail').innerHTML = '';
   if(!projects.length){
     tbody.innerHTML = '<tr><td colspan="7" class="empty-note">No jobs have a staging date in this month, and nothing is committed in the next 60 days — this list is built from the staging date, not the payment date, so a job paid this month but staged outside it won\'t appear automatically. Add it by hand in Finance &amp; Allocation → Manual Override.</td></tr>';

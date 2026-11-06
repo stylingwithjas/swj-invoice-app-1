@@ -96,10 +96,15 @@ for(const file of ['index.html','luxury.html']){
  assert.equal(run('_lastFinanceSummary.revenue'),7505.28);
  assert.equal(run('_lastFinanceSummary.cashReceipts'),11616.88);
  assert.match(w.document.getElementById('fin-budget').textContent,/Received Oct 31, 2026 · Budgeted in November 2026 \(moved out\)/);
+ w.__dbRows.time_entries=[
+  {id:'logged-job',invnum:'TEST-NOV',work_type:'staging',amount:218.45,clock_in:'2026-11-04T12:00:00'},
+  {id:'outside-job',invnum:'TEST-PROPOSAL',work_type:'warehouse',amount:358.55,clock_in:'2026-11-05T12:00:00'},
+ ];
  run(`document.getElementById('fin-month').innerHTML='<option value="11">November</option>'`);
  await run('runFinanceView()');
  assert.equal(run('_lastFinanceSummary.revenue'),6882.18);
  assert.match(w.document.getElementById('fin-budget').textContent,/Budget total · November 2026\$20,336\.11/);
+ assert.match(w.document.getElementById('pr-proj-mover-reconciliation').textContent,/\$218\.45[\s\S]+\$358\.55[\s\S]+\$577\.00/);
  assert.equal(run('_lastFinanceSummary.cashReceipts'),2770.58);
  assert.equal(run('_lastFinanceSummary.warehouseCost'),1473);
  assert.ok(run('_lastFinanceSummary.inventoryBudget')>0);
