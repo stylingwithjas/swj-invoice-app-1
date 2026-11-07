@@ -78,6 +78,9 @@
  .swj-finance .pr-chart-wrap { gap:4px; }
  .swj-finance .pr-chart-lbl { overflow-wrap:anywhere; text-align:center; }
 }
+@media (display-mode: standalone) and (min-width: 351px) and (max-width: 767px) {
+ .swj-finance #pr-kpi-row .pr-kpi:last-child { grid-column:auto; }
+}
 @media(max-width:350px){
  .swj-finance .pr-kpi-row,.fin-spend-chart { grid-template-columns:minmax(0,1fr); }
 }
