@@ -2418,6 +2418,11 @@ async function generateAndEmail(){
   await openEmailModal(result.data);
 }
 
+// Titus "Pay at Close" — same links as proposal.html, alongside the card payment option,
+// never a replacement for it (Codex instruction, Nov 15 2026).
+const TITUS_PAY_URL = 'https://www.gotitus.com/pay/styling-with-jas';
+const TITUS_ESTIMATE_URL = 'https://www.gotitus.com/estimate/styling-with-jas';
+
 async function openEmailModal(data){
   let approvalLink;
   try { approvalLink = await swjPrivateLink(data.invnum,'client'); }
@@ -2427,10 +2432,11 @@ async function openEmailModal(data){
   const firstName=client.toLowerCase().startsWith('estate of')?client.split(' ').slice(2).join(' ').split(' ')[0]:client.split(' ')[0];
   const clientRoleParam=data.cosigner&&data.cosigner.name?"&role=client":"";
   const approveLine="\n\nTo approve this proposal, review & sign here:\n"+approvalLink;
+  const titusLine="\n• Prefer $0 due until the home sells? Ask about Pay at Close with Titus: "+TITUS_PAY_URL+"\n  Check eligibility and rate: "+TITUS_ESTIMATE_URL+"\n  (In Washington, Titus lends to the listing agent, not the homeowner — if that's you, your agent can ask about this on your behalf.)";
   document.getElementById('email-to').value=data.client_email||'';
   document.getElementById('email-cc').value='';
   document.getElementById('email-subject').value=`Your Staging Proposal — ${address}`;
-  document.getElementById('email-body').value=`Hi ${firstName},\n\nThank you for the opportunity to work with you! I'm excited about this property and what we can create together.\n\nAttached you'll find your personalized staging proposal for ${address}. Inside you'll find the full scope of work, investment total, and payment details.\n\nA few important notes:\n• Full payment is due 48 hours before installation day\n• Once payment is received I'll lock in your staging date\n• The payment link is included in the proposal for your convenience\n\nPlease don't hesitate to reach out with any questions!\n\nLooking forward to transforming your space.${approveLine}\n\nWarmly,\nJasmine Santana\nOwner & Creative Director — Styling With Jas`;
+  document.getElementById('email-body').value=`Hi ${firstName},\n\nThank you for the opportunity to work with you! I'm excited about this property and what we can create together.\n\nAttached you'll find your personalized staging proposal for ${address}. Inside you'll find the full scope of work, investment total, and payment details.\n\nA few important notes:\n• Full payment is due 48 hours before installation day\n• Once payment is received I'll lock in your staging date\n• The payment link is included in the proposal for your convenience${titusLine}\n\nPlease don't hesitate to reach out with any questions!\n\nLooking forward to transforming your space.${approveLine}\n\nWarmly,\nJasmine Santana\nOwner & Creative Director — Styling With Jas`;
   // Sending this invites the co-signer automatically in the same action (see
   // sendCosignerInviteEmail) — disclosed here so nothing sends invisibly as a side effect.
   const cosignerNotice = document.getElementById('email-cosigner-notice');

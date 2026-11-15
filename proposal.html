@@ -129,6 +129,12 @@ body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var
 .confirm-detail-row strong{color:var(--ink);}
 .pay-btn{display:block;width:100%;padding:15px;background:var(--cta);color:#f0ebe3;border:none;border-radius:11px;font-family:'Cormorant Garamond',serif;font-size:17px;font-weight:400;letter-spacing:2px;text-transform:uppercase;cursor:pointer;margin-top:16px;text-decoration:none;text-align:center;}
 
+/* Titus "Pay at Close" option, alongside the card payment button (Nov 2026) */
+.pay-btn-secondary{display:block;width:100%;padding:15px;background:#fff;color:var(--ink);border:1.5px solid var(--olive-line);border-radius:11px;font-family:'Cormorant Garamond',serif;font-size:17px;font-weight:400;letter-spacing:2px;text-transform:uppercase;cursor:pointer;margin-top:10px;text-decoration:none;text-align:center;box-sizing:border-box;}
+.pay-sub{font-size:11px;color:var(--muted);text-align:center;margin-top:6px;}
+.pay-eligibility-link{display:block;text-align:center;font-size:11px;color:var(--muted);margin-top:6px;text-decoration:underline;}
+.pay-agent-note{font-size:10.5px;color:var(--muted-soft);text-align:center;margin-top:10px;font-style:italic;line-height:1.4;}
+
 /* FOOTER */
 .footer{text-align:center;padding:24px;font-size:11px;color:var(--muted-soft);}
 .footer a{color:var(--muted);text-decoration:none;}
@@ -144,6 +150,7 @@ body.luxe .prop-total{ background:linear-gradient(160deg,#221d16,#16120d); }
 body.luxe .prop-total-val{ color:#e7cd92; }
 body.luxe .prop-total-lbl{ color:rgba(231,205,146,0.72); }
 body.luxe .pay-btn{ background:linear-gradient(135deg,#c9a44e,#a9842f); color:#1a140c; }
+body.luxe .pay-btn-secondary{ border-color:#c2a25a; color:#2c2926; }
 .luxe-welcome{ max-width:600px; margin:18px auto 0; padding:22px 24px; background:#fffdf9; border:1px solid #ece4d2; border-left:3px solid #c2a25a; border-radius:14px; }
 .luxe-welcome-eyebrow{ font-size:10px; letter-spacing:2px; text-transform:uppercase; color:#97793c; font-weight:600; margin-bottom:8px; }
 .luxe-welcome-body{ font-family:'Cormorant Garamond',serif; font-size:18px; line-height:1.55; color:#2c2926; }
@@ -214,6 +221,21 @@ function getActivePayment(d, grand){
     return active ? {url:active.payment_url, amount:parseFloat(active.amount)||0, label:active.label||'Payment'} : null;
   }
   return d.payment_url ? {url:d.payment_url, amount:grand, label:'Full payment'} : null;
+}
+
+// Titus "Pay at Close" — an alternative to the card payment, not a replacement: only ever
+// shown alongside an active card payment link, for the same balance (Codex instruction,
+// Nov 15 2026). Titus pays Styling With Jas directly and outside this app; the invoice is
+// never auto-marked paid from this link (see api/webhook.py for the reconciliation side).
+const TITUS_PAY_URL = 'https://www.gotitus.com/pay/styling-with-jas';
+const TITUS_ESTIMATE_URL = 'https://www.gotitus.com/estimate/styling-with-jas';
+function titusOptionHTML(){
+  return `
+    <a href="${TITUS_PAY_URL}" class="pay-btn-secondary" target="_blank" rel="noopener">Pay at Close with Titus</a>
+    <div class="pay-sub">$0 due until the home sells.</div>
+    <a href="${TITUS_ESTIMATE_URL}" class="pay-eligibility-link" target="_blank" rel="noopener">Check eligibility and rate →</a>
+    <div class="pay-agent-note">In Washington, Titus lends to the listing agent on this sale, not the homeowner — if this is you, ask your agent about paying at close with Titus.</div>
+  `;
 }
 
 function computeGrand(d){
@@ -608,7 +630,8 @@ function showConfirmation(name, date, contractUrl){
           ? `Your ${esc(active.label.toLowerCase())} of <strong style="color:var(--ink)">${fmt(active.amount)}</strong> is due 48 hours before staging. (${fmt(balanceRemaining)} remaining after this payment.)`
           : `Your payment of <strong style="color:var(--ink)">${fmt(active.amount)}</strong> is due 48 hours before staging.`}
       </div>
-      <a href="${esc(active.url)}" class="pay-btn" target="_blank">Pay Now — ${fmt(active.amount)}</a>`
+      <a href="${esc(active.url)}" class="pay-btn" target="_blank">Pay Now — ${fmt(active.amount)}</a>
+      ${titusOptionHTML()}`
       : (balanceRemaining>0.009?`
       <div style="margin-top:16px;padding:14px 16px;background:#fff;border-radius:10px;font-size:12px;color:var(--muted);text-align:center;">
         Balance due: <strong style="color:var(--ink)">${fmt(balanceRemaining)}</strong>. Jasmine will send you a payment link.
@@ -635,7 +658,7 @@ function showSigned(d){
       <div class="confirm-title">Already signed.</div>
       <div class="confirm-sub">This proposal was approved by ${approvedByHTML}.</div>
       ${amountPaid>0.009?`<div style="margin-top:12px;font-size:12px;color:var(--muted);text-align:center;">Paid ${fmt(amountPaid)} of ${fmt(grand)}${balanceRemaining>0.009?` · ${fmt(balanceRemaining)} remaining`:' · Paid in full'}</div>`:''}
-      ${active?`<a href="${esc(active.url)}" class="pay-btn" target="_blank">Pay Now — ${fmt(active.amount)}</a>`
+      ${active?`<a href="${esc(active.url)}" class="pay-btn" target="_blank">Pay Now — ${fmt(active.amount)}</a>${titusOptionHTML()}`
         : (balanceRemaining>0.009?`<div style="margin-top:10px;font-size:12px;color:var(--muted);text-align:center;">Balance due: <strong style="color:var(--ink)">${fmt(balanceRemaining)}</strong>. Jasmine will send you a payment link.</div>`:'')}
     </div>
   `;
