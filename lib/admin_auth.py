@@ -172,7 +172,16 @@ def renewed_session_cookie(handler, now=None, base_url=None, key=None):
 
 
 def cookie_header(token='', clear=False):
-    return COOKIE + '=' + token + '; Path=/api/webhook; Secure; HttpOnly; SameSite=Strict; Max-Age=' + ('0' if clear else str(LIFETIME))
+    # Nov 2026 bug (critical, site-wide): this cookie used to be scoped to Path=/api/webhook,
+    # from back when admin_auth only ever protected endpoints under that one path. Since then,
+    # require_owner() (lib/owner_guard.py) and this module have been wired into api/generate.py,
+    # api/sign.py, api/email.py, api/search.py, api/distance.py, api/agent.py, api/counter.py,
+    # and api/invoices.py too -- but the cookie's Path was never widened to match. A browser
+    # only ever sends a cookie on requests whose path starts with its own Path, so every one of
+    # those other endpoints never received this cookie at all, no matter how many times someone
+    # signed in -- authorized() always saw no cookie and returned False. Path=/ sends it with
+    # every same-origin request, matching what every one of those call sites already assumes.
+    return COOKIE + '=' + token + '; Path=/; Secure; HttpOnly; SameSite=Strict; Max-Age=' + ('0' if clear else str(LIFETIME))
 
 
 def allow_login(now=None):
