@@ -355,13 +355,11 @@ textarea:focus { border-color:var(--gold); background:var(--warm); }
 @media (max-width:767px){
   body.has-gen-sticky{ padding-bottom:calc(140px + env(safe-area-inset-bottom,0px)) !important; }
   .gen-sticky-bar{
-    display:flex; align-items:center; justify-content:space-between; gap:12px;
+    display:flex; align-items:center; justify-content:flex-end;
     position:fixed; left:0; right:0; bottom:calc(58px + env(safe-area-inset-bottom,0px)); z-index:90;
-    background:var(--ink); padding:12px 16px; box-shadow:0 -4px 16px rgba(0,0,0,0.12);
+    padding:12px 16px; pointer-events:none;
   }
-  .gen-sticky-total-lbl{ font-size:9px; color:rgba(255,255,255,0.4); text-transform:uppercase; letter-spacing:1px; }
-  .gen-sticky-total-val{ font-family:"Cormorant Garamond",serif; font-size:19px; color:#fff; }
-  .gen-sticky-btn{ background:var(--gold-lt,#f5ead8); color:var(--gold-dk,#9d7a44); border:none; border-radius:10px; padding:11px 16px; font-size:12.5px; font-weight:600; font-family:"Inter",sans-serif; cursor:pointer; min-height:44px; }
+  .gen-sticky-btn{ background:none; border:none; color:#fff; font-family:"Cormorant Garamond",serif; font-size:21px; font-weight:600; cursor:pointer; min-height:44px; padding:0; text-shadow:0 1px 6px rgba(0,0,0,0.6); pointer-events:auto; }
 }
 </style>
 <link rel="stylesheet" href="/styles/swj-luxury-theme.css">
@@ -787,11 +785,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
   </div><!-- /gen-panel-create -->
 
   <div class="gen-sticky-bar" id="gen-sticky-bar">
-    <div>
-      <div class="gen-sticky-total-lbl">Total</div>
-      <div class="gen-sticky-total-val" id="gen-sticky-total">—</div>
-    </div>
-    <button class="gen-sticky-btn" onclick="genReviewInvoice()">Review Invoice</button>
+    <button class="gen-sticky-btn" id="gen-sticky-total" onclick="genReviewInvoice()">—</button>
   </div>
 
 </div>
