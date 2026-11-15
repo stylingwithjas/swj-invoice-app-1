@@ -357,9 +357,9 @@ textarea:focus { border-color:var(--gold); background:var(--warm); }
   .gen-sticky-bar{
     display:flex; align-items:center; justify-content:flex-end;
     position:fixed; left:0; right:0; bottom:calc(58px + env(safe-area-inset-bottom,0px)); z-index:90;
-    background:var(--ink); padding:12px 16px; box-shadow:0 -4px 16px rgba(0,0,0,0.12);
+    padding:12px 16px; pointer-events:none;
   }
-  .gen-sticky-btn{ background:none; border:none; color:#fff; font-family:"Cormorant Garamond",serif; font-size:21px; font-weight:600; cursor:pointer; min-height:44px; padding:0; }
+  .gen-sticky-btn{ background:none; border:none; color:#fff; font-family:"Cormorant Garamond",serif; font-size:21px; font-weight:600; cursor:pointer; min-height:44px; padding:0; text-shadow:0 1px 6px rgba(0,0,0,0.6); pointer-events:auto; }
 }
 </style>
 <link rel="stylesheet" href="/styles/swj-luxury-theme.css">
