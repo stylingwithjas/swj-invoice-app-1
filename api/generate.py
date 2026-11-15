@@ -1323,8 +1323,7 @@ def generate_invoice_pdf(data):
             cv.drawString(ML, y, 'Pay: ' + TITUS_PAY_URL); y -= 10
             cv.drawString(ML, y, 'Check eligibility and rate: ' + TITUS_ESTIMATE_URL); y -= 10
             cv.setFont('Helvetica-Oblique', 7); cv.setFillColor(GRAY)
-            agent_note = ('In Washington, Titus lends to the listing agent on this sale, not the '
-                          'homeowner — if this is you, ask your agent about paying at close with Titus.')
+            agent_note = 'In Washington, Titus lends to the listing agent on this sale, not the homeowner.'
             for l in wrap(cv, agent_note, 'Helvetica-Oblique', 7, CW):
                 cv.drawString(ML, y, l); y -= 9
             y -= 4
