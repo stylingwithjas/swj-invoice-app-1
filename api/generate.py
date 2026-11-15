@@ -41,12 +41,21 @@ def display_client_name(data, fallback='Client'):
     return client
 
 
+# Nov 15, 2026 Codex instruction: "Pay at Close with Titus" alongside card payment, same
+# links as proposal.html and index.html/luxury.html's email body, on the PDF too.
+TITUS_PAY_URL = 'https://www.gotitus.com/pay/styling-with-jas'
+TITUS_ESTIMATE_URL = 'https://www.gotitus.com/estimate/styling-with-jas'
+
+
 def make_qr_image(url):
     """Generate a QR code PNG and return the temp file path."""
     try:
         import qrcode, tempfile
+        # border=4 is the QR spec's recommended quiet zone (we had 2) -- a tighter-than-
+        # spec quiet zone is the single most common reason a correctly-encoded QR fails to
+        # scan on an otherwise-fine printed page.
         qr = qrcode.QRCode(version=1, error_correction=qrcode.constants.ERROR_CORRECT_M,
-                           box_size=6, border=2)
+                           box_size=6, border=4)
         qr.add_data(url)
         qr.make(fit=True)
         img = qr.make_image(fill_color="black", back_color="white")
@@ -1264,9 +1273,11 @@ def generate_invoice_pdf(data):
         cv.line(ML, y, PW-MR, y); y -= 12
     
         if payment_url:
-            # QR code — right side
+            # QR code — right side. Inset a few points from MR (rather than flush against
+            # the same margin line the rest of the page's text sits on) so a solid graphic
+            # block doesn't read as crowding the page edge the way text never does.
             qr_size = 58
-            qr_x = PW - MR - qr_size
+            qr_x = PW - MR - qr_size - 6
             qr_y = y - qr_size
             if qr_path:
                 cv.drawImage(qr_path, qr_x, qr_y,
@@ -1299,7 +1310,25 @@ def generate_invoice_pdf(data):
         if qr_path:
             try: os.unlink(qr_path)
             except: pass
-    
+
+        # Nov 15, 2026 Codex instruction: Titus alongside card payment, never a replacement
+        # for it -- only on invoices generated with the "+ Titus" button (data.titus_option),
+        # same gate as the email body and proposal.html use.
+        if data.get('titus_option'):
+            cv.setFont('Helvetica-Bold', 8.5); cv.setFillColor(BLACK)
+            cv.drawString(ML, y, 'Pay at Close with Titus'); y -= 12
+            cv.setFont('Helvetica', 7.5); cv.setFillColor(GRAY)
+            cv.drawString(ML, y, '$0 due until the home sells.'); y -= 11
+            cv.setFillColor(colors.HexColor('#1a73e8'))
+            cv.drawString(ML, y, 'Pay: ' + TITUS_PAY_URL); y -= 10
+            cv.drawString(ML, y, 'Check eligibility and rate: ' + TITUS_ESTIMATE_URL); y -= 10
+            cv.setFont('Helvetica-Oblique', 7); cv.setFillColor(GRAY)
+            agent_note = ('In Washington, Titus lends to the listing agent on this sale, not the '
+                          'homeowner — if this is you, ask your agent about paying at close with Titus.')
+            for l in wrap(cv, agent_note, 'Helvetica-Oblique', 7, CW):
+                cv.drawString(ML, y, l); y -= 9
+            y -= 4
+
     draw_footer(y)
     
     

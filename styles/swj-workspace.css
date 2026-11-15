@@ -38,6 +38,11 @@
  [data-swj-workspace] .gen-sticky-total-lbl{color:#E5E1D7}
  [data-swj-workspace] .gen-sticky-total-val{font-size:26px;font-variant-numeric:lining-nums tabular-nums}
  [data-swj-workspace] .gen-sticky-btn{color:#44371F;background:#F3EBDD}
+ /* index.html's sticky total is a plain floating price, not the pill above -- no bar, no
+    badge, no box-shadow, overriding the generic workspace skin above for this page only.
+    luxury.html keeps the pill (it still has its own separate Review Invoice button). */
+ [data-swj-workspace="index"] .gen-sticky-bar{background:none;border:none;border-radius:0;margin:0;box-shadow:none}
+ [data-swj-workspace="index"] .gen-sticky-btn{background:none;color:#fff}
 }
 @media(max-width:767px){
  [data-swj-workspace] :is(.wrap,.content){padding-left:16px;padding-right:16px;min-width:0}
