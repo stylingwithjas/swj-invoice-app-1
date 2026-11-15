@@ -2795,6 +2795,21 @@ async function generate(titusOption){
     btn.disabled = false;
     console.log('PDF: all done!');
 
+    // Nov 15, 2026 Codex instruction (revised same day): the Titus button also builds the
+    // email, so Jasmine can send the Titus invoice right from here instead of having to
+    // press "Generate + Email to Client" afterward (which would overwrite this save with
+    // titus_option:false and strip Titus from the invoice entirely). Reuses the exact blob
+    // already fetched above and the same `data` object already saved with titus_option:true
+    // -- no second /api/generate call, no second Stripe payment link, nothing re-saved with
+    // a different flag. The standing send-confirmation rule is untouched: this only opens
+    // the compose view, same as every other path into it; sendEmail() still requires its own
+    // explicit Send press.
+    if(isTitus){
+      _lastPdfBlob = blob; _lastPdfFilename = filename;
+      window._lastInvoiceData = data; window._lastGrand = grand;
+      await openEmailModal(data);
+    }
+
   } catch(e) {
     console.log('PDF ERROR:', e.message, e.stack);
     setSt('err', 'Error: ' + e.message);
