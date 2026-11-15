@@ -186,6 +186,21 @@ class DispatchTests(unittest.TestCase):
         self.assertIn('HttpOnly', cookie); self.assertIn('Secure', cookie); self.assertIn('SameSite=Strict', cookie)
         self.assertIn(str(auth.LIFETIME), cookie)
 
+    def test_cookie_is_scoped_site_wide_not_just_to_webhook(self):
+        # Nov 2026 critical bug: this cookie used to be Path=/api/webhook, from back when
+        # admin_auth only ever protected that one endpoint. require_owner() has since been
+        # wired into api/generate.py, api/sign.py, api/email.py, api/search.py,
+        # api/distance.py, api/agent.py, api/counter.py, and api/invoices.py too, but the
+        # cookie's Path was never widened to match -- a browser never sends a cookie on a
+        # request whose path doesn't start with that Path, so every one of those endpoints
+        # silently rejected every real session, no matter how many times someone signed in.
+        # Path=/ is the only value that reaches every same-origin endpoint.
+        h = FakeHandler('/api/webhook?admin=login', {'password': 'synthetic-admin-password-only'}, {'Origin': 'https://preview.example.test'})
+        api.handle(h, 'POST', 'https://example.test', fake_key())
+        cookie = h.out_headers['Set-Cookie']
+        self.assertIn('Path=/;', cookie)
+        self.assertNotIn('Path=/api/webhook', cookie)
+
     def test_login_with_wrong_password_gives_generic_message(self):
         h = FakeHandler('/api/webhook?admin=login', {'password': 'wrong'}, {'Origin': 'https://preview.example.test'})
         api.handle(h, 'POST', 'https://example.test', fake_key())
