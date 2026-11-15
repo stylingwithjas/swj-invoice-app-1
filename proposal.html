@@ -224,9 +224,13 @@ function getActivePayment(d, grand){
 }
 
 // Titus "Pay at Close" — an alternative to the card payment, not a replacement: only ever
-// shown alongside an active card payment link, for the same balance (Codex instruction,
-// Nov 15 2026). Titus pays Styling With Jas directly and outside this app; the invoice is
-// never auto-marked paid from this link (see api/webhook.py for the reconciliation side).
+// shown alongside an active card payment link, for the same balance. Gated on d.titus_option
+// (Codex instruction, Nov 15 2026, revised same day): no toggle, no automatic agent/owner
+// detection — Jasmine decides per invoice by pressing "Generate Invoice + Payment Link +
+// Titus" on the generator screen instead of the plain "Generate Invoice + Payment Link"
+// button; every other generate/download/email action leaves this flag false. Titus pays
+// Styling With Jas directly and outside this app; the invoice is never auto-marked paid from
+// this link (see api/webhook.py for the reconciliation side).
 const TITUS_PAY_URL = 'https://www.gotitus.com/pay/styling-with-jas';
 const TITUS_ESTIMATE_URL = 'https://www.gotitus.com/estimate/styling-with-jas';
 function titusOptionHTML(){
@@ -631,7 +635,7 @@ function showConfirmation(name, date, contractUrl){
           : `Your payment of <strong style="color:var(--ink)">${fmt(active.amount)}</strong> is due 48 hours before staging.`}
       </div>
       <a href="${esc(active.url)}" class="pay-btn" target="_blank">Pay Now — ${fmt(active.amount)}</a>
-      ${titusOptionHTML()}`
+      ${d.titus_option?titusOptionHTML():''}`
       : (balanceRemaining>0.009?`
       <div style="margin-top:16px;padding:14px 16px;background:#fff;border-radius:10px;font-size:12px;color:var(--muted);text-align:center;">
         Balance due: <strong style="color:var(--ink)">${fmt(balanceRemaining)}</strong>. Jasmine will send you a payment link.
@@ -658,7 +662,7 @@ function showSigned(d){
       <div class="confirm-title">Already signed.</div>
       <div class="confirm-sub">This proposal was approved by ${approvedByHTML}.</div>
       ${amountPaid>0.009?`<div style="margin-top:12px;font-size:12px;color:var(--muted);text-align:center;">Paid ${fmt(amountPaid)} of ${fmt(grand)}${balanceRemaining>0.009?` · ${fmt(balanceRemaining)} remaining`:' · Paid in full'}</div>`:''}
-      ${active?`<a href="${esc(active.url)}" class="pay-btn" target="_blank">Pay Now — ${fmt(active.amount)}</a>${titusOptionHTML()}`
+      ${active?`<a href="${esc(active.url)}" class="pay-btn" target="_blank">Pay Now — ${fmt(active.amount)}</a>${d.titus_option?titusOptionHTML():''}`
         : (balanceRemaining>0.009?`<div style="margin-top:10px;font-size:12px;color:var(--muted);text-align:center;">Balance due: <strong style="color:var(--ink)">${fmt(balanceRemaining)}</strong>. Jasmine will send you a payment link.</div>`:'')}
     </div>
   `;
