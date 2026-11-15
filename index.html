@@ -2433,7 +2433,7 @@ async function openEmailModal(data){
   const approveLine="\n\nTo approve this proposal, review & sign here:\n"+approvalLink;
   // Nov 15, 2026 Codex instruction (revised same day): only when this invoice was generated
   // with the "+ Titus" button (data.titus_option) -- never automatic, never a toggle.
-  const titusLine=data.titus_option?("\n• Prefer $0 due until the home sells? Ask about Pay at Close with Titus: "+TITUS_PAY_URL+"\n  Check eligibility and rate: "+TITUS_ESTIMATE_URL+"\n  (In Washington, Titus lends to the listing agent, not the homeowner — if that's you, your agent can ask about this on your behalf.)"):"";
+  const titusLine=data.titus_option?("\n• Prefer $0 due until the home sells? Ask about Pay at Close with Titus: "+TITUS_PAY_URL+"\n  Check eligibility and rate: "+TITUS_ESTIMATE_URL+"\n  (In Washington, Titus lends to the listing agent, not the homeowner.)"):"";
   document.getElementById('email-to').value=data.client_email||'';
   document.getElementById('email-cc').value='';
   document.getElementById('email-subject').value=`Your Staging Proposal — ${address}`;
