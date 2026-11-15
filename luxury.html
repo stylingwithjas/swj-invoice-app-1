@@ -887,6 +887,11 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
     </div>
     <button class="gen-btn" id="download-btn" onclick="downloadPdfNow()" style="background:#fff;color:var(--ink)">⬇ Download PDF</button>
     <button class="gen-btn" id="gen-btn" onclick="generate()" style="background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.85)">Generate Invoice + Payment Link</button>
+    <!-- Nov 15, 2026 Codex instruction: a separate button, not a toggle and not automatic
+         agent/owner detection -- Jasmine decides per invoice by which button she presses.
+         Does exactly what "Generate Invoice + Payment Link" does, plus flags the invoice so
+         the Titus option shows on the proposal view and in the invoice email. -->
+    <button class="gen-btn" id="gen-titus-btn" onclick="generate(true)" style="background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.85)">Generate Invoice + Payment Link + Titus</button>
     <button class="gen-btn" id="email-btn" onclick="generateAndEmail()">Prepare &amp; Email Proposal</button>  </div>
   </div><!-- /gen-summary-col -->
   </div><!-- /gen-grid -->
@@ -2849,6 +2854,11 @@ async function generateAndEmail(){
   await openEmailModal(result.data);
 }
 
+// Titus "Pay at Close" — same links as proposal.html, alongside the card payment option,
+// never a replacement for it (Codex instruction, Nov 15 2026).
+const TITUS_PAY_URL = 'https://www.gotitus.com/pay/styling-with-jas';
+const TITUS_ESTIMATE_URL = 'https://www.gotitus.com/estimate/styling-with-jas';
+
 async function openEmailModal(data){
   let approvalLink;
   try { approvalLink = await swjPrivateLink(data.invnum,'client'); }
@@ -2873,8 +2883,11 @@ async function openEmailModal(data){
     document.getElementById("email-subject").value="Your Curated Staging Proposal — "+address;
     document.getElementById("email-body").value="Dear "+firstName+",\n\nIt would be our privilege to prepare "+address+" for market. Your curated staging proposal is attached for your review.\n\nYour investment: "+grandStr+"\nScope: "+scopeWord+spacesBit+"\n\nIncluded throughout: white-glove delivery & installation, bespoke styling by our design team, a 45-day furnishing rental, and seamless teardown.\n\nApprove and sign below to reserve your installation date — once your contract is signed, we begin curating and sourcing the furnishings for your home."+approveLine+"\n\nWith warm regards,\nJasmine Santana\nFounder & Creative Director · Styling With Jas";
   } else {
+    // Nov 15, 2026 Codex instruction (revised same day): only when this invoice was generated
+    // with the "+ Titus" button (data.titus_option) -- never automatic, never a toggle.
+    const titusLine=data.titus_option?("\n• Prefer $0 due until the home sells? Ask about Pay at Close with Titus: "+TITUS_PAY_URL+"\n  Check eligibility and rate: "+TITUS_ESTIMATE_URL+"\n  (In Washington, Titus lends to the listing agent, not the homeowner — if that's you, your agent can ask about this on your behalf.)"):"";
     document.getElementById("email-subject").value="Your Staging Proposal — "+address;
-    document.getElementById("email-body").value="Hi "+firstName+",\n\nThank you for the opportunity to work with you! I'm excited about this property and what we can create together.\n\nAttached you'll find your personalized staging proposal for "+address+". Inside you'll find the full scope of work, investment total, and payment details.\n\nA few important notes:\n• Full payment is due 48 hours before installation day\n• Once payment is received I'll lock in your staging date\n• The payment link is included in the proposal for your convenience\n\nPlease don't hesitate to reach out with any questions!\n\nLooking forward to transforming your space."+approveLine+"\n\nWarmly,\nJasmine Santana\nOwner & Creative Director — Styling With Jas";
+    document.getElementById("email-body").value="Hi "+firstName+",\n\nThank you for the opportunity to work with you! I'm excited about this property and what we can create together.\n\nAttached you'll find your personalized staging proposal for "+address+". Inside you'll find the full scope of work, investment total, and payment details.\n\nA few important notes:\n• Full payment is due 48 hours before installation day\n• Once payment is received I'll lock in your staging date\n• The payment link is included in the proposal for your convenience"+titusLine+"\n\nPlease don't hesitate to reach out with any questions!\n\nLooking forward to transforming your space."+approveLine+"\n\nWarmly,\nJasmine Santana\nOwner & Creative Director — Styling With Jas";
   }
   // Sending this invites the co-signer automatically in the same action (see
   // sendCosignerInviteEmail) — disclosed here so nothing sends invisibly as a side effect.
@@ -3074,7 +3087,7 @@ async function generatePDF(){
   setSt('loading','Generating your invoice PDF...');
   const _contribList=contributions.filter(c=>c.label&&parseFloat(c.amount)>0).map(c=>({label:c.label,amount:parseFloat(c.amount)}));
   const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:getStartDateValue(),baserooms:[...selRooms].join(', '),baseroom_scopes:roomScopesObj(),extrate,taxrate,base_price:base,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,city:document.getElementById('city')?.value.trim()||'',zip:zipVal,property_state:'WA',rental_share_base:BASE_RENTAL_SHARE,price_led_tax:P.priceLedTax,pricing_mode:P.pricing_mode,rc_term_days:P.rc_term_days,rc_rate_30day:P.rc_rate_30day,rc_design_fee:P.rc_design_fee,manual_totals_fields:P.manualFields||[],manual_totals_unverified_fields:P.unverifiedManualFields||[],rental_service_split:P.rental_service_split,rental_term_days:P.rental_term_days,rental_total:P.rental_total,service_total:P.service_total,base_split:P.base_split,contract_terms_version:resolveContractVersion(),state:captureState(),home_value:homeValue,home_sqft:homeSqft,tier:selTier,scope:selScope,promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
-            promo4:document.getElementById('promo4').checked,payment_url,payment_link_id,contributions:_contribList,payments:splitPayments,active_client_payment_id:activeClientPaymentId,pet_deposit:petDeposit,cosigner:getCosigner(),cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||'',payer_unknown:!!payerUnknown};
+            promo4:document.getElementById('promo4').checked,payment_url,payment_link_id,contributions:_contribList,payments:splitPayments,active_client_payment_id:activeClientPaymentId,pet_deposit:petDeposit,cosigner:getCosigner(),cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||'',payer_unknown:!!payerUnknown,titus_option:false};
   if(!SWJInvoiceNumber.attach(data)) return null;
   if(!SWJTaxGuard.attach(data)) return null;
   data.generator_request=true;
@@ -3103,7 +3116,10 @@ async function generatePDF(){
 }
 
 
-async function generate(){
+async function generate(titusOption){
+  const isTitus = !!titusOption;
+  const genBtnId = isTitus ? 'gen-titus-btn' : 'gen-btn';
+  const genBtnLabel = isTitus ? 'Generate Invoice + Payment Link + Titus' : 'Generate Invoice + Payment Link';
   if(!invoiceActionAllowed('generating')) return null;
   if(!await SWJInvoiceNumber.ensure()) return null;
   if(!await invoiceTargetUnpaid()) return null;
@@ -3117,7 +3133,7 @@ async function generate(){
   else{document.getElementById('rooms-grid').classList.remove('err');document.getElementById('e-rooms').classList.remove('show');}
   if(!valid){document.querySelector('.rooms-grid').scrollIntoView({behavior:'smooth'});return;}
 
-  const btn=document.getElementById('gen-btn');btn.disabled=true;btn.textContent='Creating payment link...';
+  const btn=document.getElementById(genBtnId);btn.disabled=true;btn.textContent='Creating payment link...';
 
   const P=buildPricingPayload();
   const allAddons=P.allAddons;
@@ -3175,7 +3191,7 @@ async function generate(){
 
   const _contribList=contributions.filter(c=>c.label&&parseFloat(c.amount)>0).map(c=>({label:c.label,amount:parseFloat(c.amount)}));
   const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:getStartDateValue(),baserooms:[...selRooms].join(', '),baseroom_scopes:roomScopesObj(),extrate,taxrate,base_price:base,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,city:document.getElementById('city')?.value.trim()||'',zip:zipVal,property_state:'WA',rental_share_base:BASE_RENTAL_SHARE,price_led_tax:P.priceLedTax,pricing_mode:P.pricing_mode,rc_term_days:P.rc_term_days,rc_rate_30day:P.rc_rate_30day,rc_design_fee:P.rc_design_fee,manual_totals_fields:P.manualFields||[],manual_totals_unverified_fields:P.unverifiedManualFields||[],rental_service_split:P.rental_service_split,rental_term_days:P.rental_term_days,rental_total:P.rental_total,service_total:P.service_total,base_split:P.base_split,contract_terms_version:resolveContractVersion(),state:captureState(),home_value:homeValue,home_sqft:homeSqft,tier:selTier,scope:selScope,promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
-            promo4:document.getElementById('promo4').checked,payment_url,payment_link_id,contributions:_contribList,payments:splitPayments,active_client_payment_id:activeClientPaymentId,pet_deposit:petDeposit,cosigner:getCosigner(),cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||'',payer_unknown:!!payerUnknown};
+            promo4:document.getElementById('promo4').checked,payment_url,payment_link_id,contributions:_contribList,payments:splitPayments,active_client_payment_id:activeClientPaymentId,pet_deposit:petDeposit,cosigner:getCosigner(),cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||'',payer_unknown:!!payerUnknown,titus_option:isTitus};
   if(!SWJInvoiceNumber.attach(data)) return null;
   if(!SWJTaxGuard.attach(data)) return null;
   data.generator_request=true;
@@ -3221,14 +3237,29 @@ async function generate(){
     setSt('ok', 'Invoice generated and downloaded! Check your Downloads folder.');
     setTimeout(()=>saveInvoice(data).catch(()=>{}), 100);
     showContributorLinksOverlay(data.payments);
-    btn.textContent = 'Generate Invoice + Payment Link';
+    btn.textContent = genBtnLabel;
     btn.disabled = false;
     console.log('PDF: all done!');
+
+    // Nov 15, 2026 Codex instruction (revised same day): the Titus button also builds the
+    // email, so Jasmine can send the Titus invoice right from here instead of having to
+    // press "Generate + Email to Client" afterward (which would overwrite this save with
+    // titus_option:false and strip Titus from the invoice entirely). Reuses the exact blob
+    // already fetched above and the same `data` object already saved with titus_option:true
+    // -- no second /api/generate call, no second Stripe payment link, nothing re-saved with
+    // a different flag. The standing send-confirmation rule is untouched: this only opens
+    // the compose view, same as every other path into it; sendEmail() still requires its own
+    // explicit Send press.
+    if(isTitus){
+      _lastPdfBlob = blob; _lastPdfFilename = filename;
+      window._lastInvoiceData = data; window._lastGrand = grand;
+      await openEmailModal(data);
+    }
 
   } catch(e) {
     console.log('PDF ERROR:', e.message, e.stack);
     setSt('err', 'Error: ' + e.message);
-    btn.textContent = 'Generate Invoice + Payment Link';
+    btn.textContent = genBtnLabel;
     btn.disabled = false;
   }
 }
