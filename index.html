@@ -559,7 +559,21 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=docum
           <input class="base-input" id="rental-term-days" type="number" min="1" step="1" inputmode="numeric" value="45" oninput="recalc()">
         </div>
         <div style="font-size:11px;color:var(--taupe);margin-top:8px;line-height:1.5">
-          Each room/base line's furniture-rental portion is derived from this term (30-day rate &times; term&divide;30). Standard term is 45 days. Terms past 90 days fall back to taxing the full package — no split shown — since the per-line split formula isn't valid past that point.
+          Terms past 90 days fall back to taxing the full package — no split shown — since the per-line split formula isn't valid past that point.
+        </div>
+        <!-- Nov 18, 2026 split-override spec: the rental share of the package is a direct,
+             business-set percentage (default 50, matching the standard package exactly), not
+             derived from the term above. Use this for jobs where the client provides the
+             large items, so Jasmine brings less furniture and the real rental portion is
+             genuinely lower — her design/service work stays priced as normal. -->
+        <div class="base-row" style="margin-top:12px">
+          <span class="base-lbl">Rental % of package (rest is service)</span>
+          <input class="base-input" id="rental-split-pct" type="number" min="0" max="100" step="1" inputmode="decimal" value="50" oninput="onSplitPctEdit()">
+        </div>
+        <div id="split-reason-row" style="display:none;margin-top:10px">
+          <div class="field-lbl">Reason for this split (required, not shown to the client)</div>
+          <input class="field-input" id="split-reason" type="text" placeholder="e.g. Client provided large items" oninput="recalc()">
+          <div class="ferr" id="e-split-reason">Required when the split isn't 50/50</div>
         </div>
       </div>
       <div id="rate-card-fields" style="display:none;margin-top:12px">
@@ -1337,10 +1351,46 @@ function priceLedTax(basePrice, addonList, ratePct, total){
 // service component would go negative) — callers fall back to full-mode tax in that case
 // instead of a manual toggle; see recalc()'s room-based branch.
 const SPLIT_TERM_MAX_DAYS = 90;
-function splitFraction(termDays){
+// Nov 18, 2026 split-override spec: the ratio itself now comes from the business-set
+// "Rental %" field (rentalPct, 0-100, default 50) instead of being derived from the term --
+// term still gates WHETHER a split applies at all (same 1-90 day range as before), it just no
+// longer drives the ratio's value. At the default 50% this is numerically identical to the
+// old termDays/90 formula for every invoice on the standard 45-day term (45/90 was already
+// exactly 0.5), so nothing changes for a standard invoice.
+function splitFraction(termDays, rentalPct){
   const t = parseFloat(termDays)||0;
   if(t<=0 || t>SPLIT_TERM_MAX_DAYS) return null;
-  return t/90;
+  const pct = (rentalPct==null || rentalPct==='' || isNaN(rentalPct) || rentalPct<0 || rentalPct>100) ? 50 : rentalPct;
+  return pct/100;
+}
+// Reads/clamps the Rental % field (defaulting to 50 for blank/invalid input, the spec's
+// stated default) -- the single place both buildPricingPayload() and the live reason-field
+// toggle read this input, so they can never disagree about what counts as "not 50/50".
+function currentRentalSplitPct(){
+  const el=document.getElementById('rental-split-pct');
+  const raw=el && el.value!=='' ? parseFloat(el.value) : 50;
+  return (isFinite(raw) && raw>=0 && raw<=100) ? raw : 50;
+}
+// A reason is required whenever the split isn't the standard 50/50 -- the audit trail for
+// why this invoice's tax math differs from the default (Nov 18, 2026 spec item 3). Shown/
+// required in the app only; never printed on the client-facing PDF.
+function splitIsStandard(pct){ return Math.abs(pct-50)<0.005; }
+function onSplitPctEdit(){
+  const row=document.getElementById('split-reason-row');
+  if(row) row.style.display = splitIsStandard(currentRentalSplitPct()) ? 'none' : 'block';
+  recalc();
+}
+// Shared by downloadPdfNow()/generatePDF()/generate() so the reason requirement can't be
+// bypassed from any one of the three save/generate entry points.
+function validateSplitReason(){
+  const pct=currentRentalSplitPct();
+  const reasonEl=document.getElementById('split-reason');
+  const reason=(reasonEl?.value||'').trim();
+  const needsReason = !splitIsStandard(pct) && !reason;
+  document.getElementById('split-reason-row').style.display = splitIsStandard(pct) ? 'none' : 'block';
+  reasonEl?.classList.toggle('err', needsReason);
+  document.getElementById('e-split-reason')?.classList.toggle('show', needsReason);
+  return !needsReason;
 }
 // Splittable = priced through the room-selection UI (base package, room/category selections,
 // extra bedrooms) — what Jasmine negotiates room by room. Custom line items (free text, e.g.
@@ -1480,7 +1530,9 @@ function recalc(){
   document.getElementById('t-grand').textContent=fmt(P.grand);
   document.getElementById('t-ext').textContent=fmt(P.extrate)+' / 30 days';
   const note=document.getElementById('split-mode-note');
-  if(note)note.textContent=P.termError || (split?`Split mode (${P.rental_term_days}-day term): furniture rental ${fmt(P.rental_total)} · staging design ${fmt(P.service_total)}`:`Full mode — ${P.rental_term_days}-day term; the full subtotal is taxed.`);
+  if(note)note.textContent=P.termError || (split?`Split: ${P.rental_split_pct}% rental / ${(100-P.rental_split_pct).toFixed(P.rental_split_pct%1?1:0)}% service (${P.rental_term_days}-day term): furniture rental ${fmt(P.rental_total)} · staging design ${fmt(P.service_total)}`:`Full mode — ${P.rental_term_days}-day term; the full subtotal is taxed.`);
+  const reasonRow=document.getElementById('split-reason-row');
+  if(reasonRow) reasonRow.style.display = (split && !splitIsStandard(P.rental_split_pct)) ? 'block' : 'none';
   const total=contributions.reduce((s,c)=>s+(parseFloat(c.amount)||0),0);
   const wrap=document.getElementById('contrib-summary-wrap');
   if(wrap){wrap.style.display=total>0.009?'block':'none';if(total>0.009){document.getElementById('t-contrib').textContent='-'+fmt(total);document.getElementById('t-balance').textContent=fmt(Math.max(0,P.grand-total));}}
@@ -1542,7 +1594,9 @@ function captureState(){
     rc_term_days:parseFloat(document.getElementById('rc-term-days')?.value),
     rc_rate_30day:parseFloat(document.getElementById('rc-rate-30day')?.value)||0,
     rc_design_fee:parseFloat(document.getElementById('rc-design-fee')?.value)||0,
-    rental_term_days:parseFloat(document.getElementById('rental-term-days')?.value)
+    rental_term_days:parseFloat(document.getElementById('rental-term-days')?.value),
+    rental_split_pct:currentRentalSplitPct(),
+    split_reason:(document.getElementById('split-reason')?.value||'').trim()
   };
 }
 
@@ -1570,6 +1624,9 @@ function restoreState(state){
   if(state.rc_rate_30day!=null){ const el=document.getElementById('rc-rate-30day'); if(el){ el.value=state.rc_rate_30day; el.dataset.userEdited='1'; } }
   if(state.rc_design_fee!=null){ const el=document.getElementById('rc-design-fee'); if(el){ el.value=state.rc_design_fee; el.dataset.userEdited='1'; } }
   if(state.rental_term_days!=null){ const el=document.getElementById('rental-term-days'); if(el) el.value=state.rental_term_days; }
+  if(state.rental_split_pct!=null){ const el=document.getElementById('rental-split-pct'); if(el) el.value=state.rental_split_pct; }
+  if(state.split_reason!=null){ const el=document.getElementById('split-reason'); if(el) el.value=state.split_reason; }
+  { const row=document.getElementById('split-reason-row'); if(row) row.style.display = splitIsStandard(state.rental_split_pct??50) ? 'none' : 'block'; }
   toggleRateCardMode();
   selRooms=new Set(state.selRooms||[]);
   roomScopes=new Map(state.roomScopes||[]);
@@ -2108,7 +2165,9 @@ function buildPricingPayload(){
   const base = parseFloat(document.getElementById('base_price')?.value)||2500;
   const termInput=SWJInvoiceSafety.term(document.getElementById('rental-term-days')?.value ?? '45');
   const termDays=termInput.value;
-  const fraction = splitFraction(termDays);
+  const rentalSplitPct = currentRentalSplitPct();
+  const splitReason = (document.getElementById('split-reason')?.value||'').trim();
+  const fraction = splitFraction(termDays, rentalSplitPct);
   let rentalTotal = 0, serviceTotal = 0;
   const baseSplit = fraction!=null ? splitLineAmount(base, fraction) : null;
   if(baseSplit){ rentalTotal += baseSplit.rental; serviceTotal += baseSplit.service; } else { rentalTotal += base; }
@@ -2146,7 +2205,13 @@ function buildPricingPayload(){
   const hasOverride = ovSub!==null||ovTax!==null||ovTot!==null;
   const resolved=SWJInvoiceSafety.totals({lines:sub,rental:rentalTotal,rate,split:fraction!=null,ovSub,ovTax,ovTot});
   const grand=resolved.grand,taxOut=resolved.tax,subOut=resolved.subtotal;
-  const finalExtrate=SWJInvoiceSafety.round(subOut/3);
+  // Nov 18, 2026 split-override spec, Option A (Gabe): the 30-day extension follows the
+  // rental portion (resolved.taxableBase × 2/3), not the full pretax subtotal (subOut/3) --
+  // identical at the standard 50% split, where taxableBase is already exactly subOut/2, so
+  // nothing changes for a standard invoice. Uses resolved.taxableBase (not the raw
+  // rentalTotal above) so this always agrees with whatever reconcileCheck() below expects,
+  // including when a manual subtotal/tax/total override is in play.
+  const finalExtrate = fraction!=null ? SWJInvoiceSafety.round(resolved.taxableBase*2/3) : SWJInvoiceSafety.round(subOut/3);
   return {
     allAddons, base, grand,
     extrate: finalExtrate,
@@ -2162,7 +2227,9 @@ function buildPricingPayload(){
     rental_term_days: termDays,
     rental_total: rentalTotal, service_total: serviceTotal,
     base_split: baseSplit,
-    reconcile: reconcileCheck({linesSum:sub, sub:subOut, tax:taxOut, grand, extrate:finalExtrate, rawOvSub:ovSub, rawOvTax:document.getElementById('ov-tax').dataset.overrideSource==='legacy'?null:ovTax, rawOvTot:ovTot, taxableBase:resolved.taxableBase, rate})
+    rental_split_pct: rentalSplitPct,
+    split_reason: splitReason,
+    reconcile: reconcileCheck({linesSum:sub, sub:subOut, tax:taxOut, grand, extrate:finalExtrate, rawOvSub:ovSub, rawOvTax:document.getElementById('ov-tax').dataset.overrideSource==='legacy'?null:ovTax, rawOvTot:ovTot, taxableBase:resolved.taxableBase, rate, split:fraction!=null})
   };
 }
 
@@ -2200,6 +2267,7 @@ async function saveDraft(silent){
     manual_totals_fields: P.manualFields || [],
     manual_totals_unverified_fields: P.unverifiedManualFields || [],
     rental_service_split: P.rental_service_split, rental_term_days: P.rental_term_days, rental_total: P.rental_total, service_total: P.service_total, base_split: P.base_split,
+    rental_split_pct: P.rental_split_pct, split_reason: P.split_reason,
     contract_terms_version: resolveContractVersion(),
     state: captureState(),
     promo1: document.getElementById('promo1').checked,
@@ -2288,6 +2356,7 @@ async function downloadPdfNow(){
   if(selRooms.size===0){document.getElementById('rooms-grid').classList.add('err');document.getElementById('e-rooms').classList.add('show');valid=false;}
   else{document.getElementById('rooms-grid').classList.remove('err');document.getElementById('e-rooms').classList.remove('show');}
   if(!valid){document.querySelector('.rooms-grid').scrollIntoView({behavior:'smooth'});return;}
+  if(!validateSplitReason()){document.getElementById('split-reason')?.scrollIntoView({behavior:'smooth',block:'center'});return;}
 
   const btn=document.getElementById('download-btn');
   btn.disabled=true; btn.textContent='Generating PDF…';
@@ -2317,7 +2386,7 @@ async function downloadPdfNow(){
   invNum=invNumFinal;
 
   const _contribList=contributions.filter(c=>c.label&&parseFloat(c.amount)>0).map(c=>({label:c.label,amount:parseFloat(c.amount)}));
-  const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:getStartDateValue(),baserooms:[...selRooms].join(', '),baseroom_scopes:roomScopesObj(),extrate,taxrate,base_price:base,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,city:document.getElementById('city')?.value.trim()||'',zip:zipVal,property_state:'WA',rental_share_base:BASE_RENTAL_SHARE,price_led_tax:P.priceLedTax,pricing_mode:P.pricing_mode,rc_term_days:P.rc_term_days,rc_rate_30day:P.rc_rate_30day,rc_design_fee:P.rc_design_fee,manual_totals_fields:P.manualFields||[],manual_totals_unverified_fields:P.unverifiedManualFields||[],rental_service_split:P.rental_service_split,rental_term_days:P.rental_term_days,rental_total:P.rental_total,service_total:P.service_total,base_split:P.base_split,contract_terms_version:resolveContractVersion(),state:captureState(),promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,promo4:document.getElementById('promo4').checked,payment_url:null,contributions:_contribList,pet_deposit:petDepositBase(),cosigner:getCosigner(),cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||'',payer_unknown:!!payerUnknown};
+  const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:getStartDateValue(),baserooms:[...selRooms].join(', '),baseroom_scopes:roomScopesObj(),extrate,taxrate,base_price:base,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,city:document.getElementById('city')?.value.trim()||'',zip:zipVal,property_state:'WA',rental_share_base:BASE_RENTAL_SHARE,price_led_tax:P.priceLedTax,pricing_mode:P.pricing_mode,rc_term_days:P.rc_term_days,rc_rate_30day:P.rc_rate_30day,rc_design_fee:P.rc_design_fee,manual_totals_fields:P.manualFields||[],manual_totals_unverified_fields:P.unverifiedManualFields||[],rental_service_split:P.rental_service_split,rental_term_days:P.rental_term_days,rental_total:P.rental_total,service_total:P.service_total,base_split:P.base_split,rental_split_pct:P.rental_split_pct,split_reason:P.split_reason,contract_terms_version:resolveContractVersion(),state:captureState(),promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,promo4:document.getElementById('promo4').checked,payment_url:null,contributions:_contribList,pet_deposit:petDepositBase(),cosigner:getCosigner(),cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||'',payer_unknown:!!payerUnknown};
   if(!SWJInvoiceNumber.attach(data)) return null;
   if(!SWJTaxGuard.attach(data)) return null;
   data.generator_request=true;
@@ -2586,6 +2655,7 @@ async function generatePDF(){
   if(selRooms.size===0){document.getElementById('rooms-grid').classList.add('err');document.getElementById('e-rooms').classList.add('show');valid=false;}
   else{document.getElementById('rooms-grid').classList.remove('err');document.getElementById('e-rooms').classList.remove('show');}
   if(!valid){document.querySelector('.rooms-grid').scrollIntoView({behavior:'smooth'});return null;}
+  if(!validateSplitReason()){document.getElementById('split-reason')?.scrollIntoView({behavior:'smooth',block:'center'});return null;}
 
   const P=buildPricingPayload();
   const allAddons=P.allAddons;
@@ -2637,7 +2707,7 @@ async function generatePDF(){
 
   setSt('loading','Generating your invoice PDF...');
   const _contribList=contributions.filter(c=>c.label&&parseFloat(c.amount)>0).map(c=>({label:c.label,amount:parseFloat(c.amount)}));
-  const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:getStartDateValue(),baserooms:[...selRooms].join(', '),baseroom_scopes:roomScopesObj(),extrate,taxrate,base_price:base,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,city:document.getElementById('city')?.value.trim()||'',zip:zipVal,property_state:'WA',rental_share_base:BASE_RENTAL_SHARE,price_led_tax:P.priceLedTax,pricing_mode:P.pricing_mode,rc_term_days:P.rc_term_days,rc_rate_30day:P.rc_rate_30day,rc_design_fee:P.rc_design_fee,manual_totals_fields:P.manualFields||[],manual_totals_unverified_fields:P.unverifiedManualFields||[],rental_service_split:P.rental_service_split,rental_term_days:P.rental_term_days,rental_total:P.rental_total,service_total:P.service_total,base_split:P.base_split,contract_terms_version:resolveContractVersion(),state:captureState(),promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
+  const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:getStartDateValue(),baserooms:[...selRooms].join(', '),baseroom_scopes:roomScopesObj(),extrate,taxrate,base_price:base,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,city:document.getElementById('city')?.value.trim()||'',zip:zipVal,property_state:'WA',rental_share_base:BASE_RENTAL_SHARE,price_led_tax:P.priceLedTax,pricing_mode:P.pricing_mode,rc_term_days:P.rc_term_days,rc_rate_30day:P.rc_rate_30day,rc_design_fee:P.rc_design_fee,manual_totals_fields:P.manualFields||[],manual_totals_unverified_fields:P.unverifiedManualFields||[],rental_service_split:P.rental_service_split,rental_term_days:P.rental_term_days,rental_total:P.rental_total,service_total:P.service_total,base_split:P.base_split,rental_split_pct:P.rental_split_pct,split_reason:P.split_reason,contract_terms_version:resolveContractVersion(),state:captureState(),promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
             promo4:document.getElementById('promo4').checked,payment_url,payment_link_id,contributions:_contribList,payments:splitPayments,active_client_payment_id:activeClientPaymentId,pet_deposit:petDeposit,cosigner:getCosigner(),cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||'',payer_unknown:!!payerUnknown,titus_option:false};
   if(!SWJInvoiceNumber.attach(data)) return null;
   if(!SWJTaxGuard.attach(data)) return null;
@@ -2684,6 +2754,7 @@ async function generate(titusOption){
   if(selRooms.size===0){document.getElementById('rooms-grid').classList.add('err');document.getElementById('e-rooms').classList.add('show');valid=false;}
   else{document.getElementById('rooms-grid').classList.remove('err');document.getElementById('e-rooms').classList.remove('show');}
   if(!valid){document.querySelector('.rooms-grid').scrollIntoView({behavior:'smooth'});return;}
+  if(!validateSplitReason()){document.getElementById('split-reason')?.scrollIntoView({behavior:'smooth',block:'center'});return;}
 
   const btn=document.getElementById(genBtnId);btn.disabled=true;btn.textContent='Creating payment link...';
 
@@ -2742,7 +2813,7 @@ async function generate(titusOption){
   setSt('loading','Generating your invoice PDF...');
 
   const _contribList=contributions.filter(c=>c.label&&parseFloat(c.amount)>0).map(c=>({label:c.label,amount:parseFloat(c.amount)}));
-  const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:getStartDateValue(),baserooms:[...selRooms].join(', '),baseroom_scopes:roomScopesObj(),extrate,taxrate,base_price:base,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,city:document.getElementById('city')?.value.trim()||'',zip:zipVal,property_state:'WA',rental_share_base:BASE_RENTAL_SHARE,price_led_tax:P.priceLedTax,pricing_mode:P.pricing_mode,rc_term_days:P.rc_term_days,rc_rate_30day:P.rc_rate_30day,rc_design_fee:P.rc_design_fee,manual_totals_fields:P.manualFields||[],manual_totals_unverified_fields:P.unverifiedManualFields||[],rental_service_split:P.rental_service_split,rental_term_days:P.rental_term_days,rental_total:P.rental_total,service_total:P.service_total,base_split:P.base_split,contract_terms_version:resolveContractVersion(),state:captureState(),promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
+  const data={client,address,client_email:clientEmail,invnum:invNumFinal,invdate:document.getElementById('invdate').value,startdate:getStartDateValue(),baserooms:[...selRooms].join(', '),baseroom_scopes:roomScopesObj(),extrate,taxrate,base_price:base,subtotal_override:ovSub,tax_override:ovTax,total_override:ovTot,addons:allAddons,city:document.getElementById('city')?.value.trim()||'',zip:zipVal,property_state:'WA',rental_share_base:BASE_RENTAL_SHARE,price_led_tax:P.priceLedTax,pricing_mode:P.pricing_mode,rc_term_days:P.rc_term_days,rc_rate_30day:P.rc_rate_30day,rc_design_fee:P.rc_design_fee,manual_totals_fields:P.manualFields||[],manual_totals_unverified_fields:P.unverifiedManualFields||[],rental_service_split:P.rental_service_split,rental_term_days:P.rental_term_days,rental_total:P.rental_total,service_total:P.service_total,base_split:P.base_split,rental_split_pct:P.rental_split_pct,split_reason:P.split_reason,contract_terms_version:resolveContractVersion(),state:captureState(),promo1:document.getElementById('promo1').checked,promo2:document.getElementById('promo2').checked,promo3:document.getElementById('promo3').checked,
             promo4:document.getElementById('promo4').checked,payment_url,payment_link_id,contributions:_contribList,payments:splitPayments,active_client_payment_id:activeClientPaymentId,pet_deposit:petDeposit,cosigner:getCosigner(),cover_page:document.getElementById('cover_page').checked,cover_note:document.getElementById('cover_note')?.value.trim()||'',paid:document.getElementById('paid').checked,paid_date:document.getElementById('paid_date')?.value||'',payer_unknown:!!payerUnknown,titus_option:isTitus};
   if(!SWJInvoiceNumber.attach(data)) return null;
   if(!SWJTaxGuard.attach(data)) return null;

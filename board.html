@@ -372,6 +372,7 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--cream); co
 .pricing-type-pill { display:inline-block; font-size:8.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.4px; padding:1px 6px; border-radius:8px; margin-left:4px; vertical-align:1px; background:rgba(74,124,80,0.1); color:var(--green); }
 .pricing-type-pill.service { background:rgba(74,94,130,0.1); color:var(--slate); }
 .pricing-type-pill.extension { background:rgba(201,124,46,0.1); color:var(--amber); }
+.pricing-split-reason { font-size:11px; color:var(--slate); font-style:italic; margin:2px 0 8px; }
 .pricing-promo { font-size:12px; color:var(--green); padding:3px 0; }
 .pricing-totals { margin-top:10px; padding-top:8px; border-top:1px solid var(--taupe-lt); }
 .pricing-grand { font-weight:700; color:var(--ink); font-size:14px; }
@@ -1323,9 +1324,19 @@ function renderPricingSection(inv, d){
     <div class="pricing-row"><div class="pricing-row-desc">Billed separately, not taxed${petDeposit.status?' · '+escapeHtml(petDeposit.status):''}</div><div class="pricing-row-amt">${fmtMoney(parseFloat(petDeposit.amount)||0)}</div></div>
   ` : '';
 
-  const rentalSharePct = d.price_led_tax ? Math.round((parseFloat(d.rental_share_base)||0.5)*100) : null;
+  // Nov 18, 2026 split-override spec item 2/3: show the split pill for a live
+  // rental_service_split invoice too, not just the legacy price_led_tax mode -- and surface
+  // the reason internally here (never on the client-facing PDF). rental_split_pct is the
+  // stored, authoritative ratio on an invoice created with this feature; fall back to the
+  // ratio implied by rental_total/service_total for a split invoice that predates the field.
+  const rentalSharePct = d.price_led_tax ? Math.round((parseFloat(d.rental_share_base)||0.5)*100)
+    : (d.rental_service_split ? Math.round(d.rental_split_pct!=null ? parseFloat(d.rental_split_pct)
+        : ((parseFloat(d.rental_total)||0) / Math.max(0.01,(parseFloat(d.rental_total)||0)+(parseFloat(d.service_total)||0))) * 100) : null);
+  const splitReasonHtml = (d.rental_service_split && d.split_reason && Math.abs(rentalSharePct-50)>0.5)
+    ? `<div class="pricing-split-reason">Split reason (internal, not on the PDF): ${escapeHtml(d.split_reason)}</div>` : '';
   body.innerHTML = `
     <div class="pricing-sub-hdr">Base Package — ${fmtMoney(base)}${rentalSharePct!=null?`<span class="pricing-type-pill">${rentalSharePct}% Rental</span><span class="pricing-type-pill service">${100-rentalSharePct}% Service</span>`:''}</div>
+    ${splitReasonHtml}
     ${roomsHtml}
     ${addons.length?`<div class="pricing-sub-hdr">Add-ons</div>${addonsHtml}`:''}
     ${promosHtml}
@@ -2125,6 +2136,12 @@ function buildCardHTML(inv){
     }
   }
   if(d.payer_unknown) tags.push({text:'⚠ Needs a payer', cls:'w'});
+  // Nov 18, 2026 split-override spec item 2: the invoice list shows the split percentage so
+  // a non-50/50 invoice stands out at a glance -- only tagged when it actually differs from
+  // the standard package (a routine 50/50 invoice gets no tag, same as before this feature).
+  if(d.rental_service_split && d.rental_split_pct!=null && Math.abs(parseFloat(d.rental_split_pct)-50)>0.5){
+    tags.push({text: Math.round(parseFloat(d.rental_split_pct)) + '% rental split', cls:'a'});
+  }
   // Quote lifecycle sub-status (Phase 1.1) — future_hold is its own stage (exempt from the
   // silence clock); a plain 'proposal' shows how long it's been silent since date_sent.
   if(stage==='future_hold'){
@@ -3471,7 +3488,8 @@ async function extendRental(invnum){
   const lineSum=(d.pricing_mode==='rate_card'?0:(Number(d.base_price)||2500))+(d.addons||[]).reduce((s,a)=>s+(Number(a.price)||0),0);
   const taxableBase=d.rental_service_split?Number(d.rental_total):priorSplit.subtotal;
   const priorIssues=SWJInvoiceSafety.reconcile({linesSum:lineSum,sub:priorSplit.subtotal,tax:priorSplit.tax,grand:priorSplit.grand,
-    extrate:d.pricing_mode==='rate_card'?null:extrate,taxableBase,rate:extTaxRate,rawOvTax:(d.manual_totals_fields||[]).includes('tax')&&!(d.manual_totals_unverified_fields||[]).includes('tax')?d.tax_override:null});
+    extrate:d.pricing_mode==='rate_card'?null:extrate,taxableBase,rate:extTaxRate,rawOvTax:(d.manual_totals_fields||[]).includes('tax')&&!(d.manual_totals_unverified_fields||[]).includes('tax')?d.tax_override:null,
+    split:!!d.rental_service_split});
   if(priorIssues.length && !confirm('Existing invoice reconciliation warning:\n'+priorIssues.join('\n')+'\n\nNo original figures will change. Continue with this separately reconciled extension?')) return;
 
   const extNum = invnum + '-EXT' + (((d.extensions||[]).length) + 1);

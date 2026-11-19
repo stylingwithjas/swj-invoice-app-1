@@ -635,6 +635,10 @@ async function runReport(){
         { desc: `Base Package (${(d.baserooms||'').split(',').filter(Boolean).length || 0} rooms)`, price: base, type: d.price_led_tax ? 'rental' : null },
         ...addons.map(a=>({desc:a.desc||'', price:parseFloat(a.price)||0, type:a.type||null})),
       ];
+      // Nov 18, 2026 split-override spec item 3: the split-override reason is internal audit
+      // trail, shown here and in the app's invoice view, never on the client-facing PDF.
+      // Attached once per invoice (its first line), not repeated on every line item.
+      const splitReason = d.rental_service_split && d.split_reason ? d.split_reason : '';
       lineItems.forEach((li,i)=>{
         detailRows.push({
           invnum: inv.invnum, invdate: d.invdate||inv.invdate||'', dueDate, client, city:loc.city, zip:loc.zip,
@@ -643,6 +647,7 @@ async function runReport(){
           taxRate, taxTotal: split.tax, subtotal: split.subtotal, grand: split.grand,
           received: i===0?periodReceived:null, method: i===0?methods:'',
           showTotalsOnce: i===0, signed: signedLabel,
+          splitReason: i===0?splitReason:'',
         });
       });
       if(d.pet_deposit && d.pet_deposit.enabled){
@@ -985,7 +990,7 @@ function renderDetail(){
       <td>${r.signed==='Signed'?esc(r.signed):`<span class="flag">${esc(r.signed)}</span>`}</td>
       <td>${esc(r.city)||`<span class="flag">${JURISDICTION_UNCONFIRMED}</span>`}</td>
       <td>${esc(r.zip)}</td>
-      <td>${esc(r.desc)}</td>
+      <td>${esc(r.desc)}${r.splitReason?`<br><span style="color:var(--muted,#888);font-style:italic;font-size:11px">Split reason: ${esc(r.splitReason)}</span>`:''}</td>
       <td><span class="pill ${r.category==='service'?'service':(r.category.startsWith('deposit')||r.category==='exempt'?'':'retailing')}">${esc(r.category)}</span></td>
       <td>${fmtMoney(r.amount)}</td>
       <td>${esc(r.taxable)}</td>
