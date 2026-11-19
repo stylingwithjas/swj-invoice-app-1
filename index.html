@@ -359,7 +359,11 @@ textarea:focus { border-color:var(--gold); background:var(--warm); }
     position:fixed; left:0; right:0; bottom:calc(58px + env(safe-area-inset-bottom,0px)); z-index:90;
     padding:12px 16px; pointer-events:none;
   }
-  .gen-sticky-btn{ background:none; border:none; color:#fff; font-family:"Cormorant Garamond",serif; font-size:21px; font-weight:600; cursor:pointer; min-height:44px; padding:0; pointer-events:auto; }
+  /* #gen-sticky-total (an ID, not .gen-sticky-btn) so this always wins over
+     styles/swj-workspace.css's attribute-scoped .gen-sticky-btn rules, which outrank a
+     plain class selector on specificity alone regardless of source order -- that mismatch
+     is exactly what left the price unreadable (white-on-white) after the last bar removal. */
+  #gen-sticky-total{ background:var(--swj-olive-dark,#303724); border:none; color:#F3EBDD; font-family:"Cormorant Garamond",serif; font-size:19px; font-weight:600; cursor:pointer; min-height:44px; padding:9px 18px; border-radius:999px; pointer-events:auto; }
 }
 </style>
 <link rel="stylesheet" href="/styles/swj-luxury-theme.css">
