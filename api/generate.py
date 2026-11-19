@@ -1203,6 +1203,16 @@ def generate_invoice_pdf(data):
         cv.drawString(lblX, y, 'Furniture Rental Total:'); cv.drawRightString(PW-MR, y, fmt(data.get('rental_total', 0))); y -= 13
         if float(data.get('service_total', 0) or 0) != 0:
             cv.drawString(lblX, y, 'Staging Design Total:');   cv.drawRightString(PW-MR, y, fmt(data.get('service_total', 0))); y -= 13
+        # Nov 18, 2026 split-override spec item 2: disclose the split itself on every
+        # split-mode invoice (not just overridden ones), so a non-50/50 invoice stands out
+        # against a standard one at a glance -- the reason text behind it stays internal
+        # (app view + Finance tax report only, never printed here).
+        rental_pct = data.get('rental_split_pct', 50)
+        try: rental_pct = float(rental_pct)
+        except (TypeError, ValueError): rental_pct = 50
+        cv.setFont('Helvetica-Oblique', 7.5); cv.setFillColor(GRAY)
+        cv.drawString(lblX, y, f'Split: {rental_pct:g}% rental / {100-rental_pct:g}% services'); y -= 12
+        cv.setFont('Helvetica', 9); cv.setFillColor(colors.black)
     cv.drawString(lblX, y, 'Subtotal:');                cv.drawRightString(PW-MR, y, fmt(subtotal)); y -= 13
     tax_label = f'Taxes ({taxrate:.2f}%, rental only):' if rc_split_mode else f'Taxes ({taxrate:.2f}%):'
     cv.drawString(lblX, y, tax_label); cv.drawRightString(PW-MR, y, fmt(tax));      y -= 5

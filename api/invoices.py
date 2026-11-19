@@ -72,6 +72,19 @@ class handler(BaseHTTPRequestHandler):
             except ValueError as error:
                 self._respond(422, {'error':str(error)}); return
 
+            # Nov 18, 2026 split-override spec item 3: a reason is mandatory whenever the
+            # rental split isn't the standard 50/50 -- the audit trail for why this invoice's
+            # tax math differs from the default. Server-side backstop for the same check the
+            # generator already makes client-side, so it can't be bypassed by posting directly.
+            if body.get('rental_service_split'):
+                try:
+                    pct = float(body.get('rental_split_pct', 50))
+                except (TypeError, ValueError):
+                    pct = 50
+                if abs(pct - 50) > 0.005 and not str(body.get('split_reason') or '').strip():
+                    self._respond(422, {'error': 'A reason is required when the rental split is not 50/50.'})
+                    return
+
         invnum = body.get('invnum', '')
         client = body.get('client', '')
         address = body.get('address', '')

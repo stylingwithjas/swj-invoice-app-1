@@ -7,7 +7,7 @@
     return !!(d && (d.paid === true || Number(d.amount_paid)>0 || Number(d.stripe_amount)>0 ||
       (d.payments||[]).some(p=>p.status==='paid')));
   }
-  function reconcile({linesSum,sub,tax,grand,extrate,taxableBase,rate,rawOvTax}){
+  function reconcile({linesSum,sub,tax,grand,extrate,taxableBase,rate,rawOvTax,split}){
     const issues=[], eps=0.02, fmt=n=>Number(n).toFixed(2);
     if(![linesSum,sub,tax,grand,taxableBase,rate].every(Number.isFinite)){
       return ['A required pricing figure is missing or invalid.'];
@@ -16,8 +16,14 @@
     if(!present(rawOvTax) && Math.abs(tax-round(taxableBase*rate/100))>eps)
       issues.push(`Tax $${fmt(tax)} does not match ${rate}% of the taxable base $${fmt(taxableBase)} ($${fmt(round(taxableBase*rate/100))}).`);
     if(Math.abs(sub+tax-grand)>eps) issues.push(`Subtotal + tax ($${fmt(sub+tax)}) does not match the grand total ($${fmt(grand)}). Clear or correct Manual Totals before continuing.`);
-    if(extrate!=null && (!Number.isFinite(extrate)||Math.abs(extrate-round(sub/3))>eps))
-      issues.push(`Extension rate $${fmt(extrate)} does not match pretax subtotal / 3 ($${fmt(round(sub/3))}).`);
+    // Nov 18, 2026 split-override spec, Option A: a split invoice's extension rate follows
+    // the rental portion (taxableBase × 2/3), not the full pretax subtotal (sub/3) -- the two
+    // agree exactly at the standard 50% split, where taxableBase is already sub/2, so nothing
+    // changes for a standard invoice. `split` must be the same split flag the invoice itself
+    // was built with (rental_service_split), not re-derived here.
+    const expectedExtrate = split ? round(taxableBase*2/3) : round(sub/3);
+    if(extrate!=null && (!Number.isFinite(extrate)||Math.abs(extrate-expectedExtrate)>eps))
+      issues.push(`Extension rate $${fmt(extrate)} does not match ${split?'the rental portion × 2/3':'pretax subtotal / 3'} ($${fmt(expectedExtrate)}).`);
     return issues;
   }
   function term(raw){
